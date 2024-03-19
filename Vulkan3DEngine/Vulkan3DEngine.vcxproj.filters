@@ -1,6 +1,14 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup>
-    <ClCompile Include="main.cpp" />
+    <ClCompile Include="Src\Application\main.cpp" />
+    <ClCompile Include="Src\Application\Application.cpp" />
+    <ClCompile Include="Src\GraphicsEngine\GraphicsEngine.cpp" />
+    <ClCompile Include="Src\GraphicsEngine\WindowSytem\WindowSystem.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="Src\Application\Application.h" />
+    <ClInclude Include="Src\GraphicsEngine\GraphicsEngine.h" />
+    <ClInclude Include="Src\GraphicsEngine\WindowSytem\WindowSystem.h" />
   </ItemGroup>
 </Project>
