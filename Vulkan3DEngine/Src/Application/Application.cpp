@@ -2,7 +2,7 @@
 
 Application::Application()
 {
-    m_window = std::make_unique<WindowSystem>(m_window_width, m_window_height, "Vulkan3DEngine");
+    m_window = std::make_unique<Window>(s_window_width, s_window_height, "Vulkan3DEngine");
 }
 
 Application::~Application()
