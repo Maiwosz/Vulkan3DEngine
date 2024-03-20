@@ -4,11 +4,11 @@
     <ClCompile Include="Src\Application\main.cpp" />
     <ClCompile Include="Src\Application\Application.cpp" />
     <ClCompile Include="Src\GraphicsEngine\GraphicsEngine.cpp" />
-    <ClCompile Include="Src\GraphicsEngine\WindowSytem\WindowSystem.cpp" />
+    <ClCompile Include="Src\GraphicsEngine\WindowSytem\Window.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Src\Application\Application.h" />
     <ClInclude Include="Src\GraphicsEngine\GraphicsEngine.h" />
-    <ClInclude Include="Src\GraphicsEngine\WindowSytem\WindowSystem.h" />
+    <ClInclude Include="Src\GraphicsEngine\WindowSytem\Window.h" />
   </ItemGroup>
 </Project>
