@@ -2,11 +2,17 @@
 
 Application::Application()
 {
-    m_window = std::make_unique<Window>(s_window_width, s_window_height, "Vulkan3DEngine");
+    m_window = std::make_shared<Window>(s_window_width, s_window_height, "Vulkan3DEngine");
+    try
+    {
+        GraphicsEngine::create(m_window);
+    }
+    catch (...) { }
 }
 
 Application::~Application()
 {
+    GraphicsEngine::release();
 }
 
 void Application::run()
