@@ -143,6 +143,7 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="Src\GraphicsEngine\Renderer\GraphicsPipeline\GraphicsPipeline.cpp" />
     <ClCompile Include="Src\GraphicsEngine\Device\Device.cpp" />
     <ClCompile Include="Src\GraphicsEngine\Renderer\Renderer.cpp" />
     <ClCompile Include="Src\GraphicsEngine\GraphicsEngine.cpp" />
@@ -152,6 +153,7 @@
     <ClCompile Include="Src\GraphicsEngine\Renderer\SwapChain\SwapChain.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="Src\GraphicsEngine\Renderer\GraphicsPipeline\GraphicsPipeline.h" />
     <ClInclude Include="Src\GraphicsEngine\Device\Device.h" />
     <ClInclude Include="Src\Prerequisites.h" />
     <ClInclude Include="Src\GraphicsEngine\Renderer\Renderer.h" />
@@ -159,6 +161,10 @@
     <ClInclude Include="Src\Application\Application.h" />
     <ClInclude Include="Src\WindowSytem\Window.h" />
     <ClInclude Include="Src\GraphicsEngine\Renderer\SwapChain\SwapChain.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="Shaders\Shader.frag" />
+    <None Include="Shaders\Shader.vert" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
