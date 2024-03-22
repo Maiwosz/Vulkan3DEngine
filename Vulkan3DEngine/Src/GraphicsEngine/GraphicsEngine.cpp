@@ -11,7 +11,7 @@ GraphicsEngine::GraphicsEngine(WindowPtr window)
     catch (...) { throw std::exception("Device not created successfully"); }
     try
     {
-        m_renderer = new Renderer();
+        m_renderer = new Renderer(*m_device);
     }
     catch (...) { throw std::exception("Renderer not created successfully"); }
 }
