@@ -6,6 +6,8 @@ class GraphicsEngine;
 class Device;
 class Renderer;
 class SwapChain;
+class GraphicsPipeline;
 
 typedef std::shared_ptr<Window> WindowPtr;
 typedef std::shared_ptr<SwapChain> SwapChainPtr;
+typedef std::shared_ptr<GraphicsPipeline> GraphicsPipelinePtr;

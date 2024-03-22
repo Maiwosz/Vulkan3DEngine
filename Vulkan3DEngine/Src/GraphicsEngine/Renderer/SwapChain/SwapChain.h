@@ -10,13 +10,13 @@
 class SwapChain
 {
 public:
-	SwapChain(Device* device);
+	SwapChain(Device& device);
 	~SwapChain();
 private:
 	void createSwapChain();
 	void createImageViews();
 
-	Device* m_device;
+	Device& m_device;
 	VkSwapchainKHR m_swap_chain;
 
 	std::vector<VkImage> m_swap_chain_images;
@@ -25,5 +25,6 @@ private:
 
 	std::vector<VkImageView> m_swap_chain_image_views;
 
+	friend class GraphicsPipeline;
 };
 

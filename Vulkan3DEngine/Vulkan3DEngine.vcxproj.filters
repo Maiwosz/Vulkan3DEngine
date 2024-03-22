@@ -8,6 +8,7 @@
     <ClCompile Include="Src\GraphicsEngine\Renderer\Renderer.cpp" />
     <ClCompile Include="Src\GraphicsEngine\Device\Device.cpp" />
     <ClCompile Include="Src\GraphicsEngine\Renderer\SwapChain\SwapChain.cpp" />
+    <ClCompile Include="Src\GraphicsEngine\Renderer\GraphicsPipeline\GraphicsPipeline.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Src\Application\Application.h" />
@@ -17,5 +18,10 @@
     <ClInclude Include="Src\GraphicsEngine\Device\Device.h" />
     <ClInclude Include="Src\GraphicsEngine\Renderer\SwapChain\SwapChain.h" />
     <ClInclude Include="Src\Prerequisites.h" />
+    <ClInclude Include="Src\GraphicsEngine\Renderer\GraphicsPipeline\GraphicsPipeline.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="Shaders\Shader.frag" />
+    <None Include="Shaders\Shader.vert" />
   </ItemGroup>
 </Project>

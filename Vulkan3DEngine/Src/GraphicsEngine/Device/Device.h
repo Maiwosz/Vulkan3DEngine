@@ -37,9 +37,9 @@ public:
     Device(WindowPtr window);
     ~Device();
 
-    VkPhysicalDevice* getPhysicalDevice() { return &m_physical_device; };
-    VkDevice* getDevice() { return &m_device; };
-    VkSurfaceKHR* getSurface() { return &m_surface; };
+    VkPhysicalDevice getPhysicalDevice() { return m_physical_device; };
+    VkDevice getDevice() { return m_device; };
+    VkSurfaceKHR getSurface() { return m_surface; };
 
     void listAvialableVkExtensions();
 
