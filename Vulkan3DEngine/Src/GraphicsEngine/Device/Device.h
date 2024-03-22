@@ -11,13 +11,17 @@
 #include <iostream>
 #include <map>
 #include <set>
+#include <cstdint>
+#include <limits>
+#include <algorithm>
 
 //Stucts
 struct QueueFamilyIndices {
     std::optional<uint32_t> graphicsFamily;
+    std::optional<uint32_t> presentFamily;
 
     bool isComplete() {
-        return graphicsFamily.has_value();
+        return graphicsFamily.has_value() && presentFamily.has_value();
     }
 };
 
@@ -33,7 +37,19 @@ public:
     Device(WindowPtr window);
     ~Device();
 
+    VkPhysicalDevice* getPhysicalDevice() { return &m_physical_device; };
+    VkDevice* getDevice() { return &m_device; };
+    VkSurfaceKHR* getSurface() { return &m_surface; };
+
     void listAvialableVkExtensions();
+
+    //Swap Chain
+    SwapChainSupportDetails querySwapChainSupport(VkPhysicalDevice device);
+    VkSurfaceFormatKHR chooseSwapSurfaceFormat(const std::vector<VkSurfaceFormatKHR>& availableFormats);
+    VkPresentModeKHR chooseSwapPresentMode(const std::vector<VkPresentModeKHR>& availablePresentModes);
+    VkExtent2D chooseSwapExtent(const VkSurfaceCapabilitiesKHR& capabilities);
+
+    QueueFamilyIndices findQueueFamilies(VkPhysicalDevice device);
 private:
     //Instance
     void createInstance();
@@ -59,7 +75,7 @@ private:
     //bool isDeviceSuitable(VkPhysicalDevice device);
     int rateDeviceSuitability(VkPhysicalDevice device);
     bool checkDeviceExtensionSupport(VkPhysicalDevice device);
-    QueueFamilyIndices findQueueFamilies(VkPhysicalDevice device);
+    
 
     //Logical Device
     void createLogicalDevice();
@@ -67,15 +83,13 @@ private:
     //Surface
     void createSurface();
 
-    //Swap Chain
-    SwapChainSupportDetails querySwapChainSupport(VkPhysicalDevice device);
-
     //Resources
     VkInstance m_instance;
     VkDebugUtilsMessengerEXT m_debug_messenger;
     VkPhysicalDevice m_physical_device = VK_NULL_HANDLE;
     VkDevice m_device;
     VkQueue m_graphics_queue;
+    VkQueue m_present_queue;
     VkSurfaceKHR m_surface;
     WindowPtr m_window;
 
