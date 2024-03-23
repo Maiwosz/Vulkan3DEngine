@@ -19,5 +19,7 @@ void Application::run()
 {
     while (!m_window->shouldClose()) {
         glfwPollEvents();
+        GraphicsEngine::get()->getRenderer()->drawFrame();
     }
+    vkDeviceWaitIdle(GraphicsEngine::get()->getDevice()->getDevice());
 }

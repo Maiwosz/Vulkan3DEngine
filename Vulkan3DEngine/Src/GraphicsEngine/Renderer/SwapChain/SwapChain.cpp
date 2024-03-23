@@ -4,15 +4,28 @@ SwapChain::SwapChain(Device& device): m_device(device)
 {
 	createSwapChain();
 	createImageViews();
+	createRenderPass();
+	createFramebuffers();
+	createSyncObjects();
 }
 
 SwapChain::~SwapChain()
 {
-	for (auto imageView : m_swap_chain_image_views) {
+	vkDestroySemaphore(m_device.getDevice(), m_imageAvailableSemaphore, nullptr);
+	vkDestroySemaphore(m_device.getDevice(), m_renderFinishedSemaphore, nullptr);
+	vkDestroyFence(m_device.getDevice(), m_inFlightFence, nullptr);
+
+	for (auto framebuffer : m_swapChainFramebuffers) {
+		vkDestroyFramebuffer(m_device.getDevice(), framebuffer, nullptr);
+		
+	}
+	vkDestroyRenderPass(m_device.getDevice(), m_renderPass, nullptr);
+	for (auto imageView : m_swapChainImageViews) {
 		vkDestroyImageView(m_device.getDevice(), imageView, nullptr);
 		
 	}
-	vkDestroySwapchainKHR(m_device.getDevice(), m_swap_chain, nullptr);
+	vkDestroySwapchainKHR(m_device.getDevice(), m_swapChain, nullptr);
+
 }
 
 void SwapChain::createSwapChain()
@@ -61,29 +74,29 @@ void SwapChain::createSwapChain()
 
 	createInfo.oldSwapchain = VK_NULL_HANDLE;
 
-	if (vkCreateSwapchainKHR(m_device.getDevice(), &createInfo, nullptr, &m_swap_chain) != VK_SUCCESS) {
+	if (vkCreateSwapchainKHR(m_device.getDevice(), &createInfo, nullptr, &m_swapChain) != VK_SUCCESS) {
 		throw std::runtime_error("failed to create swap chain!");
 	}
 
-	vkGetSwapchainImagesKHR(m_device.getDevice(), m_swap_chain, &imageCount, nullptr);
-	m_swap_chain_images.resize(imageCount);
-	vkGetSwapchainImagesKHR(m_device.getDevice(), m_swap_chain, &imageCount, m_swap_chain_images.data());
+	vkGetSwapchainImagesKHR(m_device.getDevice(), m_swapChain, &imageCount, nullptr);
+	m_swapChainImages.resize(imageCount);
+	vkGetSwapchainImagesKHR(m_device.getDevice(), m_swapChain, &imageCount, m_swapChainImages.data());
 
-	m_swap_chain_image_format = surfaceFormat.format;
-	m_swap_chain_extent = extent;
+	m_swapChainImageFormat = surfaceFormat.format;
+	m_swapChainExtent = extent;
 }
 
 void SwapChain::createImageViews()
 {
-	m_swap_chain_image_views.resize(m_swap_chain_images.size());
+	m_swapChainImageViews.resize(m_swapChainImages.size());
 
-	for (size_t i = 0; i < m_swap_chain_images.size(); i++) {
+	for (size_t i = 0; i < m_swapChainImages.size(); i++) {
 		VkImageViewCreateInfo createInfo{};
 		createInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-		createInfo.image = m_swap_chain_images[i];
+		createInfo.image = m_swapChainImages[i];
 
 		createInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
-		createInfo.format = m_swap_chain_image_format;
+		createInfo.format = m_swapChainImageFormat;
 
 		createInfo.components.r = VK_COMPONENT_SWIZZLE_IDENTITY;
 		createInfo.components.g = VK_COMPONENT_SWIZZLE_IDENTITY;
@@ -97,9 +110,82 @@ void SwapChain::createImageViews()
 		createInfo.subresourceRange.layerCount = 1;
 
 		if (vkCreateImageView(m_device.getDevice(), &createInfo, nullptr,
-			&m_swap_chain_image_views[i]) != VK_SUCCESS) {
+			&m_swapChainImageViews[i]) != VK_SUCCESS) {
 			throw std::runtime_error("failed to create image views!");
 		}
 
+	}
+}
+
+void SwapChain::createRenderPass()
+{
+	VkAttachmentDescription colorAttachment{};
+	colorAttachment.format = m_swapChainImageFormat;
+	colorAttachment.samples = VK_SAMPLE_COUNT_1_BIT;
+	colorAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+	colorAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+	colorAttachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+	colorAttachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+	colorAttachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+	colorAttachment.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+
+	VkAttachmentReference colorAttachmentRef{};
+	colorAttachmentRef.attachment = 0;
+	colorAttachmentRef.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+
+	VkSubpassDescription subpass{};
+	subpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
+	subpass.colorAttachmentCount = 1;
+	subpass.pColorAttachments = &colorAttachmentRef;
+
+	VkRenderPassCreateInfo renderPassInfo{};
+	renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
+	renderPassInfo.attachmentCount = 1;
+	renderPassInfo.pAttachments = &colorAttachment;
+	renderPassInfo.subpassCount = 1;
+	renderPassInfo.pSubpasses = &subpass;
+
+	if (vkCreateRenderPass(m_device.getDevice(), &renderPassInfo, nullptr, &m_renderPass) != VK_SUCCESS) {
+		throw std::runtime_error("failed to create render pass!");
+	}
+}
+
+void SwapChain::createFramebuffers()
+{
+	m_swapChainFramebuffers.resize(m_swapChainImageViews.size());
+	for (size_t i = 0; i < m_swapChainImageViews.size(); i++) {
+		VkImageView attachments[] = {
+			m_swapChainImageViews[i]
+		};
+		
+		VkFramebufferCreateInfo framebufferInfo{};
+		framebufferInfo.sType =
+		VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
+		framebufferInfo.renderPass = m_renderPass;
+		framebufferInfo.attachmentCount = 1;
+		framebufferInfo.pAttachments = attachments;
+		framebufferInfo.width = m_swapChainExtent.width;
+		framebufferInfo.height = m_swapChainExtent.height;
+		framebufferInfo.layers = 1;
+		
+		if (vkCreateFramebuffer(m_device.getDevice(), &framebufferInfo, nullptr, &m_swapChainFramebuffers[i]) != VK_SUCCESS) {
+			throw std::runtime_error("failed to create framebuffer!");
+		}
+	}
+}
+
+void SwapChain::createSyncObjects()
+{
+	VkSemaphoreCreateInfo semaphoreInfo{};
+	semaphoreInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
+
+	VkFenceCreateInfo fenceInfo{};
+	fenceInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
+	fenceInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
+
+	if (vkCreateSemaphore(m_device.getDevice(), &semaphoreInfo, nullptr, &m_imageAvailableSemaphore) != VK_SUCCESS ||
+		vkCreateSemaphore(m_device.getDevice(), &semaphoreInfo, nullptr, &m_renderFinishedSemaphore) != VK_SUCCESS ||
+		vkCreateFence(m_device.getDevice(), &fenceInfo, nullptr, &m_inFlightFence) != VK_SUCCESS) {
+		throw std::runtime_error("failed to create semaphores!");
 	}
 }

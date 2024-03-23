@@ -37,9 +37,12 @@ public:
     Device(WindowPtr window);
     ~Device();
 
-    VkPhysicalDevice getPhysicalDevice() { return m_physical_device; };
+    VkPhysicalDevice getPhysicalDevice() { return m_physicalDevice; };
     VkDevice getDevice() { return m_device; };
     VkSurfaceKHR getSurface() { return m_surface; };
+    VkCommandPool getCommandPool() { return m_commandPool; };
+    VkQueue getGraphicsQueue() { return m_graphicsQueue; };
+    VkQueue getPresentQueue() { return m_presentQueue; };
 
     void listAvialableVkExtensions();
 
@@ -59,23 +62,12 @@ private:
     void setupDebugMessenger();
     void populateDebugMessengerCreateInfo(VkDebugUtilsMessengerCreateInfoEXT& createInfo);
     bool checkValidationLayerSupport();
-    static VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback(VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity,
-        VkDebugUtilsMessageTypeFlagsEXT messageType,
-        const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData, void* pUserData);
-    VkResult CreateDebugUtilsMessengerEXT(VkInstance instance,
-        const VkDebugUtilsMessengerCreateInfoEXT* pCreateInfo,
-        const VkAllocationCallbacks* pAllocator,
-        VkDebugUtilsMessengerEXT* pDebugMessenger);
-    static void DestroyDebugUtilsMessengerEXT(VkInstance instance,
-        VkDebugUtilsMessengerEXT debugMessenger, const
-        VkAllocationCallbacks* pAllocator);
 
     //Physical Device
     void pickPhysicalDevice();
     //bool isDeviceSuitable(VkPhysicalDevice device);
     int rateDeviceSuitability(VkPhysicalDevice device);
     bool checkDeviceExtensionSupport(VkPhysicalDevice device);
-    
 
     //Logical Device
     void createLogicalDevice();
@@ -83,14 +75,20 @@ private:
     //Surface
     void createSurface();
 
+    //Command Pool
+    void createCommandPool();
+
     //Resources
     VkInstance m_instance;
-    VkDebugUtilsMessengerEXT m_debug_messenger;
-    VkPhysicalDevice m_physical_device = VK_NULL_HANDLE;
+    VkDebugUtilsMessengerEXT m_debugMessenger;
+    VkPhysicalDevice m_physicalDevice = VK_NULL_HANDLE;
     VkDevice m_device;
-    VkQueue m_graphics_queue;
-    VkQueue m_present_queue;
+    VkQueue m_graphicsQueue;
+    VkQueue m_presentQueue;
     VkSurfaceKHR m_surface;
+    VkCommandPool m_commandPool;
+
+    //Pointers and references
     WindowPtr m_window;
 
     //Variables
