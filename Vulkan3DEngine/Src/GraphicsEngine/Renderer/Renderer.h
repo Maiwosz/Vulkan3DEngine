@@ -8,9 +8,16 @@ class Renderer
 public:
 	Renderer(Device& device);
 	~Renderer();
+
+	void drawFrame();
 private:
+	//Command Buffer
+	void createCommandBuffer();
+	void recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex);
+
 	Device& m_device;
-	SwapChainPtr m_swap_chain;
-	GraphicsPipelinePtr m_graphics_pipeline;
+	SwapChainPtr m_swapChain;
+	GraphicsPipelinePtr m_graphicsPipeline;
+	VkCommandBuffer m_commandBuffer;
 };
 

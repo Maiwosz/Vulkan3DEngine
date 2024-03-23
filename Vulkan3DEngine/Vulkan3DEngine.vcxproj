@@ -163,6 +163,7 @@
     <ClInclude Include="Src\GraphicsEngine\Renderer\SwapChain\SwapChain.h" />
   </ItemGroup>
   <ItemGroup>
+    <None Include="ClassDiagram.cd" />
     <None Include="Shaders\Shader.frag" />
     <None Include="Shaders\Shader.vert" />
   </ItemGroup>

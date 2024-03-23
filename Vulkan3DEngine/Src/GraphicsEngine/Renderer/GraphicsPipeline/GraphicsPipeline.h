@@ -14,15 +14,15 @@ class GraphicsPipeline
 public:
 	GraphicsPipeline(Device& device, SwapChainPtr swapchain);
 	~GraphicsPipeline();
+	VkPipeline get() { return m_graphicsPipeline; };
 private:
 	void createGraphicsPipeline();
 	static std::vector<char> readFile(const std::string& filename);
 	VkShaderModule createShaderModule(const std::vector<char>& code);
-	void createRenderPass();
+	
 
 	Device& m_device;
 	SwapChainPtr m_swapchain;
-	VkRenderPass m_renderPass;
 	VkPipelineLayout m_pipelineLayout;
 	VkPipeline m_graphicsPipeline;
 
