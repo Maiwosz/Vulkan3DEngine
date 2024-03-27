@@ -17,12 +17,14 @@ public:
     static void create(WindowPtr window);
     static void release();
 
-    Device* getDevice() { return m_device; };
-    Renderer* getRenderer() { return m_renderer; };
+    DevicePtr getDevice() { return m_device; };
+    RendererPtr getRenderer() { return m_renderer; };
+
 private:
     //Resources
     static GraphicsEngine* m_engine;
-    Device* m_device = nullptr;
-    Renderer* m_renderer = nullptr;
+    WindowPtr m_window;
+    DevicePtr m_device;
+    RendererPtr m_renderer;
 };
 

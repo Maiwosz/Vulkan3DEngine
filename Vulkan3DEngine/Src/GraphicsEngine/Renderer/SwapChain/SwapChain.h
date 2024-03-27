@@ -10,7 +10,7 @@
 class SwapChain
 {
 public:
-	SwapChain(Device& device);
+	SwapChain(DevicePtr device, Renderer* renderer);
 	~SwapChain();
 
 	VkRenderPass getRenderPass() { return m_renderPass; };
@@ -23,7 +23,8 @@ private:
 	void createFramebuffers();
 	void createSyncObjects();
 
-	Device& m_device;
+	DevicePtr m_device;
+	Renderer* m_renderer;
 	VkSwapchainKHR m_swapChain;
 
 	std::vector<VkImage> m_swapChainImages;
@@ -35,9 +36,10 @@ private:
 
 	std::vector<VkFramebuffer> m_swapChainFramebuffers;
 
-	VkSemaphore m_imageAvailableSemaphore;
-	VkSemaphore m_renderFinishedSemaphore;
-	VkFence m_inFlightFence;
+	std::vector<VkSemaphore> m_imageAvailableSemaphores;
+	std::vector<VkSemaphore> m_renderFinishedSemaphores;
+	std::vector<VkFence> m_inFlightFences;
+
 
 	friend class GraphicsPipeline;
 	friend class Renderer;
