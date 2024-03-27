@@ -1,10 +1,10 @@
 #include "Renderer.h"
 
-Renderer::Renderer(Device& device) : m_device(device)
+Renderer::Renderer(DevicePtr device) : m_device(device)
 {
-    m_swapChain = std::make_unique<SwapChain>(device);
+    m_swapChain = std::make_unique<SwapChain>(device, this);
 	m_graphicsPipeline = std::make_shared<GraphicsPipeline>(device, m_swapChain);
-    createCommandBuffer();
+    createCommandBuffers();
 }
 
 Renderer::~Renderer()
@@ -13,33 +13,33 @@ Renderer::~Renderer()
 
 void Renderer::drawFrame()
 {
-    vkWaitForFences(m_device.getDevice(), 1, &m_swapChain->m_inFlightFence, VK_TRUE, UINT64_MAX);
-    vkResetFences(m_device.getDevice(), 1, & m_swapChain->m_inFlightFence);
+    vkWaitForFences(m_device->getDevice(), 1, &m_swapChain->m_inFlightFences[m_currentFrame], VK_TRUE, UINT64_MAX);
+    vkResetFences(m_device->getDevice(), 1, &m_swapChain->m_inFlightFences[m_currentFrame]);
 
     uint32_t imageIndex;
-    vkAcquireNextImageKHR(m_device.getDevice(), m_swapChain->m_swapChain, UINT64_MAX,
-        m_swapChain->m_imageAvailableSemaphore, VK_NULL_HANDLE, &imageIndex);
+    vkAcquireNextImageKHR(m_device->getDevice(), m_swapChain->m_swapChain, UINT64_MAX,
+        m_swapChain->m_imageAvailableSemaphores[m_currentFrame], VK_NULL_HANDLE, &imageIndex);
 
-    vkResetCommandBuffer(m_commandBuffer, /*VkCommandBufferResetFlagBits*/ 0);
-    recordCommandBuffer(m_commandBuffer, imageIndex);
+    vkResetCommandBuffer(commandBuffers[m_currentFrame], /*VkCommandBufferResetFlagBits*/ 0);
+    recordCommandBuffer(commandBuffers[m_currentFrame], imageIndex);
 
     VkSubmitInfo submitInfo{};
     submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
 
-    VkSemaphore waitSemaphores[] = { m_swapChain->m_imageAvailableSemaphore };
+    VkSemaphore waitSemaphores[] = { m_swapChain->m_imageAvailableSemaphores[m_currentFrame] };
     VkPipelineStageFlags waitStages[] = { VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT };
     submitInfo.waitSemaphoreCount = 1;
     submitInfo.pWaitSemaphores = waitSemaphores;
     submitInfo.pWaitDstStageMask = waitStages;
 
     submitInfo.commandBufferCount = 1;
-    submitInfo.pCommandBuffers = &m_commandBuffer;
+    submitInfo.pCommandBuffers = &commandBuffers[m_currentFrame];
 
-    VkSemaphore signalSemaphores[] = { m_swapChain->m_renderFinishedSemaphore };
+    VkSemaphore signalSemaphores[] = { m_swapChain->m_renderFinishedSemaphores[m_currentFrame] };
     submitInfo.signalSemaphoreCount = 1;
     submitInfo.pSignalSemaphores = signalSemaphores;
 
-    if (vkQueueSubmit(m_device.getGraphicsQueue(), 1, &submitInfo, m_swapChain->m_inFlightFence) != VK_SUCCESS) {
+    if (vkQueueSubmit(m_device->getGraphicsQueue(), 1, &submitInfo, m_swapChain->m_inFlightFences[m_currentFrame]) != VK_SUCCESS) {
         throw std::runtime_error("failed to submit draw command buffer!");
     }
 
@@ -55,18 +55,21 @@ void Renderer::drawFrame()
     presentInfo.pImageIndices = &imageIndex;
     presentInfo.pResults = nullptr; // Optional
 
-    vkQueuePresentKHR(m_device.getPresentQueue(), &presentInfo);
+    vkQueuePresentKHR(m_device->getPresentQueue(), &presentInfo);
+    m_currentFrame = (m_currentFrame + 1) % MAX_FRAMES_IN_FLIGHT;
 }
 
-void Renderer::createCommandBuffer()
+void Renderer::createCommandBuffers()
 {
+    commandBuffers.resize(MAX_FRAMES_IN_FLIGHT);
+
     VkCommandBufferAllocateInfo allocInfo{};
     allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-    allocInfo.commandPool =  m_device.getCommandPool();
+    allocInfo.commandPool =  m_device->getCommandPool();
     allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-    allocInfo.commandBufferCount = 1;
+    allocInfo.commandBufferCount = (uint32_t)commandBuffers.size();
 
-    if (vkAllocateCommandBuffers(m_device.getDevice(), &allocInfo, &m_commandBuffer) != VK_SUCCESS) {
+    if (vkAllocateCommandBuffers(m_device->getDevice(), &allocInfo, commandBuffers.data()) != VK_SUCCESS) {
         throw std::runtime_error("failed to allocate command buffers!");
     }
 

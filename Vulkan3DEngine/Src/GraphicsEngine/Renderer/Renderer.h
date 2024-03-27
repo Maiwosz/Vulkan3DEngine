@@ -6,18 +6,25 @@
 class Renderer
 {
 public:
-	Renderer(Device& device);
+	Renderer(DevicePtr device);
 	~Renderer();
 
 	void drawFrame();
+	const int MAX_FRAMES_IN_FLIGHT = 2;
 private:
 	//Command Buffer
-	void createCommandBuffer();
+	void createCommandBuffers();
 	void recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex);
 
-	Device& m_device;
+	DevicePtr m_device;
 	SwapChainPtr m_swapChain;
 	GraphicsPipelinePtr m_graphicsPipeline;
-	VkCommandBuffer m_commandBuffer;
+	std::vector<VkCommandBuffer> commandBuffers;
+
+	
+	uint32_t m_currentFrame = 0;
+
+	friend class SwapChain;
+	friend class GraphicsPipeline;
 };
 
