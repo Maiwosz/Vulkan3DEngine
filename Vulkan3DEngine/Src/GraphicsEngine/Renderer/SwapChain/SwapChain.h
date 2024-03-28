@@ -10,7 +10,7 @@
 class SwapChain
 {
 public:
-	SwapChain(DevicePtr device, Renderer* renderer);
+	SwapChain(WindowPtr window, DevicePtr device, Renderer* renderer);
 	~SwapChain();
 
 	VkRenderPass getRenderPass() { return m_renderPass; };
@@ -18,13 +18,16 @@ public:
 	VkExtent2D getSwapChainExtent() { return m_swapChainExtent; };
 private:
 	void createSwapChain();
+	void recreateSwapChain();
+	void cleanupSwapChain();
 	void createImageViews();
 	void createRenderPass();
 	void createFramebuffers();
 	void createSyncObjects();
 
+	WindowPtr m_window;
 	DevicePtr m_device;
-	Renderer* m_renderer;
+	Renderer* m_renderer = nullptr;
 	VkSwapchainKHR m_swapChain;
 
 	std::vector<VkImage> m_swapChainImages;

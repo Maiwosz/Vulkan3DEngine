@@ -1,9 +1,15 @@
 #include "Renderer.h"
 
-Renderer::Renderer(DevicePtr device) : m_device(device)
+Renderer::Renderer(WindowPtr window, DevicePtr device) : m_window(window), m_device(device)
 {
-    m_swapChain = std::make_unique<SwapChain>(device, this);
-	m_graphicsPipeline = std::make_shared<GraphicsPipeline>(device, m_swapChain);
+    try {
+        m_swapChain = std::make_shared<SwapChain>(window, device, this);
+    }
+    catch (...) { throw std::exception("SwapChain not created successfully"); }
+    try {
+        m_graphicsPipeline = std::make_shared<GraphicsPipeline>(device, m_swapChain);
+    }
+    catch (...) { throw std::exception("GraphicsPipeline not created successfully"); }
     createCommandBuffers();
 }
 
@@ -13,12 +19,21 @@ Renderer::~Renderer()
 
 void Renderer::drawFrame()
 {
-    vkWaitForFences(m_device->getDevice(), 1, &m_swapChain->m_inFlightFences[m_currentFrame], VK_TRUE, UINT64_MAX);
-    vkResetFences(m_device->getDevice(), 1, &m_swapChain->m_inFlightFences[m_currentFrame]);
+    vkWaitForFences(m_device->get(), 1, &m_swapChain->m_inFlightFences[m_currentFrame], VK_TRUE, UINT64_MAX);
 
     uint32_t imageIndex;
-    vkAcquireNextImageKHR(m_device->getDevice(), m_swapChain->m_swapChain, UINT64_MAX,
+    VkResult result = vkAcquireNextImageKHR(m_device->get(), m_swapChain->m_swapChain, UINT64_MAX,
         m_swapChain->m_imageAvailableSemaphores[m_currentFrame], VK_NULL_HANDLE, &imageIndex);
+
+    if (result == VK_ERROR_OUT_OF_DATE_KHR) {
+         m_swapChain->recreateSwapChain();
+         return;
+    }
+    else if (result != VK_SUCCESS && result != VK_SUBOPTIMAL_KHR) {
+         throw std::runtime_error("failed to acquire swap chain image!");
+    }
+
+    vkResetFences(m_device->get(), 1, &m_swapChain->m_inFlightFences[m_currentFrame]);
 
     vkResetCommandBuffer(commandBuffers[m_currentFrame], /*VkCommandBufferResetFlagBits*/ 0);
     recordCommandBuffer(commandBuffers[m_currentFrame], imageIndex);
@@ -55,7 +70,16 @@ void Renderer::drawFrame()
     presentInfo.pImageIndices = &imageIndex;
     presentInfo.pResults = nullptr; // Optional
 
-    vkQueuePresentKHR(m_device->getPresentQueue(), &presentInfo);
+    result = vkQueuePresentKHR(m_device->getPresentQueue(), &presentInfo);
+
+    if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR ||  m_window->wasWindowResized()) {
+        m_window->resetWindowResizedFlag();
+        m_swapChain->recreateSwapChain();
+    }
+    else if (result != VK_SUCCESS) {
+        throw std::runtime_error("failed to present swap chain image!");
+    }
+
     m_currentFrame = (m_currentFrame + 1) % MAX_FRAMES_IN_FLIGHT;
 }
 
@@ -69,7 +93,7 @@ void Renderer::createCommandBuffers()
     allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
     allocInfo.commandBufferCount = (uint32_t)commandBuffers.size();
 
-    if (vkAllocateCommandBuffers(m_device->getDevice(), &allocInfo, commandBuffers.data()) != VK_SUCCESS) {
+    if (vkAllocateCommandBuffers(m_device->get(), &allocInfo, commandBuffers.data()) != VK_SUCCESS) {
         throw std::runtime_error("failed to allocate command buffers!");
     }
 
