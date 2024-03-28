@@ -11,7 +11,7 @@ GraphicsEngine::GraphicsEngine(WindowPtr window): m_window(window)
     catch (...) { throw std::exception("Device not created successfully"); }
     try
     {
-        m_renderer = std::make_shared<Renderer>(m_device);
+        m_renderer = std::make_shared<Renderer>(window, m_device);
     }
     catch (...) { throw std::exception("Renderer not created successfully"); }
 }

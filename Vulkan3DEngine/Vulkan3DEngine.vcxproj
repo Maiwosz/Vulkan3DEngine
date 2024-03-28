@@ -143,6 +143,10 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="Src\Object\Object.cpp" />
+    <ClCompile Include="Src\GraphicsEngine\ResourceManager\MeshManager\Mesh.cpp" />
+    <ClCompile Include="Src\GraphicsEngine\ResourceManager\MeshManager\MeshManager.cpp" />
+    <ClCompile Include="Src\GraphicsEngine\ResourceManager\Resource.cpp" />
     <ClCompile Include="Src\GraphicsEngine\Renderer\GraphicsPipeline\GraphicsPipeline.cpp" />
     <ClCompile Include="Src\GraphicsEngine\Device\Device.cpp" />
     <ClCompile Include="Src\GraphicsEngine\Renderer\Renderer.cpp" />
@@ -151,8 +155,14 @@
     <ClCompile Include="Src\main.cpp" />
     <ClCompile Include="Src\WindowSytem\Window.cpp" />
     <ClCompile Include="Src\GraphicsEngine\Renderer\SwapChain\SwapChain.cpp" />
+    <ClCompile Include="Src\GraphicsEngine\ResourceManager\TextureManager\Texture.cpp" />
+    <ClCompile Include="Src\GraphicsEngine\ResourceManager\TextureManager\TextureManager.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="Src\Object\Object.h" />
+    <ClInclude Include="Src\GraphicsEngine\ResourceManager\MeshManager\Mesh.h" />
+    <ClInclude Include="Src\GraphicsEngine\ResourceManager\MeshManager\MeshManager.h" />
+    <ClInclude Include="Src\GraphicsEngine\ResourceManager\Resource.h" />
     <ClInclude Include="Src\GraphicsEngine\Renderer\GraphicsPipeline\GraphicsPipeline.h" />
     <ClInclude Include="Src\GraphicsEngine\Device\Device.h" />
     <ClInclude Include="Src\Prerequisites.h" />
@@ -161,6 +171,8 @@
     <ClInclude Include="Src\Application\Application.h" />
     <ClInclude Include="Src\WindowSytem\Window.h" />
     <ClInclude Include="Src\GraphicsEngine\Renderer\SwapChain\SwapChain.h" />
+    <ClInclude Include="Src\GraphicsEngine\ResourceManager\TextureManager\Texture.h" />
+    <ClInclude Include="Src\GraphicsEngine\ResourceManager\TextureManager\TextureManager.h" />
   </ItemGroup>
   <ItemGroup>
     <None Include="ClassDiagram.cd" />

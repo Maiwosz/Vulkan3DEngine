@@ -6,7 +6,7 @@
 class Renderer
 {
 public:
-	Renderer(DevicePtr device);
+	Renderer(WindowPtr window, DevicePtr device);
 	~Renderer();
 
 	void drawFrame();
@@ -18,6 +18,7 @@ private:
 
 	DevicePtr m_device;
 	SwapChainPtr m_swapChain;
+	WindowPtr m_window;
 	GraphicsPipelinePtr m_graphicsPipeline;
 	std::vector<VkCommandBuffer> commandBuffers;
 

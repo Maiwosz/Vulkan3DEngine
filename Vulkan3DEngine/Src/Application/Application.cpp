@@ -3,11 +3,13 @@
 Application::Application()
 {
     m_window = std::make_shared<Window>(s_window_width, s_window_height, "Vulkan3DEngine");
-    try
+    try 
     {
         GraphicsEngine::create(m_window);
     }
-    catch (...) { }
+    catch (...) {
+        throw std::exception("Failed to create GraphicsEngine");
+    }
 }
 
 Application::~Application()
@@ -21,5 +23,5 @@ void Application::run()
         glfwPollEvents();
         GraphicsEngine::get()->getRenderer()->drawFrame();
     }
-    vkDeviceWaitIdle(GraphicsEngine::get()->getDevice()->getDevice());
+    vkDeviceWaitIdle(GraphicsEngine::get()->getDevice()->get());
 }

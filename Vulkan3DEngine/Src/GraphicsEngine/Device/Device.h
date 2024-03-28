@@ -38,7 +38,7 @@ public:
     ~Device();
 
     VkPhysicalDevice getPhysicalDevice() { return m_physicalDevice; };
-    VkDevice getDevice() { return m_device; };
+    VkDevice get() { return m_device; };
     VkSurfaceKHR getSurface() { return m_surface; };
     VkCommandPool getCommandPool() { return m_commandPool; };
     VkQueue getGraphicsQueue() { return m_graphicsQueue; };
