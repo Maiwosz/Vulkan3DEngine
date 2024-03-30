@@ -1,17 +1,34 @@
-#include "Buffer.h"
+#include "VertexBuffer.h"
 
-Buffer::Buffer(std::vector<Vertex> vertices)
+VertexBuffer::VertexBuffer(std::vector<Vertex> vertices)
 {
-    createVertexBuffer(vertices);
+    VkDeviceSize bufferSize = sizeof(vertices[0]) * vertices.size();
+
+    VkBuffer stagingBuffer;
+    VkDeviceMemory stagingBufferMemory;
+    createBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
+        VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, stagingBuffer, stagingBufferMemory);
+
+    void* data;
+    vkMapMemory(GraphicsEngine::get()->getDevice()->get(), stagingBufferMemory, 0, bufferSize, 0, &data);
+    memcpy(data, vertices.data(), (size_t)bufferSize);
+    vkUnmapMemory(GraphicsEngine::get()->getDevice()->get(), stagingBufferMemory);
+
+    createBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
+        VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, m_buffer, m_bufferMemory);
+
+    copyBuffer(stagingBuffer, m_buffer, bufferSize);
+    vkDestroyBuffer(GraphicsEngine::get()->getDevice()->get(), stagingBuffer, nullptr);
+    vkFreeMemory(GraphicsEngine::get()->getDevice()->get(), stagingBufferMemory, nullptr);
 }
 
-Buffer::~Buffer()
+VertexBuffer::~VertexBuffer()
 {
     vkDestroyBuffer(GraphicsEngine::get()->getDevice()->get(), m_buffer, nullptr);
     vkFreeMemory(GraphicsEngine::get()->getDevice()->get(), m_bufferMemory, nullptr);
 }
 
-void Buffer::createBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties, VkBuffer& buffer, VkDeviceMemory& bufferMemory)
+void VertexBuffer::createBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties, VkBuffer& buffer, VkDeviceMemory& bufferMemory)
 {
     VkBufferCreateInfo bufferInfo{};
     bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
@@ -38,44 +55,22 @@ void Buffer::createBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryP
     vkBindBufferMemory(GraphicsEngine::get()->getDevice()->get(), buffer, bufferMemory, 0);
 }
 
-void Buffer::createVertexBuffer(std::vector<Vertex> vertices)
-{
-    VkDeviceSize bufferSize = sizeof(vertices[0]) * vertices.size();
-    
-    VkBuffer stagingBuffer;
-    VkDeviceMemory stagingBufferMemory;
-    createBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
-      VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, stagingBuffer, stagingBufferMemory);
-
-    void* data;
-    vkMapMemory(GraphicsEngine::get()->getDevice()->get(), stagingBufferMemory, 0, bufferSize, 0, &data);
-    memcpy(data, vertices.data(), (size_t)bufferSize);
-    vkUnmapMemory(GraphicsEngine::get()->getDevice()->get(), stagingBufferMemory);
-    
-    createBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
-        VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, m_buffer, m_bufferMemory);
-
-    copyBuffer(stagingBuffer, m_buffer, bufferSize);
-    vkDestroyBuffer(GraphicsEngine::get()->getDevice()->get(), stagingBuffer, nullptr);
-    vkFreeMemory(GraphicsEngine::get()->getDevice()->get(), stagingBufferMemory, nullptr);
-}
-
-void Buffer::copyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size)
+void VertexBuffer::copyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size)
 {
     VkCommandBufferAllocateInfo allocInfo{};
     allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
 
-    allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY; 
+    allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
     allocInfo.commandPool = GraphicsEngine::get()->getDevice()->getCommandPool();
     allocInfo.commandBufferCount = 1;
-    
+
     VkCommandBuffer commandBuffer;
     vkAllocateCommandBuffers(GraphicsEngine::get()->getDevice()->get(), &allocInfo, &commandBuffer);
 
     VkCommandBufferBeginInfo beginInfo{};
     beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
     beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
-    
+
     vkBeginCommandBuffer(commandBuffer, &beginInfo);
 
     VkBufferCopy copyRegion{};
@@ -90,7 +85,7 @@ void Buffer::copyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize siz
     submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
     submitInfo.commandBufferCount = 1;
     submitInfo.pCommandBuffers = &commandBuffer;
-    
+
     vkQueueSubmit(GraphicsEngine::get()->getDevice()->getGraphicsQueue(), 1, &submitInfo, VK_NULL_HANDLE);
     vkQueueWaitIdle(GraphicsEngine::get()->getDevice()->getGraphicsQueue());
     vkFreeCommandBuffers(GraphicsEngine::get()->getDevice()->get(),
@@ -98,9 +93,9 @@ void Buffer::copyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize siz
 
 }
 
-void Buffer::bind(VkCommandBuffer commandBuffer)
+void VertexBuffer::bind()
 {
     VkBuffer buffers[] = { m_buffer };
     VkDeviceSize offsets[] = { 0 };
-    vkCmdBindVertexBuffers(commandBuffer, 0, 1, buffers, offsets);
+    vkCmdBindVertexBuffers(GraphicsEngine::get()->getRenderer()->getCurrentCommandBuffer(), 0, 1, buffers, offsets);
 }

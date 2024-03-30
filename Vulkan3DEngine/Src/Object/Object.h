@@ -6,7 +6,7 @@
 class Object
 {
 public:
-	Object(std::vector<Vertex> vertices);
+	Object(MeshPtr mesh);
 	~Object();
 
 	void update();

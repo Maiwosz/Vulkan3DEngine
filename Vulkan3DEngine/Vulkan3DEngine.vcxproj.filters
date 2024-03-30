@@ -16,7 +16,8 @@
     <ClCompile Include="Src\GraphicsEngine\ResourceManager\TextureManager\TextureManager.cpp" />
     <ClCompile Include="Src\Object\Object.cpp" />
     <ClCompile Include="Src\GraphicsEngine\ResourceManager\ResourceManager.cpp" />
-    <ClCompile Include="Src\GraphicsEngine\Renderer\Buffer\Buffer.cpp" />
+    <ClCompile Include="Src\GraphicsEngine\Renderer\VertexBuffer\VertexBuffer.cpp" />
+    <ClCompile Include="Src\GraphicsEngine\Renderer\IndexBuffer\IndexBuffer.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Src\Application\Application.h" />
@@ -34,7 +35,8 @@
     <ClInclude Include="Src\GraphicsEngine\ResourceManager\TextureManager\TextureManager.h" />
     <ClInclude Include="Src\Object\Object.h" />
     <ClInclude Include="Src\GraphicsEngine\ResourceManager\ResourceManager.h" />
-    <ClInclude Include="Src\GraphicsEngine\Renderer\Buffer\Buffer.h" />
+    <ClInclude Include="Src\GraphicsEngine\Renderer\VertexBuffer\VertexBuffer.h" />
+    <ClInclude Include="Src\GraphicsEngine\Renderer\IndexBuffer\IndexBuffer.h" />
   </ItemGroup>
   <ItemGroup>
     <None Include="Shaders\Shader.frag" />

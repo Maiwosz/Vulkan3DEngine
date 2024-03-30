@@ -198,7 +198,8 @@ void Renderer::recordCommandBufferBegin(VkCommandBuffer commandBuffer, uint32_t 
 
 void Renderer::recordCommandBufferEnd(VkCommandBuffer commandBuffer)
 {
-    vkCmdDraw(commandBuffer, 3, 1, 0, 0);
+    //vkCmdDraw(commandBuffer, 3, 1, 0, 0);
+    //vkCmdDrawIndexed(commandBuffer, static_cast<uint32_t>(indices.size()), 1, 0, 0, 0);
 
     vkCmdEndRenderPass(commandBuffer);
 

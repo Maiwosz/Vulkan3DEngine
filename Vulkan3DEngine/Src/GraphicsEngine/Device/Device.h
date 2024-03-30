@@ -37,12 +37,12 @@ public:
     Device(WindowPtr window);
     ~Device();
 
-    VkPhysicalDevice getPhysicalDevice() { return m_physicalDevice; };
-    VkDevice get() { return m_device; };
-    VkSurfaceKHR getSurface() { return m_surface; };
-    VkCommandPool getCommandPool() { return m_commandPool; };
+    VkPhysicalDevice& getPhysicalDevice() { return m_physicalDevice; };
+    VkDevice& get() { return m_device; };
+    VkSurfaceKHR& getSurface() { return m_surface; };
+    VkCommandPool& getCommandPool() { return m_commandPool; };
     VkQueue& getGraphicsQueue() { return m_graphicsQueue; };
-    VkQueue getPresentQueue() { return m_presentQueue; };
+    VkQueue& getPresentQueue() { return m_presentQueue; };
 
     void listAvialableVkExtensions();
 

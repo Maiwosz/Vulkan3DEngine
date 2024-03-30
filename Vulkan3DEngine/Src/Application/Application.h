@@ -3,6 +3,7 @@
 #include "..\GraphicsEngine\GraphicsEngine.h"
 #include "..\WindowSytem\Window.h"
 #include "..\Object\Object.h"
+#include "..\GraphicsEngine\ResourceManager\MeshManager\Mesh.h"
 
 class Application
 {
@@ -18,5 +19,6 @@ public:
 private:
 	WindowPtr m_window;
 
-	Object* triangle;
+	ObjectPtr rect;
+	MeshPtr rect_mesh;
 };

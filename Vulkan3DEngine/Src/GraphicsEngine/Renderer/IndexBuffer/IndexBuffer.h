@@ -7,17 +7,18 @@
 #include <GLFW/glfw3.h>
 #include <vector>
 
-class Buffer
+class IndexBuffer
 {
 public:
-	Buffer(std::vector<Vertex> vertices);
-	~Buffer();
+	IndexBuffer(std::vector<uint16_t> indices);
+	~IndexBuffer();
+	
+	void bind();
+private:
 	void createBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties,
 		VkBuffer& buffer, VkDeviceMemory& bufferMemory);
-	void createVertexBuffer(std::vector<Vertex> vertices);
 	void copyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size);
-	void bind(VkCommandBuffer commandBuffer);
-private:
+
 	VkBuffer m_buffer;
 	VkDeviceMemory m_bufferMemory;
 };
