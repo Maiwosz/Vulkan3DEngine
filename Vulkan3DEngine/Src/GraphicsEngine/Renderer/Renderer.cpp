@@ -17,13 +17,13 @@ Renderer::~Renderer()
 {
 }
 
-void Renderer::drawFrame()
+void Renderer::drawFrameBegin()
 {
     vkWaitForFences(m_device->get(), 1, &m_swapChain->m_inFlightFences[m_currentFrame], VK_TRUE, UINT64_MAX);
 
-    uint32_t imageIndex;
+    
     VkResult result = vkAcquireNextImageKHR(m_device->get(), m_swapChain->m_swapChain, UINT64_MAX,
-        m_swapChain->m_imageAvailableSemaphores[m_currentFrame], VK_NULL_HANDLE, &imageIndex);
+        m_swapChain->m_imageAvailableSemaphores[m_currentFrame], VK_NULL_HANDLE, &m_currentImageIndex);
 
     if (result == VK_ERROR_OUT_OF_DATE_KHR) {
          m_swapChain->recreateSwapChain();
@@ -36,8 +36,56 @@ void Renderer::drawFrame()
     vkResetFences(m_device->get(), 1, &m_swapChain->m_inFlightFences[m_currentFrame]);
 
     vkResetCommandBuffer(commandBuffers[m_currentFrame], /*VkCommandBufferResetFlagBits*/ 0);
-    recordCommandBuffer(commandBuffers[m_currentFrame], imageIndex);
+    recordCommandBufferBegin(commandBuffers[m_currentFrame], m_currentImageIndex);
 
+    //VkSubmitInfo submitInfo{};
+    //submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+    //
+    //VkSemaphore waitSemaphores[] = { m_swapChain->m_imageAvailableSemaphores[m_currentFrame] };
+    //VkPipelineStageFlags waitStages[] = { VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT };
+    //submitInfo.waitSemaphoreCount = 1;
+    //submitInfo.pWaitSemaphores = waitSemaphores;
+    //submitInfo.pWaitDstStageMask = waitStages;
+    //
+    //submitInfo.commandBufferCount = 1;
+    //submitInfo.pCommandBuffers = &commandBuffers[m_currentFrame];
+    //
+    //VkSemaphore signalSemaphores[] = { m_swapChain->m_renderFinishedSemaphores[m_currentFrame] };
+    //submitInfo.signalSemaphoreCount = 1;
+    //submitInfo.pSignalSemaphores = signalSemaphores;
+    //
+    //if (vkQueueSubmit(m_device->getGraphicsQueue(), 1, &submitInfo, m_swapChain->m_inFlightFences[m_currentFrame]) != VK_SUCCESS) {
+    //    throw std::runtime_error("failed to submit draw command buffer!");
+    //}
+    //
+    //VkPresentInfoKHR presentInfo{};
+    //presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
+    //
+    //presentInfo.waitSemaphoreCount = 1;
+    //presentInfo.pWaitSemaphores = signalSemaphores;
+    //
+    //VkSwapchainKHR swapChains[] = { m_swapChain->m_swapChain };
+    //presentInfo.swapchainCount = 1;
+    //presentInfo.pSwapchains = swapChains;
+    //presentInfo.pImageIndices = &imageIndex;
+    //presentInfo.pResults = nullptr; // Optional
+    //
+    //result = vkQueuePresentKHR(m_device->getPresentQueue(), &presentInfo);
+    //
+    //if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR || m_window->wasWindowResized()) {
+    //    m_window->resetWindowResizedFlag();
+    //    m_swapChain->recreateSwapChain();
+    //}
+    //else if (result != VK_SUCCESS) {
+    //    throw std::runtime_error("failed to present swap chain image!");
+    //}
+    //
+    //m_currentFrame = (m_currentFrame + 1) % MAX_FRAMES_IN_FLIGHT;
+}
+
+void Renderer::drawFrameEnd()
+{
+    recordCommandBufferEnd(commandBuffers[m_currentFrame]);
     VkSubmitInfo submitInfo{};
     submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
 
@@ -67,12 +115,12 @@ void Renderer::drawFrame()
     VkSwapchainKHR swapChains[] = { m_swapChain->m_swapChain };
     presentInfo.swapchainCount = 1;
     presentInfo.pSwapchains = swapChains;
-    presentInfo.pImageIndices = &imageIndex;
+    presentInfo.pImageIndices = &m_currentImageIndex;
     presentInfo.pResults = nullptr; // Optional
 
-    result = vkQueuePresentKHR(m_device->getPresentQueue(), &presentInfo);
+    VkResult result = vkQueuePresentKHR(m_device->getPresentQueue(), &presentInfo);
 
-    if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR ||  m_window->wasWindowResized()) {
+    if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR || m_window->wasWindowResized()) {
         m_window->resetWindowResizedFlag();
         m_swapChain->recreateSwapChain();
     }
@@ -99,7 +147,7 @@ void Renderer::createCommandBuffers()
 
 }
 
-void Renderer::recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex)
+void Renderer::recordCommandBufferBegin(VkCommandBuffer commandBuffer, uint32_t imageIndex)
 {
     VkCommandBufferBeginInfo beginInfo{};
     beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
@@ -139,6 +187,17 @@ void Renderer::recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t image
     scissor.extent = m_swapChain->getSwapChainExtent();
     vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
 
+    //vkCmdDraw(commandBuffer, 3, 1, 0, 0);
+    //
+    //vkCmdEndRenderPass(commandBuffer);
+    //
+    //if (vkEndCommandBuffer(commandBuffer) != VK_SUCCESS) {
+    //    throw std::runtime_error("failed to record command buffer!");
+    //}
+}
+
+void Renderer::recordCommandBufferEnd(VkCommandBuffer commandBuffer)
+{
     vkCmdDraw(commandBuffer, 3, 1, 0, 0);
 
     vkCmdEndRenderPass(commandBuffer);

@@ -143,6 +143,7 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="Src\GraphicsEngine\ResourceManager\ResourceManager.cpp" />
     <ClCompile Include="Src\Object\Object.cpp" />
     <ClCompile Include="Src\GraphicsEngine\ResourceManager\MeshManager\Mesh.cpp" />
     <ClCompile Include="Src\GraphicsEngine\ResourceManager\MeshManager\MeshManager.cpp" />
@@ -157,8 +158,10 @@
     <ClCompile Include="Src\GraphicsEngine\Renderer\SwapChain\SwapChain.cpp" />
     <ClCompile Include="Src\GraphicsEngine\ResourceManager\TextureManager\Texture.cpp" />
     <ClCompile Include="Src\GraphicsEngine\ResourceManager\TextureManager\TextureManager.cpp" />
+    <ClCompile Include="Src\GraphicsEngine\Renderer\Buffer\Buffer.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="Src\GraphicsEngine\ResourceManager\ResourceManager.h" />
     <ClInclude Include="Src\Object\Object.h" />
     <ClInclude Include="Src\GraphicsEngine\ResourceManager\MeshManager\Mesh.h" />
     <ClInclude Include="Src\GraphicsEngine\ResourceManager\MeshManager\MeshManager.h" />
@@ -173,6 +176,7 @@
     <ClInclude Include="Src\GraphicsEngine\Renderer\SwapChain\SwapChain.h" />
     <ClInclude Include="Src\GraphicsEngine\ResourceManager\TextureManager\Texture.h" />
     <ClInclude Include="Src\GraphicsEngine\ResourceManager\TextureManager\TextureManager.h" />
+    <ClInclude Include="Src\GraphicsEngine\Renderer\Buffer\Buffer.h" />
   </ItemGroup>
   <ItemGroup>
     <None Include="ClassDiagram.cd" />

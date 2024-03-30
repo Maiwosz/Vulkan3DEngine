@@ -41,7 +41,7 @@ public:
     VkDevice get() { return m_device; };
     VkSurfaceKHR getSurface() { return m_surface; };
     VkCommandPool getCommandPool() { return m_commandPool; };
-    VkQueue getGraphicsQueue() { return m_graphicsQueue; };
+    VkQueue& getGraphicsQueue() { return m_graphicsQueue; };
     VkQueue getPresentQueue() { return m_presentQueue; };
 
     void listAvialableVkExtensions();
@@ -53,6 +53,9 @@ public:
     VkExtent2D chooseSwapExtent(const VkSurfaceCapabilitiesKHR& capabilities);
 
     QueueFamilyIndices findQueueFamilies(VkPhysicalDevice device);
+
+    //Buffers
+    uint32_t findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties);
 private:
     //Instance
     void createInstance();

@@ -4,6 +4,8 @@
 #include "Device\Device.h"
 #include "Renderer\Renderer.h"
 #include "..\WindowSytem\Window.h"
+#include "ResourceManager\MeshManager\MeshManager.h"
+#include "ResourceManager\TextureManager\TextureManager.h"
 
 #include <iostream>
 
@@ -19,6 +21,8 @@ public:
 
     DevicePtr getDevice() { return m_device; };
     RendererPtr getRenderer() { return m_renderer; };
+    MeshManagerPtr getMeshManager() { return m_meshManager; };
+    TextureManagerPtr getTextureManager() { return m_textureManager; };
 
 private:
     //Resources
@@ -26,5 +30,7 @@ private:
     WindowPtr m_window;
     DevicePtr m_device;
     RendererPtr m_renderer;
+    MeshManagerPtr m_meshManager;
+    TextureManagerPtr m_textureManager;
 };
 
