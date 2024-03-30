@@ -14,19 +14,23 @@ Application::Application()
 
 Application::~Application()
 {
-    delete triangle;
     GraphicsEngine::release();
 }
 
 void Application::run()
 {
     const std::vector<Vertex> vertices = {
-        {{0.0f, -0.5f}, {1.0f, 0.0f, 0.0f}},
-        {{0.5f, 0.5f}, {0.0f, 1.0f, 0.0f}},
-        {{-0.5f, 0.5f}, {0.0f, 0.0f, 1.0f}}
+        {{-0.5f, -0.5f}, {1.0f, 0.0f, 0.0f}},
+        {{0.5f, -0.5f},  {0.0f, 1.0f, 0.0f}},
+        {{0.5f, 0.5f},   {0.0f, 0.0f, 1.0f}},
+        {{-0.5f, 0.5f},  {1.0f, 1.0f, 1.0f}}
     };
 
-    triangle = new Object(vertices);
+    const std::vector<uint16_t> indices = { 0, 1, 2, 2, 3, 0 };
+
+    rect_mesh = std::make_shared<Mesh>(vertices, indices);
+
+    rect = std::make_shared<Object>(rect_mesh);
 
     while (!m_window->shouldClose()) {
         glfwPollEvents();
@@ -44,6 +48,6 @@ void Application::update()
 void Application::draw()
 {
     GraphicsEngine::get()->getRenderer()->drawFrameBegin();
-    triangle->draw();
+    rect->draw();
     GraphicsEngine::get()->getRenderer()->drawFrameEnd();
 }

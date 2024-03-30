@@ -21,7 +21,8 @@ class TextureManager;
 class Mesh;
 class MeshManager;
 class Object;
-class Buffer;
+class VertexBuffer;
+class IndexBuffer;
 
 typedef std::shared_ptr<Window> WindowPtr;
 typedef std::shared_ptr<Device> DevicePtr;
@@ -35,7 +36,8 @@ typedef std::shared_ptr<TextureManager> TextureManagerPtr;
 typedef std::shared_ptr<Mesh> MeshPtr;
 typedef std::shared_ptr<MeshManager> MeshManagerPtr;
 typedef std::shared_ptr<Object> ObjectPtr;
-typedef std::shared_ptr<Buffer> BufferPtr;
+typedef std::shared_ptr<VertexBuffer> VertexBufferPtr;
+typedef std::shared_ptr<IndexBuffer> IndexBufferPtr;
 
 struct Vertex {
     glm::vec2 pos;
