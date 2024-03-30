@@ -290,6 +290,20 @@ QueueFamilyIndices Device::findQueueFamilies(VkPhysicalDevice device) {
     return indices;
 }
 
+uint32_t Device::findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties)
+{
+    VkPhysicalDeviceMemoryProperties memProperties;
+    vkGetPhysicalDeviceMemoryProperties(m_physicalDevice, &memProperties);
+
+    for (uint32_t i = 0; i < memProperties.memoryTypeCount; i++) {
+        if ((typeFilter & (1 << i)) && (memProperties.memoryTypes[i].propertyFlags & properties) == properties) {
+            return i;
+        }
+    }
+
+    throw std::runtime_error("failed to find suitable memory type!");
+}
+
 void Device::createLogicalDevice()
 {
     QueueFamilyIndices indices = findQueueFamilies(m_physicalDevice);

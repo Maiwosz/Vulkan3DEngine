@@ -3,6 +3,7 @@
 #include "..\..\GraphicsEngine.h"
 #include "..\..\Device\Device.h"
 #include "..\SwapChain\SwapChain.h"
+#include "..\..\ResourceManager\MeshManager\Mesh.h"
 
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>

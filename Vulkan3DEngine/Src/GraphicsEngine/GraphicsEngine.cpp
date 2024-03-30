@@ -14,6 +14,16 @@ GraphicsEngine::GraphicsEngine(WindowPtr window): m_window(window)
         m_renderer = std::make_shared<Renderer>(window, m_device);
     }
     catch (...) { throw std::exception("Renderer not created successfully"); }
+    try
+    {
+        m_meshManager = std::make_shared<MeshManager>();
+    }
+    catch (...) { throw std::exception("MeshManager not created successfully"); }
+    try
+    {
+        m_textureManager = std::make_shared<TextureManager>();
+    }
+    catch (...) { throw std::exception("TextureManager not created successfully"); }
 }
 
 GraphicsEngine::~GraphicsEngine()
