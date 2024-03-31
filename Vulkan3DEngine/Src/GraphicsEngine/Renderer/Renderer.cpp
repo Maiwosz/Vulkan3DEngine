@@ -1,13 +1,17 @@
 #include "Renderer.h"
 
-Renderer::Renderer(WindowPtr window, DevicePtr device) : m_window(window), m_device(device)
+Renderer::Renderer(WindowPtr window) : m_window(window)
 {
     try {
-        m_swapChain = std::make_shared<SwapChain>(window, device, this);
+        m_device = std::make_shared<Device>(this);
+    }
+    catch (...) { throw std::exception("Device not created successfully"); }
+    try {
+        m_swapChain = std::make_shared<SwapChain>(this);
     }
     catch (...) { throw std::exception("SwapChain not created successfully"); }
     try {
-        m_graphicsPipeline = std::make_shared<GraphicsPipeline>(device, m_swapChain);
+        m_graphicsPipeline = std::make_shared<GraphicsPipeline>(this);
     }
     catch (...) { throw std::exception("GraphicsPipeline not created successfully"); }
     createCommandBuffers();
@@ -15,6 +19,16 @@ Renderer::Renderer(WindowPtr window, DevicePtr device) : m_window(window), m_dev
 
 Renderer::~Renderer()
 {
+}
+
+VertexBufferPtr Renderer::createVertexBuffer(std::vector<Vertex> vertices)
+{
+    return std::make_shared<VertexBuffer>(vertices, this);
+}
+
+IndexBufferPtr Renderer::createIndexBuffer(std::vector<uint16_t> indices)
+{
+    return std::make_shared<IndexBuffer>(indices, this);
 }
 
 void Renderer::drawFrameBegin()

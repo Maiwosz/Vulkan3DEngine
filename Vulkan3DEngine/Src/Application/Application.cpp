@@ -38,7 +38,7 @@ void Application::run()
         update();
         draw();
     }
-    vkDeviceWaitIdle(GraphicsEngine::get()->getDevice()->get());
+    vkDeviceWaitIdle(GraphicsEngine::get()->getRenderer()->getDevice()->get());
 }
 
 void Application::update()

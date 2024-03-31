@@ -6,7 +6,7 @@
     <ClCompile Include="Src\GraphicsEngine\GraphicsEngine.cpp" />
     <ClCompile Include="Src\WindowSytem\Window.cpp" />
     <ClCompile Include="Src\GraphicsEngine\Renderer\Renderer.cpp" />
-    <ClCompile Include="Src\GraphicsEngine\Device\Device.cpp" />
+    <ClCompile Include="Src\GraphicsEngine\Renderer\Device\Device.cpp" />
     <ClCompile Include="Src\GraphicsEngine\Renderer\SwapChain\SwapChain.cpp" />
     <ClCompile Include="Src\GraphicsEngine\Renderer\GraphicsPipeline\GraphicsPipeline.cpp" />
     <ClCompile Include="Src\GraphicsEngine\ResourceManager\Resource.cpp" />
@@ -24,7 +24,7 @@
     <ClInclude Include="Src\GraphicsEngine\GraphicsEngine.h" />
     <ClInclude Include="Src\WindowSytem\Window.h" />
     <ClInclude Include="Src\GraphicsEngine\Renderer\Renderer.h" />
-    <ClInclude Include="Src\GraphicsEngine\Device\Device.h" />
+    <ClInclude Include="Src\GraphicsEngine\Renderer\Device\Device.h" />
     <ClInclude Include="Src\GraphicsEngine\Renderer\SwapChain\SwapChain.h" />
     <ClInclude Include="Src\Prerequisites.h" />
     <ClInclude Include="Src\GraphicsEngine\Renderer\GraphicsPipeline\GraphicsPipeline.h" />

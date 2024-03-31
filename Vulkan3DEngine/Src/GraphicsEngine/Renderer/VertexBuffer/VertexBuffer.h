@@ -1,7 +1,7 @@
 #pragma once
 #include "..\..\..\Prerequisites.h"
 #include "..\..\GraphicsEngine.h"
-#include "..\..\Device\Device.h"
+#include "..\Device\Device.h"
 
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
@@ -10,7 +10,7 @@
 class VertexBuffer
 {
 public:
-	VertexBuffer(std::vector<Vertex> vertices);
+	VertexBuffer(std::vector<Vertex> vertices, Renderer* renderer);
 	~VertexBuffer();
 	
 	void bind();
@@ -19,6 +19,7 @@ private:
 		VkBuffer& buffer, VkDeviceMemory& bufferMemory);
 	void copyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size);
 
+	Renderer* m_renderer;
 	VkBuffer m_buffer;
 	VkDeviceMemory m_bufferMemory;
 };
