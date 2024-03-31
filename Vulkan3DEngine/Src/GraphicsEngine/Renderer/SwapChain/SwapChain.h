@@ -1,7 +1,7 @@
 #pragma once
 #include "..\..\..\Prerequisites.h"
 #include "..\..\GraphicsEngine.h"
-#include "..\..\Device\Device.h"
+#include "..\Device\Device.h"
 
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
@@ -10,7 +10,7 @@
 class SwapChain
 {
 public:
-	SwapChain(WindowPtr window, DevicePtr device, Renderer* renderer);
+	SwapChain(Renderer* renderer);
 	~SwapChain();
 
 	VkRenderPass getRenderPass() { return m_renderPass; };
@@ -25,8 +25,6 @@ private:
 	void createFramebuffers();
 	void createSyncObjects();
 
-	WindowPtr m_window;
-	DevicePtr m_device;
 	Renderer* m_renderer = nullptr;
 	VkSwapchainKHR m_swapChain;
 
@@ -43,8 +41,7 @@ private:
 	std::vector<VkSemaphore> m_renderFinishedSemaphores;
 	std::vector<VkFence> m_inFlightFences;
 
-
-	friend class GraphicsPipeline;
+	//friend class GraphicsPipeline;
 	friend class Renderer;
 };
 

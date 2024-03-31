@@ -1,6 +1,6 @@
 #include "VertexBuffer.h"
 
-VertexBuffer::VertexBuffer(std::vector<Vertex> vertices)
+VertexBuffer::VertexBuffer(std::vector<Vertex> vertices, Renderer* renderer): m_renderer(renderer)
 {
     VkDeviceSize bufferSize = sizeof(vertices[0]) * vertices.size();
 
@@ -10,22 +10,22 @@ VertexBuffer::VertexBuffer(std::vector<Vertex> vertices)
         VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, stagingBuffer, stagingBufferMemory);
 
     void* data;
-    vkMapMemory(GraphicsEngine::get()->getDevice()->get(), stagingBufferMemory, 0, bufferSize, 0, &data);
+    vkMapMemory(m_renderer->m_device->get(), stagingBufferMemory, 0, bufferSize, 0, &data);
     memcpy(data, vertices.data(), (size_t)bufferSize);
-    vkUnmapMemory(GraphicsEngine::get()->getDevice()->get(), stagingBufferMemory);
+    vkUnmapMemory(m_renderer->m_device->get(), stagingBufferMemory);
 
     createBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
         VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, m_buffer, m_bufferMemory);
 
     copyBuffer(stagingBuffer, m_buffer, bufferSize);
-    vkDestroyBuffer(GraphicsEngine::get()->getDevice()->get(), stagingBuffer, nullptr);
-    vkFreeMemory(GraphicsEngine::get()->getDevice()->get(), stagingBufferMemory, nullptr);
+    vkDestroyBuffer(m_renderer->m_device->get(), stagingBuffer, nullptr);
+    vkFreeMemory(m_renderer->m_device->get(), stagingBufferMemory, nullptr);
 }
 
 VertexBuffer::~VertexBuffer()
 {
-    vkDestroyBuffer(GraphicsEngine::get()->getDevice()->get(), m_buffer, nullptr);
-    vkFreeMemory(GraphicsEngine::get()->getDevice()->get(), m_bufferMemory, nullptr);
+    vkDestroyBuffer(m_renderer->m_device->get(), m_buffer, nullptr);
+    vkFreeMemory(m_renderer->m_device->get(), m_bufferMemory, nullptr);
 }
 
 void VertexBuffer::createBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties, VkBuffer& buffer, VkDeviceMemory& bufferMemory)
@@ -36,23 +36,23 @@ void VertexBuffer::createBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkM
     bufferInfo.usage = usage;
     bufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 
-    if (vkCreateBuffer(GraphicsEngine::get()->getDevice()->get(), &bufferInfo, nullptr, &buffer) != VK_SUCCESS) {
+    if (vkCreateBuffer(m_renderer->m_device->get(), &bufferInfo, nullptr, &buffer) != VK_SUCCESS) {
         throw std::runtime_error("failed to create buffer!");
     }
 
     VkMemoryRequirements memRequirements;
-    vkGetBufferMemoryRequirements(GraphicsEngine::get()->getDevice()->get(), buffer, &memRequirements);
+    vkGetBufferMemoryRequirements(m_renderer->m_device->get(), buffer, &memRequirements);
 
     VkMemoryAllocateInfo allocInfo{};
     allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
     allocInfo.allocationSize = memRequirements.size;
-    allocInfo.memoryTypeIndex = GraphicsEngine::get()->getDevice()->findMemoryType(memRequirements.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+    allocInfo.memoryTypeIndex = m_renderer->m_device->findMemoryType(memRequirements.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
 
-    if (vkAllocateMemory(GraphicsEngine::get()->getDevice()->get(), &allocInfo, nullptr, &bufferMemory) != VK_SUCCESS) {
+    if (vkAllocateMemory(m_renderer->m_device->get(), &allocInfo, nullptr, &bufferMemory) != VK_SUCCESS) {
         throw std::runtime_error("failed to allocate buffer memory!");
     }
 
-    vkBindBufferMemory(GraphicsEngine::get()->getDevice()->get(), buffer, bufferMemory, 0);
+    vkBindBufferMemory(m_renderer->m_device->get(), buffer, bufferMemory, 0);
 }
 
 void VertexBuffer::copyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size)
@@ -61,11 +61,11 @@ void VertexBuffer::copyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSi
     allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
 
     allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-    allocInfo.commandPool = GraphicsEngine::get()->getDevice()->getCommandPool();
+    allocInfo.commandPool = m_renderer->m_device->getCommandPool();
     allocInfo.commandBufferCount = 1;
 
     VkCommandBuffer commandBuffer;
-    vkAllocateCommandBuffers(GraphicsEngine::get()->getDevice()->get(), &allocInfo, &commandBuffer);
+    vkAllocateCommandBuffers(m_renderer->m_device->get(), &allocInfo, &commandBuffer);
 
     VkCommandBufferBeginInfo beginInfo{};
     beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
@@ -86,10 +86,10 @@ void VertexBuffer::copyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSi
     submitInfo.commandBufferCount = 1;
     submitInfo.pCommandBuffers = &commandBuffer;
 
-    vkQueueSubmit(GraphicsEngine::get()->getDevice()->getGraphicsQueue(), 1, &submitInfo, VK_NULL_HANDLE);
-    vkQueueWaitIdle(GraphicsEngine::get()->getDevice()->getGraphicsQueue());
-    vkFreeCommandBuffers(GraphicsEngine::get()->getDevice()->get(),
-        GraphicsEngine::get()->getDevice()->getCommandPool(), 1, &commandBuffer);
+    vkQueueSubmit(m_renderer->m_device->getGraphicsQueue(), 1, &submitInfo, VK_NULL_HANDLE);
+    vkQueueWaitIdle(m_renderer->m_device->getGraphicsQueue());
+    vkFreeCommandBuffers(m_renderer->m_device->get(),
+        m_renderer->m_device->getCommandPool(), 1, &commandBuffer);
 
 }
 

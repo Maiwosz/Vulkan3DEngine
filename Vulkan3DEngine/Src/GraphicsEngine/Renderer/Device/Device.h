@@ -1,6 +1,6 @@
 #pragma once
-#include "..\..\Prerequisites.h"
-#include "..\GraphicsEngine.h"
+#include "..\..\..\Prerequisites.h"
+#include "..\..\GraphicsEngine.h"
 
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
@@ -34,7 +34,7 @@ struct SwapChainSupportDetails {
 class Device
 {
 public:
-    Device(WindowPtr window);
+    Device(Renderer* renderer);
     ~Device();
 
     VkPhysicalDevice& getPhysicalDevice() { return m_physicalDevice; };
@@ -92,7 +92,7 @@ private:
     VkCommandPool m_commandPool;
 
     //Pointers and references
-    WindowPtr m_window;
+    Renderer* m_renderer = nullptr;
 
     //Variables
     #ifdef NDEBUG

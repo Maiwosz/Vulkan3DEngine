@@ -150,7 +150,7 @@
     <ClCompile Include="Src\GraphicsEngine\ResourceManager\MeshManager\MeshManager.cpp" />
     <ClCompile Include="Src\GraphicsEngine\ResourceManager\Resource.cpp" />
     <ClCompile Include="Src\GraphicsEngine\Renderer\GraphicsPipeline\GraphicsPipeline.cpp" />
-    <ClCompile Include="Src\GraphicsEngine\Device\Device.cpp" />
+    <ClCompile Include="Src\GraphicsEngine\Renderer\Device\Device.cpp" />
     <ClCompile Include="Src\GraphicsEngine\Renderer\Renderer.cpp" />
     <ClCompile Include="Src\GraphicsEngine\GraphicsEngine.cpp" />
     <ClCompile Include="Src\Application\Application.cpp" />
@@ -169,7 +169,7 @@
     <ClInclude Include="Src\GraphicsEngine\ResourceManager\MeshManager\MeshManager.h" />
     <ClInclude Include="Src\GraphicsEngine\ResourceManager\Resource.h" />
     <ClInclude Include="Src\GraphicsEngine\Renderer\GraphicsPipeline\GraphicsPipeline.h" />
-    <ClInclude Include="Src\GraphicsEngine\Device\Device.h" />
+    <ClInclude Include="Src\GraphicsEngine\Renderer\Device\Device.h" />
     <ClInclude Include="Src\Prerequisites.h" />
     <ClInclude Include="Src\GraphicsEngine\Renderer\Renderer.h" />
     <ClInclude Include="Src\GraphicsEngine\GraphicsEngine.h" />

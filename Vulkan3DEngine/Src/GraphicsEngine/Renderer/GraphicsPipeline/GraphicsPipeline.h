@@ -1,7 +1,7 @@
 #pragma once
 #include "..\..\..\Prerequisites.h"
 #include "..\..\GraphicsEngine.h"
-#include "..\..\Device\Device.h"
+#include "..\Device\Device.h"
 #include "..\SwapChain\SwapChain.h"
 #include "..\..\ResourceManager\MeshManager\Mesh.h"
 
@@ -13,15 +13,14 @@
 class GraphicsPipeline
 {
 public:
-	GraphicsPipeline(DevicePtr device, SwapChainPtr swapchain);
+	GraphicsPipeline(Renderer* renderer);
 	~GraphicsPipeline();
 	VkPipeline get() { return m_graphicsPipeline; };
 private:
 	static std::vector<char> readFile(const std::string& filename);
 	VkShaderModule createShaderModule(const std::vector<char>& code);
 
-	DevicePtr m_device;
-	SwapChainPtr m_swapchain;
+	Renderer* m_renderer = nullptr;
 	VkPipelineLayout m_pipelineLayout;
 	VkPipeline m_graphicsPipeline;
 };

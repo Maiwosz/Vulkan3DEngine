@@ -6,12 +6,7 @@ GraphicsEngine::GraphicsEngine(WindowPtr window): m_window(window)
 {
     try
     {
-        m_device = std::make_shared<Device>(window);
-    }
-    catch (...) { throw std::exception("Device not created successfully"); }
-    try
-    {
-        m_renderer = std::make_shared<Renderer>(window, m_device);
+        m_renderer = std::make_shared<Renderer>(window);
     }
     catch (...) { throw std::exception("Renderer not created successfully"); }
     try

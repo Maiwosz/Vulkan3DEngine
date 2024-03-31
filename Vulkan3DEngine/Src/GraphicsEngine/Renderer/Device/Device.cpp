@@ -28,7 +28,7 @@ void DestroyDebugUtilsMessengerEXT(VkInstance instance, VkDebugUtilsMessengerEXT
     }
 }
 
-Device::Device(WindowPtr window):m_window(window)
+Device::Device(Renderer* renderer): m_renderer(renderer)
 {
     //Order here matters
     createInstance();
@@ -51,6 +51,7 @@ Device::~Device()
 
     vkDestroySurfaceKHR(m_instance, m_surface, nullptr);
     vkDestroyInstance(m_instance, nullptr);
+    delete m_renderer;
 }
 
 void Device::createInstance()
@@ -357,7 +358,7 @@ void Device::createLogicalDevice()
 
 void Device::createSurface()
 {
-    if (glfwCreateWindowSurface(m_instance, m_window->get(), nullptr, &m_surface) != VK_SUCCESS) {
+    if (glfwCreateWindowSurface(m_instance, m_renderer->m_window->get(), nullptr, &m_surface) != VK_SUCCESS) {
         throw std::runtime_error("failed to create window surface!");
     }
 }
@@ -431,7 +432,7 @@ VkExtent2D Device::chooseSwapExtent(const VkSurfaceCapabilitiesKHR& capabilities
     }
     else {
         int width, height;
-        glfwGetFramebufferSize(m_window->get(), &width, &height);
+        glfwGetFramebufferSize(m_renderer->m_window->get(), &width, &height);
 
         VkExtent2D actualExtent = {
             static_cast<uint32_t>(width),
