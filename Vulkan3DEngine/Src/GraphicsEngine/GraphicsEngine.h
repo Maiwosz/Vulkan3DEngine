@@ -1,8 +1,7 @@
 #pragma once
-#include "..\Application\Application.h"
 #include "..\Prerequisites.h"
-#include "Renderer\Renderer.h"
 #include "..\WindowSytem\Window.h"
+#include "Renderer\Renderer.h"
 #include "ResourceManager\MeshManager\MeshManager.h"
 #include "ResourceManager\TextureManager\TextureManager.h"
 

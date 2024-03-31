@@ -38,6 +38,7 @@ private:
 	friend class SwapChain;
 	friend class GraphicsPipeline;
 	friend class Device;
+	friend class Buffer;
 	friend class VertexBuffer;
 	friend class IndexBuffer;
 };

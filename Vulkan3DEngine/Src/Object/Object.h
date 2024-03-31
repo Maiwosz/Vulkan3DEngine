@@ -1,6 +1,6 @@
 #pragma once
 #include "../Prerequisites.h"
-#include "../GraphicsEngine/ResourceManager/MeshManager/Mesh.h"
+#include "../GraphicsEngine/GraphicsEngine.h"
 #include <vector>
 
 class Object
