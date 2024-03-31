@@ -1,4 +1,6 @@
 #include "Renderer.h"
+#include "Buffer/VertexBuffer/VertexBuffer.h"
+#include "Buffer/IndexBuffer/IndexBuffer.h"
 
 Renderer::Renderer(WindowPtr window) : m_window(window)
 {

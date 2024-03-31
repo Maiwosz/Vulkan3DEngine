@@ -143,7 +143,8 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="Src\GraphicsEngine\Renderer\IndexBuffer\IndexBuffer.cpp" />
+    <ClCompile Include="Src\GraphicsEngine\Renderer\Buffer\Buffer.cpp" />
+    <ClCompile Include="Src\GraphicsEngine\Renderer\Buffer\IndexBuffer\IndexBuffer.cpp" />
     <ClCompile Include="Src\GraphicsEngine\ResourceManager\ResourceManager.cpp" />
     <ClCompile Include="Src\Object\Object.cpp" />
     <ClCompile Include="Src\GraphicsEngine\ResourceManager\MeshManager\Mesh.cpp" />
@@ -159,10 +160,11 @@
     <ClCompile Include="Src\GraphicsEngine\Renderer\SwapChain\SwapChain.cpp" />
     <ClCompile Include="Src\GraphicsEngine\ResourceManager\TextureManager\Texture.cpp" />
     <ClCompile Include="Src\GraphicsEngine\ResourceManager\TextureManager\TextureManager.cpp" />
-    <ClCompile Include="Src\GraphicsEngine\Renderer\VertexBuffer\VertexBuffer.cpp" />
+    <ClCompile Include="Src\GraphicsEngine\Renderer\Buffer\VertexBuffer\VertexBuffer.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="Src\GraphicsEngine\Renderer\IndexBuffer\IndexBuffer.h" />
+    <ClInclude Include="Src\GraphicsEngine\Renderer\Buffer\Buffer.h" />
+    <ClInclude Include="Src\GraphicsEngine\Renderer\Buffer\IndexBuffer\IndexBuffer.h" />
     <ClInclude Include="Src\GraphicsEngine\ResourceManager\ResourceManager.h" />
     <ClInclude Include="Src\Object\Object.h" />
     <ClInclude Include="Src\GraphicsEngine\ResourceManager\MeshManager\Mesh.h" />
@@ -178,7 +180,7 @@
     <ClInclude Include="Src\GraphicsEngine\Renderer\SwapChain\SwapChain.h" />
     <ClInclude Include="Src\GraphicsEngine\ResourceManager\TextureManager\Texture.h" />
     <ClInclude Include="Src\GraphicsEngine\ResourceManager\TextureManager\TextureManager.h" />
-    <ClInclude Include="Src\GraphicsEngine\Renderer\VertexBuffer\VertexBuffer.h" />
+    <ClInclude Include="Src\GraphicsEngine\Renderer\Buffer\VertexBuffer\VertexBuffer.h" />
   </ItemGroup>
   <ItemGroup>
     <None Include="ClassDiagram.cd" />
