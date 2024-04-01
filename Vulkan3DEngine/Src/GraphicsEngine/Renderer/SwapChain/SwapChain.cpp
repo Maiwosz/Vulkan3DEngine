@@ -20,8 +20,6 @@ SwapChain::~SwapChain()
 	cleanupSwapChain();
 
 	vkDestroyRenderPass(m_renderer->m_device->get(), m_renderPass, nullptr);
-	
-	delete m_renderer;
 }
 
 void SwapChain::createSwapChain()

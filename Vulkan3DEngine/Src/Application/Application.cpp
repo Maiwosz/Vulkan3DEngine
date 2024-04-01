@@ -1,5 +1,7 @@
 #include "Application.h"
 
+float Application::s_deltaTime = 0.0f;
+
 Application::Application()
 {
     m_window = std::make_shared<Window>(s_window_width, s_window_height, "Vulkan3DEngine");
@@ -33,10 +35,16 @@ void Application::run()
     rect = std::make_shared<Object>(rect_mesh);
 
     while (!m_window->shouldClose()) {
+        static auto startTime = std::chrono::high_resolution_clock::now();
+        
+        
         glfwPollEvents();
 
         update();
         draw();
+
+        auto currentTime = std::chrono::high_resolution_clock::now();
+        Application::s_deltaTime = std::chrono::duration<float, std::chrono::seconds::period>(currentTime - startTime).count();
     }
     vkDeviceWaitIdle(GraphicsEngine::get()->getRenderer()->getDevice()->get());
 }

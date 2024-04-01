@@ -143,6 +143,8 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="Src\GraphicsEngine\Renderer\Buffer\UniformBuffer\UniformBuffer.cpp" />
+    <ClCompile Include="Src\GraphicsEngine\Renderer\DescriptorSet\DescriptorSet.cpp" />
     <ClCompile Include="Src\GraphicsEngine\Renderer\Buffer\Buffer.cpp" />
     <ClCompile Include="Src\GraphicsEngine\Renderer\Buffer\IndexBuffer\IndexBuffer.cpp" />
     <ClCompile Include="Src\GraphicsEngine\ResourceManager\ResourceManager.cpp" />
@@ -163,6 +165,8 @@
     <ClCompile Include="Src\GraphicsEngine\Renderer\Buffer\VertexBuffer\VertexBuffer.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="Src\GraphicsEngine\Renderer\Buffer\UniformBuffer\UniformBuffer.h" />
+    <ClInclude Include="Src\GraphicsEngine\Renderer\DescriptorSet\DescriptorSet.h" />
     <ClInclude Include="Src\GraphicsEngine\Renderer\Buffer\Buffer.h" />
     <ClInclude Include="Src\GraphicsEngine\Renderer\Buffer\IndexBuffer\IndexBuffer.h" />
     <ClInclude Include="Src\GraphicsEngine\ResourceManager\ResourceManager.h" />

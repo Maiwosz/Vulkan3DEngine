@@ -51,7 +51,6 @@ Device::~Device()
 
     vkDestroySurfaceKHR(m_instance, m_surface, nullptr);
     vkDestroyInstance(m_instance, nullptr);
-    delete m_renderer;
 }
 
 void Device::createInstance()

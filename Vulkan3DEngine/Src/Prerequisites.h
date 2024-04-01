@@ -24,6 +24,9 @@ class Object;
 class Buffer;
 class VertexBuffer;
 class IndexBuffer;
+class UniformBuffer;
+class DescriptorSetLayout;
+class DescriptorSet;
 
 typedef std::shared_ptr<Window> WindowPtr;
 typedef std::shared_ptr<Device> DevicePtr;
@@ -40,6 +43,9 @@ typedef std::shared_ptr<Object> ObjectPtr;
 typedef std::shared_ptr<Buffer> BufferPtr;
 typedef std::shared_ptr<VertexBuffer> VertexBufferPtr;
 typedef std::shared_ptr<IndexBuffer> IndexBufferPtr;
+typedef std::shared_ptr<UniformBuffer> UniformBufferPtr;
+typedef std::shared_ptr<DescriptorSetLayout> DescriptorSetLayoutPtr;
+typedef std::shared_ptr<DescriptorSet> DescriptorSetPtr;
 
 struct Vertex {
     glm::vec2 pos;
@@ -70,3 +76,10 @@ struct Vertex {
         return attributeDescriptions;
     }
 };
+
+struct UniformBufferObject {
+    alignas(16) glm::mat4 model;
+    alignas(16) glm::mat4 view;
+    alignas(16) glm::mat4 proj;
+};
+
