@@ -6,6 +6,9 @@ Buffer::Buffer(Renderer* renderer) : m_renderer(renderer)
 
 Buffer::~Buffer()
 {
+    vkDestroyBuffer(m_renderer->m_device->get(), m_buffer, nullptr);
+    vkFreeMemory(m_renderer->m_device->get(), m_bufferMemory, nullptr);
+    delete m_mapped;
 }
 
 void Buffer::createBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties, VkBuffer& buffer, VkDeviceMemory& bufferMemory)
@@ -68,7 +71,6 @@ void Buffer::copyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize siz
 
     vkQueueSubmit(m_renderer->m_device->getGraphicsQueue(), 1, &submitInfo, VK_NULL_HANDLE);
     vkQueueWaitIdle(m_renderer->m_device->getGraphicsQueue());
-    vkFreeCommandBuffers(m_renderer->m_device->get(),
-        m_renderer->m_device->getCommandPool(), 1, &commandBuffer);
+    vkFreeCommandBuffers(m_renderer->m_device->get(), m_renderer->m_device->getCommandPool(), 1, &commandBuffer);
 
 }

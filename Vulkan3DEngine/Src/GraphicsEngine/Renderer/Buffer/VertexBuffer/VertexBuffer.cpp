@@ -24,8 +24,6 @@ VertexBuffer::VertexBuffer(std::vector<Vertex> vertices, Renderer* renderer) : B
 
 VertexBuffer::~VertexBuffer()
 {
-    vkDestroyBuffer(m_renderer->m_device->get(), m_buffer, nullptr);
-    vkFreeMemory(m_renderer->m_device->get(), m_bufferMemory, nullptr);
 }
 
 void VertexBuffer::bind()

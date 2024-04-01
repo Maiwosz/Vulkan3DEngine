@@ -19,6 +19,8 @@
     <ClCompile Include="Src\GraphicsEngine\Renderer\Buffer\VertexBuffer\VertexBuffer.cpp" />
     <ClCompile Include="Src\GraphicsEngine\Renderer\Buffer\IndexBuffer\IndexBuffer.cpp" />
     <ClCompile Include="Src\GraphicsEngine\Renderer\Buffer\Buffer.cpp" />
+    <ClCompile Include="Src\GraphicsEngine\Renderer\DescriptorSet\DescriptorSet.cpp" />
+    <ClCompile Include="Src\GraphicsEngine\Renderer\Buffer\UniformBuffer\UniformBuffer.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Src\Application\Application.h" />
@@ -39,6 +41,8 @@
     <ClInclude Include="Src\GraphicsEngine\Renderer\Buffer\VertexBuffer\VertexBuffer.h" />
     <ClInclude Include="Src\GraphicsEngine\Renderer\Buffer\IndexBuffer\IndexBuffer.h" />
     <ClInclude Include="Src\GraphicsEngine\Renderer\Buffer\Buffer.h" />
+    <ClInclude Include="Src\GraphicsEngine\Renderer\DescriptorSet\DescriptorSet.h" />
+    <ClInclude Include="Src\GraphicsEngine\Renderer\Buffer\UniformBuffer\UniformBuffer.h" />
   </ItemGroup>
   <ItemGroup>
     <None Include="Shaders\Shader.frag" />

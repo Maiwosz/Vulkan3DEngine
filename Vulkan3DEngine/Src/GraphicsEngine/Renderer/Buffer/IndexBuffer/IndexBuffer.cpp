@@ -26,10 +26,7 @@ IndexBuffer::IndexBuffer(std::vector<uint16_t> indices, Renderer* renderer) : Bu
 
 IndexBuffer::~IndexBuffer()
 {
-    vkDestroyBuffer(m_renderer->m_device->get(), m_buffer, nullptr);
-    vkFreeMemory(m_renderer->m_device->get(), m_bufferMemory, nullptr);
-
-    delete m_renderer;
+    
 }
 
 void IndexBuffer::bind()
