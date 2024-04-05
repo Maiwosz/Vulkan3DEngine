@@ -1,4 +1,5 @@
 #include "UniformBuffer.h"
+#include "../../../GraphicsEngine.h"
 
 UniformBuffer::UniformBuffer(Renderer* renderer) : Buffer(renderer)
 {

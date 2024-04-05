@@ -1,12 +1,5 @@
 #pragma once
 #include "..\..\..\Prerequisites.h"
-#include "..\..\GraphicsEngine.h"
-#include "..\Device\Device.h"
-#include "..\SwapChain\SwapChain.h"
-#include "..\..\ResourceManager\MeshManager\Mesh.h"
-
-#define GLFW_INCLUDE_VULKAN
-#include <GLFW/glfw3.h>
 #include <vector>
 #include <fstream>
 
@@ -20,7 +13,6 @@ public:
 private:
 	static std::vector<char> readFile(const std::string& filename);
 	VkShaderModule createShaderModule(const std::vector<char>& code);
-	void createDescriptorSetLayout();
 
 	Renderer* m_renderer = nullptr;
 	VkPipelineLayout m_pipelineLayout;

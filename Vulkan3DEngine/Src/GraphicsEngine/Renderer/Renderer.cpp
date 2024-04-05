@@ -1,7 +1,16 @@
 #include "Renderer.h"
-#include "Buffer/VertexBuffer/VertexBuffer.h"
-#include "Buffer/IndexBuffer/IndexBuffer.h"
-#include "Buffer/UniformBuffer/UniformBuffer.h"
+#include "Buffers/StagingBuffer/StagingBuffer.h"
+#include "Buffers/VertexBuffer/VertexBuffer.h"
+#include "Buffers/IndexBuffer/IndexBuffer.h"
+#include "Buffers/UniformBuffer/UniformBuffer.h"
+#include "Image/Image.h"
+#include "ImageView/ImageView.h"
+#include "TextureSampler/TextureSampler.h"
+#include "DescriptorSets/DescriptorSet/GlobalDescriptorSet/GlobalDescriptorSet.h"
+#include "DescriptorSets/DescriptorSet/TextureDescriptorSet/TextureDescriptorSet.h"
+#include "DescriptorSets/DescriptorPool/DescriptorPool.h"
+#include "DescriptorSets/DescriptorSetLayout/GlobalDescriptorSetLayout/GlobalDescriptorSetLayout.h"
+#include "DescriptorSets/DescriptorSetLayout/TextureDescriptorSetLayout/TextureDescriptorSetLayout.h"
 
 //updateUniformBuffer()
 #define GLM_FORCE_RADIANS
@@ -17,14 +26,27 @@ Renderer::Renderer(WindowPtr window) : m_window(window)
         m_device = std::make_shared<Device>(this);
     }
     catch (...) { throw std::exception("Device not created successfully"); }
+
     try {
         m_swapChain = std::make_shared<SwapChain>(this);
     }
     catch (...) { throw std::exception("SwapChain not created successfully"); }
+
     try {
+        m_globalDescriptorSetLayout = std::make_shared<GlobalDescriptorSetLayout>(this);
+    }
+    catch (...) { throw std::exception("GlobalDescriptorSetLayout not created successfully"); }
+
+    try {
+        m_textureDescriptorSetLayout = std::make_shared<TextureDescriptorSetLayout>(this);
+    }
+    catch (...) { throw std::exception("TextureDescriptorSetLayout not created successfully"); }
+
+    /*try {
         m_descriptorSetLayout = std::make_shared<DescriptorSetLayout>(this);
     }
-    catch (...) { throw std::exception("DescriptorSetLayout not created successfully"); }
+    catch (...) { throw std::exception("DescriptorSetLayout not created successfully"); }*/
+
     try {
         m_graphicsPipeline = std::make_shared<GraphicsPipeline>(this);
     }
@@ -41,13 +63,30 @@ Renderer::Renderer(WindowPtr window) : m_window(window)
     }
     catch (...) { throw std::exception("UniformBuffers not created successfully"); }
 
-    createDescriptorPool();
-    createDescriptorSets();
+    try {
+        m_textureSampler = std::make_shared<TextureSampler>(this);
+    }
+    catch (...) { throw std::exception("TextureSampler not created successfully"); }
+
+    try {
+        m_descriptorPool = std::make_shared<DescriptorPool>(64, this);
+    }
+    catch (...) { throw std::exception("DescriptorPool not created successfully"); }
+
+    m_globalDescriptorSets.resize(MAX_FRAMES_IN_FLIGHT);
+
+    for (int i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
+        m_globalDescriptorSets[i] = std::make_shared<GlobalDescriptorSet>(m_uniformBuffers[i]->get(), this);
+    }
 }
 
 Renderer::~Renderer()
 {
-    vkDestroyDescriptorPool(m_device->get(), m_descriptorPool, nullptr);
+}
+
+StagingBufferPtr Renderer::createStagingBuffer(VkDeviceSize bufferSize)
+{
+    return std::make_shared<StagingBuffer>(bufferSize, this);
 }
 
 VertexBufferPtr Renderer::createVertexBuffer(std::vector<Vertex> vertices)
@@ -58,6 +97,26 @@ VertexBufferPtr Renderer::createVertexBuffer(std::vector<Vertex> vertices)
 IndexBufferPtr Renderer::createIndexBuffer(std::vector<uint16_t> indices)
 {
     return std::make_shared<IndexBuffer>(indices, this);
+}
+
+ImagePtr Renderer::createImage(uint32_t width, uint32_t height, VkFormat format, VkImageTiling tiling, VkImageUsageFlags usage, VkMemoryPropertyFlags properties)
+{
+    return std::make_shared<Image>(width, height, format, tiling, usage, properties, this);
+}
+
+ImageViewPtr Renderer::createImageView(VkImage image, VkFormat format)
+{
+    return std::make_shared<ImageView>(image, format, this);
+}
+
+TextureSamplerPtr Renderer::createTextureSampler()
+{
+    return std::make_shared<TextureSampler>(this);
+}
+
+TextureDescriptorSetPtr Renderer::createTextureDescriptorSet(VkImageView imageView, VkSampler sampler)
+{
+    return std::make_shared<TextureDescriptorSet>(imageView, sampler, this);
 }
 
 void Renderer::drawFrameBegin()
@@ -80,50 +139,6 @@ void Renderer::drawFrameBegin()
 
     vkResetCommandBuffer(m_commandBuffers[m_currentFrame], /*VkCommandBufferResetFlagBits*/ 0);
     recordCommandBufferBegin(m_commandBuffers[m_currentFrame], m_currentImageIndex);
-
-    //VkSubmitInfo submitInfo{};
-    //submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-    //
-    //VkSemaphore waitSemaphores[] = { m_swapChain->m_imageAvailableSemaphores[m_currentFrame] };
-    //VkPipelineStageFlags waitStages[] = { VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT };
-    //submitInfo.waitSemaphoreCount = 1;
-    //submitInfo.pWaitSemaphores = waitSemaphores;
-    //submitInfo.pWaitDstStageMask = waitStages;
-    //
-    //submitInfo.commandBufferCount = 1;
-    //submitInfo.pCommandBuffers = &commandBuffers[m_currentFrame];
-    //
-    //VkSemaphore signalSemaphores[] = { m_swapChain->m_renderFinishedSemaphores[m_currentFrame] };
-    //submitInfo.signalSemaphoreCount = 1;
-    //submitInfo.pSignalSemaphores = signalSemaphores;
-    //
-    //if (vkQueueSubmit(m_device->getGraphicsQueue(), 1, &submitInfo, m_swapChain->m_inFlightFences[m_currentFrame]) != VK_SUCCESS) {
-    //    throw std::runtime_error("failed to submit draw command buffer!");
-    //}
-    //
-    //VkPresentInfoKHR presentInfo{};
-    //presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
-    //
-    //presentInfo.waitSemaphoreCount = 1;
-    //presentInfo.pWaitSemaphores = signalSemaphores;
-    //
-    //VkSwapchainKHR swapChains[] = { m_swapChain->m_swapChain };
-    //presentInfo.swapchainCount = 1;
-    //presentInfo.pSwapchains = swapChains;
-    //presentInfo.pImageIndices = &imageIndex;
-    //presentInfo.pResults = nullptr; // Optional
-    //
-    //result = vkQueuePresentKHR(m_device->getPresentQueue(), &presentInfo);
-    //
-    //if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR || m_window->wasWindowResized()) {
-    //    m_window->resetWindowResizedFlag();
-    //    m_swapChain->recreateSwapChain();
-    //}
-    //else if (result != VK_SUCCESS) {
-    //    throw std::runtime_error("failed to present swap chain image!");
-    //}
-    //
-    //m_currentFrame = (m_currentFrame + 1) % MAX_FRAMES_IN_FLIGHT;
 }
 
 void Renderer::drawFrameEnd()
@@ -175,6 +190,12 @@ void Renderer::drawFrameEnd()
     }
 
     m_currentFrame = (m_currentFrame + 1) % MAX_FRAMES_IN_FLIGHT;
+}
+
+void Renderer::bindDescriptorSets()
+{
+    vkCmdBindDescriptorSets(m_commandBuffers[m_currentFrame], VK_PIPELINE_BIND_POINT_GRAPHICS, m_graphicsPipeline->getLayout(),
+        0, m_currentDescriptorSets.size(), m_currentDescriptorSets.data(), 0, nullptr);
 }
 
 void Renderer::createCommandBuffers()
@@ -232,24 +253,13 @@ void Renderer::recordCommandBufferBegin(VkCommandBuffer commandBuffer, uint32_t 
     scissor.extent = m_swapChain->getSwapChainExtent();
     vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
 
-    vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_graphicsPipeline->getLayout(),
-        0, 1, &m_descriptorSets[m_currentFrame], 0, nullptr);
+    m_currentDescriptorSets.clear();
 
-
-    //vkCmdDraw(commandBuffer, 3, 1, 0, 0);
-    //
-    //vkCmdEndRenderPass(commandBuffer);
-    //
-    //if (vkEndCommandBuffer(commandBuffer) != VK_SUCCESS) {
-    //    throw std::runtime_error("failed to record command buffer!");
-    //}
+    m_globalDescriptorSets[m_currentFrame]->bind();
 }
 
 void Renderer::recordCommandBufferEnd(VkCommandBuffer commandBuffer)
 {
-    //vkCmdDraw(commandBuffer, 3, 1, 0, 0);
-    //vkCmdDrawIndexed(commandBuffer, static_cast<uint32_t>(indices.size()), 1, 0, 0, 0);
-
     vkCmdEndRenderPass(commandBuffer);
 
     if (vkEndCommandBuffer(commandBuffer) != VK_SUCCESS) {
@@ -275,56 +285,4 @@ void Renderer::updateUniformBuffer(uint32_t currentImage)
     ubo.proj[1][1] *= -1;
 
     memcpy(m_uniformBuffers[currentImage]->getMappedMemory(), &ubo, sizeof(ubo));
-}
-
-void Renderer::createDescriptorPool()
-{
-    VkDescriptorPoolSize poolSize{};
-    poolSize.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-    poolSize.descriptorCount = static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT);
-
-    VkDescriptorPoolCreateInfo poolInfo{};
-    poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
-    poolInfo.poolSizeCount = 1;
-    poolInfo.pPoolSizes = &poolSize;
-    poolInfo.maxSets = static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT);
-
-    if (vkCreateDescriptorPool(m_device->get(), &poolInfo, nullptr, &m_descriptorPool) != VK_SUCCESS) {
-        throw std::runtime_error("failed to create descriptor pool!");
-    }
-}
-
-void Renderer::createDescriptorSets()
-{
-    std::vector<VkDescriptorSetLayout> layouts(MAX_FRAMES_IN_FLIGHT, m_descriptorSetLayout->get());
-    VkDescriptorSetAllocateInfo allocInfo{};
-    allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
-    allocInfo.descriptorPool = m_descriptorPool;
-    allocInfo.descriptorSetCount = static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT);
-    allocInfo.pSetLayouts = layouts.data();
-
-    m_descriptorSets.resize(MAX_FRAMES_IN_FLIGHT);
-    if (vkAllocateDescriptorSets(m_device->get(), &allocInfo, m_descriptorSets.data()) != VK_SUCCESS) {
-        throw std::runtime_error("failed to allocate descriptor sets!");
-    }
-
-    for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
-        VkDescriptorBufferInfo bufferInfo{};
-        bufferInfo.buffer = m_uniformBuffers[i]->get();
-        bufferInfo.offset = 0;
-        bufferInfo.range = sizeof(UniformBufferObject);
-
-        VkWriteDescriptorSet descriptorWrite{};
-        descriptorWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-        descriptorWrite.dstSet = m_descriptorSets[i];
-        descriptorWrite.dstBinding = 0;
-        descriptorWrite.dstArrayElement = 0;
-        descriptorWrite.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-        descriptorWrite.descriptorCount = 1;
-        descriptorWrite.pBufferInfo = &bufferInfo;
-        descriptorWrite.pImageInfo = nullptr; // Optional
-        descriptorWrite.pTexelBufferView = nullptr; // Optional
-
-        vkUpdateDescriptorSets(m_device->get(), 1, &descriptorWrite, 0, nullptr);
-    }
 }

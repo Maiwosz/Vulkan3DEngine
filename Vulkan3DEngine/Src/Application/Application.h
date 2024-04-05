@@ -1,5 +1,5 @@
 #pragma once
-#include "..\Prerequisites.h"
+//#include "..\Prerequisites.h"
 #include "..\GraphicsEngine\GraphicsEngine.h"
 #include "..\WindowSytem\Window.h"
 #include "..\Object\Object.h"
@@ -23,4 +23,5 @@ private:
 
 	ObjectPtr rect;
 	MeshPtr rect_mesh;
+	TexturePtr m_cat_texture;
 };
