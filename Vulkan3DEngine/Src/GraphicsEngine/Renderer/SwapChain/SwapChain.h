@@ -1,10 +1,6 @@
 #pragma once
 #include "..\..\..\Prerequisites.h"
-#include "..\..\GraphicsEngine.h"
-#include "..\Device\Device.h"
 
-#define GLFW_INCLUDE_VULKAN
-#include <GLFW/glfw3.h>
 #include <vector>
 
 class SwapChain
@@ -31,7 +27,8 @@ private:
 	std::vector<VkImage> m_swapChainImages;
 	VkFormat m_swapChainImageFormat;
 	VkExtent2D m_swapChainExtent;
-	std::vector<VkImageView> m_swapChainImageViews;
+	//std::vector<VkImageView> m_swapChainImageViews;
+	std::vector<ImageViewPtr> m_swapChainImageViews;
 
 	VkRenderPass m_renderPass;
 

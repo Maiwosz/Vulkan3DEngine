@@ -11,8 +11,11 @@ int main() {
 		app.run();
 	}
 	catch (const std::exception& e) {
-		std::cerr << e.what() << std::endl;
+		std::cerr << "Caught exception: " << e.what() << '\n';
 		return EXIT_FAILURE;
+	}
+	catch (...) {
+		std::cerr << "Caught unknown exception\n";
 	}
 
 	return EXIT_SUCCESS;

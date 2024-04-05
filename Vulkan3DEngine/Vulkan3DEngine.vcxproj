@@ -76,7 +76,7 @@
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>WIN32;_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
-      <AdditionalIncludeDirectories>Libs\VulkanSDK\Include;Libs\glfw\include;Libs\glm;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>Libs\VulkanSDK\Include;Libs\glfw\include;Libs\glm;Libs\stb;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <LanguageStandard>stdcpp20</LanguageStandard>
     </ClCompile>
     <Link>
@@ -94,7 +94,7 @@
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>WIN32;NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
-      <AdditionalIncludeDirectories>Libs\VulkanSDK\Include;Libs\glfw\include;Libs\glm;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>Libs\VulkanSDK\Include;Libs\glfw\include;Libs\glm;Libs\stb;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <LanguageStandard>stdcpp20</LanguageStandard>
     </ClCompile>
     <Link>
@@ -112,7 +112,7 @@
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
-      <AdditionalIncludeDirectories>Libs\VulkanSDK\Include;Libs\glfw\include;Libs\glm;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>Libs\VulkanSDK\Include;Libs\glfw\include;Libs\glm;Libs\stb;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <LanguageStandard>stdcpp20</LanguageStandard>
     </ClCompile>
     <Link>
@@ -130,7 +130,7 @@
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
-      <AdditionalIncludeDirectories>Libs\VulkanSDK\Include;Libs\glfw\include;Libs\glm;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>Libs\VulkanSDK\Include;Libs\glfw\include;Libs\glm;Libs\stb;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <LanguageStandard>stdcpp20</LanguageStandard>
     </ClCompile>
     <Link>
@@ -143,10 +143,20 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="Src\GraphicsEngine\Renderer\Buffer\UniformBuffer\UniformBuffer.cpp" />
-    <ClCompile Include="Src\GraphicsEngine\Renderer\DescriptorSet\DescriptorSet.cpp" />
-    <ClCompile Include="Src\GraphicsEngine\Renderer\Buffer\Buffer.cpp" />
-    <ClCompile Include="Src\GraphicsEngine\Renderer\Buffer\IndexBuffer\IndexBuffer.cpp" />
+    <ClCompile Include="Src\GraphicsEngine\Renderer\DescriptorSets\DescriptorPool\DescriptorPool.cpp" />
+    <ClCompile Include="Src\GraphicsEngine\Renderer\DescriptorSets\DescriptorSet\DescriptorSet.cpp" />
+    <ClCompile Include="Src\GraphicsEngine\Renderer\DescriptorSets\DescriptorSetLayout\GlobalDescriptorSetLayout\GlobalDescriptorSetLayout.cpp" />
+    <ClCompile Include="Src\GraphicsEngine\Renderer\DescriptorSets\DescriptorSetLayout\TextureDescriptorSetLayout\TextureDescriptorSetLayout.cpp" />
+    <ClCompile Include="Src\GraphicsEngine\Renderer\DescriptorSets\DescriptorSet\GlobalDescriptorSet\GlobalDescriptorSet.cpp" />
+    <ClCompile Include="Src\GraphicsEngine\Renderer\DescriptorSets\DescriptorSet\TextureDescriptorSet\TextureDescriptorSet.cpp" />
+    <ClCompile Include="Src\GraphicsEngine\Renderer\ImageView\ImageView.cpp" />
+    <ClCompile Include="Src\GraphicsEngine\Renderer\CommandBuffer\CommandBuffer.cpp" />
+    <ClCompile Include="Src\GraphicsEngine\Renderer\Buffers\StagingBuffer\StagingBuffer.cpp" />
+    <ClCompile Include="Src\GraphicsEngine\Renderer\Image\Image.cpp" />
+    <ClCompile Include="Src\GraphicsEngine\Renderer\Buffers\UniformBuffer\UniformBuffer.cpp" />
+    <ClCompile Include="Src\GraphicsEngine\Renderer\DescriptorSets\DescriptorSetLayout\DescriptorSetLayout.cpp" />
+    <ClCompile Include="Src\GraphicsEngine\Renderer\Buffers\Buffer.cpp" />
+    <ClCompile Include="Src\GraphicsEngine\Renderer\Buffers\IndexBuffer\IndexBuffer.cpp" />
     <ClCompile Include="Src\GraphicsEngine\ResourceManager\ResourceManager.cpp" />
     <ClCompile Include="Src\Object\Object.cpp" />
     <ClCompile Include="Src\GraphicsEngine\ResourceManager\MeshManager\Mesh.cpp" />
@@ -162,13 +172,24 @@
     <ClCompile Include="Src\GraphicsEngine\Renderer\SwapChain\SwapChain.cpp" />
     <ClCompile Include="Src\GraphicsEngine\ResourceManager\TextureManager\Texture.cpp" />
     <ClCompile Include="Src\GraphicsEngine\ResourceManager\TextureManager\TextureManager.cpp" />
-    <ClCompile Include="Src\GraphicsEngine\Renderer\Buffer\VertexBuffer\VertexBuffer.cpp" />
+    <ClCompile Include="Src\GraphicsEngine\Renderer\Buffers\VertexBuffer\VertexBuffer.cpp" />
+    <ClCompile Include="Src\GraphicsEngine\Renderer\TextureSampler\TextureSampler.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="Src\GraphicsEngine\Renderer\Buffer\UniformBuffer\UniformBuffer.h" />
-    <ClInclude Include="Src\GraphicsEngine\Renderer\DescriptorSet\DescriptorSet.h" />
-    <ClInclude Include="Src\GraphicsEngine\Renderer\Buffer\Buffer.h" />
-    <ClInclude Include="Src\GraphicsEngine\Renderer\Buffer\IndexBuffer\IndexBuffer.h" />
+    <ClInclude Include="Src\GraphicsEngine\Renderer\DescriptorSets\DescriptorPool\DescriptorPool.h" />
+    <ClInclude Include="Src\GraphicsEngine\Renderer\DescriptorSets\DescriptorSet\DescriptorSet.h" />
+    <ClInclude Include="Src\GraphicsEngine\Renderer\DescriptorSets\DescriptorSetLayout\GlobalDescriptorSetLayout\GlobalDescriptorSetLayout.h" />
+    <ClInclude Include="Src\GraphicsEngine\Renderer\DescriptorSets\DescriptorSetLayout\TextureDescriptorSetLayout\TextureDescriptorSetLayout.h" />
+    <ClInclude Include="Src\GraphicsEngine\Renderer\DescriptorSets\DescriptorSet\GlobalDescriptorSet\GlobalDescriptorSet.h" />
+    <ClInclude Include="Src\GraphicsEngine\Renderer\DescriptorSets\DescriptorSet\TextureDescriptorSet\TextureDescriptorSet.h" />
+    <ClInclude Include="Src\GraphicsEngine\Renderer\ImageView\ImageView.h" />
+    <ClInclude Include="Src\GraphicsEngine\Renderer\CommandBuffer\CommandBuffer.h" />
+    <ClInclude Include="Src\GraphicsEngine\Renderer\Buffers\StagingBuffer\StagingBuffer.h" />
+    <ClInclude Include="Src\GraphicsEngine\Renderer\Image\Image.h" />
+    <ClInclude Include="Src\GraphicsEngine\Renderer\Buffers\UniformBuffer\UniformBuffer.h" />
+    <ClInclude Include="Src\GraphicsEngine\Renderer\DescriptorSets\DescriptorSetLayout\DescriptorSetLayout.h" />
+    <ClInclude Include="Src\GraphicsEngine\Renderer\Buffers\Buffer.h" />
+    <ClInclude Include="Src\GraphicsEngine\Renderer\Buffers\IndexBuffer\IndexBuffer.h" />
     <ClInclude Include="Src\GraphicsEngine\ResourceManager\ResourceManager.h" />
     <ClInclude Include="Src\Object\Object.h" />
     <ClInclude Include="Src\GraphicsEngine\ResourceManager\MeshManager\Mesh.h" />
@@ -184,10 +205,10 @@
     <ClInclude Include="Src\GraphicsEngine\Renderer\SwapChain\SwapChain.h" />
     <ClInclude Include="Src\GraphicsEngine\ResourceManager\TextureManager\Texture.h" />
     <ClInclude Include="Src\GraphicsEngine\ResourceManager\TextureManager\TextureManager.h" />
-    <ClInclude Include="Src\GraphicsEngine\Renderer\Buffer\VertexBuffer\VertexBuffer.h" />
+    <ClInclude Include="Src\GraphicsEngine\Renderer\Buffers\VertexBuffer\VertexBuffer.h" />
+    <ClInclude Include="Src\GraphicsEngine\Renderer\TextureSampler\TextureSampler.h" />
   </ItemGroup>
   <ItemGroup>
-    <None Include="ClassDiagram.cd" />
     <None Include="Shaders\Shader.frag" />
     <None Include="Shaders\Shader.vert" />
   </ItemGroup>

@@ -6,9 +6,9 @@ class Resource
 {
 public:
 	Resource();
-	Resource(const wchar_t* full_path);
+	Resource(const char* full_path);
 	virtual ~Resource();
 protected:
-	std::wstring m_full_path;
+	std::string m_full_path;
 };
 

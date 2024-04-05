@@ -1,4 +1,6 @@
 #include "SwapChain.h"
+#include "../Renderer.h"
+#include "../ImageView/ImageView.h"
 
 SwapChain::SwapChain( Renderer* renderer): m_renderer(renderer)
 {
@@ -106,7 +108,7 @@ void SwapChain::cleanupSwapChain()
 	}
 
 	for (auto imageView : m_swapChainImageViews) {
-		vkDestroyImageView(m_renderer->m_device->get(), imageView, nullptr);
+		vkDestroyImageView(m_renderer->m_device->get(), imageView->get(), nullptr);
 
 	}
 
@@ -116,31 +118,9 @@ void SwapChain::cleanupSwapChain()
 void SwapChain::createImageViews()
 {
 	m_swapChainImageViews.resize(m_swapChainImages.size());
-
-	for (size_t i = 0; i < m_swapChainImages.size(); i++) {
-		VkImageViewCreateInfo createInfo{};
-		createInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-		createInfo.image = m_swapChainImages[i];
-
-		createInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
-		createInfo.format = m_swapChainImageFormat;
-
-		createInfo.components.r = VK_COMPONENT_SWIZZLE_IDENTITY;
-		createInfo.components.g = VK_COMPONENT_SWIZZLE_IDENTITY;
-		createInfo.components.b = VK_COMPONENT_SWIZZLE_IDENTITY;
-		createInfo.components.a = VK_COMPONENT_SWIZZLE_IDENTITY;
-
-		createInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-		createInfo.subresourceRange.baseMipLevel = 0;
-		createInfo.subresourceRange.levelCount = 1;
-		createInfo.subresourceRange.baseArrayLayer = 0;
-		createInfo.subresourceRange.layerCount = 1;
-
-		if (vkCreateImageView(m_renderer->m_device->get(), &createInfo, nullptr,
-			&m_swapChainImageViews[i]) != VK_SUCCESS) {
-			throw std::runtime_error("failed to create image views!");
-		}
-
+	
+	for (uint32_t i = 0; i < m_swapChainImages.size(); i++) {
+		m_swapChainImageViews[i] = m_renderer->createImageView(m_swapChainImages[i], m_swapChainImageFormat);
 	}
 }
 
@@ -181,9 +161,7 @@ void SwapChain::createFramebuffers()
 {
 	m_swapChainFramebuffers.resize(m_swapChainImageViews.size());
 	for (size_t i = 0; i < m_swapChainImageViews.size(); i++) {
-		VkImageView attachments[] = {
-			m_swapChainImageViews[i]
-		};
+		VkImageView attachments[] = { m_swapChainImageViews[i]->get() };
 		
 		VkFramebufferCreateInfo framebufferInfo{};
 		framebufferInfo.sType =

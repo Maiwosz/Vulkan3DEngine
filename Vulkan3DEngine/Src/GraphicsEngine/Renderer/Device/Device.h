@@ -1,6 +1,5 @@
 #pragma once
 #include "..\..\..\Prerequisites.h"
-#include "..\..\GraphicsEngine.h"
 
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
@@ -56,6 +55,10 @@ public:
 
     //Buffers
     uint32_t findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties);
+
+    //CommandBuffer
+    VkCommandBuffer beginSingleTimeCommands();
+    void endSingleTimeCommands(VkCommandBuffer commandBuffer);
 private:
     //Instance
     void createInstance();

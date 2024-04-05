@@ -6,14 +6,14 @@
 class Object
 {
 public:
-	Object(MeshPtr mesh);
+	Object(MeshPtr mesh, TexturePtr texture);
 	~Object();
 
 	void update();
 	void draw();
 private:
 	MeshPtr m_mesh;
-
+	TexturePtr m_texture;
 	friend class Application;
 };
 

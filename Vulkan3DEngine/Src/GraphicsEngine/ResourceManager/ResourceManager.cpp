@@ -9,9 +9,10 @@ ResourceManager::~ResourceManager()
 {
 }
 
-ResourcePtr ResourceManager::createResourceFromFile(const wchar_t* file_path)
+ResourcePtr ResourceManager::createResourceFromFile(const char* file_path)
 {
-	std::wstring full_path = std::filesystem::absolute(file_path);
+	std::filesystem::path path = file_path;
+	std::string full_path = std::filesystem::absolute(path).string();
 
 	auto it = m_map_resources.find(full_path);
 

@@ -16,11 +16,22 @@
     <ClCompile Include="Src\GraphicsEngine\ResourceManager\TextureManager\TextureManager.cpp" />
     <ClCompile Include="Src\Object\Object.cpp" />
     <ClCompile Include="Src\GraphicsEngine\ResourceManager\ResourceManager.cpp" />
-    <ClCompile Include="Src\GraphicsEngine\Renderer\Buffer\VertexBuffer\VertexBuffer.cpp" />
-    <ClCompile Include="Src\GraphicsEngine\Renderer\Buffer\IndexBuffer\IndexBuffer.cpp" />
-    <ClCompile Include="Src\GraphicsEngine\Renderer\Buffer\Buffer.cpp" />
-    <ClCompile Include="Src\GraphicsEngine\Renderer\DescriptorSet\DescriptorSet.cpp" />
-    <ClCompile Include="Src\GraphicsEngine\Renderer\Buffer\UniformBuffer\UniformBuffer.cpp" />
+    <ClCompile Include="Src\GraphicsEngine\Renderer\Buffers\VertexBuffer\VertexBuffer.cpp" />
+    <ClCompile Include="Src\GraphicsEngine\Renderer\Buffers\IndexBuffer\IndexBuffer.cpp" />
+    <ClCompile Include="Src\GraphicsEngine\Renderer\Buffers\Buffer.cpp" />
+    <ClCompile Include="Src\GraphicsEngine\Renderer\DescriptorSets\DescriptorSetLayout\DescriptorSetLayout.cpp" />
+    <ClCompile Include="Src\GraphicsEngine\Renderer\Buffers\UniformBuffer\UniformBuffer.cpp" />
+    <ClCompile Include="Src\GraphicsEngine\Renderer\Image\Image.cpp" />
+    <ClCompile Include="Src\GraphicsEngine\Renderer\Buffers\StagingBuffer\StagingBuffer.cpp" />
+    <ClCompile Include="Src\GraphicsEngine\Renderer\CommandBuffer\CommandBuffer.cpp" />
+    <ClCompile Include="Src\GraphicsEngine\Renderer\ImageView\ImageView.cpp" />
+    <ClCompile Include="Src\GraphicsEngine\Renderer\TextureSampler\TextureSampler.cpp" />
+    <ClCompile Include="Src\GraphicsEngine\Renderer\DescriptorSets\DescriptorSet\DescriptorSet.cpp" />
+    <ClCompile Include="Src\GraphicsEngine\Renderer\DescriptorSets\DescriptorSetLayout\GlobalDescriptorSetLayout\GlobalDescriptorSetLayout.cpp" />
+    <ClCompile Include="Src\GraphicsEngine\Renderer\DescriptorSets\DescriptorSetLayout\TextureDescriptorSetLayout\TextureDescriptorSetLayout.cpp" />
+    <ClCompile Include="Src\GraphicsEngine\Renderer\DescriptorSets\DescriptorPool\DescriptorPool.cpp" />
+    <ClCompile Include="Src\GraphicsEngine\Renderer\DescriptorSets\DescriptorSet\TextureDescriptorSet\TextureDescriptorSet.cpp" />
+    <ClCompile Include="Src\GraphicsEngine\Renderer\DescriptorSets\DescriptorSet\GlobalDescriptorSet\GlobalDescriptorSet.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Src\Application\Application.h" />
@@ -38,15 +49,25 @@
     <ClInclude Include="Src\GraphicsEngine\ResourceManager\TextureManager\TextureManager.h" />
     <ClInclude Include="Src\Object\Object.h" />
     <ClInclude Include="Src\GraphicsEngine\ResourceManager\ResourceManager.h" />
-    <ClInclude Include="Src\GraphicsEngine\Renderer\Buffer\VertexBuffer\VertexBuffer.h" />
-    <ClInclude Include="Src\GraphicsEngine\Renderer\Buffer\IndexBuffer\IndexBuffer.h" />
-    <ClInclude Include="Src\GraphicsEngine\Renderer\Buffer\Buffer.h" />
-    <ClInclude Include="Src\GraphicsEngine\Renderer\DescriptorSet\DescriptorSet.h" />
-    <ClInclude Include="Src\GraphicsEngine\Renderer\Buffer\UniformBuffer\UniformBuffer.h" />
+    <ClInclude Include="Src\GraphicsEngine\Renderer\Buffers\VertexBuffer\VertexBuffer.h" />
+    <ClInclude Include="Src\GraphicsEngine\Renderer\Buffers\IndexBuffer\IndexBuffer.h" />
+    <ClInclude Include="Src\GraphicsEngine\Renderer\Buffers\Buffer.h" />
+    <ClInclude Include="Src\GraphicsEngine\Renderer\DescriptorSets\DescriptorSetLayout\DescriptorSetLayout.h" />
+    <ClInclude Include="Src\GraphicsEngine\Renderer\Buffers\UniformBuffer\UniformBuffer.h" />
+    <ClInclude Include="Src\GraphicsEngine\Renderer\Image\Image.h" />
+    <ClInclude Include="Src\GraphicsEngine\Renderer\Buffers\StagingBuffer\StagingBuffer.h" />
+    <ClInclude Include="Src\GraphicsEngine\Renderer\CommandBuffer\CommandBuffer.h" />
+    <ClInclude Include="Src\GraphicsEngine\Renderer\ImageView\ImageView.h" />
+    <ClInclude Include="Src\GraphicsEngine\Renderer\TextureSampler\TextureSampler.h" />
+    <ClInclude Include="Src\GraphicsEngine\Renderer\DescriptorSets\DescriptorSet\DescriptorSet.h" />
+    <ClInclude Include="Src\GraphicsEngine\Renderer\DescriptorSets\DescriptorSetLayout\GlobalDescriptorSetLayout\GlobalDescriptorSetLayout.h" />
+    <ClInclude Include="Src\GraphicsEngine\Renderer\DescriptorSets\DescriptorSetLayout\TextureDescriptorSetLayout\TextureDescriptorSetLayout.h" />
+    <ClInclude Include="Src\GraphicsEngine\Renderer\DescriptorSets\DescriptorPool\DescriptorPool.h" />
+    <ClInclude Include="Src\GraphicsEngine\Renderer\DescriptorSets\DescriptorSet\TextureDescriptorSet\TextureDescriptorSet.h" />
+    <ClInclude Include="Src\GraphicsEngine\Renderer\DescriptorSets\DescriptorSet\GlobalDescriptorSet\GlobalDescriptorSet.h" />
   </ItemGroup>
   <ItemGroup>
     <None Include="Shaders\Shader.frag" />
     <None Include="Shaders\Shader.vert" />
-    <None Include="ClassDiagram.cd" />
   </ItemGroup>
 </Project>

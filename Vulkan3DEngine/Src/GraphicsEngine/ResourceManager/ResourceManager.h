@@ -10,10 +10,11 @@ public:
 	ResourceManager();
 	virtual ~ResourceManager();
 
-	ResourcePtr createResourceFromFile(const wchar_t* file_path);
+	ResourcePtr createResourceFromFile(const char* file_path);
 protected:
-	virtual Resource* createResourceFromFileConcrete(const wchar_t* file_path) = 0;
+	virtual Resource* createResourceFromFileConcrete(const char* file_path) = 0;
+	std::unordered_map<std::string, ResourcePtr> m_map_resources;
 private:
-	std::unordered_map<std::wstring, ResourcePtr> m_map_resources;
+	
 };
 

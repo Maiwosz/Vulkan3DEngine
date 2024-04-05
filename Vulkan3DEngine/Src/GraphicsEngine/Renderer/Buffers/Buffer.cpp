@@ -1,4 +1,6 @@
 #include "Buffer.h"
+#include "../Renderer.h"
+#include "../Image/Image.h"
 
 Buffer::Buffer(Renderer* renderer) : m_renderer(renderer)
 {
@@ -6,9 +8,9 @@ Buffer::Buffer(Renderer* renderer) : m_renderer(renderer)
 
 Buffer::~Buffer()
 {
+    unmap();
     vkDestroyBuffer(m_renderer->m_device->get(), m_buffer, nullptr);
     vkFreeMemory(m_renderer->m_device->get(), m_bufferMemory, nullptr);
-    delete m_mapped;
 }
 
 void Buffer::createBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties, VkBuffer& buffer, VkDeviceMemory& bufferMemory)
@@ -40,37 +42,45 @@ void Buffer::createBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryP
 
 void Buffer::copyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size)
 {
-    VkCommandBufferAllocateInfo allocInfo{};
-    allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-
-    allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-    allocInfo.commandPool = m_renderer->m_device->getCommandPool();
-    allocInfo.commandBufferCount = 1;
-
-    VkCommandBuffer commandBuffer;
-    vkAllocateCommandBuffers(m_renderer->m_device->get(), &allocInfo, &commandBuffer);
-
-    VkCommandBufferBeginInfo beginInfo{};
-    beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-    beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
-
-    vkBeginCommandBuffer(commandBuffer, &beginInfo);
-
+    VkCommandBuffer commandBuffer = m_renderer->m_device->beginSingleTimeCommands();
+    
     VkBufferCopy copyRegion{};
-    copyRegion.srcOffset = 0; // Optional
-    copyRegion.dstOffset = 0; // Optional
     copyRegion.size = size;
     vkCmdCopyBuffer(commandBuffer, srcBuffer, dstBuffer, 1, &copyRegion);
+    
+    m_renderer->m_device->endSingleTimeCommands(commandBuffer);
+}
 
-    vkEndCommandBuffer(commandBuffer);
+void Buffer::copyBufferToImage(ImagePtr image)
+{
+    VkCommandBuffer commandBuffer = m_renderer->m_device->beginSingleTimeCommands();
 
-    VkSubmitInfo submitInfo{};
-    submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-    submitInfo.commandBufferCount = 1;
-    submitInfo.pCommandBuffers = &commandBuffer;
+    VkBufferImageCopy region{};
+    region.bufferOffset = 0;
+    region.bufferRowLength = 0;
+    region.bufferImageHeight = 0;
+    region.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+    region.imageSubresource.mipLevel = 0;
+    region.imageSubresource.baseArrayLayer = 0;
+    region.imageSubresource.layerCount = 1;
+    region.imageOffset = { 0, 0, 0 };
+    region.imageExtent = { image->getWidth(),image->getHeight(),1};
 
-    vkQueueSubmit(m_renderer->m_device->getGraphicsQueue(), 1, &submitInfo, VK_NULL_HANDLE);
-    vkQueueWaitIdle(m_renderer->m_device->getGraphicsQueue());
-    vkFreeCommandBuffers(m_renderer->m_device->get(), m_renderer->m_device->getCommandPool(), 1, &commandBuffer);
+    vkCmdCopyBufferToImage(commandBuffer, m_buffer, image->get(), VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
+    image->updateLayout(VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
 
+    m_renderer->m_device->endSingleTimeCommands(commandBuffer);
+}
+
+VkResult Buffer::map(VkDeviceSize size, VkDeviceSize offset)
+{
+    return vkMapMemory(m_renderer->m_device->get(), m_bufferMemory, offset, size, 0, &m_mapped);
+}
+
+void Buffer::unmap()
+{
+    if (m_mapped) {
+        vkUnmapMemory(m_renderer->m_device->get(), m_bufferMemory);
+        m_mapped = nullptr;
+    }
 }
