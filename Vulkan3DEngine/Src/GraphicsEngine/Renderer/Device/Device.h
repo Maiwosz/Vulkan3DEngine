@@ -59,6 +59,11 @@ public:
     //CommandBuffer
     VkCommandBuffer beginSingleTimeCommands();
     void endSingleTimeCommands(VkCommandBuffer commandBuffer);
+    
+    //Depth Buffer
+    VkFormat findDepthFormat();
+    bool hasStencilComponent(VkFormat format);
+
 private:
     //Instance
     void createInstance();
@@ -83,6 +88,9 @@ private:
 
     //Command Pool
     void createCommandPool();
+
+    //Depth Buffer
+    VkFormat findSupportedFormat(const std::vector<VkFormat>& candidates, VkImageTiling tiling, VkFormatFeatureFlags features);
 
     //Resources
     VkInstance m_instance;

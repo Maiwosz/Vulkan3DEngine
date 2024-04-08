@@ -2,7 +2,7 @@
 #include "../../../GraphicsEngine.h"
 #include "../StagingBuffer/StagingBuffer.h"
 
-IndexBuffer::IndexBuffer(std::vector<uint16_t> indices, Renderer* renderer) : Buffer(renderer)
+IndexBuffer::IndexBuffer(std::vector<uint32_t> indices, Renderer* renderer) : Buffer(renderer)
 {
     VkDeviceSize bufferSize = sizeof(indices[0]) * indices.size();
     StagingBufferPtr stagingBuffer = m_renderer->createStagingBuffer(bufferSize);
@@ -24,5 +24,5 @@ IndexBuffer::~IndexBuffer()
 
 void IndexBuffer::bind()
 {
-    vkCmdBindIndexBuffer(GraphicsEngine::get()->getRenderer()->getCurrentCommandBuffer(), m_buffer, 0, VK_INDEX_TYPE_UINT16);
+    vkCmdBindIndexBuffer(GraphicsEngine::get()->getRenderer()->getCurrentCommandBuffer(), m_buffer, 0, VK_INDEX_TYPE_UINT32);
 }

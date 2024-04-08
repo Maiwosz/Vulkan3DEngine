@@ -3,19 +3,18 @@
 #include "../Resource.h"
 #include <vector>
 
-
 class Mesh : public Resource
 {
 public:
 	Mesh(std::vector<Vertex> vertices);
-    Mesh(std::vector<Vertex> vertices, std::vector<uint16_t> indices);
+    Mesh(std::vector<Vertex> vertices, std::vector<uint32_t> indices);
 	Mesh(const char* full_path);
 	~Mesh();
 
 	void draw();
 private:
 	std::vector<Vertex> m_vertices;
-	std::vector<uint16_t> m_indices;
+	std::vector<uint32_t> m_indices;
 
     VertexBufferPtr m_vertexBuffer;
 	IndexBufferPtr m_indexBuffer;

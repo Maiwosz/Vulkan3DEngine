@@ -12,12 +12,6 @@
 #include "DescriptorSets/DescriptorSetLayout/GlobalDescriptorSetLayout/GlobalDescriptorSetLayout.h"
 #include "DescriptorSets/DescriptorSetLayout/TextureDescriptorSetLayout/TextureDescriptorSetLayout.h"
 
-//updateUniformBuffer()
-#define GLM_FORCE_RADIANS
-//#define GLM_FORCE_DEFAULT_ALIGNED_GENTYPES
-#include <glm/glm.hpp>
-#include <glm/gtc/matrix_transform.hpp>
-
 #include "../../Application/Application.h"
 
 Renderer::Renderer(WindowPtr window) : m_window(window)
@@ -41,11 +35,6 @@ Renderer::Renderer(WindowPtr window) : m_window(window)
         m_textureDescriptorSetLayout = std::make_shared<TextureDescriptorSetLayout>(this);
     }
     catch (...) { throw std::exception("TextureDescriptorSetLayout not created successfully"); }
-
-    /*try {
-        m_descriptorSetLayout = std::make_shared<DescriptorSetLayout>(this);
-    }
-    catch (...) { throw std::exception("DescriptorSetLayout not created successfully"); }*/
 
     try {
         m_graphicsPipeline = std::make_shared<GraphicsPipeline>(this);
@@ -94,7 +83,7 @@ VertexBufferPtr Renderer::createVertexBuffer(std::vector<Vertex> vertices)
     return std::make_shared<VertexBuffer>(vertices, this);
 }
 
-IndexBufferPtr Renderer::createIndexBuffer(std::vector<uint16_t> indices)
+IndexBufferPtr Renderer::createIndexBuffer(std::vector<uint32_t> indices)
 {
     return std::make_shared<IndexBuffer>(indices, this);
 }
@@ -104,9 +93,9 @@ ImagePtr Renderer::createImage(uint32_t width, uint32_t height, VkFormat format,
     return std::make_shared<Image>(width, height, format, tiling, usage, properties, this);
 }
 
-ImageViewPtr Renderer::createImageView(VkImage image, VkFormat format)
+ImageViewPtr Renderer::createImageView(VkImage image, VkFormat format, VkImageAspectFlags aspectFlags)
 {
-    return std::make_shared<ImageView>(image, format, this);
+    return std::make_shared<ImageView>(image, format, aspectFlags, this);
 }
 
 TextureSamplerPtr Renderer::createTextureSampler()
@@ -231,9 +220,12 @@ void Renderer::recordCommandBufferBegin(VkCommandBuffer commandBuffer, uint32_t 
     renderPassInfo.renderArea.offset = { 0, 0 };
     renderPassInfo.renderArea.extent = m_swapChain->getSwapChainExtent();
 
-    VkClearValue clearColor = { {{0.0f, 0.0f, 0.0f, 1.0f}} };
-    renderPassInfo.clearValueCount = 1;
-    renderPassInfo.pClearValues = &clearColor;
+    std::array<VkClearValue, 2> clearValues{};
+    clearValues[0].color = { {0.0f, 0.0f, 0.0f, 1.0f} };
+    clearValues[1].depthStencil = { 1.0f, 0 };
+    
+    renderPassInfo.clearValueCount = static_cast<uint32_t>(clearValues.size());
+    renderPassInfo.pClearValues = clearValues.data();
 
     vkCmdBeginRenderPass(commandBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
 
