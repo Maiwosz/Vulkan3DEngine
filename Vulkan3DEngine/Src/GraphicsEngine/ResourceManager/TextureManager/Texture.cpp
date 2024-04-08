@@ -37,7 +37,7 @@ Texture::Texture(const char* full_path) : Resource(full_path)
 	stagingBuffer->copyBufferToImage(m_image);
 	m_image->transitionImageLayout(VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
 
-	m_imageView = GraphicsEngine::get()->getRenderer()->createImageView(m_image->get(), VK_FORMAT_R8G8B8A8_SRGB);
+	m_imageView = GraphicsEngine::get()->getRenderer()->createImageView(m_image->get(), VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_ASPECT_COLOR_BIT);
 	m_textureSampler = GraphicsEngine::get()->getRenderer()->createTextureSampler();
 
 	for (int i = 0; i < Renderer::MAX_FRAMES_IN_FLIGHT; i++) {

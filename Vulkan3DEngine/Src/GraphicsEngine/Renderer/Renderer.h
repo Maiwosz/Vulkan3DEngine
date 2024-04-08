@@ -14,10 +14,10 @@ public:
 
 	StagingBufferPtr createStagingBuffer(VkDeviceSize bufferSize);
 	VertexBufferPtr createVertexBuffer(std::vector<Vertex> vertices);
-	IndexBufferPtr createIndexBuffer(std::vector<uint16_t> indices);
+	IndexBufferPtr createIndexBuffer(std::vector<uint32_t> indices);
 	ImagePtr createImage(uint32_t width, uint32_t height, VkFormat format, VkImageTiling tiling,
 		VkImageUsageFlags usage, VkMemoryPropertyFlags properties);
-	ImageViewPtr createImageView(VkImage image, VkFormat format);
+	ImageViewPtr createImageView(VkImage image, VkFormat format, VkImageAspectFlags aspectFlags);
 	TextureSamplerPtr createTextureSampler();
 	TextureDescriptorSetPtr createTextureDescriptorSet(VkImageView imageView, VkSampler sampler);
 
@@ -46,9 +46,9 @@ private:
 	GraphicsPipelinePtr m_graphicsPipeline;
 	TextureSamplerPtr m_textureSampler;
 	DescriptorPoolPtr m_descriptorPool;
-	//DescriptorSetLayoutPtr m_descriptorSetLayout;
 	GlobalDescriptorSetLayoutPtr m_globalDescriptorSetLayout;
 	TextureDescriptorSetLayoutPtr m_textureDescriptorSetLayout;
+	//DepthBufferPtr m_depthBuffer;
 
 	//Command Buffer // To separate class later?
 	std::vector<VkCommandBuffer> m_commandBuffers;
@@ -80,5 +80,6 @@ private:
 	friend class Image;
 	friend class ImageView;
 	friend class TextureSampler;
+	friend class DepthBuffer;
 };
 

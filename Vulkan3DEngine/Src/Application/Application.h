@@ -21,7 +21,23 @@ public:
 private:
 	WindowPtr m_window;
 
-	ObjectPtr rect;
-	MeshPtr rect_mesh;
-	TexturePtr m_cat_texture;
+	ObjectPtr m_statue;
+	MeshPtr m_statue_mesh;
+	TexturePtr m_statue_texture;
+
+	ObjectPtr m_vikingRoom;
+	MeshPtr m_vikingRoom_mesh;
+	TexturePtr m_vikingRoom_texture;
+
+	ObjectPtr m_castle;
+	MeshPtr m_castle_mesh;
+	TexturePtr m_castle_texture;
+
+	ObjectPtr m_hygieia;
+	MeshPtr m_hygieia_mesh;
+	TexturePtr m_hygieia_texture;
+
+	//ObjectPtr rect;
+	//MeshPtr rect_mesh;
+	//TexturePtr m_cat_texture;
 };
