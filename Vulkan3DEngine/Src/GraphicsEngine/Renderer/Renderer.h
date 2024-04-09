@@ -15,11 +15,13 @@ public:
 	StagingBufferPtr createStagingBuffer(VkDeviceSize bufferSize);
 	VertexBufferPtr createVertexBuffer(std::vector<Vertex> vertices);
 	IndexBufferPtr createIndexBuffer(std::vector<uint32_t> indices);
+	UniformBufferPtr createUniformBuffer();
 	ImagePtr createImage(uint32_t width, uint32_t height, VkFormat format, VkImageTiling tiling,
 		VkImageUsageFlags usage, VkMemoryPropertyFlags properties);
 	ImageViewPtr createImageView(VkImage image, VkFormat format, VkImageAspectFlags aspectFlags);
 	TextureSamplerPtr createTextureSampler();
 	TextureDescriptorSetPtr createTextureDescriptorSet(VkImageView imageView, VkSampler sampler);
+	TransformDescriptorSetPtr createTransformDescriptorSet(VkBuffer uniformBuffer);
 
 	DevicePtr getDevice() { return m_device; }
 
@@ -31,6 +33,8 @@ public:
 	const uint32_t getCurrentFrame() { return m_currentFrame; }
 
 	void bindDescriptorSets();
+
+	void updateUniformBuffer(/*uint32_t currentImage*/);
 private:
 	//Command Buffer // To separate class later?
 	void createCommandBuffers();
@@ -38,7 +42,7 @@ private:
 	void recordCommandBufferEnd(VkCommandBuffer commandBuffer);
 
 	void createUniformBuffers();
-	void updateUniformBuffer(uint32_t currentImage);
+	
 
 	WindowPtr m_window;
 	DevicePtr m_device;
@@ -48,6 +52,7 @@ private:
 	DescriptorPoolPtr m_descriptorPool;
 	GlobalDescriptorSetLayoutPtr m_globalDescriptorSetLayout;
 	TextureDescriptorSetLayoutPtr m_textureDescriptorSetLayout;
+	TransformDescriptorSetLayoutPtr m_transformDescriptorSetLayout;
 	//DepthBufferPtr m_depthBuffer;
 
 	//Command Buffer // To separate class later?
@@ -74,9 +79,11 @@ private:
 	friend class DescriptorSetLayout;
 	friend class GlobalDescriptorSetLayout;
 	friend class TextureDescriptorSetLayout;
+	friend class TransformDescriptorSetLayout;
 	friend class DescriptorSet;
 	friend class GlobalDescriptorSet;
 	friend class TextureDescriptorSet;
+	friend class TransformDescriptorSet;
 	friend class Image;
 	friend class ImageView;
 	friend class TextureSampler;

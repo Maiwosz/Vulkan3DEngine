@@ -5,7 +5,7 @@
 class UniformBuffer : public Buffer
 {
 public:
-	UniformBuffer(Renderer* renderer);
+	UniformBuffer(VkDeviceSize bufferSize, Renderer* renderer);
 	~UniformBuffer();
 	
 	void bind() override;

@@ -50,20 +50,23 @@ void Application::run()
     //
     //m_statue = std::make_shared<Object>(m_statue_mesh, m_statue_texture);
     
-    m_vikingRoom_texture = GraphicsEngine::get()->getTextureManager()->createTextureFromFile("Assets\\Textures\\viking_room.png");
-    m_vikingRoom_mesh = GraphicsEngine::get()->getMeshManager()->createMeshFromFile("Assets\\Meshes\\viking_room.obj");
-    
-    m_vikingRoom = std::make_shared<Object>(m_vikingRoom_mesh, m_vikingRoom_texture);
+    //m_vikingRoom_texture = GraphicsEngine::get()->getTextureManager()->createTextureFromFile("Assets\\Textures\\viking_room.png");
+    //m_vikingRoom_mesh = GraphicsEngine::get()->getMeshManager()->createMeshFromFile("Assets\\Meshes\\viking_room.obj");
+    //
+    //m_vikingRoom = std::make_shared<Object>(m_vikingRoom_mesh, m_vikingRoom_texture);
 
     //m_castle_texture = GraphicsEngine::get()->getTextureManager()->createTextureFromFile("Assets\\Textures\\castle.jpg");
     //m_castle_mesh = GraphicsEngine::get()->getMeshManager()->createMeshFromFile("Assets\\Meshes\\castle.obj");
     //
     //m_castle = std::make_shared<Object>(m_castle_mesh, m_castle_texture);
 
-    //m_hygieia_texture = GraphicsEngine::get()->getTextureManager()->createTextureFromFile("Assets\\Textures\\Hygieia_C.png");
-    //m_hygieia_mesh = GraphicsEngine::get()->getMeshManager()->createMeshFromFile("Assets\\Meshes\\Hygieia_C.obj");
-    //
-    //m_hygieia = std::make_shared<Object>(m_hygieia_mesh, m_hygieia_texture);
+    m_hygieia_texture = GraphicsEngine::get()->getTextureManager()->createTextureFromFile("Assets\\Textures\\Hygieia_C.png");
+    m_hygieia_mesh = GraphicsEngine::get()->getMeshManager()->createMeshFromFile("Assets\\Meshes\\Hygieia_C.obj");
+    
+    m_hygieia = std::make_shared<Object>(m_hygieia_mesh, m_hygieia_texture);
+
+    m_hygieia->setScale(0.5f);
+    m_hygieia->setRotationX(90);
 
     while (!m_window->shouldClose()) {
         static auto startTime = std::chrono::high_resolution_clock::now();
@@ -82,6 +85,12 @@ void Application::run()
 
 void Application::update()
 {
+    GraphicsEngine::get()->getRenderer()->updateUniformBuffer();
+    //rect->update();
+    //m_statue->update();
+    //m_vikingRoom->update();
+    //m_castle->update();
+    m_hygieia->update();
 }
 
 void Application::draw()
@@ -89,8 +98,8 @@ void Application::draw()
     GraphicsEngine::get()->getRenderer()->drawFrameBegin();
     //rect->draw();
     //m_statue->draw();
-    m_vikingRoom->draw();
+    //m_vikingRoom->draw();
     //m_castle->draw();
-    //m_hygieia->draw();
+    m_hygieia->draw();
     GraphicsEngine::get()->getRenderer()->drawFrameEnd();
 }
