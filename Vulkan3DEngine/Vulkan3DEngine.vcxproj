@@ -143,6 +143,7 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="Src\Object\ObjectManager.cpp" />
     <ClCompile Include="Src\GraphicsEngine\Renderer\DescriptorSets\DescriptorPool\DescriptorPool.cpp" />
     <ClCompile Include="Src\GraphicsEngine\Renderer\DescriptorSets\DescriptorSetLayout\TransformDescriptorSetLayout\TransformDescriptorSetLayout.cpp" />
     <ClCompile Include="Src\GraphicsEngine\Renderer\DescriptorSets\DescriptorSet\DescriptorSet.cpp" />
@@ -178,6 +179,7 @@
     <ClCompile Include="Src\GraphicsEngine\Renderer\TextureSampler\TextureSampler.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="Src\Object\ObjectManager.h" />
     <ClInclude Include="Src\GraphicsEngine\Renderer\DescriptorSets\DescriptorPool\DescriptorPool.h" />
     <ClInclude Include="Src\GraphicsEngine\Renderer\DescriptorSets\DescriptorSetLayout\TransformDescriptorSetLayout\TransformDescriptorSetLayout.h" />
     <ClInclude Include="Src\GraphicsEngine\Renderer\DescriptorSets\DescriptorSet\DescriptorSet.h" />

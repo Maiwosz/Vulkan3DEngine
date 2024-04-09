@@ -32,6 +32,8 @@ public:
 	VkCommandBuffer getCurrentCommandBuffer() { return m_commandBuffers[m_currentFrame]; }
 	const uint32_t getCurrentFrame() { return m_currentFrame; }
 
+	void clearCurrentDescriptorSets();
+	void bindGlobalDescriptorSet();
 	void bindDescriptorSets();
 
 	void updateUniformBuffer(/*uint32_t currentImage*/);

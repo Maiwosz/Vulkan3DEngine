@@ -13,6 +13,8 @@ public:
 	ImageViewPtr getImageView() { return m_imageView; }
 	TextureSamplerPtr getTextureSampler() { return m_textureSampler; }
 
+	void Reload() override;
+
 	void draw();
 private:
 	ImagePtr m_image;

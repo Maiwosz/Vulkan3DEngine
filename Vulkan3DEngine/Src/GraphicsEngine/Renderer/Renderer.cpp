@@ -198,6 +198,16 @@ void Renderer::drawFrameEnd()
     m_currentFrame = (m_currentFrame + 1) % MAX_FRAMES_IN_FLIGHT;
 }
 
+void Renderer::clearCurrentDescriptorSets()
+{
+    m_currentDescriptorSets.clear();
+}
+
+void Renderer::bindGlobalDescriptorSet()
+{
+    m_globalDescriptorSets[m_currentFrame]->bind();
+}
+
 void Renderer::bindDescriptorSets()
 {
     vkCmdBindDescriptorSets(m_commandBuffers[m_currentFrame], VK_PIPELINE_BIND_POINT_GRAPHICS, m_graphicsPipeline->getLayout(),
@@ -263,9 +273,9 @@ void Renderer::recordCommandBufferBegin(VkCommandBuffer commandBuffer, uint32_t 
     scissor.extent = m_swapChain->getSwapChainExtent();
     vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
 
-    m_currentDescriptorSets.clear();
-
-    m_globalDescriptorSets[m_currentFrame]->bind();
+    //m_currentDescriptorSets.clear();
+    //
+    //m_globalDescriptorSets[m_currentFrame]->bind();
 }
 
 void Renderer::recordCommandBufferEnd(VkCommandBuffer commandBuffer)
@@ -288,8 +298,8 @@ void Renderer::createUniformBuffers()
 
 void Renderer::updateUniformBuffer(/*uint32_t currentImage*/)
 {
-    GlobalUBO ubo{};//Eye position(left/right,forward/backward,height), What it looks,  Where is up
-    ubo.view = glm::lookAt(glm::vec3(0.0f, 3.0f, 2.5f), glm::vec3(0.0f, 0.0f, 1.25f), glm::vec3(0.0f, 0.0f, 1.0f));
+    GlobalUBO ubo{};//Eye position(left/right,forward/backward,height), What it looks at,  Where is up
+    ubo.view = glm::lookAt(glm::vec3(0.0f, 4.5f, 3.0f), glm::vec3(0.0f, 0.0f, 0.85f), glm::vec3(0.0f, 0.0f, 0.1f));
     ubo.proj = glm::perspective(glm::radians(45.0f), m_swapChain->getSwapChainExtent().width / (float)m_swapChain->getSwapChainExtent().height, 0.1f, 10.0f);
     ubo.proj[1][1] *= -1;
 

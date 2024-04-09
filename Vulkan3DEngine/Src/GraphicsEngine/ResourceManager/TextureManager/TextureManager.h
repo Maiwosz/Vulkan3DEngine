@@ -1,15 +1,15 @@
 #pragma once
 #include "../ResourceManager.h"
-#include "../../../Prerequisites.h"
-//#include "Texture.h"
+#include "Texture.h"
 
 class TextureManager : public ResourceManager
 {
 public:
-	TextureManager();
-	~TextureManager();
-	TexturePtr createTextureFromFile(const char* file_path);
-	std::vector<VkImageView> getImageViews();
+    TextureManager();
+    ~TextureManager();
+
+    TexturePtr loadTexture(const std::string& name);
+
 protected:
-	virtual Resource* createResourceFromFileConcrete(const char* file_path);
+    virtual Resource* createResourceFromFileConcrete(const char* file_path) override;
 };
