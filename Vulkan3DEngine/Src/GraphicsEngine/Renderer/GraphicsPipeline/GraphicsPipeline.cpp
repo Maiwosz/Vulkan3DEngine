@@ -3,6 +3,7 @@
 #include "../DescriptorSets/DescriptorSetLayout/DescriptorSetLayout.h"
 #include "../DescriptorSets/DescriptorSetLayout/GlobalDescriptorSetLayout/GlobalDescriptorSetLayout.h"
 #include "../DescriptorSets/DescriptorSetLayout/TextureDescriptorSetLayout/TextureDescriptorSetLayout.h"
+#include "../DescriptorSets/DescriptorSetLayout/TransformDescriptorSetLayout/TransformDescriptorSetLayout.h"
 
 GraphicsPipeline::GraphicsPipeline(Renderer* renderer) : m_renderer(renderer)
 {
@@ -114,10 +115,10 @@ GraphicsPipeline::GraphicsPipeline(Renderer* renderer) : m_renderer(renderer)
 	dynamicState.dynamicStateCount = static_cast<uint32_t>(dynamicStates.size());
 	dynamicState.pDynamicStates = dynamicStates.data();
 
-	VkDescriptorSetLayout layouts[] = { m_renderer->m_globalDescriptorSetLayout->get(), m_renderer->m_textureDescriptorSetLayout->get() };
+	VkDescriptorSetLayout layouts[] = { m_renderer->m_globalDescriptorSetLayout->get(), m_renderer->m_transformDescriptorSetLayout->get(), m_renderer->m_textureDescriptorSetLayout->get() };
 	VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
 	pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-	pipelineLayoutInfo.setLayoutCount = 2; // Number of layouts
+	pipelineLayoutInfo.setLayoutCount = 3; // Number of layouts
 	pipelineLayoutInfo.pSetLayouts = layouts; // Array of layouts
 	pipelineLayoutInfo.pushConstantRangeCount = 0; // Optional
 	pipelineLayoutInfo.pPushConstantRanges = nullptr; // Optional

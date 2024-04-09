@@ -32,6 +32,8 @@
     <ClCompile Include="Src\GraphicsEngine\Renderer\DescriptorSets\DescriptorPool\DescriptorPool.cpp" />
     <ClCompile Include="Src\GraphicsEngine\Renderer\DescriptorSets\DescriptorSet\TextureDescriptorSet\TextureDescriptorSet.cpp" />
     <ClCompile Include="Src\GraphicsEngine\Renderer\DescriptorSets\DescriptorSet\GlobalDescriptorSet\GlobalDescriptorSet.cpp" />
+    <ClCompile Include="Src\GraphicsEngine\Renderer\DescriptorSets\DescriptorSetLayout\TransformDescriptorSetLayout\TransformDescriptorSetLayout.cpp" />
+    <ClCompile Include="Src\GraphicsEngine\Renderer\DescriptorSets\DescriptorSet\TransformDescriptorSet\TransformDescriptorSet.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Src\Application\Application.h" />
@@ -65,6 +67,8 @@
     <ClInclude Include="Src\GraphicsEngine\Renderer\DescriptorSets\DescriptorPool\DescriptorPool.h" />
     <ClInclude Include="Src\GraphicsEngine\Renderer\DescriptorSets\DescriptorSet\TextureDescriptorSet\TextureDescriptorSet.h" />
     <ClInclude Include="Src\GraphicsEngine\Renderer\DescriptorSets\DescriptorSet\GlobalDescriptorSet\GlobalDescriptorSet.h" />
+    <ClInclude Include="Src\GraphicsEngine\Renderer\DescriptorSets\DescriptorSetLayout\TransformDescriptorSetLayout\TransformDescriptorSetLayout.h" />
+    <ClInclude Include="Src\GraphicsEngine\Renderer\DescriptorSets\DescriptorSet\TransformDescriptorSet\TransformDescriptorSet.h" />
   </ItemGroup>
   <ItemGroup>
     <None Include="Shaders\Shader.frag" />

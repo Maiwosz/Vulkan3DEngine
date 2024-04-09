@@ -37,9 +37,11 @@ class DescriptorPool;
 class DescriptorSetLayout;
 class GlobalDescriptorSetLayout;
 class TextureDescriptorSetLayout;
+class TransformDescriptorSetLayout;
 class DescriptorSet;
 class GlobalDescriptorSet;
 class TextureDescriptorSet;
+class TransformDescriptorSet;
 class Image;
 class ImageView;
 class TextureSampler;
@@ -66,9 +68,12 @@ typedef std::shared_ptr<DescriptorPool> DescriptorPoolPtr;
 typedef std::shared_ptr<DescriptorSetLayout> DescriptorSetLayoutPtr;
 typedef std::shared_ptr<GlobalDescriptorSetLayout> GlobalDescriptorSetLayoutPtr;
 typedef std::shared_ptr<TextureDescriptorSetLayout> TextureDescriptorSetLayoutPtr;
+typedef std::shared_ptr<TransformDescriptorSetLayout> TransformDescriptorSetLayoutPtr;
 typedef std::shared_ptr<DescriptorSet> DescriptorSetPtr;
 typedef std::shared_ptr<GlobalDescriptorSet> GlobalDescriptorSetPtr;
 typedef std::shared_ptr<TextureDescriptorSet> TextureDescriptorSetPtr;
+typedef std::shared_ptr<TransformDescriptorSet> TransformDescriptorSetPtr;
+
 typedef std::shared_ptr<Image> ImagePtr;
 typedef std::shared_ptr<ImageView> ImageViewPtr;
 typedef std::shared_ptr<TextureSampler> TextureSamplerPtr;
@@ -114,10 +119,14 @@ struct Vertex {
     }
 };
 
-struct UniformBufferObject {
-    alignas(16) glm::mat4 model;
+struct GlobalUBO {
+    //alignas(16) glm::mat4 model;
     alignas(16) glm::mat4 view;
     alignas(16) glm::mat4 proj;
+};
+
+struct ObjectUBO {
+    glm::mat4 model;
 };
 
 namespace std {

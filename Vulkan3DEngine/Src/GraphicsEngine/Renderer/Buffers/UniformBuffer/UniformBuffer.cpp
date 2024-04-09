@@ -1,9 +1,9 @@
 #include "UniformBuffer.h"
 #include "../../../GraphicsEngine.h"
 
-UniformBuffer::UniformBuffer(Renderer* renderer) : Buffer(renderer)
+UniformBuffer::UniformBuffer(VkDeviceSize bufferSize, Renderer* renderer) : Buffer(renderer)
 {
-    VkDeviceSize bufferSize = sizeof(UniformBufferObject);
+   // VkDeviceSize bufferSize = sizeof(UniformBufferObject);
     createBuffer(bufferSize, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
         VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, m_buffer, m_bufferMemory);
 

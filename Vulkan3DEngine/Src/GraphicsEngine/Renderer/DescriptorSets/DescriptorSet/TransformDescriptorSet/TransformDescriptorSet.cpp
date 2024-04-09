@@ -1,14 +1,14 @@
-#include "GlobalDescriptorSet.h"
+#include "TransformDescriptorSet.h"
 #include "../../../Renderer.h"
-#include "../../DescriptorSetLayout/GlobalDescriptorSetLayout/GlobalDescriptorSetLayout.h"
+#include "../../DescriptorSetLayout/TransformDescriptorSetLayout/TransformDescriptorSetLayout.h"
 
-GlobalDescriptorSet::GlobalDescriptorSet(VkBuffer uniformBuffer, Renderer* renderer) :
-    DescriptorSet(renderer->m_globalDescriptorSetLayout->get(), renderer), m_renderer(renderer)
+TransformDescriptorSet::TransformDescriptorSet(VkBuffer uniformBuffer, Renderer* renderer) :
+    DescriptorSet(renderer->m_transformDescriptorSetLayout->get(), renderer), m_renderer(renderer)
 {
     VkDescriptorBufferInfo bufferInfo{};
     bufferInfo.buffer = uniformBuffer;
     bufferInfo.offset = 0;
-    bufferInfo.range = sizeof(GlobalUBO);
+    bufferInfo.range = sizeof(ObjectUBO);
 
     VkWriteDescriptorSet write{};
 
@@ -25,6 +25,6 @@ GlobalDescriptorSet::GlobalDescriptorSet(VkBuffer uniformBuffer, Renderer* rende
     vkUpdateDescriptorSets(m_renderer->m_device->get(), static_cast<uint32_t>(m_writes.size()), m_writes.data(), 0, nullptr);
 }
 
-GlobalDescriptorSet::~GlobalDescriptorSet()
+TransformDescriptorSet::~TransformDescriptorSet()
 {
 }

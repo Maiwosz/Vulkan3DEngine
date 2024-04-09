@@ -8,9 +8,11 @@
 #include "TextureSampler/TextureSampler.h"
 #include "DescriptorSets/DescriptorSet/GlobalDescriptorSet/GlobalDescriptorSet.h"
 #include "DescriptorSets/DescriptorSet/TextureDescriptorSet/TextureDescriptorSet.h"
+#include "DescriptorSets/DescriptorSet/TransformDescriptorSet/TransformDescriptorSet.h"
 #include "DescriptorSets/DescriptorPool/DescriptorPool.h"
 #include "DescriptorSets/DescriptorSetLayout/GlobalDescriptorSetLayout/GlobalDescriptorSetLayout.h"
 #include "DescriptorSets/DescriptorSetLayout/TextureDescriptorSetLayout/TextureDescriptorSetLayout.h"
+#include "DescriptorSets/DescriptorSetLayout/TransformDescriptorSetLayout/TransformDescriptorSetLayout.h"
 
 #include "../../Application/Application.h"
 
@@ -37,6 +39,11 @@ Renderer::Renderer(WindowPtr window) : m_window(window)
     catch (...) { throw std::exception("TextureDescriptorSetLayout not created successfully"); }
 
     try {
+        m_transformDescriptorSetLayout = std::make_shared<TransformDescriptorSetLayout>(this);
+    }
+    catch (...) { throw std::exception("TransformDescriptorSetLayout not created successfully"); }
+
+    try {
         m_graphicsPipeline = std::make_shared<GraphicsPipeline>(this);
     }
     catch (...) { throw std::exception("GraphicsPipeline not created successfully"); }
@@ -47,7 +54,7 @@ Renderer::Renderer(WindowPtr window) : m_window(window)
         m_uniformBuffers.resize(MAX_FRAMES_IN_FLIGHT);
 
         for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
-            m_uniformBuffers[i] = std::make_shared<UniformBuffer>(this);
+            m_uniformBuffers[i] = std::make_shared<UniformBuffer>(sizeof(GlobalUBO), this);
         }
     }
     catch (...) { throw std::exception("UniformBuffers not created successfully"); }
@@ -88,6 +95,11 @@ IndexBufferPtr Renderer::createIndexBuffer(std::vector<uint32_t> indices)
     return std::make_shared<IndexBuffer>(indices, this);
 }
 
+UniformBufferPtr Renderer::createUniformBuffer()
+{
+    return std::make_shared<UniformBuffer>(sizeof(ObjectUBO), this);
+}
+
 ImagePtr Renderer::createImage(uint32_t width, uint32_t height, VkFormat format, VkImageTiling tiling, VkImageUsageFlags usage, VkMemoryPropertyFlags properties)
 {
     return std::make_shared<Image>(width, height, format, tiling, usage, properties, this);
@@ -106,6 +118,11 @@ TextureSamplerPtr Renderer::createTextureSampler()
 TextureDescriptorSetPtr Renderer::createTextureDescriptorSet(VkImageView imageView, VkSampler sampler)
 {
     return std::make_shared<TextureDescriptorSet>(imageView, sampler, this);
+}
+
+TransformDescriptorSetPtr Renderer::createTransformDescriptorSet(VkBuffer uniformBuffer)
+{
+    return std::make_shared<TransformDescriptorSet>(uniformBuffer, this);
 }
 
 void Renderer::drawFrameBegin()
@@ -134,7 +151,7 @@ void Renderer::drawFrameEnd()
 {
     recordCommandBufferEnd(m_commandBuffers[m_currentFrame]);
 
-    updateUniformBuffer(m_currentFrame);
+    //updateUniformBuffer(m_currentFrame);
 
     VkSubmitInfo submitInfo{};
     submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
@@ -185,6 +202,7 @@ void Renderer::bindDescriptorSets()
 {
     vkCmdBindDescriptorSets(m_commandBuffers[m_currentFrame], VK_PIPELINE_BIND_POINT_GRAPHICS, m_graphicsPipeline->getLayout(),
         0, m_currentDescriptorSets.size(), m_currentDescriptorSets.data(), 0, nullptr);
+
 }
 
 void Renderer::createCommandBuffers()
@@ -264,17 +282,16 @@ void Renderer::createUniformBuffers()
     m_uniformBuffers.resize(MAX_FRAMES_IN_FLIGHT);
     
     for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
-        UniformBufferPtr ub = std::make_shared<UniformBuffer>(this);
+        UniformBufferPtr ub = std::make_shared<UniformBuffer>(sizeof(GlobalUBO), this);
     }
 }
 
-void Renderer::updateUniformBuffer(uint32_t currentImage)
+void Renderer::updateUniformBuffer(/*uint32_t currentImage*/)
 {
-    UniformBufferObject ubo{};
-    ubo.model = glm::rotate(glm::mat4(1.0f), Application::s_deltaTime * glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f));
-    ubo.view = glm::lookAt(glm::vec3(2.0f, 2.0f, 2.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+    GlobalUBO ubo{};//Eye position(left/right,forward/backward,height), What it looks,  Where is up
+    ubo.view = glm::lookAt(glm::vec3(0.0f, 3.0f, 2.5f), glm::vec3(0.0f, 0.0f, 1.25f), glm::vec3(0.0f, 0.0f, 1.0f));
     ubo.proj = glm::perspective(glm::radians(45.0f), m_swapChain->getSwapChainExtent().width / (float)m_swapChain->getSwapChainExtent().height, 0.1f, 10.0f);
     ubo.proj[1][1] *= -1;
 
-    memcpy(m_uniformBuffers[currentImage]->getMappedMemory(), &ubo, sizeof(ubo));
+    memcpy(m_uniformBuffers[m_currentFrame]->getMappedMemory(), &ubo, sizeof(ubo));
 }
