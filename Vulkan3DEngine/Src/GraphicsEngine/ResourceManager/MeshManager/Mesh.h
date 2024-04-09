@@ -11,6 +11,8 @@ public:
 	Mesh(const char* full_path);
 	~Mesh();
 
+	void Reload() override;
+
 	void draw();
 private:
 	std::vector<Vertex> m_vertices;

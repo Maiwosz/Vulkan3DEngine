@@ -14,41 +14,45 @@ Object::Object(MeshPtr mesh, TexturePtr texture):m_mesh(mesh), m_texture(texture
 
 	// Initialize the model matrix to an identity matrix
 	ubo.model = glm::mat4(1.0f);
+	initialOrientation = ubo.model;
 }
 
 Object::~Object()
 {
 }
 
-void Object::setTranslate(float x, float y, float z)
+void Object::setTranslation(float x, float y, float z)
 {
 	ubo.model = glm::translate(ubo.model, glm::vec3(x, y, z)); // przemieszczanie
+	initialOrientation = ubo.model;
 }
 
 void Object::setRotationX(float angle)
 {
 	ubo.model = glm::rotate(ubo.model, glm::radians(angle), glm::vec3(1.0f, 0.0f, 0.0f)); // obracanie
+	initialOrientation = ubo.model;
 }
 
 void Object::setRotationY(float angle)
 {
 	ubo.model = glm::rotate(ubo.model, glm::radians(angle), glm::vec3(0.0f, 1.0f, 0.0f)); // obracanie
+	initialOrientation = ubo.model;
 }
 
 void Object::setRotationZ(float angle)
 {
 	ubo.model = glm::rotate(ubo.model, glm::radians(angle), glm::vec3(0.0f, 0.0f, 1.0f)); // obracanie
+	initialOrientation = ubo.model;
 }
 
 void Object::setScale(float scale)
 {
 	ubo.model = glm::scale(ubo.model, glm::vec3(scale)); // skalowanie
+	initialOrientation = ubo.model;
 }
 
 void Object::update()
 {
-	static glm::mat4 initialOrientation = ubo.model;
-
 	// Define the rotation speed
 	float rotationSpeed = glm::radians(45.0f); // 45 degrees per second
 
@@ -63,6 +67,9 @@ void Object::update()
 
 void Object::draw()
 {
+	GraphicsEngine::get()->getRenderer()->clearCurrentDescriptorSets();
+	GraphicsEngine::get()->getRenderer()->bindGlobalDescriptorSet();
+
 	m_descriptorSets[GraphicsEngine::get()->getRenderer()->getCurrentFrame()]->bind();
 
 	m_mesh->draw();

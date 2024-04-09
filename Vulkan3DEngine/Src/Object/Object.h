@@ -9,7 +9,7 @@ public:
 	Object(MeshPtr mesh, TexturePtr texture);
 	~Object();
 
-	void setTranslate(float x, float y, float z);
+	void setTranslation(float x, float y, float z);
 	void setRotationX(float angle);
 	void setRotationY(float angle);
 	void setRotationZ(float angle);
@@ -22,6 +22,8 @@ private:
 	TexturePtr m_texture;
 	std::vector<UniformBufferPtr> m_uniformBuffers;
 	std::vector<TransformDescriptorSetPtr> m_descriptorSets;
+
+	glm::mat4 initialOrientation;
 
 	ObjectUBO ubo{};
 
