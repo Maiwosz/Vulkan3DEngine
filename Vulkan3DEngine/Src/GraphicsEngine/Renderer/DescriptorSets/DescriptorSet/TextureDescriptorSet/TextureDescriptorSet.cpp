@@ -1,6 +1,16 @@
 #include "TextureDescriptorSet.h"
 #include "../../../Renderer.h"
-#include "../../DescriptorSetLayout/TextureDescriptorSetLayout/TextureDescriptorSetLayout.h"
+
+TextureDescriptorSetLayout::TextureDescriptorSetLayout(Renderer* renderer) : DescriptorSetLayout(renderer)
+{
+    createBinding(0, 1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT);
+    createLayout();
+}
+
+TextureDescriptorSetLayout::~TextureDescriptorSetLayout()
+{
+
+}
 
 TextureDescriptorSet::TextureDescriptorSet(VkImageView imageView, VkSampler sampler, Renderer* renderer):
 	DescriptorSet(renderer->m_textureDescriptorSetLayout->get(), renderer), m_renderer(renderer)
@@ -27,4 +37,9 @@ TextureDescriptorSet::TextureDescriptorSet(VkImageView imageView, VkSampler samp
 
 TextureDescriptorSet::~TextureDescriptorSet()
 {
+}
+
+void TextureDescriptorSet::bind()
+{
+    m_renderer->m_currentDescriptorSets[2] = m_descriptorSet;
 }

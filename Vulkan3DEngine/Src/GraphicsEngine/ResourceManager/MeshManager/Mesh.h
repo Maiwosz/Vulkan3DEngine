@@ -18,7 +18,7 @@ public:
 
 	bool hasIndexBuffer() const { return m_hasIndexBuffer; }
 
-	uint32_t getIndicesSize() const { return m_indices.size(); }
+	size_t getIndicesSize() const { return m_indices.size(); }
 private:
 	void Load(const char* full_path) override;
 

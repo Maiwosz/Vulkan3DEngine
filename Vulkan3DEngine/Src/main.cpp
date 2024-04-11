@@ -12,6 +12,8 @@ int main() {
 	}
 	catch (const std::exception& e) {
 		std::cerr << "Caught exception: " << e.what() << '\n';
+		GraphicsEngine::release();
+		InputSystem::release();
 		return EXIT_FAILURE;
 	}
 	catch (...) {

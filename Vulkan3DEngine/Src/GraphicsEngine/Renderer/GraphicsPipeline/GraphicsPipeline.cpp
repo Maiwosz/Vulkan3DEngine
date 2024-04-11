@@ -1,9 +1,9 @@
 #include "GraphicsPipeline.h"
 #include "../Renderer.h"
-#include "../DescriptorSets/DescriptorSetLayout/DescriptorSetLayout.h"
-#include "../DescriptorSets/DescriptorSetLayout/GlobalDescriptorSetLayout/GlobalDescriptorSetLayout.h"
-#include "../DescriptorSets/DescriptorSetLayout/TextureDescriptorSetLayout/TextureDescriptorSetLayout.h"
-#include "../DescriptorSets/DescriptorSetLayout/TransformDescriptorSetLayout/TransformDescriptorSetLayout.h"
+#include "../DescriptorSets/DescriptorSet/DescriptorSet.h"
+#include "../DescriptorSets/DescriptorSet/GlobalDescriptorSet/GlobalDescriptorSet.h"
+#include "../DescriptorSets/DescriptorSet/TextureDescriptorSet/TextureDescriptorSet.h"
+#include "../DescriptorSets/DescriptorSet/TransformDescriptorSet/TransformDescriptorSet.h"
 
 GraphicsPipeline::GraphicsPipeline(Renderer* renderer) : m_renderer(renderer)
 {
