@@ -76,7 +76,7 @@
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>WIN32;_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
-      <AdditionalIncludeDirectories>Libs\VulkanSDK\Include;Libs\glfw\include;Libs\glm;Libs\stb;Libs\tinyobjloader;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>Libs\VulkanSDK\Include;Libs\glfw\include;Libs\glm;Libs\stb;Libs\tinyobjloader;Libs\nlohmann;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <LanguageStandard>stdcpp20</LanguageStandard>
     </ClCompile>
     <Link>
@@ -94,7 +94,7 @@
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>WIN32;NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
-      <AdditionalIncludeDirectories>Libs\VulkanSDK\Include;Libs\glfw\include;Libs\glm;Libs\stb;Libs\tinyobjloader;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>Libs\VulkanSDK\Include;Libs\glfw\include;Libs\glm;Libs\stb;Libs\tinyobjloader;Libs\nlohmann;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <LanguageStandard>stdcpp20</LanguageStandard>
     </ClCompile>
     <Link>
@@ -112,7 +112,7 @@
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
-      <AdditionalIncludeDirectories>Libs\VulkanSDK\Include;Libs\glfw\include;Libs\glm;Libs\stb;Libs\tinyobjloader;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>Libs\VulkanSDK\Include;Libs\glfw\include;Libs\glm;Libs\stb;Libs\tinyobjloader;Libs\nlohmann;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <LanguageStandard>stdcpp20</LanguageStandard>
     </ClCompile>
     <Link>
@@ -130,7 +130,7 @@
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
-      <AdditionalIncludeDirectories>Libs\VulkanSDK\Include;Libs\glfw\include;Libs\glm;Libs\stb;Libs\tinyobjloader;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>Libs\VulkanSDK\Include;Libs\glfw\include;Libs\glm;Libs\stb;Libs\tinyobjloader;Libs\nlohmann;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <LanguageStandard>stdcpp20</LanguageStandard>
     </ClCompile>
     <Link>
@@ -143,7 +143,8 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="Src\Object\ObjectManager.cpp" />
+    <ClCompile Include="Src\GraphicsEngine\Scene\Scene.cpp" />
+    <ClCompile Include="Src\GraphicsEngine\ResourceManager\ModelManager\ModelManager.cpp" />
     <ClCompile Include="Src\GraphicsEngine\Renderer\DescriptorSets\DescriptorPool\DescriptorPool.cpp" />
     <ClCompile Include="Src\GraphicsEngine\Renderer\DescriptorSets\DescriptorSetLayout\TransformDescriptorSetLayout\TransformDescriptorSetLayout.cpp" />
     <ClCompile Include="Src\GraphicsEngine\Renderer\DescriptorSets\DescriptorSet\DescriptorSet.cpp" />
@@ -161,7 +162,7 @@
     <ClCompile Include="Src\GraphicsEngine\Renderer\Buffers\Buffer.cpp" />
     <ClCompile Include="Src\GraphicsEngine\Renderer\Buffers\IndexBuffer\IndexBuffer.cpp" />
     <ClCompile Include="Src\GraphicsEngine\ResourceManager\ResourceManager.cpp" />
-    <ClCompile Include="Src\Object\Object.cpp" />
+    <ClCompile Include="Src\GraphicsEngine\ResourceManager\ModelManager\Model.cpp" />
     <ClCompile Include="Src\GraphicsEngine\ResourceManager\MeshManager\Mesh.cpp" />
     <ClCompile Include="Src\GraphicsEngine\ResourceManager\MeshManager\MeshManager.cpp" />
     <ClCompile Include="Src\GraphicsEngine\ResourceManager\Resource.cpp" />
@@ -179,7 +180,8 @@
     <ClCompile Include="Src\GraphicsEngine\Renderer\TextureSampler\TextureSampler.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="Src\Object\ObjectManager.h" />
+    <ClInclude Include="Src\GraphicsEngine\Scene\Scene.h" />
+    <ClInclude Include="Src\GraphicsEngine\ResourceManager\ModelManager\ModelManager.h" />
     <ClInclude Include="Src\GraphicsEngine\Renderer\DescriptorSets\DescriptorPool\DescriptorPool.h" />
     <ClInclude Include="Src\GraphicsEngine\Renderer\DescriptorSets\DescriptorSetLayout\TransformDescriptorSetLayout\TransformDescriptorSetLayout.h" />
     <ClInclude Include="Src\GraphicsEngine\Renderer\DescriptorSets\DescriptorSet\DescriptorSet.h" />
@@ -197,7 +199,7 @@
     <ClInclude Include="Src\GraphicsEngine\Renderer\Buffers\Buffer.h" />
     <ClInclude Include="Src\GraphicsEngine\Renderer\Buffers\IndexBuffer\IndexBuffer.h" />
     <ClInclude Include="Src\GraphicsEngine\ResourceManager\ResourceManager.h" />
-    <ClInclude Include="Src\Object\Object.h" />
+    <ClInclude Include="Src\GraphicsEngine\ResourceManager\ModelManager\Model.h" />
     <ClInclude Include="Src\GraphicsEngine\ResourceManager\MeshManager\Mesh.h" />
     <ClInclude Include="Src\GraphicsEngine\ResourceManager\MeshManager\MeshManager.h" />
     <ClInclude Include="Src\GraphicsEngine\ResourceManager\Resource.h" />

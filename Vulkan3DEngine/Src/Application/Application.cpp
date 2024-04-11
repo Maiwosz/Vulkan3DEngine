@@ -21,62 +21,26 @@ Application::~Application()
 
 void Application::run()
 {
-    //const std::vector<Vertex> vertices = {
-    //    {{-0.5f, -0.5f, 0.0f}, {1.0f, 0.0f, 0.0f}, {0.0f, 0.0f}},
-    //    {{0.5f, -0.5f, 0.0f}, {0.0f, 1.0f, 0.0f}, {1.0f, 0.0f}},
-    //    {{0.5f, 0.5f, 0.0f}, {0.0f, 0.0f, 1.0f}, {1.0f, 1.0f}},
-    //    {{-0.5f, 0.5f, 0.0f}, {1.0f, 1.0f, 1.0f}, {0.0f, 1.0f}},
-    //    
-    //    {{-0.5f, -0.5f, -0.5f}, {1.0f, 0.0f, 0.0f}, {0.0f, 0.0f}},
-    //    {{0.5f, -0.5f, -0.5f}, {0.0f, 1.0f, 0.0f}, {1.0f, 0.0f}},
-    //    {{0.5f, 0.5f, -0.5f}, {0.0f, 0.0f, 1.0f}, {1.0f, 1.0f}},
-    //    {{-0.5f, 0.5f, -0.5f}, {1.0f, 1.0f, 1.0f}, {0.0f, 1.0f}}
-    //};
+    m_statue1 = GraphicsEngine::get()->getModelManager()->createModelInstance("Statue.JSON");
+    m_statue1->setTranslation(3.0f, 0.0f, 0.0f);
+    m_statue1->setRotationY(0.0f);
+
+    m_statue2 = GraphicsEngine::get()->getModelManager()->createModelInstance("Statue.JSON");
+    m_statue2->setTranslation(1.0f, 0.0f, 0.0f);
+    m_statue2->setRotationY(90.0f);
+
+    m_statue3 = GraphicsEngine::get()->getModelManager()->createModelInstance("Statue.JSON");
+    m_statue3->setTranslation(-1.0f, 0.0f, 0.0f);
+    m_statue3->setRotationY(180.0f);
+
+    m_statue4 = GraphicsEngine::get()->getModelManager()->createModelInstance("Statue.JSON");
+    m_statue4->setTranslation(-3.0f, 0.0f, 0.0f);
+    m_statue4->setRotationY(270.0f);
+
+    //m_hygieia = GraphicsEngine::get()->getModelManager()->createModelInstance("Hygieia.JSON");
     //
-    //
-    //const std::vector<uint16_t> indices = { 
-    //    0, 1, 2, 2, 3, 0,
-    //    4, 5, 6, 6, 7, 4 
-    //};
-
-    //rect_mesh = std::make_shared<Mesh>(vertices, indices);
-
-    //m_cat_texture = GraphicsEngine::get()->getTextureManager()->createTextureFromFile("Assets\\Textures\\cat.jpg");
-
-    //rect = std::make_shared<Object>(rect_mesh, m_cat_texture);
-
-    m_statue_texture = GraphicsEngine::get()->getTextureManager()->loadTexture("statue.jpg");
-    m_statue_mesh = GraphicsEngine::get()->getMeshManager()->loadMesh("statue.obj");
-    
-    m_statue = std::make_shared<Object>(m_statue_mesh, m_statue_texture);
-
-    m_statue->setTranslation(1.0f, 0.0f, 0.8f);
-    m_statue->setScale(0.7f);
-    m_statue->setRotationX(90);
-    m_statue->setRotationY(90);
-    
-    //m_vikingRoom_texture = GraphicsEngine::get()->getTextureManager()->createTextureFromFile("Assets\\Textures\\viking_room.png");
-    //m_vikingRoom_mesh = GraphicsEngine::get()->getMeshManager()->createMeshFromFile("Assets\\Meshes\\viking_room.obj");
-    //
-    //m_vikingRoom = std::make_shared<Object>(m_vikingRoom_mesh, m_vikingRoom_texture);
-    //
-    //m_vikingRoom->setTranslation(0.0f, 0.0f, 0.0f);
-
-    //m_castle_texture = GraphicsEngine::get()->getTextureManager()->createTextureFromFile("Assets\\Textures\\castle.jpg");
-    //m_castle_mesh = GraphicsEngine::get()->getMeshManager()->createMeshFromFile("Assets\\Meshes\\castle.obj");
-    //
-    //m_castle = std::make_shared<Object>(m_castle_mesh, m_castle_texture);
-    //
-    //m_castle->setScale(0.05f);
-
-    m_hygieia_texture = GraphicsEngine::get()->getTextureManager()->loadTexture("Hygieia_C.png");
-    m_hygieia_mesh = GraphicsEngine::get()->getMeshManager()->loadMesh("Hygieia_C.obj");
-    
-    m_hygieia = std::make_shared<Object>(m_hygieia_mesh, m_hygieia_texture);
-    
-    m_hygieia->setTranslation(-1.0f, 0.0f, -0.25f);
-    m_hygieia->setScale(0.55f);
-    m_hygieia->setRotationX(90);
+    //m_hygieia->setTranslation(-1.0f, 0.0f, 0.0f);
+    //m_hygieia->setRotationY(-90.0f);
 
     while (!m_window->shouldClose()) {
         static auto startTime = std::chrono::high_resolution_clock::now();
@@ -98,20 +62,35 @@ void Application::update()
     GraphicsEngine::get()->getMeshManager()->updateResources();
 
     GraphicsEngine::get()->getRenderer()->updateUniformBuffer();
+
+    // Define the rotation speed
+    float rotationSpeed = 45.0f;
+    m_statue1->setRotationY(Application::s_deltaTime * rotationSpeed);
+    m_statue2->setRotationY(Application::s_deltaTime * rotationSpeed + 90);
+    m_statue3->setRotationY(Application::s_deltaTime * rotationSpeed + 180);
+    m_statue4->setRotationY(Application::s_deltaTime * rotationSpeed + 270);
+    //m_hygieia->setRotationY(Application::s_deltaTime * rotationSpeed);
+
     //rect->update();
-    m_statue->update();
+    m_statue1->update();
+    m_statue2->update();
+    m_statue3->update();
+    m_statue4->update();
     //m_vikingRoom->update();
     //m_castle->update();
-    m_hygieia->update();
+    //m_hygieia->update();
 }
 
 void Application::draw()
 {
     GraphicsEngine::get()->getRenderer()->drawFrameBegin();
     //rect->draw();
-    m_statue->draw();
+    m_statue1->draw();
+    m_statue2->draw();
+    m_statue3->draw();
+    m_statue4->draw();
     //m_vikingRoom->draw();
     //m_castle->draw();
-    m_hygieia->draw();
+    //m_hygieia->draw();
     GraphicsEngine::get()->getRenderer()->drawFrameEnd();
 }

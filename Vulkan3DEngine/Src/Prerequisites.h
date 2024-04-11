@@ -12,7 +12,6 @@
 #include <memory>
 #include <array>
 
-
 class Application;
 
 class Window;
@@ -27,7 +26,9 @@ class Texture;
 class TextureManager;
 class Mesh;
 class MeshManager;
-class Object;
+class ModelData;
+class ModelInstance;
+class ModelManager;
 class Buffer;
 class StagingBuffer;
 class VertexBuffer;
@@ -46,6 +47,7 @@ class Image;
 class ImageView;
 class TextureSampler;
 class DepthBuffer;
+class Scene;
 
 typedef std::shared_ptr<Window> WindowPtr;
 typedef std::shared_ptr<Device> DevicePtr;
@@ -58,7 +60,9 @@ typedef std::shared_ptr<Texture> TexturePtr;
 typedef std::shared_ptr<TextureManager> TextureManagerPtr;
 typedef std::shared_ptr<Mesh> MeshPtr;
 typedef std::shared_ptr<MeshManager> MeshManagerPtr;
-typedef std::shared_ptr<Object> ObjectPtr;
+typedef std::shared_ptr<ModelData> ModelDataPtr;
+typedef std::shared_ptr<ModelInstance> ModelInstancePtr;
+typedef std::shared_ptr<ModelManager> ModelManagerPtr;
 typedef std::shared_ptr<Buffer> BufferPtr;
 typedef std::shared_ptr<StagingBuffer> StagingBufferPtr;
 typedef std::shared_ptr<VertexBuffer> VertexBufferPtr;
@@ -73,11 +77,11 @@ typedef std::shared_ptr<DescriptorSet> DescriptorSetPtr;
 typedef std::shared_ptr<GlobalDescriptorSet> GlobalDescriptorSetPtr;
 typedef std::shared_ptr<TextureDescriptorSet> TextureDescriptorSetPtr;
 typedef std::shared_ptr<TransformDescriptorSet> TransformDescriptorSetPtr;
-
 typedef std::shared_ptr<Image> ImagePtr;
 typedef std::shared_ptr<ImageView> ImageViewPtr;
 typedef std::shared_ptr<TextureSampler> TextureSamplerPtr;
 typedef std::shared_ptr<DepthBuffer> DepthBufferPtr;
+typedef std::shared_ptr<Scene> ScenePtr;
 
 struct Vertex {
     glm::vec3 pos;
@@ -125,7 +129,7 @@ struct GlobalUBO {
     alignas(16) glm::mat4 proj;
 };
 
-struct ObjectUBO {
+struct ModelUBO {
     glm::mat4 model;
 };
 

@@ -6,10 +6,10 @@ layout(set = 0, binding = 0) uniform GlobalUniformBufferObject {
     mat4 proj;
 } global;
 
-// Specify the descriptor set for the object UBO
+// Specify the descriptor set for the model UBO
 layout(set = 1, binding = 0) uniform ObjectUniformBufferObject {
     mat4 model;
-} object;
+} model;
 
 // Specify the descriptor set for the sampler and texture
 layout(set = 2, binding = 0) uniform sampler2D texSampler;
@@ -22,7 +22,7 @@ layout(location = 0) out vec3 fragColor;
 layout(location = 1) out vec2 fragTexCoord;
 
 void main() {
-    gl_Position = global.proj * global.view * object.model * vec4(inPosition, 1.0);
+    gl_Position = global.proj * global.view * model.model * vec4(inPosition, 1.0);
     fragColor = inColor;
     fragTexCoord = inTexCoord;
 }

@@ -13,10 +13,13 @@ public:
 	ImageViewPtr getImageView() { return m_imageView; }
 	TextureSamplerPtr getTextureSampler() { return m_textureSampler; }
 
+	
 	void Reload() override;
 
 	void draw();
 private:
+	void Load(const char* full_path) override;
+
 	ImagePtr m_image;
 	ImageViewPtr m_imageView;
 	TextureSamplerPtr m_textureSampler;

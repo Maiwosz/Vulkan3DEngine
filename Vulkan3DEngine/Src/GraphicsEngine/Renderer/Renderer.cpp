@@ -97,7 +97,7 @@ IndexBufferPtr Renderer::createIndexBuffer(std::vector<uint32_t> indices)
 
 UniformBufferPtr Renderer::createUniformBuffer()
 {
-    return std::make_shared<UniformBuffer>(sizeof(ObjectUBO), this);
+    return std::make_shared<UniformBuffer>(sizeof(ModelUBO), this);
 }
 
 ImagePtr Renderer::createImage(uint32_t width, uint32_t height, VkFormat format, VkImageTiling tiling, VkImageUsageFlags usage, VkMemoryPropertyFlags properties)
