@@ -11,18 +11,23 @@ public:
 	Mesh(const char* full_path);
 	~Mesh();
 
+	
 	void Reload() override;
 
 	void draw();
+
+	bool hasIndexBuffer() const { return m_hasIndexBuffer; }
+
+	uint32_t getIndicesSize() const { return m_indices.size(); }
 private:
+	void Load(const char* full_path) override;
+
 	std::vector<Vertex> m_vertices;
 	std::vector<uint32_t> m_indices;
 
     VertexBufferPtr m_vertexBuffer;
 	IndexBufferPtr m_indexBuffer;
 
-	bool m_hasIndexedBuffer;
-
-	friend class Object;
+	bool m_hasIndexBuffer;
 };
 

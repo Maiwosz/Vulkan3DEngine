@@ -11,11 +11,9 @@ class ResourceManager
 public:
     ResourceManager(const std::string& directory);
     virtual ~ResourceManager();
-
     ResourcePtr loadResource(const std::string& name);
     void unloadResource(const std::string& name);
     void updateResources();
-
 protected:
     virtual Resource* createResourceFromFileConcrete(const char* file_path) = 0;
 

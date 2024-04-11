@@ -19,6 +19,11 @@ GraphicsEngine::GraphicsEngine(WindowPtr window): m_window(window)
         m_textureManager = std::make_shared<TextureManager>();
     }
     catch (...) { throw std::exception("TextureManager not created successfully"); }
+    try
+    {
+        m_modelManager = std::make_shared<ModelManager>();
+    }
+    catch (...) { throw std::exception("ModelManager not created successfully"); }
 }
 
 GraphicsEngine::~GraphicsEngine()

@@ -14,7 +14,7 @@
     <ClCompile Include="Src\GraphicsEngine\ResourceManager\MeshManager\MeshManager.cpp" />
     <ClCompile Include="Src\GraphicsEngine\ResourceManager\TextureManager\Texture.cpp" />
     <ClCompile Include="Src\GraphicsEngine\ResourceManager\TextureManager\TextureManager.cpp" />
-    <ClCompile Include="Src\Object\Object.cpp" />
+    <ClCompile Include="Src\GraphicsEngine\ResourceManager\ModelManager\Model.cpp" />
     <ClCompile Include="Src\GraphicsEngine\ResourceManager\ResourceManager.cpp" />
     <ClCompile Include="Src\GraphicsEngine\Renderer\Buffers\VertexBuffer\VertexBuffer.cpp" />
     <ClCompile Include="Src\GraphicsEngine\Renderer\Buffers\IndexBuffer\IndexBuffer.cpp" />
@@ -34,7 +34,8 @@
     <ClCompile Include="Src\GraphicsEngine\Renderer\DescriptorSets\DescriptorSet\GlobalDescriptorSet\GlobalDescriptorSet.cpp" />
     <ClCompile Include="Src\GraphicsEngine\Renderer\DescriptorSets\DescriptorSetLayout\TransformDescriptorSetLayout\TransformDescriptorSetLayout.cpp" />
     <ClCompile Include="Src\GraphicsEngine\Renderer\DescriptorSets\DescriptorSet\TransformDescriptorSet\TransformDescriptorSet.cpp" />
-    <ClCompile Include="Src\Object\ObjectManager.cpp" />
+    <ClCompile Include="Src\GraphicsEngine\ResourceManager\ModelManager\ModelManager.cpp" />
+    <ClCompile Include="Src\GraphicsEngine\Scene\Scene.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Src\Application\Application.h" />
@@ -50,7 +51,7 @@
     <ClInclude Include="Src\GraphicsEngine\ResourceManager\MeshManager\MeshManager.h" />
     <ClInclude Include="Src\GraphicsEngine\ResourceManager\TextureManager\Texture.h" />
     <ClInclude Include="Src\GraphicsEngine\ResourceManager\TextureManager\TextureManager.h" />
-    <ClInclude Include="Src\Object\Object.h" />
+    <ClInclude Include="Src\GraphicsEngine\ResourceManager\ModelManager\Model.h" />
     <ClInclude Include="Src\GraphicsEngine\ResourceManager\ResourceManager.h" />
     <ClInclude Include="Src\GraphicsEngine\Renderer\Buffers\VertexBuffer\VertexBuffer.h" />
     <ClInclude Include="Src\GraphicsEngine\Renderer\Buffers\IndexBuffer\IndexBuffer.h" />
@@ -70,7 +71,8 @@
     <ClInclude Include="Src\GraphicsEngine\Renderer\DescriptorSets\DescriptorSet\GlobalDescriptorSet\GlobalDescriptorSet.h" />
     <ClInclude Include="Src\GraphicsEngine\Renderer\DescriptorSets\DescriptorSetLayout\TransformDescriptorSetLayout\TransformDescriptorSetLayout.h" />
     <ClInclude Include="Src\GraphicsEngine\Renderer\DescriptorSets\DescriptorSet\TransformDescriptorSet\TransformDescriptorSet.h" />
-    <ClInclude Include="Src\Object\ObjectManager.h" />
+    <ClInclude Include="Src\GraphicsEngine\ResourceManager\ModelManager\ModelManager.h" />
+    <ClInclude Include="Src\GraphicsEngine\Scene\Scene.h" />
   </ItemGroup>
   <ItemGroup>
     <None Include="Shaders\Shader.frag" />

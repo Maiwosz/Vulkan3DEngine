@@ -8,7 +8,7 @@ TransformDescriptorSet::TransformDescriptorSet(VkBuffer uniformBuffer, Renderer*
     VkDescriptorBufferInfo bufferInfo{};
     bufferInfo.buffer = uniformBuffer;
     bufferInfo.offset = 0;
-    bufferInfo.range = sizeof(ObjectUBO);
+    bufferInfo.range = sizeof(ModelUBO);
 
     VkWriteDescriptorSet write{};
 
