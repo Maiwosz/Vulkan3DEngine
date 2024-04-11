@@ -75,7 +75,7 @@ ModelInstance::ModelInstance(ModelDataPtr modelData) : m_modelData(modelData)
 {
 	//Initialize uniformBuffers and descriptorSets
 	for (int i = 0; i < Renderer::MAX_FRAMES_IN_FLIGHT; i++) {
-		m_uniformBuffers.push_back(GraphicsEngine::get()->getRenderer()->createUniformBuffer());
+		m_uniformBuffers.push_back(GraphicsEngine::get()->getRenderer()->createUniformBuffer(sizeof(ModelUBO)));
 		m_descriptorSets.push_back(GraphicsEngine::get()->getRenderer()->createTransformDescriptorSet(m_uniformBuffers[i]->get()));
 	}
 }
@@ -124,9 +124,6 @@ void ModelInstance::update()
 
 void ModelInstance::draw()
 {
-	GraphicsEngine::get()->getRenderer()->clearCurrentDescriptorSets();
-	GraphicsEngine::get()->getRenderer()->bindGlobalDescriptorSet();
-
 	m_descriptorSets[GraphicsEngine::get()->getRenderer()->getCurrentFrame()]->bind();
 
 	m_modelData->m_mesh->draw();

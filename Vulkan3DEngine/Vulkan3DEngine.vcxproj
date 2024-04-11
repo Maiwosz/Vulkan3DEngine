@@ -146,10 +146,7 @@
     <ClCompile Include="Src\GraphicsEngine\Scene\Scene.cpp" />
     <ClCompile Include="Src\GraphicsEngine\ResourceManager\ModelManager\ModelManager.cpp" />
     <ClCompile Include="Src\GraphicsEngine\Renderer\DescriptorSets\DescriptorPool\DescriptorPool.cpp" />
-    <ClCompile Include="Src\GraphicsEngine\Renderer\DescriptorSets\DescriptorSetLayout\TransformDescriptorSetLayout\TransformDescriptorSetLayout.cpp" />
     <ClCompile Include="Src\GraphicsEngine\Renderer\DescriptorSets\DescriptorSet\DescriptorSet.cpp" />
-    <ClCompile Include="Src\GraphicsEngine\Renderer\DescriptorSets\DescriptorSetLayout\GlobalDescriptorSetLayout\GlobalDescriptorSetLayout.cpp" />
-    <ClCompile Include="Src\GraphicsEngine\Renderer\DescriptorSets\DescriptorSetLayout\TextureDescriptorSetLayout\TextureDescriptorSetLayout.cpp" />
     <ClCompile Include="Src\GraphicsEngine\Renderer\DescriptorSets\DescriptorSet\GlobalDescriptorSet\GlobalDescriptorSet.cpp" />
     <ClCompile Include="Src\GraphicsEngine\Renderer\DescriptorSets\DescriptorSet\TextureDescriptorSet\TextureDescriptorSet.cpp" />
     <ClCompile Include="Src\GraphicsEngine\Renderer\DescriptorSets\DescriptorSet\TransformDescriptorSet\TransformDescriptorSet.cpp" />
@@ -158,7 +155,6 @@
     <ClCompile Include="Src\GraphicsEngine\Renderer\Buffers\StagingBuffer\StagingBuffer.cpp" />
     <ClCompile Include="Src\GraphicsEngine\Renderer\Image\Image.cpp" />
     <ClCompile Include="Src\GraphicsEngine\Renderer\Buffers\UniformBuffer\UniformBuffer.cpp" />
-    <ClCompile Include="Src\GraphicsEngine\Renderer\DescriptorSets\DescriptorSetLayout\DescriptorSetLayout.cpp" />
     <ClCompile Include="Src\GraphicsEngine\Renderer\Buffers\Buffer.cpp" />
     <ClCompile Include="Src\GraphicsEngine\Renderer\Buffers\IndexBuffer\IndexBuffer.cpp" />
     <ClCompile Include="Src\GraphicsEngine\ResourceManager\ResourceManager.cpp" />
@@ -171,6 +167,7 @@
     <ClCompile Include="Src\GraphicsEngine\Renderer\Renderer.cpp" />
     <ClCompile Include="Src\GraphicsEngine\GraphicsEngine.cpp" />
     <ClCompile Include="Src\Application\Application.cpp" />
+    <ClCompile Include="Src\InputSystem\InputSystem.cpp" />
     <ClCompile Include="Src\main.cpp" />
     <ClCompile Include="Src\WindowSytem\Window.cpp" />
     <ClCompile Include="Src\GraphicsEngine\Renderer\SwapChain\SwapChain.cpp" />
@@ -183,10 +180,7 @@
     <ClInclude Include="Src\GraphicsEngine\Scene\Scene.h" />
     <ClInclude Include="Src\GraphicsEngine\ResourceManager\ModelManager\ModelManager.h" />
     <ClInclude Include="Src\GraphicsEngine\Renderer\DescriptorSets\DescriptorPool\DescriptorPool.h" />
-    <ClInclude Include="Src\GraphicsEngine\Renderer\DescriptorSets\DescriptorSetLayout\TransformDescriptorSetLayout\TransformDescriptorSetLayout.h" />
     <ClInclude Include="Src\GraphicsEngine\Renderer\DescriptorSets\DescriptorSet\DescriptorSet.h" />
-    <ClInclude Include="Src\GraphicsEngine\Renderer\DescriptorSets\DescriptorSetLayout\GlobalDescriptorSetLayout\GlobalDescriptorSetLayout.h" />
-    <ClInclude Include="Src\GraphicsEngine\Renderer\DescriptorSets\DescriptorSetLayout\TextureDescriptorSetLayout\TextureDescriptorSetLayout.h" />
     <ClInclude Include="Src\GraphicsEngine\Renderer\DescriptorSets\DescriptorSet\GlobalDescriptorSet\GlobalDescriptorSet.h" />
     <ClInclude Include="Src\GraphicsEngine\Renderer\DescriptorSets\DescriptorSet\TextureDescriptorSet\TextureDescriptorSet.h" />
     <ClInclude Include="Src\GraphicsEngine\Renderer\DescriptorSets\DescriptorSet\TransformDescriptorSet\TransformDescriptorSet.h" />
@@ -195,7 +189,6 @@
     <ClInclude Include="Src\GraphicsEngine\Renderer\Buffers\StagingBuffer\StagingBuffer.h" />
     <ClInclude Include="Src\GraphicsEngine\Renderer\Image\Image.h" />
     <ClInclude Include="Src\GraphicsEngine\Renderer\Buffers\UniformBuffer\UniformBuffer.h" />
-    <ClInclude Include="Src\GraphicsEngine\Renderer\DescriptorSets\DescriptorSetLayout\DescriptorSetLayout.h" />
     <ClInclude Include="Src\GraphicsEngine\Renderer\Buffers\Buffer.h" />
     <ClInclude Include="Src\GraphicsEngine\Renderer\Buffers\IndexBuffer\IndexBuffer.h" />
     <ClInclude Include="Src\GraphicsEngine\ResourceManager\ResourceManager.h" />
@@ -205,6 +198,8 @@
     <ClInclude Include="Src\GraphicsEngine\ResourceManager\Resource.h" />
     <ClInclude Include="Src\GraphicsEngine\Renderer\GraphicsPipeline\GraphicsPipeline.h" />
     <ClInclude Include="Src\GraphicsEngine\Renderer\Device\Device.h" />
+    <ClInclude Include="Src\InputSystem\InputListener.h" />
+    <ClInclude Include="Src\InputSystem\InputSystem.h" />
     <ClInclude Include="Src\Prerequisites.h" />
     <ClInclude Include="Src\GraphicsEngine\Renderer\Renderer.h" />
     <ClInclude Include="Src\GraphicsEngine\GraphicsEngine.h" />

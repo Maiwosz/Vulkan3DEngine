@@ -1,6 +1,16 @@
 #include "TransformDescriptorSet.h"
 #include "../../../Renderer.h"
-#include "../../DescriptorSetLayout/TransformDescriptorSetLayout/TransformDescriptorSetLayout.h"
+
+TransformDescriptorSetLayout::TransformDescriptorSetLayout(Renderer* renderer) : DescriptorSetLayout(renderer)
+{
+    createBinding(0, 1, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT);
+    createLayout();
+}
+
+TransformDescriptorSetLayout::~TransformDescriptorSetLayout()
+{
+
+}
 
 TransformDescriptorSet::TransformDescriptorSet(VkBuffer uniformBuffer, Renderer* renderer) :
     DescriptorSet(renderer->m_transformDescriptorSetLayout->get(), renderer), m_renderer(renderer)
@@ -27,4 +37,9 @@ TransformDescriptorSet::TransformDescriptorSet(VkBuffer uniformBuffer, Renderer*
 
 TransformDescriptorSet::~TransformDescriptorSet()
 {
+}
+
+void TransformDescriptorSet::bind()
+{
+    m_renderer->m_currentDescriptorSets[1] = m_descriptorSet;
 }

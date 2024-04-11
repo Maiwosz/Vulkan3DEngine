@@ -15,15 +15,17 @@ public:
 	StagingBufferPtr createStagingBuffer(VkDeviceSize bufferSize);
 	VertexBufferPtr createVertexBuffer(std::vector<Vertex> vertices);
 	IndexBufferPtr createIndexBuffer(std::vector<uint32_t> indices);
-	UniformBufferPtr createUniformBuffer();
+	UniformBufferPtr createUniformBuffer(VkDeviceSize deviceSize);
 	ImagePtr createImage(uint32_t width, uint32_t height, VkFormat format, VkImageTiling tiling,
 		VkImageUsageFlags usage, VkMemoryPropertyFlags properties);
 	ImageViewPtr createImageView(VkImage image, VkFormat format, VkImageAspectFlags aspectFlags);
 	TextureSamplerPtr createTextureSampler();
 	TextureDescriptorSetPtr createTextureDescriptorSet(VkImageView imageView, VkSampler sampler);
 	TransformDescriptorSetPtr createTransformDescriptorSet(VkBuffer uniformBuffer);
+	GlobalDescriptorSetPtr createGlobalDescriptorSet(VkBuffer uniformBuffer);
 
 	DevicePtr getDevice() { return m_device; }
+	SwapChainPtr getSwapChain() { return m_swapChain; }
 
 	void drawFrameBegin();
 	void drawFrameEnd();
@@ -32,20 +34,14 @@ public:
 	VkCommandBuffer getCurrentCommandBuffer() { return m_commandBuffers[m_currentFrame]; }
 	const uint32_t getCurrentFrame() { return m_currentFrame; }
 
-	void clearCurrentDescriptorSets();
-	void bindGlobalDescriptorSet();
 	void bindDescriptorSets();
 
-	void updateUniformBuffer(/*uint32_t currentImage*/);
 private:
 	//Command Buffer // To separate class later?
 	void createCommandBuffers();
 	void recordCommandBufferBegin(VkCommandBuffer commandBuffer, uint32_t imageIndex);
 	void recordCommandBufferEnd(VkCommandBuffer commandBuffer);
-
-	void createUniformBuffers();
 	
-
 	WindowPtr m_window;
 	DevicePtr m_device;
 	SwapChainPtr m_swapChain;
@@ -55,16 +51,11 @@ private:
 	GlobalDescriptorSetLayoutPtr m_globalDescriptorSetLayout;
 	TextureDescriptorSetLayoutPtr m_textureDescriptorSetLayout;
 	TransformDescriptorSetLayoutPtr m_transformDescriptorSetLayout;
-	//DepthBufferPtr m_depthBuffer;
 
 	//Command Buffer // To separate class later?
 	std::vector<VkCommandBuffer> m_commandBuffers;
-	
-	std::vector<UniformBufferPtr> m_uniformBuffers;
 
-	std::vector<DescriptorSetPtr> m_globalDescriptorSets;
-
-	std::vector <VkDescriptorSet> m_currentDescriptorSets;
+	VkDescriptorSet m_currentDescriptorSets[3];
 
 	uint32_t m_currentFrame = 0;
 	uint32_t m_currentImageIndex;

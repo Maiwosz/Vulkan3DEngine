@@ -1,14 +1,24 @@
 #pragma once
 #include "../../Prerequisites.h"
+#include "..\ResourceManager\ModelManager\Model.h"
 
 class Scene {
 public:
     Scene();
     ~Scene();
-    void addModel(MeshPtr mesh, TexturePtr texture);
+
     void update();
-    //void render(CameraPtr camera);
+    void draw();
 private:
-    std::shared_ptr<ModelManager> m_modelManager;
+	std::vector<UniformBufferPtr> m_uniformBuffers;
+	std::vector<GlobalDescriptorSetPtr> m_globalDescriptorSets;
+
+	ModelInstancePtr m_statue1;
+	ModelInstancePtr m_statue2;
+	ModelInstancePtr m_statue3;
+	ModelInstancePtr m_statue4;
+	ModelInstancePtr m_vikingRoom;
+	ModelInstancePtr m_castle;
+	ModelInstancePtr m_hygieia;
 };
 

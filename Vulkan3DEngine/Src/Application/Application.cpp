@@ -12,6 +12,13 @@ Application::Application()
     catch (...) {
         throw std::exception("Failed to create GraphicsEngine");
     }
+    try
+    {
+        InputSystem::create();
+    }
+    catch (...) {
+        throw std::exception("Failed to create InputSystem");
+    }
 }
 
 Application::~Application()
@@ -21,26 +28,8 @@ Application::~Application()
 
 void Application::run()
 {
-    m_statue1 = GraphicsEngine::get()->getModelManager()->createModelInstance("Statue.JSON");
-    m_statue1->setTranslation(3.0f, 0.0f, 0.0f);
-    m_statue1->setRotationY(0.0f);
+    m_scene = std::make_shared<Scene>();
 
-    m_statue2 = GraphicsEngine::get()->getModelManager()->createModelInstance("Statue.JSON");
-    m_statue2->setTranslation(1.0f, 0.0f, 0.0f);
-    m_statue2->setRotationY(90.0f);
-
-    m_statue3 = GraphicsEngine::get()->getModelManager()->createModelInstance("Statue.JSON");
-    m_statue3->setTranslation(-1.0f, 0.0f, 0.0f);
-    m_statue3->setRotationY(180.0f);
-
-    m_statue4 = GraphicsEngine::get()->getModelManager()->createModelInstance("Statue.JSON");
-    m_statue4->setTranslation(-3.0f, 0.0f, 0.0f);
-    m_statue4->setRotationY(270.0f);
-
-    //m_hygieia = GraphicsEngine::get()->getModelManager()->createModelInstance("Hygieia.JSON");
-    //
-    //m_hygieia->setTranslation(-1.0f, 0.0f, 0.0f);
-    //m_hygieia->setRotationY(-90.0f);
 
     while (!m_window->shouldClose()) {
         static auto startTime = std::chrono::high_resolution_clock::now();
@@ -61,36 +50,43 @@ void Application::update()
     GraphicsEngine::get()->getTextureManager()->updateResources();
     GraphicsEngine::get()->getMeshManager()->updateResources();
 
-    GraphicsEngine::get()->getRenderer()->updateUniformBuffer();
-
-    // Define the rotation speed
-    float rotationSpeed = 45.0f;
-    m_statue1->setRotationY(Application::s_deltaTime * rotationSpeed);
-    m_statue2->setRotationY(Application::s_deltaTime * rotationSpeed + 90);
-    m_statue3->setRotationY(Application::s_deltaTime * rotationSpeed + 180);
-    m_statue4->setRotationY(Application::s_deltaTime * rotationSpeed + 270);
-    //m_hygieia->setRotationY(Application::s_deltaTime * rotationSpeed);
-
-    //rect->update();
-    m_statue1->update();
-    m_statue2->update();
-    m_statue3->update();
-    m_statue4->update();
-    //m_vikingRoom->update();
-    //m_castle->update();
-    //m_hygieia->update();
+    m_scene->update();
+    
 }
 
 void Application::draw()
 {
     GraphicsEngine::get()->getRenderer()->drawFrameBegin();
-    //rect->draw();
-    m_statue1->draw();
-    m_statue2->draw();
-    m_statue3->draw();
-    m_statue4->draw();
-    //m_vikingRoom->draw();
-    //m_castle->draw();
-    //m_hygieia->draw();
+    
+    m_scene->draw();
+
     GraphicsEngine::get()->getRenderer()->drawFrameEnd();
+}
+
+void Application::onKeyDown(int key)
+{
+}
+
+void Application::onKeyUp(int key)
+{
+}
+
+void Application::onMouseMove(const glm::vec2& mouse_pos)
+{
+}
+
+void Application::onLeftMouseDown(const glm::vec2& mouse_pos)
+{
+}
+
+void Application::onLeftMouseUp(const glm::vec2& mouse_pos)
+{
+}
+
+void Application::onRightMouseDown(const glm::vec2& mouse_pos)
+{
+}
+
+void Application::onRightMouseUp(const glm::vec2& mouse_pos)
+{
 }

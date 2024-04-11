@@ -1,6 +1,16 @@
 #include "GlobalDescriptorSet.h"
 #include "../../../Renderer.h"
-#include "../../DescriptorSetLayout/GlobalDescriptorSetLayout/GlobalDescriptorSetLayout.h"
+
+GlobalDescriptorSetLayout::GlobalDescriptorSetLayout(Renderer* renderer) : DescriptorSetLayout(renderer)
+{
+    createBinding(0, 1, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT);
+    createLayout();
+}
+
+GlobalDescriptorSetLayout::~GlobalDescriptorSetLayout()
+{
+
+}
 
 GlobalDescriptorSet::GlobalDescriptorSet(VkBuffer uniformBuffer, Renderer* renderer) :
     DescriptorSet(renderer->m_globalDescriptorSetLayout->get(), renderer), m_renderer(renderer)
@@ -27,4 +37,9 @@ GlobalDescriptorSet::GlobalDescriptorSet(VkBuffer uniformBuffer, Renderer* rende
 
 GlobalDescriptorSet::~GlobalDescriptorSet()
 {
+}
+
+void GlobalDescriptorSet::bind()
+{
+    m_renderer->m_currentDescriptorSets[0] = m_descriptorSet;
 }
