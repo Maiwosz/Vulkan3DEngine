@@ -1,6 +1,10 @@
 #include "Application.h"
+#include "../InputSystem/InputSystem.h"
+#include "../GraphicsEngine/Camera/Camera.h"
 
 float Application::s_deltaTime = 0.0f;
+uint32_t Application::s_window_width = 1280;
+uint32_t Application::s_window_height = 720;
 
 Application::Application()
 {
@@ -24,23 +28,42 @@ Application::Application()
 Application::~Application()
 {
     GraphicsEngine::release();
+    InputSystem::release();
 }
 
 void Application::run()
 {
     m_scene = std::make_shared<Scene>();
 
+    auto startTime = std::chrono::high_resolution_clock::now();
 
     while (!m_window->shouldClose()) {
-        static auto startTime = std::chrono::high_resolution_clock::now();
+        
         
         glfwPollEvents();
 
+        if (m_window->wasWindowResized()) {
+            s_window_width = m_window->getExtent().width;
+            s_window_height = m_window->getExtent().height;
+        }
+
+        if(m_window->isFocused()) {
+            InputSystem::get()->addListener(m_scene->getCamera().get());
+            InputSystem::get()->showCursor(false);
+        }
+        else {
+            InputSystem::get()->removeListener(m_scene->getCamera().get());
+            InputSystem::get()->showCursor(true);
+        }
+
+        InputSystem::get()->update();
         update();
         draw();
 
         auto currentTime = std::chrono::high_resolution_clock::now();
         Application::s_deltaTime = std::chrono::duration<float, std::chrono::seconds::period>(currentTime - startTime).count();
+
+        startTime = currentTime; // Update startTime for the next frame
     }
     vkDeviceWaitIdle(GraphicsEngine::get()->getRenderer()->getDevice()->get());
 }
@@ -56,37 +79,13 @@ void Application::update()
 
 void Application::draw()
 {
+    if (m_window->isMinimized()) {
+        return;
+    }
+
     GraphicsEngine::get()->getRenderer()->drawFrameBegin();
     
     m_scene->draw();
 
     GraphicsEngine::get()->getRenderer()->drawFrameEnd();
-}
-
-void Application::onKeyDown(int key)
-{
-}
-
-void Application::onKeyUp(int key)
-{
-}
-
-void Application::onMouseMove(const glm::vec2& mouse_pos)
-{
-}
-
-void Application::onLeftMouseDown(const glm::vec2& mouse_pos)
-{
-}
-
-void Application::onLeftMouseUp(const glm::vec2& mouse_pos)
-{
-}
-
-void Application::onRightMouseDown(const glm::vec2& mouse_pos)
-{
-}
-
-void Application::onRightMouseUp(const glm::vec2& mouse_pos)
-{
 }

@@ -3,6 +3,7 @@
 #include <cstdlib>
 
 #include "Application\Application.h"
+#include "InputSystem/InputSystem.h"
 
 int main() {
 	Application app;

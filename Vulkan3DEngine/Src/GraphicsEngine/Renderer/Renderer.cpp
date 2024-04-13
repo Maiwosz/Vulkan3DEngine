@@ -140,8 +140,6 @@ void Renderer::drawFrameEnd()
 {
     recordCommandBufferEnd(m_commandBuffers[m_currentFrame]);
 
-    //updateUniformBuffer(m_currentFrame);
-
     VkSubmitInfo submitInfo{};
     submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
 
@@ -250,10 +248,6 @@ void Renderer::recordCommandBufferBegin(VkCommandBuffer commandBuffer, uint32_t 
     scissor.offset = { 0, 0 };
     scissor.extent = m_swapChain->getSwapChainExtent();
     vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
-
-    //m_currentDescriptorSets.clear();
-    //
-    //m_globalDescriptorSets[m_currentFrame]->bind();
 }
 
 void Renderer::recordCommandBufferEnd(VkCommandBuffer commandBuffer)

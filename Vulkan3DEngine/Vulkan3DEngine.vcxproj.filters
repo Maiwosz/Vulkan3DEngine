@@ -33,6 +33,7 @@
     <ClCompile Include="Src\GraphicsEngine\ResourceManager\ModelManager\ModelManager.cpp" />
     <ClCompile Include="Src\GraphicsEngine\Scene\Scene.cpp" />
     <ClCompile Include="Src\InputSystem\InputSystem.cpp" />
+    <ClCompile Include="Src\GraphicsEngine\Camera\Camera.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Src\Application\Application.h" />
@@ -68,6 +69,7 @@
     <ClInclude Include="Src\GraphicsEngine\Scene\Scene.h" />
     <ClInclude Include="Src\InputSystem\InputListener.h" />
     <ClInclude Include="Src\InputSystem\InputSystem.h" />
+    <ClInclude Include="Src\GraphicsEngine\Camera\Camera.h" />
   </ItemGroup>
   <ItemGroup>
     <None Include="Shaders\Shader.frag" />

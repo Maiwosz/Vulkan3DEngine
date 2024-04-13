@@ -9,9 +9,13 @@ public:
 
     void update();
     void draw();
+
+	CameraPtr getCamera() { return m_camera; }
 private:
 	std::vector<UniformBufferPtr> m_uniformBuffers;
 	std::vector<GlobalDescriptorSetPtr> m_globalDescriptorSets;
+
+	CameraPtr m_camera;
 
 	ModelInstancePtr m_statue1;
 	ModelInstancePtr m_statue2;
