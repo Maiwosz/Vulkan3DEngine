@@ -48,6 +48,7 @@ class ImageView;
 class TextureSampler;
 class DepthBuffer;
 class Scene;
+class Camera;
 
 typedef std::shared_ptr<Window> WindowPtr;
 typedef std::shared_ptr<Device> DevicePtr;
@@ -82,6 +83,7 @@ typedef std::shared_ptr<ImageView> ImageViewPtr;
 typedef std::shared_ptr<TextureSampler> TextureSamplerPtr;
 typedef std::shared_ptr<DepthBuffer> DepthBufferPtr;
 typedef std::shared_ptr<Scene> ScenePtr;
+typedef std::shared_ptr<Camera> CameraPtr;
 
 struct Vertex {
     glm::vec3 pos;

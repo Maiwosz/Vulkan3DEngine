@@ -28,6 +28,9 @@ void InputSystem::update()
 		//THERE IS MOUSE MOVE EVENT
 		std::unordered_set<InputListener*>::iterator it = m_set_listeners.begin();
 
+		//glm::vec2 delta_mouse_pos = glm::vec2(current_mouse_pos.x, current_mouse_pos.y) - m_old_mouse_pos;
+		//m_old_mouse_pos = glm::vec2(current_mouse_pos.x, current_mouse_pos.y);
+
 		while (it != m_set_listeners.end())
 		{
 			(*it)->onMouseMove(glm::vec2(current_mouse_pos.x, current_mouse_pos.y));

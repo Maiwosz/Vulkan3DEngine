@@ -15,6 +15,8 @@ public:
 	void setCursorPosition(const glm::vec2& pos);
 	void showCursor(bool show);
 
+	glm::vec2 getOldMousePos() { return m_old_mouse_pos; }
+
 	static InputSystem* get();
 	static void create();
 	static void release();

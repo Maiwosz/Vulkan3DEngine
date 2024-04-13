@@ -143,6 +143,7 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="Src\GraphicsEngine\Camera\Camera.cpp" />
     <ClCompile Include="Src\GraphicsEngine\Scene\Scene.cpp" />
     <ClCompile Include="Src\GraphicsEngine\ResourceManager\ModelManager\ModelManager.cpp" />
     <ClCompile Include="Src\GraphicsEngine\Renderer\DescriptorSets\DescriptorPool\DescriptorPool.cpp" />
@@ -177,6 +178,7 @@
     <ClCompile Include="Src\GraphicsEngine\Renderer\TextureSampler\TextureSampler.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="Src\GraphicsEngine\Camera\Camera.h" />
     <ClInclude Include="Src\GraphicsEngine\Scene\Scene.h" />
     <ClInclude Include="Src\GraphicsEngine\ResourceManager\ModelManager\ModelManager.h" />
     <ClInclude Include="Src\GraphicsEngine\Renderer\DescriptorSets\DescriptorPool\DescriptorPool.h" />

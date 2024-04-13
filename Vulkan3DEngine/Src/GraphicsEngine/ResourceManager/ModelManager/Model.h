@@ -36,6 +36,11 @@ public:
 	void setRotationZ(float angle);
 	void setScale(float scale);
 
+	// Getter functions
+	glm::vec3 getTranslation() const { return m_translation; }
+	glm::vec3 getRotation() const { return m_rotation; }
+	float getScale() const { return m_scale; }
+
 	void update();
 	void draw();
 private:
