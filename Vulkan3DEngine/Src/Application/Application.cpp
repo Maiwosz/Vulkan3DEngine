@@ -27,6 +27,7 @@ Application::Application()
 
 Application::~Application()
 {
+    m_scene.reset();
     GraphicsEngine::release();
     InputSystem::release();
 }
