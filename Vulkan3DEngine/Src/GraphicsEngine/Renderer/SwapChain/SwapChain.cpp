@@ -111,8 +111,8 @@ void SwapChain::cleanupSwapChain()
 	}
 
 	for (auto imageView : m_swapChainImageViews) {
-		vkDestroyImageView(m_renderer->m_device->get(), imageView->get(), nullptr);
-
+		//vkDestroyImageView(m_renderer->m_device->get(), imageView->get(), nullptr);
+		imageView.reset();
 	}
 
 	vkDestroySwapchainKHR(m_renderer->m_device->get(), m_swapChain, nullptr);

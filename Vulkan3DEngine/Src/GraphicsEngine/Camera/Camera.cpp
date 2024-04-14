@@ -5,7 +5,7 @@
 
 Camera::Camera(glm::vec3 startPosition, float startYaw, float startPitch) :
     m_position(startPosition), m_yaw(startYaw), m_pitch(startPitch), m_up(glm::vec3(0.0f, 0.0f, 1.0f)),
-    m_speed(2.0f), m_mouseSensitivity(0.1f), m_zoom(45.0f), m_zoomSpeed(1.0f)
+    m_speed(3.0f), m_mouseSensitivity(10.0f), m_zoom(45.0f), m_zoomSpeed(10.0f)
 {
     updateCameraVectors(); 
 }
@@ -98,8 +98,8 @@ void Camera::onMouseMove(const glm::vec2& mouse_pos)
     glm::vec2 deltaMousePos = mouse_pos - lastMousePos;
 
     // Use the difference to adjust the yaw and pitch
-    m_yaw -= deltaMousePos.x * m_mouseSensitivity; // yaw changes with left/right mouse movement
-    m_pitch -= deltaMousePos.y * m_mouseSensitivity; // pitch changes with up/down mouse movement
+    m_yaw -= deltaMousePos.x * m_mouseSensitivity * Application::s_deltaTime; // yaw changes with left/right mouse movement
+    m_pitch -= deltaMousePos.y * m_mouseSensitivity * Application::s_deltaTime; // pitch changes with up/down mouse movement
 
     while (m_yaw > 360) m_yaw -= 360;
     while (m_yaw < -0) m_yaw += 360;
@@ -131,19 +131,11 @@ void Camera::onLeftMouseUp(const glm::vec2& mouse_pos)
 void Camera::onRightMouseDown(const glm::vec2& mouse_pos)
 {
     // Zoom in
-    m_zoom -= m_zoomSpeed;
-    if (m_zoom < 1.0f)
-        m_zoom = 1.0f;
-    if (m_zoom > 45.0f)
-        m_zoom = 45.0f;
+    m_zoom = 15;
 }
 
 void Camera::onRightMouseUp(const glm::vec2& mouse_pos)
 {
     // Zoom out
-    m_zoom += m_zoomSpeed;
-    if (m_zoom < 1.0f)
-        m_zoom = 1.0f;
-    if (m_zoom > 45.0f)
-        m_zoom = 45.0f;
+    m_zoom = 45;
 }
