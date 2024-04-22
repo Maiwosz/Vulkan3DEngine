@@ -13,6 +13,8 @@
 
 #include "../../Application/Application.h"
 
+VkSampleCountFlagBits Renderer::msaaSamples = VK_SAMPLE_COUNT_1_BIT;
+
 Renderer::Renderer(WindowPtr window) : m_window(window)
 {
     try {
@@ -48,11 +50,6 @@ Renderer::Renderer(WindowPtr window) : m_window(window)
     createCommandBuffers();
 
     try {
-        m_textureSampler = std::make_shared<TextureSampler>(this);
-    }
-    catch (...) { throw std::exception("TextureSampler not created successfully"); }
-
-    try {
         m_descriptorPool = std::make_shared<DescriptorPool>(64, this);
     }
     catch (...) { throw std::exception("DescriptorPool not created successfully"); }
@@ -84,19 +81,19 @@ UniformBufferPtr Renderer::createUniformBuffer(VkDeviceSize bufferSize)
     return std::make_shared<UniformBuffer>(bufferSize, this);
 }
 
-ImagePtr Renderer::createImage(uint32_t width, uint32_t height, VkFormat format, VkImageTiling tiling, VkImageUsageFlags usage, VkMemoryPropertyFlags properties)
+ImagePtr Renderer::createImage(uint32_t width, uint32_t height, uint32_t mipLevels, VkSampleCountFlagBits numSamples, VkFormat format, VkImageTiling tiling, VkImageUsageFlags usage, VkMemoryPropertyFlags properties)
 {
-    return std::make_shared<Image>(width, height, format, tiling, usage, properties, this);
+    return std::make_shared<Image>(width, height, mipLevels, numSamples, format, tiling, usage, properties, this);
 }
 
-ImageViewPtr Renderer::createImageView(VkImage image, VkFormat format, VkImageAspectFlags aspectFlags)
+ImageViewPtr Renderer::createImageView(VkImage image, VkFormat format, VkImageAspectFlags aspectFlags, uint32_t mipLevels)
 {
-    return std::make_shared<ImageView>(image, format, aspectFlags, this);
+    return std::make_shared<ImageView>(image, format, aspectFlags, mipLevels, this);
 }
 
-TextureSamplerPtr Renderer::createTextureSampler()
+TextureSamplerPtr Renderer::createTextureSampler(uint32_t mipLevels)
 {
-    return std::make_shared<TextureSampler>(this);
+    return std::make_shared<TextureSampler>(mipLevels, this);
 }
 
 TextureDescriptorSetPtr Renderer::createTextureDescriptorSet(VkImageView imageView, VkSampler sampler)

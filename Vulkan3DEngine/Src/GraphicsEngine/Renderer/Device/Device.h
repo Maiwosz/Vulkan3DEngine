@@ -64,6 +64,9 @@ public:
     VkFormat findDepthFormat();
     bool hasStencilComponent(VkFormat format);
 
+    //Multisampling
+    VkSampleCountFlagBits getMaxUsableSampleCount();
+
 private:
     //Instance
     void createInstance();

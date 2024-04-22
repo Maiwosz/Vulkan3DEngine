@@ -34,6 +34,10 @@ Application::~Application()
 
 void Application::run()
 {
+    GraphicsEngine::get()->getTextureManager()->updateResources();
+    GraphicsEngine::get()->getMeshManager()->updateResources();
+    GraphicsEngine::get()->getModelManager()->updateResources();
+
     m_scene = std::make_shared<Scene>();
 
     auto startTime = std::chrono::high_resolution_clock::now();
@@ -73,9 +77,9 @@ void Application::update()
 {
     GraphicsEngine::get()->getTextureManager()->updateResources();
     GraphicsEngine::get()->getMeshManager()->updateResources();
+    GraphicsEngine::get()->getModelManager()->updateResources();
 
     m_scene->update();
-    
 }
 
 void Application::draw()

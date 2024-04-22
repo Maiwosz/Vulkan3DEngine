@@ -1,7 +1,7 @@
 #include "TextureSampler.h"
 #include "../Renderer.h"
 
-TextureSampler::TextureSampler(Renderer* renderer):m_renderer(renderer)
+TextureSampler::TextureSampler(uint32_t mipLevels, Renderer* renderer):m_renderer(renderer)
 {
     VkPhysicalDeviceProperties properties{};
     vkGetPhysicalDeviceProperties(m_renderer->m_device->getPhysicalDevice(), &properties);
@@ -20,6 +20,9 @@ TextureSampler::TextureSampler(Renderer* renderer):m_renderer(renderer)
     samplerInfo.compareEnable = VK_FALSE;
     samplerInfo.compareOp = VK_COMPARE_OP_ALWAYS;
     samplerInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
+    samplerInfo.minLod = 0.0f; // Optional
+    samplerInfo.maxLod = static_cast<float>(mipLevels);
+    samplerInfo.mipLodBias = 0.0f; // Optional
 
     if (vkCreateSampler(m_renderer->m_device->get(), &samplerInfo, nullptr, &m_textureSampler) != VK_SUCCESS) {
         throw std::runtime_error("failed to create texture sampler!");

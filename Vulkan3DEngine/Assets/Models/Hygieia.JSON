@@ -3,5 +3,5 @@
     "mesh_path": "Hygieia_C.obj",
   "translation": [ 0, 0, -0.25 ],
     "rotation": [90, 0, 0],
-    "scale": 0.55
+    "scale": 1.0
 }

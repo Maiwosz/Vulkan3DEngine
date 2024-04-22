@@ -4,7 +4,7 @@
 class TextureSampler
 {
 public:
-	TextureSampler(Renderer* renderer);
+	TextureSampler(uint32_t mipLevels, Renderer* renderer);
 	~TextureSampler();
 
 	VkSampler& get() { return m_textureSampler; }

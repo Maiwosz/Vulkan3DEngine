@@ -4,7 +4,7 @@
 class ImageView
 {
 public:
-	ImageView(VkImage image, VkFormat format, VkImageAspectFlags aspectFlags, Renderer* renderer);
+	ImageView(VkImage image, VkFormat format, VkImageAspectFlags aspectFlags, uint32_t mipLevels, Renderer* renderer);
 	~ImageView();
 
 	VkImageView& get() { return m_imageView; }

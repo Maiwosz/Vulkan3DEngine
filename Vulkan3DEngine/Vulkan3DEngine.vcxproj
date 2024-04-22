@@ -152,7 +152,6 @@
     <ClCompile Include="Src\GraphicsEngine\Renderer\DescriptorSets\DescriptorSet\TextureDescriptorSet\TextureDescriptorSet.cpp" />
     <ClCompile Include="Src\GraphicsEngine\Renderer\DescriptorSets\DescriptorSet\TransformDescriptorSet\TransformDescriptorSet.cpp" />
     <ClCompile Include="Src\GraphicsEngine\Renderer\ImageView\ImageView.cpp" />
-    <ClCompile Include="Src\GraphicsEngine\Renderer\CommandBuffer\CommandBuffer.cpp" />
     <ClCompile Include="Src\GraphicsEngine\Renderer\Buffers\StagingBuffer\StagingBuffer.cpp" />
     <ClCompile Include="Src\GraphicsEngine\Renderer\Image\Image.cpp" />
     <ClCompile Include="Src\GraphicsEngine\Renderer\Buffers\UniformBuffer\UniformBuffer.cpp" />
@@ -187,7 +186,6 @@
     <ClInclude Include="Src\GraphicsEngine\Renderer\DescriptorSets\DescriptorSet\TextureDescriptorSet\TextureDescriptorSet.h" />
     <ClInclude Include="Src\GraphicsEngine\Renderer\DescriptorSets\DescriptorSet\TransformDescriptorSet\TransformDescriptorSet.h" />
     <ClInclude Include="Src\GraphicsEngine\Renderer\ImageView\ImageView.h" />
-    <ClInclude Include="Src\GraphicsEngine\Renderer\CommandBuffer\CommandBuffer.h" />
     <ClInclude Include="Src\GraphicsEngine\Renderer\Buffers\StagingBuffer\StagingBuffer.h" />
     <ClInclude Include="Src\GraphicsEngine\Renderer\Image\Image.h" />
     <ClInclude Include="Src\GraphicsEngine\Renderer\Buffers\UniformBuffer\UniformBuffer.h" />
@@ -214,6 +212,7 @@
     <ClInclude Include="Src\GraphicsEngine\Renderer\TextureSampler\TextureSampler.h" />
   </ItemGroup>
   <ItemGroup>
+    <None Include="ClassDiagram.cd" />
     <None Include="Shaders\Shader.frag" />
     <None Include="Shaders\Shader.vert" />
   </ItemGroup>
