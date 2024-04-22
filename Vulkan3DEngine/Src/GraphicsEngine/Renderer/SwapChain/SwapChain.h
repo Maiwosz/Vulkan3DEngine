@@ -18,6 +18,7 @@ private:
 	void cleanupSwapChain();
 	void createImageViews();
 	void createRenderPass();
+	void createColorResources();
 	void createDepthResources();
 	void createFramebuffers();
 	void createSyncObjects();
@@ -34,6 +35,9 @@ private:
 
 	ImagePtr m_depthImage;
 	ImageViewPtr m_depthImageView;
+
+	ImagePtr m_colorImage;
+	ImageViewPtr m_colorImageView;
 
 	std::vector<VkFramebuffer> m_swapChainFramebuffers;
 

@@ -12,14 +12,15 @@ public:
 	Renderer(WindowPtr window);
 	~Renderer();
 
+	//Tworzenie zasobów przenieœæ do osobnej klasy
 	StagingBufferPtr createStagingBuffer(VkDeviceSize bufferSize);
 	VertexBufferPtr createVertexBuffer(std::vector<Vertex> vertices);
 	IndexBufferPtr createIndexBuffer(std::vector<uint32_t> indices);
 	UniformBufferPtr createUniformBuffer(VkDeviceSize deviceSize);
-	ImagePtr createImage(uint32_t width, uint32_t height, VkFormat format, VkImageTiling tiling,
+	ImagePtr createImage(uint32_t width, uint32_t height, uint32_t mipLevels, VkSampleCountFlagBits numSamples, VkFormat format, VkImageTiling tiling,
 		VkImageUsageFlags usage, VkMemoryPropertyFlags properties);
-	ImageViewPtr createImageView(VkImage image, VkFormat format, VkImageAspectFlags aspectFlags);
-	TextureSamplerPtr createTextureSampler();
+	ImageViewPtr createImageView(VkImage image, VkFormat format, VkImageAspectFlags aspectFlags, uint32_t mipLevels);
+	TextureSamplerPtr createTextureSampler(uint32_t mipLevels);
 	TextureDescriptorSetPtr createTextureDescriptorSet(VkImageView imageView, VkSampler sampler);
 	TransformDescriptorSetPtr createTransformDescriptorSet(VkBuffer uniformBuffer);
 	GlobalDescriptorSetPtr createGlobalDescriptorSet(VkBuffer uniformBuffer);
@@ -29,11 +30,12 @@ public:
 
 	void drawFrameBegin();
 	void drawFrameEnd();
+	//Wszystkie globalne ustawienie przenieœæ potem gdzie indziej
+	static VkSampleCountFlagBits msaaSamples;
 	static const int MAX_FRAMES_IN_FLIGHT = 2;
 
 	VkCommandBuffer getCurrentCommandBuffer() { return m_commandBuffers[m_currentFrame]; }
 	const uint32_t getCurrentFrame() { return m_currentFrame; }
-
 	void bindDescriptorSets();
 
 private:
@@ -46,7 +48,6 @@ private:
 	DevicePtr m_device;
 	SwapChainPtr m_swapChain;
 	GraphicsPipelinePtr m_graphicsPipeline;
-	TextureSamplerPtr m_textureSampler;
 	DescriptorPoolPtr m_descriptorPool;
 	GlobalDescriptorSetLayoutPtr m_globalDescriptorSetLayout;
 	TextureDescriptorSetLayoutPtr m_textureDescriptorSetLayout;

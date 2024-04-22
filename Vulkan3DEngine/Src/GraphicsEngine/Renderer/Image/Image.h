@@ -4,7 +4,7 @@
 class Image
 {
 public:
-	Image(uint32_t width, uint32_t height, VkFormat format, VkImageTiling tiling, VkImageUsageFlags usage,
+	Image(uint32_t width, uint32_t height, uint32_t mipLevels, VkSampleCountFlagBits numSamples, VkFormat format, VkImageTiling tiling, VkImageUsageFlags usage,
 		VkMemoryPropertyFlags properties, Renderer* renderer);
 	~Image();
 
@@ -15,6 +15,8 @@ public:
 	void transitionImageLayout(VkImageLayout newLayout);
 	void updateLayout(VkImageLayout newLayout);
 	const VkImageLayout& getLayout() { return m_layout; }
+
+	void generateMipmaps();
 private:
 	Renderer* m_renderer = nullptr;
 
@@ -22,6 +24,8 @@ private:
 	VkDeviceMemory m_imageMemory;
 	uint32_t m_width;
 	uint32_t m_height;
+	uint32_t m_mipLevels;
+	VkSampleCountFlagBits m_numSamples;
 	VkFormat m_format;
 	VkImageTiling m_tiling;
 	VkImageUsageFlags m_usage;

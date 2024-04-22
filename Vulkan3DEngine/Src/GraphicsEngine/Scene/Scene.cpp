@@ -43,9 +43,11 @@ Scene::Scene()
     m_statue4->setRotationY(270.0f);
 
     //m_hygieia = GraphicsEngine::get()->getModelManager()->createModelInstance("Hygieia.JSON");
-    //
-    //m_hygieia->setTranslation(-1.0f, 0.0f, 0.0f);
+    //m_hygieia->setTranslation(0.0f, 0.0f, 0.0f);
     //m_hygieia->setRotationY(-90.0f);
+
+    m_vikingRoom = GraphicsEngine::get()->getModelManager()->createModelInstance("viking_room.JSON");
+    m_vikingRoom->setTranslation(0.0f, -10.0f, 0.0f);
 }
 
 Scene::~Scene()
@@ -79,7 +81,7 @@ void Scene::update()
     m_statue2->update();
     m_statue3->update();
     m_statue4->update();
-    //m_vikingRoom->update();
+    m_vikingRoom->update();
     //m_castle->update();
     //m_hygieia->update();
 }
@@ -91,7 +93,7 @@ void Scene::draw()
     m_statue2->draw();
     m_statue3->draw();
     m_statue4->draw();
-    //m_vikingRoom->draw();
+    m_vikingRoom->draw();
     //m_castle->draw();
     //m_hygieia->draw();
 }

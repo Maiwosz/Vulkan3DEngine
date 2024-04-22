@@ -23,5 +23,5 @@ private:
 	ImagePtr m_image;
 	ImageViewPtr m_imageView;
 	TextureSamplerPtr m_textureSampler;
-	std::vector<TextureDescriptorSetPtr> m_descriptorSets;//one for every frame;
+	std::vector<TextureDescriptorSetPtr> m_descriptorSets;//one for every frame in flight;
 };
