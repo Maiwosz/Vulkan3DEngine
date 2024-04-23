@@ -40,7 +40,9 @@ void Texture::Load(const char* full_path)
 
 	stbi_image_free(pixels);
 
-	m_image = GraphicsEngine::get()->getRenderer()->createImage(texWidth, texHeight, mipLevels, VK_SAMPLE_COUNT_1_BIT, VK_FORMAT_R8G8B8A8_SRGB,
+	//VK_FORMAT_R8G8B8A8_SRGB przy multisamplingu sprawia, ¿e scena jest bardzo ciemna, trzeba zmieniæ na VK_FORMAT_R8G8B8A8_UNORM,
+	//ale to nie jest idealne rozwi¹zanie, do zbadania potem
+	m_image = GraphicsEngine::get()->getRenderer()->createImage(texWidth, texHeight, mipLevels, VK_SAMPLE_COUNT_1_BIT, VK_FORMAT_R8G8B8A8_UNORM,
 		VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
 		VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 
@@ -51,7 +53,7 @@ void Texture::Load(const char* full_path)
 
 	m_image->generateMipmaps();
 
-	m_imageView = GraphicsEngine::get()->getRenderer()->createImageView(m_image->get(), VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_ASPECT_COLOR_BIT, mipLevels);
+	m_imageView = GraphicsEngine::get()->getRenderer()->createImageView(m_image->get(), VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_ASPECT_COLOR_BIT, mipLevels);
 	m_textureSampler = GraphicsEngine::get()->getRenderer()->createTextureSampler(mipLevels);
 
 	for (int i = 0; i < Renderer::MAX_FRAMES_IN_FLIGHT; i++) {
