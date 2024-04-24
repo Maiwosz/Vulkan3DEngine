@@ -25,22 +25,26 @@ Scene::Scene()
         0.0f, // yaw 
         90.0f // pitch
     );  
+     
+    m_light.direction = glm::vec3(1.0f, 1.0f, 1.0f);
+    m_light.color = glm::vec3(1.0f, 1.0f, 1.0f);
+   
 
     m_statue1 = GraphicsEngine::get()->getModelManager()->createModelInstance("Statue.JSON");
     m_statue1->setTranslation(5.0f, 0.0f, 0.0f);
-    m_statue1->setRotationY(0.0f);
+    m_statue1->setRotationY(90.0f);
 
     m_statue2 = GraphicsEngine::get()->getModelManager()->createModelInstance("Statue.JSON");
     m_statue2->setTranslation(-5.0f, 0.0f, 0.0f);
-    m_statue2->setRotationY(90.0f);
+    m_statue2->setRotationY(270.0f);
 
     m_statue3 = GraphicsEngine::get()->getModelManager()->createModelInstance("Statue.JSON");
     m_statue3->setTranslation(0.0f, 0.0f, 5.0f);
-    m_statue3->setRotationY(180.0f);
+    m_statue3->setRotationY(0.0f);
 
     m_statue4 = GraphicsEngine::get()->getModelManager()->createModelInstance("Statue.JSON");
     m_statue4->setTranslation(0.0f, 0.0f, -5.0f);
-    m_statue4->setRotationY(270.0f);
+    m_statue4->setRotationY(180.0f);
 
     //m_hygieia = GraphicsEngine::get()->getModelManager()->createModelInstance("Hygieia.JSON");
     //m_hygieia->setTranslation(0.0f, 0.0f, 0.0f);
@@ -58,22 +62,23 @@ void Scene::update()
 {
     VkExtent2D swapChainExtent = GraphicsEngine::get()->getRenderer()->getSwapChain()->getSwapChainExtent();
 
-    //Update uniform buffer
-    GlobalUBO ubo{};//Eye position(left/right,forward/backward,height), What it looks at,  Where is up
-    ubo.view = m_camera->getViewMatrix();
-    ubo.proj = m_camera->getProjectionMatrix(swapChainExtent.width, swapChainExtent.height);
-    memcpy(m_uniformBuffers[GraphicsEngine::get()->getRenderer()->getCurrentFrame()]->getMappedMemory(), &ubo, sizeof(ubo));
-    //ubo.view = glm::lookAt(glm::vec3(0.0f, 4.5f, 3.0f), glm::vec3(0.0f, 0.0f, 0.85f), glm::vec3(0.0f, 0.0f, 0.1f));
-    //ubo.proj = glm::perspective(glm::radians(45.0f), swapChainExtent.width / (float)swapChainExtent.height, 0.1f, 10.0f);
-    //ubo.proj[1][1] *= -1;
-    //memcpy(m_uniformBuffers[GraphicsEngine::get()->getRenderer()->getCurrentFrame()]->getMappedMemory(), &ubo, sizeof(ubo));
+    // Define the rotation speed for the light
+    float lightRotationSpeed = 45.0f;
+
+    // Calculate the new light direction
+    float lightAngle = Application::s_deltaTime * lightRotationSpeed;
+    glm::mat4 rotationMatrix = glm::rotate(glm::mat4(1.0f), glm::radians(lightAngle), glm::vec3(0.0f, 0.0f, 1.0f));
+    glm::vec4 newDirection = rotationMatrix * glm::vec4(m_light.direction, 0.0f);
+
+    // Update the light direction
+    m_light.direction = glm::normalize(glm::vec3(newDirection));
 
     // Define the rotation speed
     float rotationSpeed = 45.0f;
-    m_statue1->setRotationY(m_statue1->getRotation().y + Application::s_deltaTime * rotationSpeed);
-    m_statue2->setRotationY(m_statue1->getRotation().y + Application::s_deltaTime * rotationSpeed + 90);
-    m_statue3->setRotationY(m_statue1->getRotation().y + Application::s_deltaTime * rotationSpeed + 180);
-    m_statue4->setRotationY(m_statue1->getRotation().y + Application::s_deltaTime * rotationSpeed + 270);
+    //m_statue1->setRotationY(m_statue1->getRotation().y + Application::s_deltaTime * rotationSpeed);
+    //m_statue2->setRotationY(m_statue1->getRotation().y + Application::s_deltaTime * rotationSpeed + 90);
+    //m_statue3->setRotationY(m_statue1->getRotation().y + Application::s_deltaTime * rotationSpeed + 180);
+    //m_statue4->setRotationY(m_statue1->getRotation().y + Application::s_deltaTime * rotationSpeed + 270);
     //m_hygieia->setRotationY(Application::s_deltaTime * rotationSpeed);
 
     //rect->update();
@@ -84,6 +89,15 @@ void Scene::update()
     m_vikingRoom->update();
     //m_castle->update();
     //m_hygieia->update();
+
+    //Update uniform buffer
+    GlobalUBO ubo{};
+    ubo.view = m_camera->getViewMatrix();
+    ubo.proj = m_camera->getProjectionMatrix(swapChainExtent.width, swapChainExtent.height);
+    ubo.lightDirection = m_light.direction;
+    ubo.lightColor = m_light.color;
+    ubo.cameraPosition = m_camera->m_position;
+    memcpy(m_uniformBuffers[GraphicsEngine::get()->getRenderer()->getCurrentFrame()]->getMappedMemory(), &ubo, sizeof(ubo));
 }
 
 void Scene::draw()

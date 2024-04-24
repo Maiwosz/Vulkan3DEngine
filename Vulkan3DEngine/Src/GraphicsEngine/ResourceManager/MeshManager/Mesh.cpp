@@ -56,6 +56,14 @@ void Mesh::Load(const char* full_path)
                 1.0f - attrib.texcoords[2 * index.texcoord_index + 1]
             };
 
+            if (index.normal_index >= 0) { // Sprawdü, czy normalna istnieje
+                vertex.normal = {
+                    attrib.normals[3 * index.normal_index + 0],
+                    attrib.normals[3 * index.normal_index + 1],
+                    attrib.normals[3 * index.normal_index + 2]
+                };
+            }
+
             vertex.color = { 1.0f, 1.0f, 1.0f };
 
             if (uniqueVertices.count(vertex) == 0) {

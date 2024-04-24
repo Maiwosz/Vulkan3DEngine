@@ -7,11 +7,8 @@
 
 GraphicsPipeline::GraphicsPipeline(Renderer* renderer) : m_renderer(renderer)
 {
-	auto vertShaderCode = readFile("shaders/vert.spv");
-	auto fragShaderCode = readFile("shaders/frag.spv");
-
-	VkShaderModule vertShaderModule = createShaderModule(vertShaderCode);
-	VkShaderModule fragShaderModule = createShaderModule(fragShaderCode);
+	VkShaderModule vertShaderModule = compileShader("shaders/shader.vert", shaderc_vertex_shader);
+	VkShaderModule fragShaderModule = compileShader("shaders/shader.frag", shaderc_fragment_shader);
 
 	VkPipelineShaderStageCreateInfo vertShaderStageInfo{};
 	vertShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
@@ -179,12 +176,12 @@ std::vector<char> GraphicsPipeline::readFile(const std::string& filename)
 
 }
 
-VkShaderModule GraphicsPipeline::createShaderModule(const std::vector<char>& code)
+VkShaderModule GraphicsPipeline::createShaderModule(const std::vector<uint32_t>& code)
 {
 	VkShaderModuleCreateInfo createInfo{};
 	createInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
-	createInfo.codeSize = code.size();
-	createInfo.pCode = reinterpret_cast<const uint32_t*>(code.data());
+	createInfo.codeSize = code.size() * sizeof(uint32_t);
+	createInfo.pCode = code.data();
 
 	VkShaderModule shaderModule;
 	if (vkCreateShaderModule(m_renderer->m_device->get(), &createInfo, nullptr, &shaderModule) != VK_SUCCESS) {
@@ -193,6 +190,31 @@ VkShaderModule GraphicsPipeline::createShaderModule(const std::vector<char>& cod
 
 	return shaderModule;
 }
+
+
+VkShaderModule GraphicsPipeline::compileShader(const std::string& filename, shaderc_shader_kind kind)
+{
+	shaderc::Compiler compiler;
+	shaderc::CompileOptions options;
+
+	// Read the shader code
+	std::vector<char> code = readFile(filename);
+	std::string shaderCode(code.begin(), code.end());
+
+	// Compile the shader
+	shaderc::SpvCompilationResult shader = compiler.CompileGlslToSpv(shaderCode, kind, filename.c_str(), options);
+	if (shader.GetCompilationStatus() != shaderc_compilation_status_success) {
+		throw std::runtime_error(shader.GetErrorMessage());
+	}
+	std::vector<uint32_t> shaderCodeSPIRV(shader.cbegin(), shader.cend());
+
+	// Create shader module
+	VkShaderModule shaderModule = createShaderModule(shaderCodeSPIRV);
+
+	return shaderModule;
+}
+
+
 
 
 
