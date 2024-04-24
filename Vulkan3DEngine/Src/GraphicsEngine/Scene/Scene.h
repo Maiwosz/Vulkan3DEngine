@@ -24,5 +24,7 @@ private:
 	ModelInstancePtr m_vikingRoom;
 	ModelInstancePtr m_castle;
 	ModelInstancePtr m_hygieia;
+
+	DirectionalLight m_light;
 };
 
