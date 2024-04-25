@@ -17,6 +17,8 @@ private:
 
 	CameraPtr m_camera;
 
+	ModelInstancePtr m_floor;
+
 	ModelInstancePtr m_statue1;
 	ModelInstancePtr m_statue2;
 	ModelInstancePtr m_statue3;
@@ -26,5 +28,10 @@ private:
 	ModelInstancePtr m_hygieia;
 
 	DirectionalLight m_light;
+	PointLight m_pointLight1;
+	PointLight m_pointLight2;
+	PointLight m_pointLight3;
+
+	float m_lightAngle = 0.0f;
 };
 

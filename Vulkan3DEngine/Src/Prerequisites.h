@@ -132,22 +132,40 @@ struct Vertex {
     }
 };
 
+struct DirectionalLight {
+    alignas(16) glm::vec3 direction = glm::vec3(0.0f, 0.0f, 0.0f);
+    alignas(16) glm::vec3 color = glm::vec3(1.0f, 1.0f, 1.0f);
+    alignas(4) float ka = 0.05f; // Ambient coefficient
+    alignas(4) float kd = 0.5f; // Diffuse coefficient
+    alignas(4) float ks = 0.3f; // Specular coefficient
+    alignas(4) float intensity = 1.0f;
+};
+
+struct PointLight {
+    alignas(16) glm::vec3 position = glm::vec3(0.0f, 0.0f, 0.0f);
+    alignas(16) glm::vec3 color = glm::vec3(1.0f, 1.0f, 1.0f);
+    alignas(4) float ka = 0.05f; // Ambient coefficient
+    alignas(4) float kd = 0.5f; // Diffuse coefficient
+    alignas(4) float ks = 0.3f; // Specular coefficient
+    alignas(4) float intensity = 1.0f;
+    alignas(4) float constant = 1.0f;
+    alignas(4) float linear = 0.009f;
+    alignas(4) float quadratic = 0.0032f;
+};
+
 struct GlobalUBO {
     //alignas(16) glm::mat4 model;
     alignas(16) glm::mat4 view;
     alignas(16) glm::mat4 proj;
-    alignas(16) glm::vec3 lightDirection;
-    alignas(16) glm::vec3 lightColor;
     alignas(16) glm::vec3 cameraPosition;
+    DirectionalLight directionalLight;
+    alignas(16) PointLight pointLights[1024];
+    alignas(4) int activePointLightCount;
 };
 
 struct ModelUBO {
     glm::mat4 model;
-};
-
-struct DirectionalLight {
-    glm::vec3 direction;
-    glm::vec3 color;
+    float shininess;
 };
 
 namespace std {
