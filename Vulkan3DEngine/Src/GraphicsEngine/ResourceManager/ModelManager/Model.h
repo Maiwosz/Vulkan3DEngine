@@ -43,6 +43,9 @@ public:
 
 	void update();
 	void draw();
+
+	float m_scale = 1.0f;
+	float m_shininess = 1.0f;
 private:
 	ModelDataPtr m_modelData;
 	std::vector<UniformBufferPtr> m_uniformBuffers;
@@ -56,7 +59,6 @@ private:
 
 	glm::vec3 m_translation = glm::vec3(0.0f);
 	glm::vec3 m_rotation = glm::vec3(0.0f);
-	float m_scale = 1.0f;
-
+	
 	friend class Application;
 };

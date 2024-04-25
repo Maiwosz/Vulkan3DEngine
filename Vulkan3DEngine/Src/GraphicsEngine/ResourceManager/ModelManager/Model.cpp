@@ -44,13 +44,17 @@ void ModelData::Load(const char* full_path)
 	nlohmann::json j;
 	file >> j;
 
-	// Read the texture and mesh file paths
-	std::string texture_path = j["texture_path"];
+	// Read the mesh file path
 	std::string mesh_path = j["mesh_path"];
 
-	// Load the texture and mesh
-	m_texture = GraphicsEngine::get()->getTextureManager()->loadTexture(texture_path);
+	// Load the mesh
 	m_mesh = GraphicsEngine::get()->getMeshManager()->loadMesh(mesh_path);
+
+	// Load the texture if it exists
+	if (j.count("texture_path") > 0 && !j["texture_path"].empty()) {
+		std::string texture_path = j["texture_path"];
+		m_texture = GraphicsEngine::get()->getTextureManager()->loadTexture(texture_path);
+	}
 
 	// Read the initial transformations
 	std::vector<float> translationVec = j["translation"].get<std::vector<float>>();
@@ -111,7 +115,6 @@ void ModelInstance::setScale(float scale)
 
 void ModelInstance::update()
 {
-
 	glm::mat4 translationMatrix = glm::translate(glm::mat4(1.0f), m_translation);
 	glm::mat4 rotationMatrix = glm::rotate(glm::mat4(1.0f), glm::radians(m_rotation.x), glm::vec3(1.0f, 0.0f, 0.0f));
 	rotationMatrix = glm::rotate(rotationMatrix, glm::radians(m_rotation.y), glm::vec3(0.0f, 1.0f, 0.0f));
@@ -119,6 +122,7 @@ void ModelInstance::update()
 	glm::mat4 scaleMatrix = glm::scale(glm::mat4(1.0f), glm::vec3(m_scale));
 
 	ubo.model = m_modelData->initialOrientation * translationMatrix * rotationMatrix * scaleMatrix;
+	ubo.shininess = m_shininess;
 	memcpy(m_uniformBuffers[GraphicsEngine::get()->getRenderer()->getCurrentFrame()]->getMappedMemory(), &ubo, sizeof(ubo));
 }
 
@@ -127,7 +131,9 @@ void ModelInstance::draw()
 	m_descriptorSets[GraphicsEngine::get()->getRenderer()->getCurrentFrame()]->bind();
 
 	m_modelData->m_mesh->draw();
-	m_modelData->m_texture->draw();
+	if (m_modelData->m_texture) {
+		m_modelData->m_texture->draw();
+	}
 
 	GraphicsEngine::get()->getRenderer()->bindDescriptorSets();
 
