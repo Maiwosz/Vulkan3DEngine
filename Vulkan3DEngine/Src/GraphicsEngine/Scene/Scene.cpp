@@ -48,8 +48,7 @@ Scene::Scene()
     //m_pointLight3Sphere = m_sceneObjectManager->createModel("Sphere.JSON");
     //m_pointLight3Sphere->setScale(0.2);
 
-    m_floor = m_sceneObjectManager->createModel("Floor.JSON");
-    m_floor->m_shininess = 1.0f;
+    ModelPtr m_floor = m_sceneObjectManager->createModel("Floor.JSON");
 
     m_statue1 = m_sceneObjectManager->createModel("Statue.JSON");
     m_statue1->move(5.0f, 0.0f, 0.0f);
