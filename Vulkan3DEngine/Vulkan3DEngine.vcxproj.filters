@@ -14,7 +14,7 @@
     <ClCompile Include="Src\GraphicsEngine\ResourceManager\MeshManager\MeshManager.cpp" />
     <ClCompile Include="Src\GraphicsEngine\ResourceManager\TextureManager\Texture.cpp" />
     <ClCompile Include="Src\GraphicsEngine\ResourceManager\TextureManager\TextureManager.cpp" />
-    <ClCompile Include="Src\GraphicsEngine\ResourceManager\ModelManager\Model.cpp" />
+    <ClCompile Include="Src\GraphicsEngine\ResourceManager\ModelDataManager\ModelData.cpp" />
     <ClCompile Include="Src\GraphicsEngine\ResourceManager\ResourceManager.cpp" />
     <ClCompile Include="Src\GraphicsEngine\Renderer\Buffers\VertexBuffer\VertexBuffer.cpp" />
     <ClCompile Include="Src\GraphicsEngine\Renderer\Buffers\IndexBuffer\IndexBuffer.cpp" />
@@ -28,11 +28,14 @@
     <ClCompile Include="Src\GraphicsEngine\Renderer\DescriptorSets\DescriptorPool\DescriptorPool.cpp" />
     <ClCompile Include="Src\GraphicsEngine\Renderer\DescriptorSets\DescriptorSet\TextureDescriptorSet\TextureDescriptorSet.cpp" />
     <ClCompile Include="Src\GraphicsEngine\Renderer\DescriptorSets\DescriptorSet\GlobalDescriptorSet\GlobalDescriptorSet.cpp" />
-    <ClCompile Include="Src\GraphicsEngine\Renderer\DescriptorSets\DescriptorSet\TransformDescriptorSet\TransformDescriptorSet.cpp" />
-    <ClCompile Include="Src\GraphicsEngine\ResourceManager\ModelManager\ModelManager.cpp" />
+    <ClCompile Include="Src\GraphicsEngine\Renderer\DescriptorSets\DescriptorSet\ModelDescriptorSet\ModelDescriptorSet.cpp" />
+    <ClCompile Include="Src\GraphicsEngine\ResourceManager\ModelDataManager\ModelDataManager.cpp" />
     <ClCompile Include="Src\GraphicsEngine\Scene\Scene.cpp" />
     <ClCompile Include="Src\InputSystem\InputSystem.cpp" />
-    <ClCompile Include="Src\GraphicsEngine\Camera\Camera.cpp" />
+    <ClCompile Include="Src\GraphicsEngine\Scene\SceneObjectManager\Camera\Camera.cpp" />
+    <ClCompile Include="Src\GraphicsEngine\Scene\SceneObjectManager\SceneObject.cpp" />
+    <ClCompile Include="Src\GraphicsEngine\Scene\SceneObjectManager\Model\Model.cpp" />
+    <ClCompile Include="Src\GraphicsEngine\Scene\SceneObjectManager\SceneObjectManager.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Src\Application\Application.h" />
@@ -48,7 +51,7 @@
     <ClInclude Include="Src\GraphicsEngine\ResourceManager\MeshManager\MeshManager.h" />
     <ClInclude Include="Src\GraphicsEngine\ResourceManager\TextureManager\Texture.h" />
     <ClInclude Include="Src\GraphicsEngine\ResourceManager\TextureManager\TextureManager.h" />
-    <ClInclude Include="Src\GraphicsEngine\ResourceManager\ModelManager\Model.h" />
+    <ClInclude Include="Src\GraphicsEngine\ResourceManager\ModelDataManager\ModelData.h" />
     <ClInclude Include="Src\GraphicsEngine\ResourceManager\ResourceManager.h" />
     <ClInclude Include="Src\GraphicsEngine\Renderer\Buffers\VertexBuffer\VertexBuffer.h" />
     <ClInclude Include="Src\GraphicsEngine\Renderer\Buffers\IndexBuffer\IndexBuffer.h" />
@@ -62,12 +65,15 @@
     <ClInclude Include="Src\GraphicsEngine\Renderer\DescriptorSets\DescriptorPool\DescriptorPool.h" />
     <ClInclude Include="Src\GraphicsEngine\Renderer\DescriptorSets\DescriptorSet\TextureDescriptorSet\TextureDescriptorSet.h" />
     <ClInclude Include="Src\GraphicsEngine\Renderer\DescriptorSets\DescriptorSet\GlobalDescriptorSet\GlobalDescriptorSet.h" />
-    <ClInclude Include="Src\GraphicsEngine\Renderer\DescriptorSets\DescriptorSet\TransformDescriptorSet\TransformDescriptorSet.h" />
-    <ClInclude Include="Src\GraphicsEngine\ResourceManager\ModelManager\ModelManager.h" />
+    <ClInclude Include="Src\GraphicsEngine\Renderer\DescriptorSets\DescriptorSet\ModelDescriptorSet\ModelDescriptorSet.h" />
+    <ClInclude Include="Src\GraphicsEngine\ResourceManager\ModelDataManager\ModelDataManager.h" />
     <ClInclude Include="Src\GraphicsEngine\Scene\Scene.h" />
     <ClInclude Include="Src\InputSystem\InputListener.h" />
     <ClInclude Include="Src\InputSystem\InputSystem.h" />
-    <ClInclude Include="Src\GraphicsEngine\Camera\Camera.h" />
+    <ClInclude Include="Src\GraphicsEngine\Scene\SceneObjectManager\Camera\Camera.h" />
+    <ClInclude Include="Src\GraphicsEngine\Scene\SceneObjectManager\SceneObject.h" />
+    <ClInclude Include="Src\GraphicsEngine\Scene\SceneObjectManager\Model\Model.h" />
+    <ClInclude Include="Src\GraphicsEngine\Scene\SceneObjectManager\SceneObjectManager.h" />
   </ItemGroup>
   <ItemGroup>
     <None Include="Shaders\Shader.frag" />

@@ -4,7 +4,7 @@
 #include "Renderer\Renderer.h"
 #include "ResourceManager\MeshManager\MeshManager.h"
 #include "ResourceManager\TextureManager\TextureManager.h"
-#include "ResourceManager\ModelManager\ModelManager.h"
+#include "ResourceManager\ModelDataManager\ModelDataManager.h"
 
 #include <iostream>
 
@@ -21,7 +21,7 @@ public:
     RendererPtr getRenderer() { return m_renderer; };
     MeshManagerPtr getMeshManager() { return m_meshManager; };
     TextureManagerPtr getTextureManager() { return m_textureManager; };
-    ModelManagerPtr getModelManager() { return m_modelManager; };
+    ModelDataManagerPtr getModelDataManager() { return m_modelDataManager; };
 
 private:
     //Resources
@@ -30,6 +30,6 @@ private:
     RendererPtr m_renderer;
     MeshManagerPtr m_meshManager;
     TextureManagerPtr m_textureManager;
-    ModelManagerPtr m_modelManager;
+    ModelDataManagerPtr m_modelDataManager;
 };
 

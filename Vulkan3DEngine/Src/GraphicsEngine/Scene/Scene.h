@@ -1,6 +1,6 @@
 #pragma once
 #include "../../Prerequisites.h"
-#include "..\ResourceManager\ModelManager\Model.h"
+#include "SceneObjectManager/Model/Model.h"
 
 class Scene {
 public:
@@ -14,24 +14,36 @@ public:
 private:
 	std::vector<UniformBufferPtr> m_uniformBuffers;
 	std::vector<GlobalDescriptorSetPtr> m_globalDescriptorSets;
+	SceneObjectManagerPtr m_sceneObjectManager;
+
+	GlobalUBO ubo{};
 
 	CameraPtr m_camera;
 
-	ModelInstancePtr m_floor;
+	ModelPtr m_floor;
 
-	ModelInstancePtr m_statue1;
-	ModelInstancePtr m_statue2;
-	ModelInstancePtr m_statue3;
-	ModelInstancePtr m_statue4;
-	ModelInstancePtr m_vikingRoom;
-	ModelInstancePtr m_castle;
-	ModelInstancePtr m_hygieia;
+	ModelPtr m_statue1;
+	ModelPtr m_statue2;
+	ModelPtr m_statue3;
+	ModelPtr m_statue4;
+	ModelPtr m_vikingRoom;
+	ModelPtr m_castle;
+	ModelPtr m_hygieia;
+
+	ModelPtr m_pointLight1Sphere;
+	ModelPtr m_pointLight2Sphere;
+	ModelPtr m_pointLight3Sphere;
 
 	DirectionalLight m_light;
 	PointLight m_pointLight1;
 	PointLight m_pointLight2;
 	PointLight m_pointLight3;
+	PointLight m_pointLight4;
+	PointLight m_pointLight5;
+	PointLight m_pointLight6;
 
 	float m_lightAngle = 0.0f;
+
+	friend class Camera;
 };
 

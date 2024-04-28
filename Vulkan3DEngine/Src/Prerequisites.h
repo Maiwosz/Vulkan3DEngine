@@ -27,8 +27,7 @@ class TextureManager;
 class Mesh;
 class MeshManager;
 class ModelData;
-class ModelInstance;
-class ModelManager;
+class ModelDataManager;
 class Buffer;
 class StagingBuffer;
 class VertexBuffer;
@@ -38,17 +37,21 @@ class DescriptorPool;
 class DescriptorSetLayout;
 class GlobalDescriptorSetLayout;
 class TextureDescriptorSetLayout;
-class TransformDescriptorSetLayout;
+class ModelDescriptorSetLayout;
 class DescriptorSet;
 class GlobalDescriptorSet;
 class TextureDescriptorSet;
-class TransformDescriptorSet;
+class ModelDescriptorSet;
 class Image;
 class ImageView;
 class TextureSampler;
 class DepthBuffer;
 class Scene;
+class SceneObject;
+class Model;
 class Camera;
+class SceneObjectManager;
+
 
 typedef std::shared_ptr<Window> WindowPtr;
 typedef std::shared_ptr<Device> DevicePtr;
@@ -62,8 +65,7 @@ typedef std::shared_ptr<TextureManager> TextureManagerPtr;
 typedef std::shared_ptr<Mesh> MeshPtr;
 typedef std::shared_ptr<MeshManager> MeshManagerPtr;
 typedef std::shared_ptr<ModelData> ModelDataPtr;
-typedef std::shared_ptr<ModelInstance> ModelInstancePtr;
-typedef std::shared_ptr<ModelManager> ModelManagerPtr;
+typedef std::shared_ptr<ModelDataManager> ModelDataManagerPtr;
 typedef std::shared_ptr<Buffer> BufferPtr;
 typedef std::shared_ptr<StagingBuffer> StagingBufferPtr;
 typedef std::shared_ptr<VertexBuffer> VertexBufferPtr;
@@ -73,17 +75,50 @@ typedef std::shared_ptr<DescriptorPool> DescriptorPoolPtr;
 typedef std::shared_ptr<DescriptorSetLayout> DescriptorSetLayoutPtr;
 typedef std::shared_ptr<GlobalDescriptorSetLayout> GlobalDescriptorSetLayoutPtr;
 typedef std::shared_ptr<TextureDescriptorSetLayout> TextureDescriptorSetLayoutPtr;
-typedef std::shared_ptr<TransformDescriptorSetLayout> TransformDescriptorSetLayoutPtr;
+typedef std::shared_ptr<ModelDescriptorSetLayout> ModelDescriptorSetLayoutPtr;
 typedef std::shared_ptr<DescriptorSet> DescriptorSetPtr;
 typedef std::shared_ptr<GlobalDescriptorSet> GlobalDescriptorSetPtr;
 typedef std::shared_ptr<TextureDescriptorSet> TextureDescriptorSetPtr;
-typedef std::shared_ptr<TransformDescriptorSet> TransformDescriptorSetPtr;
+typedef std::shared_ptr<ModelDescriptorSet> ModelDescriptorSetPtr;
 typedef std::shared_ptr<Image> ImagePtr;
 typedef std::shared_ptr<ImageView> ImageViewPtr;
 typedef std::shared_ptr<TextureSampler> TextureSamplerPtr;
 typedef std::shared_ptr<DepthBuffer> DepthBufferPtr;
+typedef std::shared_ptr<SceneObject> SceneObjectPtr;
 typedef std::shared_ptr<Scene> ScenePtr;
+typedef std::shared_ptr<Model> ModelPtr;
 typedef std::shared_ptr<Camera> CameraPtr;
+typedef std::shared_ptr<SceneObjectManager> SceneObjectManagerPtr;
+
+struct DirectionalLight {
+    alignas(16) glm::vec3 direction = glm::vec3(0.0f, 1.0f, 0.0f); // Light coming from above
+    alignas(16) glm::vec3 color = glm::vec3(1.0f, 1.0f, 1.0f); // White light
+    alignas(4) float intensity = 1.0f; // Full intensity
+};
+
+struct PointLight {
+    alignas(16) glm::vec3 position = glm::vec3(0.0f, 0.0f, 0.0f); // At the origin
+    alignas(16) glm::vec3 color = glm::vec3(1.0f, 1.0f, 1.0f); // White light
+    alignas(4) float intensity = 1.0f; // Full intensity
+    alignas(4) float radius = 10.0f; // Light radius
+};
+
+struct GlobalUBO {
+    alignas(16) glm::mat4 view;
+    alignas(16) glm::mat4 proj;
+    alignas(16) glm::vec3 cameraPosition;
+    DirectionalLight directionalLight;
+    alignas(16) PointLight pointLights[64];
+    alignas(4) int activePointLightCount;
+    alignas(4) float ambientCoefficient = 0.05f;
+};
+
+struct ModelUBO {
+    glm::mat4 model;
+    float shininess = 1.0f;
+    alignas(4) float kd = 0.8f; // Large diffuse coefficient
+    alignas(4) float ks = 0.2f; // Small specular coefficient
+};
 
 struct Vertex {
     glm::vec3 pos;
@@ -130,42 +165,6 @@ struct Vertex {
     bool operator==(const Vertex& other) const {
         return pos == other.pos && color == other.color && texCoord == other.texCoord && normal == other.normal;
     }
-};
-
-struct DirectionalLight {
-    alignas(16) glm::vec3 direction = glm::vec3(0.0f, 0.0f, 0.0f);
-    alignas(16) glm::vec3 color = glm::vec3(1.0f, 1.0f, 1.0f);
-    alignas(4) float ka = 0.05f; // Ambient coefficient
-    alignas(4) float kd = 0.5f; // Diffuse coefficient
-    alignas(4) float ks = 0.3f; // Specular coefficient
-    alignas(4) float intensity = 1.0f;
-};
-
-struct PointLight {
-    alignas(16) glm::vec3 position = glm::vec3(0.0f, 0.0f, 0.0f);
-    alignas(16) glm::vec3 color = glm::vec3(1.0f, 1.0f, 1.0f);
-    alignas(4) float ka = 0.05f; // Ambient coefficient
-    alignas(4) float kd = 0.5f; // Diffuse coefficient
-    alignas(4) float ks = 0.3f; // Specular coefficient
-    alignas(4) float intensity = 1.0f;
-    alignas(4) float constant = 1.0f;
-    alignas(4) float linear = 0.009f;
-    alignas(4) float quadratic = 0.0032f;
-};
-
-struct GlobalUBO {
-    //alignas(16) glm::mat4 model;
-    alignas(16) glm::mat4 view;
-    alignas(16) glm::mat4 proj;
-    alignas(16) glm::vec3 cameraPosition;
-    DirectionalLight directionalLight;
-    alignas(16) PointLight pointLights[1024];
-    alignas(4) int activePointLightCount;
-};
-
-struct ModelUBO {
-    glm::mat4 model;
-    float shininess;
 };
 
 namespace std {

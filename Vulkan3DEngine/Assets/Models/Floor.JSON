@@ -2,6 +2,6 @@
 	"texture_path": "floor.png",
     "mesh_path": "quad.obj",
 	"translation": [ 0.0, 0.0, 0.8 ],
-  "rotation": [ -90, 0, 0 ],
-    "scale": 15.0
+  "rotation": [ 0, 0, 0 ],
+    "scale": 1000.0
 }

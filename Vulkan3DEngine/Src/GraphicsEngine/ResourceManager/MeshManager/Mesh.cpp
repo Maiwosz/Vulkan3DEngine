@@ -40,6 +40,7 @@ void Mesh::Load(const char* full_path)
     }
 
     std::unordered_map<Vertex, uint32_t> uniqueVertices{};
+    float minY = std::numeric_limits<float>::max();
 
     for (const auto& shape : shapes) {
         for (const auto& index : shape.mesh.indices) {
@@ -50,6 +51,8 @@ void Mesh::Load(const char* full_path)
                 attrib.vertices[3 * index.vertex_index + 1],
                 attrib.vertices[3 * index.vertex_index + 2]
             };
+
+            minY = std::min(minY, vertex.pos.y); // znajdŸ najni¿szy punkt y
 
             vertex.texCoord = {
                 attrib.texcoords[2 * index.texcoord_index + 0],
@@ -74,6 +77,12 @@ void Mesh::Load(const char* full_path)
             m_indices.push_back(uniqueVertices[vertex]);
         }
     }
+
+    // Przesuñ wszystkie wierzcho³ki o minY w górê
+    for (auto& vertex : m_vertices) {
+        vertex.pos.y -= minY;
+    }
+
     m_vertexBuffer = GraphicsEngine::get()->getRenderer()->createVertexBuffer(m_vertices);
     m_indexBuffer = GraphicsEngine::get()->getRenderer()->createIndexBuffer(m_indices);
 }

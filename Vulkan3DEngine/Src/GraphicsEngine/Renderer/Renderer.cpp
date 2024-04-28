@@ -8,7 +8,7 @@
 #include "TextureSampler/TextureSampler.h"
 #include "DescriptorSets/DescriptorSet/GlobalDescriptorSet/GlobalDescriptorSet.h"
 #include "DescriptorSets/DescriptorSet/TextureDescriptorSet/TextureDescriptorSet.h"
-#include "DescriptorSets/DescriptorSet/TransformDescriptorSet/TransformDescriptorSet.h"
+#include "DescriptorSets/DescriptorSet/ModelDescriptorSet/ModelDescriptorSet.h"
 #include "DescriptorSets/DescriptorPool/DescriptorPool.h"
 
 #include "../../Application/Application.h"
@@ -38,9 +38,9 @@ Renderer::Renderer(WindowPtr window) : m_window(window)
     catch (...) { throw std::exception("TextureDescriptorSetLayout not created successfully"); }
 
     try {
-        m_transformDescriptorSetLayout = std::make_shared<TransformDescriptorSetLayout>(this);
+        m_modelDescriptorSetLayout = std::make_shared<ModelDescriptorSetLayout>(this);
     }
-    catch (...) { throw std::exception("TransformDescriptorSetLayout not created successfully"); }
+    catch (...) { throw std::exception("ModelDescriptorSetLayout not created successfully"); }
 
     try {
         m_graphicsPipeline = std::make_shared<GraphicsPipeline>(this);
@@ -101,9 +101,9 @@ TextureDescriptorSetPtr Renderer::createTextureDescriptorSet(VkImageView imageVi
     return std::make_shared<TextureDescriptorSet>(imageView, sampler, this);
 }
 
-TransformDescriptorSetPtr Renderer::createTransformDescriptorSet(VkBuffer uniformBuffer)
+ModelDescriptorSetPtr Renderer::createModelDescriptorSet(VkBuffer uniformBuffer)
 {
-    return std::make_shared<TransformDescriptorSet>(uniformBuffer, this);
+    return std::make_shared<ModelDescriptorSet>(uniformBuffer, this);
 }
 
 GlobalDescriptorSetPtr Renderer::createGlobalDescriptorSet(VkBuffer uniformBuffer)

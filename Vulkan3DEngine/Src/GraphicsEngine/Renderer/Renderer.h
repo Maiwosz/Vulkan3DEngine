@@ -22,7 +22,7 @@ public:
 	ImageViewPtr createImageView(VkImage image, VkFormat format, VkImageAspectFlags aspectFlags, uint32_t mipLevels);
 	TextureSamplerPtr createTextureSampler(uint32_t mipLevels);
 	TextureDescriptorSetPtr createTextureDescriptorSet(VkImageView imageView, VkSampler sampler);
-	TransformDescriptorSetPtr createTransformDescriptorSet(VkBuffer uniformBuffer);
+	ModelDescriptorSetPtr createModelDescriptorSet(VkBuffer uniformBuffer);
 	GlobalDescriptorSetPtr createGlobalDescriptorSet(VkBuffer uniformBuffer);
 
 	DevicePtr getDevice() { return m_device; }
@@ -51,7 +51,7 @@ private:
 	DescriptorPoolPtr m_descriptorPool;
 	GlobalDescriptorSetLayoutPtr m_globalDescriptorSetLayout;
 	TextureDescriptorSetLayoutPtr m_textureDescriptorSetLayout;
-	TransformDescriptorSetLayoutPtr m_transformDescriptorSetLayout;
+	ModelDescriptorSetLayoutPtr m_modelDescriptorSetLayout;
 
 	//Command Buffer // To separate class later?
 	std::vector<VkCommandBuffer> m_commandBuffers;
@@ -73,11 +73,11 @@ private:
 	friend class DescriptorSetLayout;
 	friend class GlobalDescriptorSetLayout;
 	friend class TextureDescriptorSetLayout;
-	friend class TransformDescriptorSetLayout;
+	friend class ModelDescriptorSetLayout;
 	friend class DescriptorSet;
 	friend class GlobalDescriptorSet;
 	friend class TextureDescriptorSet;
-	friend class TransformDescriptorSet;
+	friend class ModelDescriptorSet;
 	friend class Image;
 	friend class ImageView;
 	friend class TextureSampler;
