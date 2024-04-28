@@ -3,7 +3,7 @@
 #include "../DescriptorSets/DescriptorSet/DescriptorSet.h"
 #include "../DescriptorSets/DescriptorSet/GlobalDescriptorSet/GlobalDescriptorSet.h"
 #include "../DescriptorSets/DescriptorSet/TextureDescriptorSet/TextureDescriptorSet.h"
-#include "../DescriptorSets/DescriptorSet/TransformDescriptorSet/TransformDescriptorSet.h"
+#include "../DescriptorSets/DescriptorSet/ModelDescriptorSet/ModelDescriptorSet.h"
 
 GraphicsPipeline::GraphicsPipeline(Renderer* renderer) : m_renderer(renderer)
 {
@@ -112,7 +112,11 @@ GraphicsPipeline::GraphicsPipeline(Renderer* renderer) : m_renderer(renderer)
 	dynamicState.dynamicStateCount = static_cast<uint32_t>(dynamicStates.size());
 	dynamicState.pDynamicStates = dynamicStates.data();
 
-	VkDescriptorSetLayout layouts[] = { m_renderer->m_globalDescriptorSetLayout->get(), m_renderer->m_transformDescriptorSetLayout->get(), m_renderer->m_textureDescriptorSetLayout->get() };
+	VkDescriptorSetLayout layouts[] = { 
+		m_renderer->m_globalDescriptorSetLayout->get(),
+		m_renderer->m_modelDescriptorSetLayout->get(),
+		m_renderer->m_textureDescriptorSetLayout->get() 
+	};
 	VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
 	pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
 	pipelineLayoutInfo.setLayoutCount = 3; // Number of layouts

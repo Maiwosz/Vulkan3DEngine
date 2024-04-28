@@ -1,6 +1,6 @@
 #include "Application.h"
 #include "../InputSystem/InputSystem.h"
-#include "../GraphicsEngine/Camera/Camera.h"
+#include "../GraphicsEngine/Scene/SceneObjectManager/Camera/Camera.h"
 
 float Application::s_deltaTime = 0.0f;
 uint32_t Application::s_window_width = 1280;
@@ -36,7 +36,7 @@ void Application::run()
 {
     GraphicsEngine::get()->getTextureManager()->updateResources();
     GraphicsEngine::get()->getMeshManager()->updateResources();
-    GraphicsEngine::get()->getModelManager()->updateResources();
+    GraphicsEngine::get()->getModelDataManager()->updateResources();
 
     m_scene = std::make_shared<Scene>();
 
@@ -77,7 +77,7 @@ void Application::update()
 {
     GraphicsEngine::get()->getTextureManager()->updateResources();
     GraphicsEngine::get()->getMeshManager()->updateResources();
-    GraphicsEngine::get()->getModelManager()->updateResources();
+    GraphicsEngine::get()->getModelDataManager()->updateResources();
 
     m_scene->update();
 }

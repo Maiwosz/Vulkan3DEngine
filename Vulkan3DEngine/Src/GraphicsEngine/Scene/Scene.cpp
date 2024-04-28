@@ -2,7 +2,8 @@
 #include "../../Application/Application.h"
 #include "../Renderer/Buffers/UniformBuffer/UniformBuffer.h"
 #include "../Renderer/DescriptorSets/DescriptorSet/GlobalDescriptorSet/GlobalDescriptorSet.h"
-#include "../Camera/Camera.h"
+#include "SceneObjectManager/SceneObjectManager.h"
+#include "SceneObjectManager/Camera/Camera.h"
 #include "../../InputSystem/InputSystem.h"
 
 Scene::Scene()
@@ -19,48 +20,55 @@ Scene::Scene()
         m_globalDescriptorSets[i] = GraphicsEngine::get()->getRenderer()->createGlobalDescriptorSet(m_uniformBuffers[i]->get());
     }
 
-    m_camera = std::make_shared<Camera>(
-        //???-???-height
-        glm::vec3(0.0f, 0.0f, 2.0f), // position
-        0.0f, // yaw 
-        90.0f // pitch
-    );  
-     
+    m_sceneObjectManager = std::make_shared<SceneObjectManager>(this);
+
+    m_camera = m_sceneObjectManager->createCamera(glm::vec3(-8.0f, 8.0f, 8.0f), -30.0f, 45.0f); 
+
     m_light.direction = glm::vec3(0.0f, 1.0f, 1.0f);
-    m_pointLight1.intensity = 0.0f;
+    m_light.intensity = 0.0f;
 
-    m_pointLight1.color = glm::vec3(1.0f, 0.0f, 0.0f);
+    m_pointLight1.color = glm::vec3(1.0f, 1.0f, 1.0f);
+    m_pointLight1.radius = 5.0f;
     m_pointLight1.intensity = 1.0f;
 
-    m_pointLight2.color = glm::vec3(0.0f, 0.0f, 1.0f);
-    m_pointLight1.intensity = 1.0f;
+    m_pointLight1Sphere = m_sceneObjectManager->createModel("Sphere.JSON");
+    m_pointLight1Sphere->setScale(0.2);
 
-    m_pointLight3.color = glm::vec3(0.0f, 1.0f, 0.0f);
-    m_pointLight3.intensity = 1.0f;
+    //m_pointLight2.color = glm::vec3(0.0f, 0.3f, 0.0f);
+    //m_pointLight2.radius = 5.0f;
+    //m_pointLight2.intensity = 1.0f;
+    //            
+    //m_pointLight2Sphere = m_sceneObjectManager->createModel("Sphere.JSON");
+    //m_pointLight2Sphere->setScale(0.2);
+    //
+    //m_pointLight3.color = glm::vec3(0.0f, 0.0f, 0.3f);
+    //m_pointLight3.radius = 5.0f;
+    //m_pointLight3.intensity = 1.0f;
+    //            
+    //m_pointLight3Sphere = m_sceneObjectManager->createModel("Sphere.JSON");
+    //m_pointLight3Sphere->setScale(0.2);
 
-    m_floor = GraphicsEngine::get()->getModelManager()->createModelInstance("Floor.JSON");
-    m_floor->setTranslation(0.0f, 0.0f, 0.0f);
+    m_floor = m_sceneObjectManager->createModel("Floor.JSON");
     m_floor->m_shininess = 1.0f;
-    //m_floor->setScale(1.0f);
 
-    m_statue1 = GraphicsEngine::get()->getModelManager()->createModelInstance("Statue.JSON");
-    m_statue1->setTranslation(5.0f, 0.0f, 0.0f);
-    m_statue1->setRotationY(90.0f);
+    m_statue1 = m_sceneObjectManager->createModel("Statue.JSON");
+    m_statue1->move(5.0f, 0.0f, 0.0f);
+    m_statue1->rotate(0.0f, 90.0f, 0.0f);
     m_statue1->m_shininess = 0.3f;
 
-    m_statue2 = GraphicsEngine::get()->getModelManager()->createModelInstance("Statue.JSON");
-    m_statue2->setTranslation(-5.0f, 0.0f, 0.0f);
-    m_statue2->setRotationY(270.0f);
+    m_statue2 = m_sceneObjectManager->createModel("Statue.JSON");
+    m_statue2->move(-5.0f, 0.0f, 0.0f);
+    m_statue2->rotate(0.0f, 270.0f, 0.0f);
     m_statue2->m_shininess = 0.3f;
 
-    m_statue3 = GraphicsEngine::get()->getModelManager()->createModelInstance("Statue.JSON");
-    m_statue3->setTranslation(0.0f, 0.0f, 5.0f);
-    m_statue3->setRotationY(0.0f);
+    m_statue3 = m_sceneObjectManager->createModel("Statue.JSON");
+    m_statue3->move(0.0f, 0.0f, 5.0f);
+    m_statue3->rotate(0.0f, 0.0f, 0.0f);
     m_statue3->m_shininess = 0.3f;
 
-    m_statue4 = GraphicsEngine::get()->getModelManager()->createModelInstance("Statue.JSON");
-    m_statue4->setTranslation(0.0f, 0.0f, -5.0f);
-    m_statue4->setRotationY(180.0f);
+    m_statue4 = m_sceneObjectManager->createModel("Statue.JSON");
+    m_statue4->move(0.0f, 0.0f, -5.0f);
+    m_statue4->rotate(0.0f, 180.0f, 0.0f);
     m_statue4->m_shininess = 0.3f;
 
     //m_hygieia = GraphicsEngine::get()->getModelManager()->createModelInstance("Hygieia.JSON");
@@ -77,75 +85,50 @@ Scene::~Scene()
 
 void Scene::update()
 {
-    VkExtent2D swapChainExtent = GraphicsEngine::get()->getRenderer()->getSwapChain()->getSwapChainExtent();
+    ubo = GlobalUBO{};
 
-    //Directional light rotation
+    ubo.ambientCoefficient = 0.005f;
+
     // Define the rotation speed for the light
     float lightRotationSpeed = 45.0f;
 
-    // Calculate the new light direction
-    //float lightAngle = Application::s_deltaTime * lightRotationSpeed;
-    //glm::mat4 rotationMatrix = glm::rotate(glm::mat4(1.0f), glm::radians(lightAngle), glm::vec3(0.0f, 0.0f, 1.0f));
-    //glm::vec4 newDirection = rotationMatrix * glm::vec4(m_light.direction, 0.0f);
-
-    // Update the light direction
-    //m_light.direction = glm::normalize(glm::vec3(newDirection));
-
-    //Point ight rotation
-    glm::vec3 centerPoint = glm::vec3(0.0f, 0.0f, 5.0f);
-    float radius = 7.0f;
+    //Point light rotation
+    glm::vec3 centerPoint = glm::vec3(0.0f, 6.0f, 0.0f);
+    float radius = 8.0f;
 
     // Calculate the new light position
     m_lightAngle += Application::s_deltaTime * lightRotationSpeed;
+
     m_pointLight1.position.x = centerPoint.x + radius * cos(glm::radians(m_lightAngle));
-    m_pointLight1.position.y = centerPoint.y + radius * sin(glm::radians(m_lightAngle));
+    m_pointLight1.position.y = centerPoint.y;
+    m_pointLight1.position.z = centerPoint.z + radius * sin(glm::radians(m_lightAngle));
+    m_pointLight1Sphere->setPosition(m_pointLight1.position);
 
-    m_pointLight2.position.x = centerPoint.x + radius * cos(glm::radians(m_lightAngle+180));
-    m_pointLight2.position.y = centerPoint.y + radius * sin(glm::radians(m_lightAngle+180));
-
-    m_pointLight3.position.x = centerPoint.x + radius * cos(glm::radians(m_lightAngle+240));
-    m_pointLight3.position.y = centerPoint.y + radius * sin(glm::radians(m_lightAngle+240));
-
-    // Define the rotation speed
-    float rotationSpeed = 45.0f;
-    //m_statue1->setRotationY(m_statue1->getRotation().y + Application::s_deltaTime * rotationSpeed);
-    //m_statue2->setRotationY(m_statue1->getRotation().y + Application::s_deltaTime * rotationSpeed + 90);
-    //m_statue3->setRotationY(m_statue1->getRotation().y + Application::s_deltaTime * rotationSpeed + 180);
-    //m_statue4->setRotationY(m_statue1->getRotation().y + Application::s_deltaTime * rotationSpeed + 270);
-    //m_hygieia->setRotationY(Application::s_deltaTime * rotationSpeed);
-
-    //rect->update();
-    m_floor->update();
-    m_statue1->update();
-    m_statue2->update();
-    m_statue3->update();
-    m_statue4->update();
-    //m_vikingRoom->update();
-    //m_castle->update();
-    //m_hygieia->update();
+    //m_pointLight2.position.x = centerPoint.x + radius * cos(glm::radians(m_lightAngle + 120));
+    //m_pointLight2.position.y = centerPoint.y;
+    //m_pointLight2.position.z = centerPoint.z + radius * sin(glm::radians(m_lightAngle + 120));
+    //m_pointLight2Sphere->setPosition(m_pointLight2.position);
+    //
+    //m_pointLight3.position.x = centerPoint.x + radius * cos(glm::radians(m_lightAngle + 240));
+    //m_pointLight3.position.y = centerPoint.y;
+    //m_pointLight3.position.z = centerPoint.z + radius * sin(glm::radians(m_lightAngle + 240));
+    //m_pointLight3Sphere->setPosition(m_pointLight3.position);
+    
+    m_sceneObjectManager->updateObjects();
 
     //Update uniform buffer
-    GlobalUBO ubo{};
-    ubo.view = m_camera->getViewMatrix();
-    ubo.proj = m_camera->getProjectionMatrix(swapChainExtent.width, swapChainExtent.height);
+    
     ubo.directionalLight = m_light;
     ubo.pointLights[0] = m_pointLight1;
     ubo.pointLights[1] = m_pointLight2;
     ubo.pointLights[2] = m_pointLight3;
-    ubo.activePointLightCount = 2;
-    ubo.cameraPosition = m_camera->m_position;
+    ubo.activePointLightCount = 1;
+    
     memcpy(m_uniformBuffers[GraphicsEngine::get()->getRenderer()->getCurrentFrame()]->getMappedMemory(), &ubo, sizeof(ubo));
 }
 
 void Scene::draw()
 {
     m_globalDescriptorSets[GraphicsEngine::get()->getRenderer()->getCurrentFrame()]->bind();
-    m_floor->draw();
-    m_statue1->draw();
-    m_statue2->draw();
-    m_statue3->draw();
-    m_statue4->draw();
-    //m_vikingRoom->draw();
-    //m_castle->draw();
-    //m_hygieia->draw();
+    m_sceneObjectManager->drawObjects();
 }
