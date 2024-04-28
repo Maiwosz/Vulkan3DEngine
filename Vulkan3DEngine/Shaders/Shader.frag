@@ -49,8 +49,8 @@ void main() {
     vec3 directional = vec3(0.0, 0.0, 0.0);
     vec3 lightDir = normalize(-global.directionalLight.direction);
     float diff = max(dot(normal, lightDir), 0.0);
-    vec3 reflectDir = reflect(-lightDir, normal);
-    float spec = pow(max(dot(viewDir, reflectDir), 0.0), model.shininess);
+    vec3 halfwayDir = normalize(lightDir + viewDir);
+    float spec = pow(max(dot(normal, halfwayDir), 0.0), model.shininess);
     directional += global.directionalLight.intensity * (model.kd * diff + model.ks * spec) * global.directionalLight.color;
 
     // Point light
@@ -61,8 +61,8 @@ void main() {
         vec3 lightDir = normalize(L);
         float diff = max(dot(normal, lightDir), 0.0);
 
-        vec3 reflectDir = reflect(-lightDir, normal);
-        float spec = pow(max(dot(viewDir, reflectDir), 0.0), model.shininess);
+        vec3 halfwayDir = normalize(lightDir + viewDir);
+        float spec = pow(max(dot(normal, halfwayDir), 0.0), model.shininess);
 
         float d = max(distance - global.pointLights[i].radius, 0.0);
         L /= distance;
