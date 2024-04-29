@@ -1,6 +1,7 @@
 #include "Application.h"
 #include "../InputSystem/InputSystem.h"
 #include "../GraphicsEngine/Scene/SceneObjectManager/Camera/Camera.h"
+#include <thread>
 
 float Application::s_deltaTime = 0.0f;
 uint32_t Application::s_window_width = 1280;
@@ -9,6 +10,14 @@ uint32_t Application::s_window_height = 720;
 Application::Application()
 {
     m_window = std::make_shared<Window>(s_window_width, s_window_height, "Vulkan3DEngine");
+    try
+    {
+        size_t numThreads = std::thread::hardware_concurrency();
+        ThreadPool::create(numThreads);
+    }
+    catch (...) {
+        throw std::exception("Failed to create ThreadPool");
+    }
     try 
     {
         GraphicsEngine::create(m_window);

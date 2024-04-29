@@ -178,6 +178,7 @@
     <ClCompile Include="Src\GraphicsEngine\ResourceManager\TextureManager\TextureManager.cpp" />
     <ClCompile Include="Src\GraphicsEngine\Renderer\Buffers\VertexBuffer\VertexBuffer.cpp" />
     <ClCompile Include="Src\GraphicsEngine\Renderer\TextureSampler\TextureSampler.cpp" />
+    <ClCompile Include="Src\ThreadPool\ThreadPool.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Src\GraphicsEngine\Scene\SceneObjectManager\SceneObjectManager.h" />
@@ -216,6 +217,7 @@
     <ClInclude Include="Src\GraphicsEngine\ResourceManager\TextureManager\TextureManager.h" />
     <ClInclude Include="Src\GraphicsEngine\Renderer\Buffers\VertexBuffer\VertexBuffer.h" />
     <ClInclude Include="Src\GraphicsEngine\Renderer\TextureSampler\TextureSampler.h" />
+    <ClInclude Include="Src\ThreadPool\ThreadPool.h" />
   </ItemGroup>
   <ItemGroup>
     <None Include="ClassDiagram.cd" />

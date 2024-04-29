@@ -5,6 +5,7 @@
 #include <string>
 #include <filesystem>
 #include <chrono>
+#include <mutex>
 
 class ResourceManager
 {
@@ -23,4 +24,5 @@ private:
     std::string m_directory;
     std::unordered_map<std::string, ResourcePtr> m_map_resources;
     std::unordered_map<std::string, std::filesystem::file_time_type> m_last_write_time;
+    std::recursive_mutex m_mutex;
 };

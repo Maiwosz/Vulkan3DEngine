@@ -36,6 +36,7 @@
     <ClCompile Include="Src\GraphicsEngine\Scene\SceneObjectManager\SceneObject.cpp" />
     <ClCompile Include="Src\GraphicsEngine\Scene\SceneObjectManager\Model\Model.cpp" />
     <ClCompile Include="Src\GraphicsEngine\Scene\SceneObjectManager\SceneObjectManager.cpp" />
+    <ClCompile Include="Src\ThreadPool\ThreadPool.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Src\Application\Application.h" />
@@ -74,6 +75,7 @@
     <ClInclude Include="Src\GraphicsEngine\Scene\SceneObjectManager\SceneObject.h" />
     <ClInclude Include="Src\GraphicsEngine\Scene\SceneObjectManager\Model\Model.h" />
     <ClInclude Include="Src\GraphicsEngine\Scene\SceneObjectManager\SceneObjectManager.h" />
+    <ClInclude Include="Src\ThreadPool\ThreadPool.h" />
   </ItemGroup>
   <ItemGroup>
     <None Include="Shaders\Shader.frag" />
