@@ -22,7 +22,9 @@ Model::~Model()
 void Model::update()
 {
 	SceneObject::update();
-	ubo.model = m_modelData->initialOrientation * transformMatrix;
+
+	ubo.model = m_modelData->initialPosition * positionMatrix * m_modelData->initialRotation * rotationMatrix * m_modelData->initialScale * scaleMatrix;
+
 	ubo.shininess = m_shininess;
 
 	ubo.kd = 0.8f;//kd;

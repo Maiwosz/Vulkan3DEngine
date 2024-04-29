@@ -39,13 +39,14 @@ public:
     }
 
     virtual void update() {
-        translationMatrix = glm::translate(glm::mat4(1.0f), m_position);
+        positionMatrix = glm::translate(glm::mat4(1.0f), m_position);
         rotationMatrix = glm::rotate(glm::mat4(1.0f), glm::radians(m_rotation.x), glm::vec3(1.0f, 0.0f, 0.0f));
         rotationMatrix = glm::rotate(rotationMatrix, glm::radians(m_rotation.y), glm::vec3(0.0f, 1.0f, 0.0f));
         rotationMatrix = glm::rotate(rotationMatrix, glm::radians(m_rotation.z), glm::vec3(0.0f, 0.0f, 1.0f));
-        glm::mat4 scaleMatrix = glm::scale(glm::mat4(1.0f), glm::vec3(m_scale));
-        transformMatrix = translationMatrix * rotationMatrix * scaleMatrix;
+        scaleMatrix = glm::scale(glm::mat4(1.0f), glm::vec3(m_scale));
+        //transformMatrix = scaleMatrix * translationMatrix * rotationMatrix;
     }
+
     virtual void draw() = 0;
 
     // Getter functions
@@ -61,7 +62,7 @@ protected:
     float m_scale;
 
     glm::mat4 transformMatrix = glm::mat4(1.0f);
-    glm::mat4 translationMatrix = glm::mat4(1.0f);
+    glm::mat4 positionMatrix = glm::mat4(1.0f);
     glm::mat4 rotationMatrix = glm::mat4(1.0f);
     glm::mat4 scaleMatrix = glm::mat4(1.0f);
 };

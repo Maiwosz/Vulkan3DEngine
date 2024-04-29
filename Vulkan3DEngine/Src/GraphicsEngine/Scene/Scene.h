@@ -1,6 +1,7 @@
 #pragma once
 #include "../../Prerequisites.h"
 #include "SceneObjectManager/Model/Model.h"
+#include <string>
 
 class Scene {
 public:
@@ -26,9 +27,6 @@ private:
 	ModelPtr m_statue2;
 	ModelPtr m_statue3;
 	ModelPtr m_statue4;
-	ModelPtr m_vikingRoom;
-	ModelPtr m_castle;
-	ModelPtr m_hygieia;
 
 	ModelPtr m_pointLight1Sphere;
 	ModelPtr m_pointLight2Sphere;
@@ -45,5 +43,6 @@ private:
 	float m_lightAngle = 0.0f;
 
 	friend class Camera;
+	friend class SceneObjectManager;
 };
 

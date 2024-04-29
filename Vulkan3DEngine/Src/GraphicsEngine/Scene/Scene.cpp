@@ -5,6 +5,7 @@
 #include "SceneObjectManager/SceneObjectManager.h"
 #include "SceneObjectManager/Camera/Camera.h"
 #include "../../InputSystem/InputSystem.h"
+//#include "../../ThreadPool/ThreadPool.h"
 
 Scene::Scene()
 {
@@ -24,15 +25,12 @@ Scene::Scene()
 
     m_camera = m_sceneObjectManager->createCamera(glm::vec3(-8.0f, 8.0f, 8.0f), -30.0f, 45.0f); 
 
-    m_light.direction = glm::vec3(0.0f, 1.0f, 1.0f);
+    m_light.direction = glm::vec3(0.0f, -1.0f, -1.0f);
     m_light.intensity = 0.0f;
 
     m_pointLight1.color = glm::vec3(1.0f, 1.0f, 1.0f);
-    m_pointLight1.radius = 5.0f;
-    m_pointLight1.intensity = 1.0f;
-
-    m_pointLight1Sphere = m_sceneObjectManager->createModel("Sphere.JSON");
-    m_pointLight1Sphere->setScale(0.2);
+    m_pointLight1.radius = 12.0f;
+    m_pointLight1.intensity = 1.2f;
 
     //m_pointLight2.color = glm::vec3(0.0f, 0.3f, 0.0f);
     //m_pointLight2.radius = 5.0f;
@@ -48,34 +46,48 @@ Scene::Scene()
     //m_pointLight3Sphere = m_sceneObjectManager->createModel("Sphere.JSON");
     //m_pointLight3Sphere->setScale(0.2);
 
-    ModelPtr m_floor = m_sceneObjectManager->createModel("Floor.JSON");
+    //m_floor = m_sceneObjectManager->createModel("Floor.JSON");
+    //m_statue1 = m_sceneObjectManager->createModel("Statue.JSON");
+    //m_statue2 = m_sceneObjectManager->createModel("Flora_C.JSON");
+    //m_statue3 = m_sceneObjectManager->createModel("Hygieia_C.JSON");
+    //m_statue4 = m_sceneObjectManager->createModel("Omphale_C.JSON");
+    //m_pointLight1Sphere = m_sceneObjectManager->createModel("Sphere.JSON");
 
-    m_statue1 = m_sceneObjectManager->createModel("Statue.JSON");
+    std::vector<std::future<ModelPtr>> futures;
+    
+    // Dodaj zadania do puli w¹tków
+    futures.push_back(ThreadPool::get()->enqueue([this]()->ModelPtr { return m_sceneObjectManager->createModel("Floor.JSON"); }));
+    futures.push_back(ThreadPool::get()->enqueue([this]()->ModelPtr { return m_sceneObjectManager->createModel("Statue.JSON"); }));
+    futures.push_back(ThreadPool::get()->enqueue([this]()->ModelPtr { return m_sceneObjectManager->createModel("Flora_C.JSON"); }));
+    futures.push_back(ThreadPool::get()->enqueue([this]()->ModelPtr { return m_sceneObjectManager->createModel("Hygieia_C.JSON"); }));
+    futures.push_back(ThreadPool::get()->enqueue([this]()->ModelPtr { return m_sceneObjectManager->createModel("Omphale_C.JSON"); }));
+    futures.push_back(ThreadPool::get()->enqueue([this]()->ModelPtr { return m_sceneObjectManager->createModel("Sphere.JSON"); }));
+    
+    // Oczekuj na wyniki zadañ
+    m_floor = futures[0].get();
+    m_statue1 = futures[1].get();
+    m_statue2 = futures[2].get();
+    m_statue3 = futures[3].get();
+    m_statue4 = futures[4].get();
+    m_pointLight1Sphere = futures[5].get();
+    
+    m_pointLight1Sphere->setScale(0.2f);
+    
     m_statue1->move(5.0f, 0.0f, 0.0f);
     m_statue1->rotate(0.0f, 90.0f, 0.0f);
     m_statue1->m_shininess = 0.3f;
-
-    m_statue2 = m_sceneObjectManager->createModel("Statue.JSON");
+    
     m_statue2->move(-5.0f, 0.0f, 0.0f);
-    m_statue2->rotate(0.0f, 270.0f, 0.0f);
+    m_statue2->rotate(0.0f, -90.0f, 0.0f);
     m_statue2->m_shininess = 0.3f;
-
-    m_statue3 = m_sceneObjectManager->createModel("Statue.JSON");
+    
     m_statue3->move(0.0f, 0.0f, 5.0f);
-    m_statue3->rotate(0.0f, 0.0f, 0.0f);
+    m_statue3->rotate(0.0f, 90.0f, 0.0f);
     m_statue3->m_shininess = 0.3f;
-
-    m_statue4 = m_sceneObjectManager->createModel("Statue.JSON");
+    
     m_statue4->move(0.0f, 0.0f, -5.0f);
     m_statue4->rotate(0.0f, 180.0f, 0.0f);
     m_statue4->m_shininess = 0.3f;
-
-    //m_hygieia = GraphicsEngine::get()->getModelManager()->createModelInstance("Hygieia.JSON");
-    //m_hygieia->setTranslation(0.0f, 0.0f, 0.0f);
-    //m_hygieia->setRotationY(-90.0f);
-
-    //m_vikingRoom = GraphicsEngine::get()->getModelManager()->createModelInstance("viking_room.JSON");
-    //m_vikingRoom->setTranslation(0.0f, -10.0f, 0.0f);
 }
 
 Scene::~Scene()

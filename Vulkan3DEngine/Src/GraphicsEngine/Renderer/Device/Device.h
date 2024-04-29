@@ -13,6 +13,7 @@
 #include <cstdint>
 #include <limits>
 #include <algorithm>
+#include <mutex>
 
 //Stucts
 struct QueueFamilyIndices {
@@ -104,6 +105,8 @@ private:
     VkQueue m_presentQueue;
     VkSurfaceKHR m_surface;
     VkCommandPool m_commandPool;
+
+    std::recursive_mutex m_mutex;
 
     //Pointers and references
     Renderer* m_renderer = nullptr;

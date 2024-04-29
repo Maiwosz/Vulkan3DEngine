@@ -1,5 +1,6 @@
 #include "Device.h"
 #include "../Renderer.h"
+#include "../../../ThreadPool/ThreadPool.h"
 
 VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback(VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity, VkDebugUtilsMessageTypeFlagsEXT messageType, const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData, void* pUserData)
 {
@@ -56,6 +57,8 @@ Device::~Device()
 
 VkCommandBuffer Device::beginSingleTimeCommands()
 {
+    m_mutex.lock();
+
     VkCommandBufferAllocateInfo allocInfo{};
     allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
     allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
@@ -88,6 +91,7 @@ void Device::endSingleTimeCommands(VkCommandBuffer commandBuffer)
     
     
     vkFreeCommandBuffers(m_device, m_commandPool, 1, &commandBuffer);
+    m_mutex.unlock();
 }
 
 VkFormat Device::findDepthFormat()

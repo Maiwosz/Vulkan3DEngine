@@ -27,6 +27,7 @@ ResourcePtr ResourceManager::loadResource(const std::string& name)
     Resource* raw_res = createResourceFromFileConcrete(full_path.c_str());
     if (raw_res)
     {
+        std::lock_guard<std::recursive_mutex> lock(m_mutex);
         ResourcePtr res(raw_res);
         m_map_resources[name] = res;
         m_last_write_time[name] = std::filesystem::last_write_time(full_path);
@@ -36,8 +37,10 @@ ResourcePtr ResourceManager::loadResource(const std::string& name)
     return nullptr;
 }
 
+
 void ResourceManager::unloadResource(const std::string& name)
 {
+    std::lock_guard<std::recursive_mutex> lock(m_mutex);
     m_map_resources.erase(name);
     m_last_write_time.erase(name);
 }
@@ -49,10 +52,12 @@ void ResourceManager::updateResources()
         std::string full_path = m_directory + "/" + it->first;
         if (!std::filesystem::exists(full_path))
         {
+            std::lock_guard<std::recursive_mutex> lock(m_mutex);
             it = m_map_resources.erase(it);
         }
         else
         {
+            std::lock_guard<std::recursive_mutex> lock(m_mutex);
             auto last_write_time = std::filesystem::last_write_time(full_path);
             if (last_write_time != m_last_write_time[it->first])
             {
@@ -80,6 +85,7 @@ void ResourceManager::updateResourceList()
             std::string name = entry.path().filename().replace_extension().string();
             if (m_map_resources.find(name) == m_map_resources.end())
             {
+                std::lock_guard<std::recursive_mutex> lock(m_mutex);
                 m_map_resources[name] = nullptr;
                 m_last_write_time[name] = std::filesystem::last_write_time(entry.path());
             }
