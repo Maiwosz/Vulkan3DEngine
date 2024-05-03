@@ -1,25 +1,45 @@
 #pragma once
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
+#include <vulkan/vk_enum_string_helper.h>
+#include <vma/vk_mem_alloc.h>
 
 #define GLM_FORCE_RADIANS
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE
 #define GLM_ENABLE_EXPERIMENTAL
 #include <glm/glm.hpp>
+#include <glm/mat4x4.hpp>
+#include <glm/vec4.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtx/hash.hpp>
 
+#define FMT_HEADER_ONLY
+#include <fmt/core.h>
+
+#include <json.hpp>
+
 #include <memory>
 #include <array>
+
+#define VK_CHECK(x)                                                         \
+    do {                                                                    \
+        VkResult err = x;                                                   \
+        if (err) {                                                          \
+             fmt::print("Detected Vulkan error: {}", string_VkResult(err)); \
+            abort();                                                        \
+        }                                                                   \
+    } while (0)
 
 class Application;
 
 class Window;
 class GraphicsEngine;
+class ThreadPool;
 class Device;
 class Renderer;
 class SwapChain;
 class GraphicsPipeline;
+class PipelineBuilder;
 class Resource;
 class ResourceManager;
 class Texture;
@@ -58,6 +78,7 @@ typedef std::shared_ptr<Device> DevicePtr;
 typedef std::shared_ptr<Renderer> RendererPtr;
 typedef std::shared_ptr<SwapChain> SwapChainPtr;
 typedef std::shared_ptr<GraphicsPipeline> GraphicsPipelinePtr;
+typedef std::shared_ptr<PipelineBuilder> PipelineBuilderePtr;
 typedef std::shared_ptr<Resource> ResourcePtr;
 typedef std::shared_ptr<ResourceManager> ResourceManagerPtr;
 typedef std::shared_ptr<Texture> TexturePtr;
@@ -174,3 +195,8 @@ namespace std {
         }
     };
 }
+
+struct Pipeline {
+    VkPipeline pipeline;
+    VkPipelineLayout layout;
+};
