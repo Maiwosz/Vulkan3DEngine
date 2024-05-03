@@ -2,84 +2,309 @@
 <Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup>
     <ClCompile Include="Src\main.cpp" />
-    <ClCompile Include="Src\Application\Application.cpp" />
-    <ClCompile Include="Src\GraphicsEngine\GraphicsEngine.cpp" />
-    <ClCompile Include="Src\WindowSytem\Window.cpp" />
-    <ClCompile Include="Src\GraphicsEngine\Renderer\Renderer.cpp" />
-    <ClCompile Include="Src\GraphicsEngine\Renderer\Device\Device.cpp" />
-    <ClCompile Include="Src\GraphicsEngine\Renderer\SwapChain\SwapChain.cpp" />
-    <ClCompile Include="Src\GraphicsEngine\Renderer\GraphicsPipeline\GraphicsPipeline.cpp" />
-    <ClCompile Include="Src\GraphicsEngine\ResourceManager\Resource.cpp" />
-    <ClCompile Include="Src\GraphicsEngine\ResourceManager\MeshManager\Mesh.cpp" />
-    <ClCompile Include="Src\GraphicsEngine\ResourceManager\MeshManager\MeshManager.cpp" />
-    <ClCompile Include="Src\GraphicsEngine\ResourceManager\TextureManager\Texture.cpp" />
-    <ClCompile Include="Src\GraphicsEngine\ResourceManager\TextureManager\TextureManager.cpp" />
-    <ClCompile Include="Src\GraphicsEngine\ResourceManager\ModelDataManager\ModelData.cpp" />
-    <ClCompile Include="Src\GraphicsEngine\ResourceManager\ResourceManager.cpp" />
-    <ClCompile Include="Src\GraphicsEngine\Renderer\Buffers\VertexBuffer\VertexBuffer.cpp" />
-    <ClCompile Include="Src\GraphicsEngine\Renderer\Buffers\IndexBuffer\IndexBuffer.cpp" />
-    <ClCompile Include="Src\GraphicsEngine\Renderer\Buffers\Buffer.cpp" />
-    <ClCompile Include="Src\GraphicsEngine\Renderer\Buffers\UniformBuffer\UniformBuffer.cpp" />
-    <ClCompile Include="Src\GraphicsEngine\Renderer\Image\Image.cpp" />
-    <ClCompile Include="Src\GraphicsEngine\Renderer\Buffers\StagingBuffer\StagingBuffer.cpp" />
-    <ClCompile Include="Src\GraphicsEngine\Renderer\ImageView\ImageView.cpp" />
-    <ClCompile Include="Src\GraphicsEngine\Renderer\TextureSampler\TextureSampler.cpp" />
-    <ClCompile Include="Src\GraphicsEngine\Renderer\DescriptorSets\DescriptorSet\DescriptorSet.cpp" />
-    <ClCompile Include="Src\GraphicsEngine\Renderer\DescriptorSets\DescriptorPool\DescriptorPool.cpp" />
-    <ClCompile Include="Src\GraphicsEngine\Renderer\DescriptorSets\DescriptorSet\TextureDescriptorSet\TextureDescriptorSet.cpp" />
-    <ClCompile Include="Src\GraphicsEngine\Renderer\DescriptorSets\DescriptorSet\GlobalDescriptorSet\GlobalDescriptorSet.cpp" />
-    <ClCompile Include="Src\GraphicsEngine\Renderer\DescriptorSets\DescriptorSet\ModelDescriptorSet\ModelDescriptorSet.cpp" />
-    <ClCompile Include="Src\GraphicsEngine\ResourceManager\ModelDataManager\ModelDataManager.cpp" />
-    <ClCompile Include="Src\GraphicsEngine\Scene\Scene.cpp" />
-    <ClCompile Include="Src\InputSystem\InputSystem.cpp" />
-    <ClCompile Include="Src\GraphicsEngine\Scene\SceneObjectManager\Camera\Camera.cpp" />
-    <ClCompile Include="Src\GraphicsEngine\Scene\SceneObjectManager\SceneObject.cpp" />
-    <ClCompile Include="Src\GraphicsEngine\Scene\SceneObjectManager\Model\Model.cpp" />
-    <ClCompile Include="Src\GraphicsEngine\Scene\SceneObjectManager\SceneObjectManager.cpp" />
-    <ClCompile Include="Src\ThreadPool\ThreadPool.cpp" />
+    <ClCompile Include="Src\GraphicsEngine.cpp">
+      <Filter>Application\GraphicsEngine</Filter>
+    </ClCompile>
+    <ClCompile Include="Src\Window.cpp">
+      <Filter>Application\WindowingSystem</Filter>
+    </ClCompile>
+    <ClCompile Include="Src\ThreadPool.cpp">
+      <Filter>Application\ThreadPool</Filter>
+    </ClCompile>
+    <ClCompile Include="Src\InputSystem.cpp">
+      <Filter>Application\InputSystem</Filter>
+    </ClCompile>
+    <ClCompile Include="Src\Application.cpp">
+      <Filter>Application</Filter>
+    </ClCompile>
+    <ClCompile Include="Src\Buffer.cpp">
+      <Filter>Application\GraphicsEngine\Buffers</Filter>
+    </ClCompile>
+    <ClCompile Include="Src\Image.cpp">
+      <Filter>Application\GraphicsEngine\Images</Filter>
+    </ClCompile>
+    <ClCompile Include="Src\ImageView.cpp">
+      <Filter>Application\GraphicsEngine\Images</Filter>
+    </ClCompile>
+    <ClCompile Include="Src\IndexBuffer.cpp">
+      <Filter>Application\GraphicsEngine\Buffers</Filter>
+    </ClCompile>
+    <ClCompile Include="Src\Renderer.cpp">
+      <Filter>Application\GraphicsEngine\Renderer</Filter>
+    </ClCompile>
+    <ClCompile Include="Src\Resource.cpp">
+      <Filter>Application\GraphicsEngine\ResourceManagers</Filter>
+    </ClCompile>
+    <ClCompile Include="Src\ResourceManager.cpp">
+      <Filter>Application\GraphicsEngine\ResourceManagers</Filter>
+    </ClCompile>
+    <ClCompile Include="Src\Scene.cpp">
+      <Filter>Application\GraphicsEngine\Scene</Filter>
+    </ClCompile>
+    <ClCompile Include="Src\StagingBuffer.cpp">
+      <Filter>Application\GraphicsEngine\Buffers</Filter>
+    </ClCompile>
+    <ClCompile Include="Src\UniformBuffer.cpp">
+      <Filter>Application\GraphicsEngine\Buffers</Filter>
+    </ClCompile>
+    <ClCompile Include="Src\VertexBuffer.cpp">
+      <Filter>Application\GraphicsEngine\Buffers</Filter>
+    </ClCompile>
+    <ClCompile Include="Src\TextureSampler.cpp">
+      <Filter>Application\GraphicsEngine\Images</Filter>
+    </ClCompile>
+    <ClCompile Include="Src\DescriptorPool.cpp">
+      <Filter>Application\GraphicsEngine\Descriptors\DescriptorPool</Filter>
+    </ClCompile>
+    <ClCompile Include="Src\DescriptorSet.cpp">
+      <Filter>Application\GraphicsEngine\Descriptors\DescriptorSet</Filter>
+    </ClCompile>
+    <ClCompile Include="Src\GlobalDescriptorSet.cpp">
+      <Filter>Application\GraphicsEngine\Descriptors\DescriptorSet</Filter>
+    </ClCompile>
+    <ClCompile Include="Src\ModelDescriptorSet.cpp">
+      <Filter>Application\GraphicsEngine\Descriptors\DescriptorSet</Filter>
+    </ClCompile>
+    <ClCompile Include="Src\TextureDescriptorSet.cpp">
+      <Filter>Application\GraphicsEngine\Descriptors\DescriptorSet</Filter>
+    </ClCompile>
+    <ClCompile Include="Src\SwapChain.cpp">
+      <Filter>Application\GraphicsEngine\Renderer\SwapChain</Filter>
+    </ClCompile>
+    <ClCompile Include="Src\PipelineBuilder.cpp">
+      <Filter>Application\GraphicsEngine\Renderer\PipelineBuilder</Filter>
+    </ClCompile>
+    <ClCompile Include="Src\Device.cpp">
+      <Filter>Application\GraphicsEngine\Renderer\Device</Filter>
+    </ClCompile>
+    <ClCompile Include="Src\SceneObjectManager.cpp">
+      <Filter>Application\GraphicsEngine\Scene\SceneObjectManager</Filter>
+    </ClCompile>
+    <ClCompile Include="Src\SceneObject.cpp">
+      <Filter>Application\GraphicsEngine\Scene\SceneObjectManager\SceneObject</Filter>
+    </ClCompile>
+    <ClCompile Include="Src\Model.cpp">
+      <Filter>Application\GraphicsEngine\Scene\SceneObjectManager\SceneObject\Model</Filter>
+    </ClCompile>
+    <ClCompile Include="Src\Camera.cpp">
+      <Filter>Application\GraphicsEngine\Scene\SceneObjectManager\SceneObject\Camera</Filter>
+    </ClCompile>
+    <ClCompile Include="Src\Mesh.cpp">
+      <Filter>Application\GraphicsEngine\ResourceManagers\MeshManager</Filter>
+    </ClCompile>
+    <ClCompile Include="Src\MeshManager.cpp">
+      <Filter>Application\GraphicsEngine\ResourceManagers\MeshManager</Filter>
+    </ClCompile>
+    <ClCompile Include="Src\ModelData.cpp">
+      <Filter>Application\GraphicsEngine\ResourceManagers\ModelDataManager</Filter>
+    </ClCompile>
+    <ClCompile Include="Src\ModelDataManager.cpp">
+      <Filter>Application\GraphicsEngine\ResourceManagers\ModelDataManager</Filter>
+    </ClCompile>
+    <ClCompile Include="Src\Texture.cpp">
+      <Filter>Application\GraphicsEngine\ResourceManagers\TextureManager</Filter>
+    </ClCompile>
+    <ClCompile Include="Src\TextureManager.cpp">
+      <Filter>Application\GraphicsEngine\ResourceManagers\TextureManager</Filter>
+    </ClCompile>
+    <ClCompile Include="Src\RendererInits.cpp">
+      <Filter>Application\GraphicsEngine\Renderer</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="Src\Application\Application.h" />
-    <ClInclude Include="Src\GraphicsEngine\GraphicsEngine.h" />
-    <ClInclude Include="Src\WindowSytem\Window.h" />
-    <ClInclude Include="Src\GraphicsEngine\Renderer\Renderer.h" />
-    <ClInclude Include="Src\GraphicsEngine\Renderer\Device\Device.h" />
-    <ClInclude Include="Src\GraphicsEngine\Renderer\SwapChain\SwapChain.h" />
     <ClInclude Include="Src\Prerequisites.h" />
-    <ClInclude Include="Src\GraphicsEngine\Renderer\GraphicsPipeline\GraphicsPipeline.h" />
-    <ClInclude Include="Src\GraphicsEngine\ResourceManager\Resource.h" />
-    <ClInclude Include="Src\GraphicsEngine\ResourceManager\MeshManager\Mesh.h" />
-    <ClInclude Include="Src\GraphicsEngine\ResourceManager\MeshManager\MeshManager.h" />
-    <ClInclude Include="Src\GraphicsEngine\ResourceManager\TextureManager\Texture.h" />
-    <ClInclude Include="Src\GraphicsEngine\ResourceManager\TextureManager\TextureManager.h" />
-    <ClInclude Include="Src\GraphicsEngine\ResourceManager\ModelDataManager\ModelData.h" />
-    <ClInclude Include="Src\GraphicsEngine\ResourceManager\ResourceManager.h" />
-    <ClInclude Include="Src\GraphicsEngine\Renderer\Buffers\VertexBuffer\VertexBuffer.h" />
-    <ClInclude Include="Src\GraphicsEngine\Renderer\Buffers\IndexBuffer\IndexBuffer.h" />
-    <ClInclude Include="Src\GraphicsEngine\Renderer\Buffers\Buffer.h" />
-    <ClInclude Include="Src\GraphicsEngine\Renderer\Buffers\UniformBuffer\UniformBuffer.h" />
-    <ClInclude Include="Src\GraphicsEngine\Renderer\Image\Image.h" />
-    <ClInclude Include="Src\GraphicsEngine\Renderer\Buffers\StagingBuffer\StagingBuffer.h" />
-    <ClInclude Include="Src\GraphicsEngine\Renderer\ImageView\ImageView.h" />
-    <ClInclude Include="Src\GraphicsEngine\Renderer\TextureSampler\TextureSampler.h" />
-    <ClInclude Include="Src\GraphicsEngine\Renderer\DescriptorSets\DescriptorSet\DescriptorSet.h" />
-    <ClInclude Include="Src\GraphicsEngine\Renderer\DescriptorSets\DescriptorPool\DescriptorPool.h" />
-    <ClInclude Include="Src\GraphicsEngine\Renderer\DescriptorSets\DescriptorSet\TextureDescriptorSet\TextureDescriptorSet.h" />
-    <ClInclude Include="Src\GraphicsEngine\Renderer\DescriptorSets\DescriptorSet\GlobalDescriptorSet\GlobalDescriptorSet.h" />
-    <ClInclude Include="Src\GraphicsEngine\Renderer\DescriptorSets\DescriptorSet\ModelDescriptorSet\ModelDescriptorSet.h" />
-    <ClInclude Include="Src\GraphicsEngine\ResourceManager\ModelDataManager\ModelDataManager.h" />
-    <ClInclude Include="Src\GraphicsEngine\Scene\Scene.h" />
-    <ClInclude Include="Src\InputSystem\InputListener.h" />
-    <ClInclude Include="Src\InputSystem\InputSystem.h" />
-    <ClInclude Include="Src\GraphicsEngine\Scene\SceneObjectManager\Camera\Camera.h" />
-    <ClInclude Include="Src\GraphicsEngine\Scene\SceneObjectManager\SceneObject.h" />
-    <ClInclude Include="Src\GraphicsEngine\Scene\SceneObjectManager\Model\Model.h" />
-    <ClInclude Include="Src\GraphicsEngine\Scene\SceneObjectManager\SceneObjectManager.h" />
-    <ClInclude Include="Src\ThreadPool\ThreadPool.h" />
+    <ClInclude Include="Src\GraphicsEngine.h">
+      <Filter>Application\GraphicsEngine</Filter>
+    </ClInclude>
+    <ClInclude Include="Src\Window.h">
+      <Filter>Application\WindowingSystem</Filter>
+    </ClInclude>
+    <ClInclude Include="Src\ThreadPool.h">
+      <Filter>Application\ThreadPool</Filter>
+    </ClInclude>
+    <ClInclude Include="Src\InputSystem.h">
+      <Filter>Application\InputSystem</Filter>
+    </ClInclude>
+    <ClInclude Include="Src\InputListener.h">
+      <Filter>Application\InputSystem</Filter>
+    </ClInclude>
+    <ClInclude Include="Src\Application.h">
+      <Filter>Application</Filter>
+    </ClInclude>
+    <ClInclude Include="Src\Buffer.h">
+      <Filter>Application\GraphicsEngine\Buffers</Filter>
+    </ClInclude>
+    <ClInclude Include="Src\Image.h">
+      <Filter>Application\GraphicsEngine\Images</Filter>
+    </ClInclude>
+    <ClInclude Include="Src\ImageView.h">
+      <Filter>Application\GraphicsEngine\Images</Filter>
+    </ClInclude>
+    <ClInclude Include="Src\IndexBuffer.h">
+      <Filter>Application\GraphicsEngine\Buffers</Filter>
+    </ClInclude>
+    <ClInclude Include="Src\Renderer.h">
+      <Filter>Application\GraphicsEngine\Renderer</Filter>
+    </ClInclude>
+    <ClInclude Include="Src\Resource.h">
+      <Filter>Application\GraphicsEngine\ResourceManagers</Filter>
+    </ClInclude>
+    <ClInclude Include="Src\ResourceManager.h">
+      <Filter>Application\GraphicsEngine\ResourceManagers</Filter>
+    </ClInclude>
+    <ClInclude Include="Src\Scene.h">
+      <Filter>Application\GraphicsEngine\Scene</Filter>
+    </ClInclude>
+    <ClInclude Include="Src\StagingBuffer.h">
+      <Filter>Application\GraphicsEngine\Buffers</Filter>
+    </ClInclude>
+    <ClInclude Include="Src\UniformBuffer.h">
+      <Filter>Application\GraphicsEngine\Buffers</Filter>
+    </ClInclude>
+    <ClInclude Include="Src\VertexBuffer.h">
+      <Filter>Application\GraphicsEngine\Buffers</Filter>
+    </ClInclude>
+    <ClInclude Include="Src\TextureSampler.h">
+      <Filter>Application\GraphicsEngine\Images</Filter>
+    </ClInclude>
+    <ClInclude Include="Src\DescriptorPool.h">
+      <Filter>Application\GraphicsEngine\Descriptors\DescriptorPool</Filter>
+    </ClInclude>
+    <ClInclude Include="Src\DescriptorSet.h">
+      <Filter>Application\GraphicsEngine\Descriptors\DescriptorSet</Filter>
+    </ClInclude>
+    <ClInclude Include="Src\GlobalDescriptorSet.h">
+      <Filter>Application\GraphicsEngine\Descriptors\DescriptorSet</Filter>
+    </ClInclude>
+    <ClInclude Include="Src\ModelDescriptorSet.h">
+      <Filter>Application\GraphicsEngine\Descriptors\DescriptorSet</Filter>
+    </ClInclude>
+    <ClInclude Include="Src\TextureDescriptorSet.h">
+      <Filter>Application\GraphicsEngine\Descriptors\DescriptorSet</Filter>
+    </ClInclude>
+    <ClInclude Include="Src\SwapChain.h">
+      <Filter>Application\GraphicsEngine\Renderer\SwapChain</Filter>
+    </ClInclude>
+    <ClInclude Include="Src\PipelineBuilder.h">
+      <Filter>Application\GraphicsEngine\Renderer\PipelineBuilder</Filter>
+    </ClInclude>
+    <ClInclude Include="Src\Device.h">
+      <Filter>Application\GraphicsEngine\Renderer\Device</Filter>
+    </ClInclude>
+    <ClInclude Include="Src\SceneObjectManager.h">
+      <Filter>Application\GraphicsEngine\Scene\SceneObjectManager</Filter>
+    </ClInclude>
+    <ClInclude Include="Src\SceneObject.h">
+      <Filter>Application\GraphicsEngine\Scene\SceneObjectManager\SceneObject</Filter>
+    </ClInclude>
+    <ClInclude Include="Src\Model.h">
+      <Filter>Application\GraphicsEngine\Scene\SceneObjectManager\SceneObject\Model</Filter>
+    </ClInclude>
+    <ClInclude Include="Src\Camera.h">
+      <Filter>Application\GraphicsEngine\Scene\SceneObjectManager\SceneObject\Camera</Filter>
+    </ClInclude>
+    <ClInclude Include="Src\MeshManager.h">
+      <Filter>Application\GraphicsEngine\ResourceManagers\MeshManager</Filter>
+    </ClInclude>
+    <ClInclude Include="Src\Mesh.h">
+      <Filter>Application\GraphicsEngine\ResourceManagers\MeshManager</Filter>
+    </ClInclude>
+    <ClInclude Include="Src\ModelDataManager.h">
+      <Filter>Application\GraphicsEngine\ResourceManagers\ModelDataManager</Filter>
+    </ClInclude>
+    <ClInclude Include="Src\ModelData.h">
+      <Filter>Application\GraphicsEngine\ResourceManagers\ModelDataManager</Filter>
+    </ClInclude>
+    <ClInclude Include="Src\TextureManager.h">
+      <Filter>Application\GraphicsEngine\ResourceManagers\TextureManager</Filter>
+    </ClInclude>
+    <ClInclude Include="Src\Texture.h">
+      <Filter>Application\GraphicsEngine\ResourceManagers\TextureManager</Filter>
+    </ClInclude>
+    <ClInclude Include="Src\RendererInits.h">
+      <Filter>Application\GraphicsEngine\Renderer</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
-    <None Include="Shaders\Shader.frag" />
-    <None Include="Shaders\Shader.vert" />
-    <None Include="ClassDiagram.cd" />
+    <None Include="Shaders\Shader.vert">
+      <Filter>Application\GraphicsEngine\Renderer\Shaders</Filter>
+    </None>
+    <None Include="Shaders\Shader.frag">
+      <Filter>Application\GraphicsEngine\Renderer\Shaders</Filter>
+    </None>
+  </ItemGroup>
+  <ItemGroup>
+    <Filter Include="Application">
+      <UniqueIdentifier>{a4c47e33-19d8-4b32-b357-814de45c8134}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Application\GraphicsEngine">
+      <UniqueIdentifier>{29abc8b0-f6b3-4e60-a43c-055ee93226a4}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Application\InputSystem">
+      <UniqueIdentifier>{7217a741-b806-438c-b4ce-f62c51bc381b}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Application\WindowingSystem">
+      <UniqueIdentifier>{71b4fcbb-7907-44e5-aad6-a43a9e685b14}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Application\ThreadPool">
+      <UniqueIdentifier>{26fc1fee-33e2-4a98-8483-2f912a8fa1bd}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Application\GraphicsEngine\Descriptors">
+      <UniqueIdentifier>{91c5c937-c5c2-4cc0-9d19-37d16231a80e}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Application\GraphicsEngine\Buffers">
+      <UniqueIdentifier>{e228bf09-f249-420b-a12e-cf9d6bd631fe}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Application\GraphicsEngine\Images">
+      <UniqueIdentifier>{3a3430b4-4efd-4523-a0e9-917935898179}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Application\GraphicsEngine\ResourceManagers">
+      <UniqueIdentifier>{e345b9e5-047e-476c-9b91-f3f76d863541}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Application\GraphicsEngine\Scene">
+      <UniqueIdentifier>{b9c80830-174d-4134-9443-31b7bc6e17b2}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Application\GraphicsEngine\Renderer">
+      <UniqueIdentifier>{b79260e3-062a-4728-84f2-9c64cf576825}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Application\GraphicsEngine\Descriptors\DescriptorPool">
+      <UniqueIdentifier>{0c9d8fbf-1922-4039-806a-7497167b23b4}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Application\GraphicsEngine\Descriptors\DescriptorSet">
+      <UniqueIdentifier>{ecb4398e-d23b-444d-9cfa-e3f96d0a4196}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Application\GraphicsEngine\Renderer\Device">
+      <UniqueIdentifier>{b3ecf183-f434-42f8-a0d2-1b282c0dc814}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Application\GraphicsEngine\Renderer\PipelineBuilder">
+      <UniqueIdentifier>{a89326bf-50cf-491c-aede-41b73a085d83}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Application\GraphicsEngine\Renderer\SwapChain">
+      <UniqueIdentifier>{f89a2610-55c3-4650-90b7-cb8a53396734}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Application\GraphicsEngine\Scene\SceneObjectManager">
+      <UniqueIdentifier>{c9d38fc7-33b9-4616-ba16-52f98aeab845}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Application\GraphicsEngine\Scene\SceneObjectManager\SceneObject">
+      <UniqueIdentifier>{7db5a2e8-ec20-47b2-82b4-8b57d8e14424}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Application\GraphicsEngine\Scene\SceneObjectManager\SceneObject\Model">
+      <UniqueIdentifier>{5e5f9f63-3a94-4070-b1d5-cf85088aa2ec}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Application\GraphicsEngine\Scene\SceneObjectManager\SceneObject\Camera">
+      <UniqueIdentifier>{0eedf44a-c9ff-456e-8744-4283e54f33f3}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Application\GraphicsEngine\ResourceManagers\MeshManager">
+      <UniqueIdentifier>{15304a0d-ac02-4d3e-b3b8-5e6655d83777}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Application\GraphicsEngine\ResourceManagers\ModelDataManager">
+      <UniqueIdentifier>{14f87bf0-1472-487a-a786-36780b9cb3e9}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Application\GraphicsEngine\ResourceManagers\TextureManager">
+      <UniqueIdentifier>{d07dfc36-bf39-41eb-b7c1-6c01407f89e4}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Application\GraphicsEngine\Renderer\Shaders">
+      <UniqueIdentifier>{97b1b8b9-c10b-4501-a242-370c9f5bcc4b}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
 </Project>

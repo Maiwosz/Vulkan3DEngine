@@ -76,7 +76,7 @@
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>WIN32;_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
-      <AdditionalIncludeDirectories>Libs\VulkanSDK\Include;Libs\glfw\include;Libs\glm;Libs\stb;Libs\tinyobjloader;Libs\nlohmann;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>Libs\VulkanSDK\Include;Libs\glfw\include;Libs\glm;Libs\stb;Libs\tinyobjloader;Libs\nlohmann;Libs\fmt\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <LanguageStandard>stdcpp20</LanguageStandard>
     </ClCompile>
     <Link>
@@ -94,7 +94,7 @@
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>WIN32;NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
-      <AdditionalIncludeDirectories>Libs\VulkanSDK\Include;Libs\glfw\include;Libs\glm;Libs\stb;Libs\tinyobjloader;Libs\nlohmann;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>Libs\VulkanSDK\Include;Libs\glfw\include;Libs\glm;Libs\stb;Libs\tinyobjloader;Libs\nlohmann;Libs\fmt\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <LanguageStandard>stdcpp20</LanguageStandard>
     </ClCompile>
     <Link>
@@ -112,7 +112,7 @@
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
-      <AdditionalIncludeDirectories>Libs\VulkanSDK\Include;Libs\glfw\include;Libs\glm;Libs\stb;Libs\tinyobjloader;Libs\nlohmann;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>Libs\VulkanSDK\Include;Libs\glfw\include;Libs\glm;Libs\stb;Libs\tinyobjloader;Libs\nlohmann;Libs\fmt\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <LanguageStandard>stdcpp20</LanguageStandard>
     </ClCompile>
     <Link>
@@ -130,7 +130,7 @@
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
-      <AdditionalIncludeDirectories>Libs\VulkanSDK\Include;Libs\glfw\include;Libs\glm;Libs\stb;Libs\tinyobjloader;Libs\nlohmann;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>Libs\VulkanSDK\Include;Libs\glfw\include;Libs\glm;Libs\stb;Libs\tinyobjloader;Libs\nlohmann;Libs\fmt\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <LanguageStandard>stdcpp20</LanguageStandard>
     </ClCompile>
     <Link>
@@ -143,84 +143,85 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="Src\GraphicsEngine\Scene\SceneObjectManager\SceneObjectManager.cpp" />
-    <ClCompile Include="Src\GraphicsEngine\Scene\SceneObjectManager\Model\Model.cpp" />
-    <ClCompile Include="Src\GraphicsEngine\Scene\SceneObjectManager\SceneObject.cpp" />
-    <ClCompile Include="Src\GraphicsEngine\Scene\SceneObjectManager\Camera\Camera.cpp" />
-    <ClCompile Include="Src\GraphicsEngine\Scene\Scene.cpp" />
-    <ClCompile Include="Src\GraphicsEngine\ResourceManager\ModelDataManager\ModelDataManager.cpp" />
-    <ClCompile Include="Src\GraphicsEngine\Renderer\DescriptorSets\DescriptorPool\DescriptorPool.cpp" />
-    <ClCompile Include="Src\GraphicsEngine\Renderer\DescriptorSets\DescriptorSet\DescriptorSet.cpp" />
-    <ClCompile Include="Src\GraphicsEngine\Renderer\DescriptorSets\DescriptorSet\GlobalDescriptorSet\GlobalDescriptorSet.cpp" />
-    <ClCompile Include="Src\GraphicsEngine\Renderer\DescriptorSets\DescriptorSet\TextureDescriptorSet\TextureDescriptorSet.cpp" />
-    <ClCompile Include="Src\GraphicsEngine\Renderer\DescriptorSets\DescriptorSet\ModelDescriptorSet\ModelDescriptorSet.cpp" />
-    <ClCompile Include="Src\GraphicsEngine\Renderer\ImageView\ImageView.cpp" />
-    <ClCompile Include="Src\GraphicsEngine\Renderer\Buffers\StagingBuffer\StagingBuffer.cpp" />
-    <ClCompile Include="Src\GraphicsEngine\Renderer\Image\Image.cpp" />
-    <ClCompile Include="Src\GraphicsEngine\Renderer\Buffers\UniformBuffer\UniformBuffer.cpp" />
-    <ClCompile Include="Src\GraphicsEngine\Renderer\Buffers\Buffer.cpp" />
-    <ClCompile Include="Src\GraphicsEngine\Renderer\Buffers\IndexBuffer\IndexBuffer.cpp" />
-    <ClCompile Include="Src\GraphicsEngine\ResourceManager\ResourceManager.cpp" />
-    <ClCompile Include="Src\GraphicsEngine\ResourceManager\ModelDataManager\ModelData.cpp" />
-    <ClCompile Include="Src\GraphicsEngine\ResourceManager\MeshManager\Mesh.cpp" />
-    <ClCompile Include="Src\GraphicsEngine\ResourceManager\MeshManager\MeshManager.cpp" />
-    <ClCompile Include="Src\GraphicsEngine\ResourceManager\Resource.cpp" />
-    <ClCompile Include="Src\GraphicsEngine\Renderer\GraphicsPipeline\GraphicsPipeline.cpp" />
-    <ClCompile Include="Src\GraphicsEngine\Renderer\Device\Device.cpp" />
-    <ClCompile Include="Src\GraphicsEngine\Renderer\Renderer.cpp" />
-    <ClCompile Include="Src\GraphicsEngine\GraphicsEngine.cpp" />
-    <ClCompile Include="Src\Application\Application.cpp" />
-    <ClCompile Include="Src\InputSystem\InputSystem.cpp" />
+    <ClCompile Include="Src\Application.cpp" />
+    <ClCompile Include="Src\Buffer.cpp" />
+    <ClCompile Include="Src\Camera.cpp" />
+    <ClCompile Include="Src\DescriptorPool.cpp" />
+    <ClCompile Include="Src\DescriptorSet.cpp" />
+    <ClCompile Include="Src\Device.cpp" />
+    <ClCompile Include="Src\GlobalDescriptorSet.cpp" />
+    <ClCompile Include="Src\GraphicsEngine.cpp" />
+    <ClCompile Include="Src\Image.cpp" />
+    <ClCompile Include="Src\ImageView.cpp" />
+    <ClCompile Include="Src\IndexBuffer.cpp" />
+    <ClCompile Include="Src\InputSystem.cpp" />
     <ClCompile Include="Src\main.cpp" />
-    <ClCompile Include="Src\WindowSytem\Window.cpp" />
-    <ClCompile Include="Src\GraphicsEngine\Renderer\SwapChain\SwapChain.cpp" />
-    <ClCompile Include="Src\GraphicsEngine\ResourceManager\TextureManager\Texture.cpp" />
-    <ClCompile Include="Src\GraphicsEngine\ResourceManager\TextureManager\TextureManager.cpp" />
-    <ClCompile Include="Src\GraphicsEngine\Renderer\Buffers\VertexBuffer\VertexBuffer.cpp" />
-    <ClCompile Include="Src\GraphicsEngine\Renderer\TextureSampler\TextureSampler.cpp" />
-    <ClCompile Include="Src\ThreadPool\ThreadPool.cpp" />
+    <ClCompile Include="Src\Mesh.cpp" />
+    <ClCompile Include="Src\MeshManager.cpp" />
+    <ClCompile Include="Src\Model.cpp" />
+    <ClCompile Include="Src\ModelData.cpp" />
+    <ClCompile Include="Src\ModelDataManager.cpp" />
+    <ClCompile Include="Src\ModelDescriptorSet.cpp" />
+    <ClCompile Include="Src\PipelineBuilder.cpp" />
+    <ClCompile Include="Src\Renderer.cpp" />
+    <ClCompile Include="Src\RendererInits.cpp" />
+    <ClCompile Include="Src\Resource.cpp" />
+    <ClCompile Include="Src\ResourceManager.cpp" />
+    <ClCompile Include="Src\Scene.cpp" />
+    <ClCompile Include="Src\SceneObject.cpp" />
+    <ClCompile Include="Src\SceneObjectManager.cpp" />
+    <ClCompile Include="Src\StagingBuffer.cpp" />
+    <ClCompile Include="Src\SwapChain.cpp" />
+    <ClCompile Include="Src\Texture.cpp" />
+    <ClCompile Include="Src\TextureDescriptorSet.cpp" />
+    <ClCompile Include="Src\TextureManager.cpp" />
+    <ClCompile Include="Src\TextureSampler.cpp" />
+    <ClCompile Include="Src\ThreadPool.cpp" />
+    <ClCompile Include="Src\UniformBuffer.cpp" />
+    <ClCompile Include="Src\VertexBuffer.cpp" />
+    <ClCompile Include="Src\Window.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="Src\GraphicsEngine\Scene\SceneObjectManager\SceneObjectManager.h" />
-    <ClInclude Include="Src\GraphicsEngine\Scene\SceneObjectManager\Model\Model.h" />
-    <ClInclude Include="Src\GraphicsEngine\Scene\SceneObjectManager\SceneObject.h" />
-    <ClInclude Include="Src\GraphicsEngine\Scene\SceneObjectManager\Camera\Camera.h" />
-    <ClInclude Include="Src\GraphicsEngine\Scene\Scene.h" />
-    <ClInclude Include="Src\GraphicsEngine\ResourceManager\ModelDataManager\ModelDataManager.h" />
-    <ClInclude Include="Src\GraphicsEngine\Renderer\DescriptorSets\DescriptorPool\DescriptorPool.h" />
-    <ClInclude Include="Src\GraphicsEngine\Renderer\DescriptorSets\DescriptorSet\DescriptorSet.h" />
-    <ClInclude Include="Src\GraphicsEngine\Renderer\DescriptorSets\DescriptorSet\GlobalDescriptorSet\GlobalDescriptorSet.h" />
-    <ClInclude Include="Src\GraphicsEngine\Renderer\DescriptorSets\DescriptorSet\TextureDescriptorSet\TextureDescriptorSet.h" />
-    <ClInclude Include="Src\GraphicsEngine\Renderer\DescriptorSets\DescriptorSet\ModelDescriptorSet\ModelDescriptorSet.h" />
-    <ClInclude Include="Src\GraphicsEngine\Renderer\ImageView\ImageView.h" />
-    <ClInclude Include="Src\GraphicsEngine\Renderer\Buffers\StagingBuffer\StagingBuffer.h" />
-    <ClInclude Include="Src\GraphicsEngine\Renderer\Image\Image.h" />
-    <ClInclude Include="Src\GraphicsEngine\Renderer\Buffers\UniformBuffer\UniformBuffer.h" />
-    <ClInclude Include="Src\GraphicsEngine\Renderer\Buffers\Buffer.h" />
-    <ClInclude Include="Src\GraphicsEngine\Renderer\Buffers\IndexBuffer\IndexBuffer.h" />
-    <ClInclude Include="Src\GraphicsEngine\ResourceManager\ResourceManager.h" />
-    <ClInclude Include="Src\GraphicsEngine\ResourceManager\ModelDataManager\ModelData.h" />
-    <ClInclude Include="Src\GraphicsEngine\ResourceManager\MeshManager\Mesh.h" />
-    <ClInclude Include="Src\GraphicsEngine\ResourceManager\MeshManager\MeshManager.h" />
-    <ClInclude Include="Src\GraphicsEngine\ResourceManager\Resource.h" />
-    <ClInclude Include="Src\GraphicsEngine\Renderer\GraphicsPipeline\GraphicsPipeline.h" />
-    <ClInclude Include="Src\GraphicsEngine\Renderer\Device\Device.h" />
-    <ClInclude Include="Src\InputSystem\InputListener.h" />
-    <ClInclude Include="Src\InputSystem\InputSystem.h" />
+    <ClInclude Include="Src\RendererInits.h" />
+    <ClInclude Include="Src\Application.h" />
+    <ClInclude Include="Src\Buffer.h" />
+    <ClInclude Include="Src\Camera.h" />
+    <ClInclude Include="Src\DescriptorPool.h" />
+    <ClInclude Include="Src\DescriptorSet.h" />
+    <ClInclude Include="Src\Device.h" />
+    <ClInclude Include="Src\GlobalDescriptorSet.h" />
+    <ClInclude Include="Src\GraphicsEngine.h" />
+    <ClInclude Include="Src\Image.h" />
+    <ClInclude Include="Src\ImageView.h" />
+    <ClInclude Include="Src\IndexBuffer.h" />
+    <ClInclude Include="Src\InputListener.h" />
+    <ClInclude Include="Src\InputSystem.h" />
+    <ClInclude Include="Src\Mesh.h" />
+    <ClInclude Include="Src\MeshManager.h" />
+    <ClInclude Include="Src\Model.h" />
+    <ClInclude Include="Src\ModelData.h" />
+    <ClInclude Include="Src\ModelDataManager.h" />
+    <ClInclude Include="Src\ModelDescriptorSet.h" />
+    <ClInclude Include="Src\PipelineBuilder.h" />
     <ClInclude Include="Src\Prerequisites.h" />
-    <ClInclude Include="Src\GraphicsEngine\Renderer\Renderer.h" />
-    <ClInclude Include="Src\GraphicsEngine\GraphicsEngine.h" />
-    <ClInclude Include="Src\Application\Application.h" />
-    <ClInclude Include="Src\WindowSytem\Window.h" />
-    <ClInclude Include="Src\GraphicsEngine\Renderer\SwapChain\SwapChain.h" />
-    <ClInclude Include="Src\GraphicsEngine\ResourceManager\TextureManager\Texture.h" />
-    <ClInclude Include="Src\GraphicsEngine\ResourceManager\TextureManager\TextureManager.h" />
-    <ClInclude Include="Src\GraphicsEngine\Renderer\Buffers\VertexBuffer\VertexBuffer.h" />
-    <ClInclude Include="Src\GraphicsEngine\Renderer\TextureSampler\TextureSampler.h" />
-    <ClInclude Include="Src\ThreadPool\ThreadPool.h" />
+    <ClInclude Include="Src\Renderer.h" />
+    <ClInclude Include="Src\Resource.h" />
+    <ClInclude Include="Src\ResourceManager.h" />
+    <ClInclude Include="Src\Scene.h" />
+    <ClInclude Include="Src\SceneObject.h" />
+    <ClInclude Include="Src\SceneObjectManager.h" />
+    <ClInclude Include="Src\StagingBuffer.h" />
+    <ClInclude Include="Src\SwapChain.h" />
+    <ClInclude Include="Src\Texture.h" />
+    <ClInclude Include="Src\TextureDescriptorSet.h" />
+    <ClInclude Include="Src\TextureManager.h" />
+    <ClInclude Include="Src\TextureSampler.h" />
+    <ClInclude Include="Src\ThreadPool.h" />
+    <ClInclude Include="Src\UniformBuffer.h" />
+    <ClInclude Include="Src\VertexBuffer.h" />
+    <ClInclude Include="Src\Window.h" />
   </ItemGroup>
   <ItemGroup>
-    <None Include="ClassDiagram.cd" />
     <None Include="Shaders\Shader.frag" />
     <None Include="Shaders\Shader.vert" />
   </ItemGroup>

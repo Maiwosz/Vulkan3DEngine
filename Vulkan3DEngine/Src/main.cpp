@@ -1,9 +1,7 @@
 #include <iostream>
 #include <stdexcept>
 #include <cstdlib>
-
-#include "Application\Application.h"
-#include "InputSystem/InputSystem.h"
+#include "Application.h"
 
 int main() {
 	Application app;
@@ -13,8 +11,17 @@ int main() {
 	}
 	catch (const std::exception& e) {
 		std::cerr << "Caught exception: " << e.what() << '\n';
-		GraphicsEngine::release();
-		InputSystem::release();
+		
+		if (ThreadPool::get()) {
+			ThreadPool::release();
+		}
+		if (InputSystem::get()) {
+			InputSystem::release();
+		}
+		if (GraphicsEngine::get()) {
+			GraphicsEngine::release();
+		}
+		
 		return EXIT_FAILURE;
 	}
 	catch (...) {
