@@ -1,6 +1,7 @@
 #pragma once
 #include "Prerequisites.h"
 #include "SceneObject.h"
+#include "Descriptors.h"
 
 class Model : public SceneObject
 {
@@ -18,7 +19,16 @@ public:
 private:
 	ModelDataPtr m_modelData;
 	std::vector<UniformBufferPtr> m_uniformBuffers;
-	std::vector<ModelDescriptorSetPtr> m_descriptorSets;
+
+	static bool m_descriptorAllocatorInitialized;
+	static DescriptorAllocatorGrowable m_descriptorAllocator;
+
+	std::vector<DescriptorAllocatorGrowable::PoolSizeRatio> m_sizes =
+	{
+		{ VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1 }
+	};
+
+	std::vector<VkDescriptorSet> m_descriptorSets;
 
 	ModelUBO ubo{};
 

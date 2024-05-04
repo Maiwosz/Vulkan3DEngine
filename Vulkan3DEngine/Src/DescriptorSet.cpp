@@ -42,7 +42,7 @@ void DescriptorSetLayout::createLayout()
 
 DescriptorSet::DescriptorSet(const VkDescriptorSetLayout descriptorSetLayout, Renderer* renderer): m_renderer(renderer)
 {
-    m_renderer->m_descriptorPool->allocateDescriptor(descriptorSetLayout, m_descriptorSet);
+    //m_renderer->m_descriptorPool->allocateDescriptor(descriptorSetLayout, m_descriptorSet);
     
 }
 

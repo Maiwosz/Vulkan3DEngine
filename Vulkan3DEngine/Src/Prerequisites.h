@@ -38,7 +38,6 @@ class ThreadPool;
 class Device;
 class Renderer;
 class SwapChain;
-class GraphicsPipeline;
 class PipelineBuilder;
 class Resource;
 class ResourceManager;
@@ -53,11 +52,7 @@ class StagingBuffer;
 class VertexBuffer;
 class IndexBuffer;
 class UniformBuffer;
-class DescriptorPool;
-class DescriptorSetLayout;
-class GlobalDescriptorSetLayout;
-class TextureDescriptorSetLayout;
-class ModelDescriptorSetLayout;
+class DescriptorAllocatorGrowable;
 class DescriptorSet;
 class GlobalDescriptorSet;
 class TextureDescriptorSet;
@@ -77,7 +72,6 @@ typedef std::shared_ptr<Window> WindowPtr;
 typedef std::shared_ptr<Device> DevicePtr;
 typedef std::shared_ptr<Renderer> RendererPtr;
 typedef std::shared_ptr<SwapChain> SwapChainPtr;
-typedef std::shared_ptr<GraphicsPipeline> GraphicsPipelinePtr;
 typedef std::shared_ptr<PipelineBuilder> PipelineBuilderePtr;
 typedef std::shared_ptr<Resource> ResourcePtr;
 typedef std::shared_ptr<ResourceManager> ResourceManagerPtr;
@@ -92,11 +86,7 @@ typedef std::shared_ptr<StagingBuffer> StagingBufferPtr;
 typedef std::shared_ptr<VertexBuffer> VertexBufferPtr;
 typedef std::shared_ptr<IndexBuffer> IndexBufferPtr;
 typedef std::shared_ptr<UniformBuffer> UniformBufferPtr;
-typedef std::shared_ptr<DescriptorPool> DescriptorPoolPtr;
-typedef std::shared_ptr<DescriptorSetLayout> DescriptorSetLayoutPtr;
-typedef std::shared_ptr<GlobalDescriptorSetLayout> GlobalDescriptorSetLayoutPtr;
-typedef std::shared_ptr<TextureDescriptorSetLayout> TextureDescriptorSetLayoutPtr;
-typedef std::shared_ptr<ModelDescriptorSetLayout> ModelDescriptorSetLayoutPtr;
+typedef std::shared_ptr<DescriptorAllocatorGrowable> DescriptorAllocatorGrowablePtr;
 typedef std::shared_ptr<DescriptorSet> DescriptorSetPtr;
 typedef std::shared_ptr<GlobalDescriptorSet> GlobalDescriptorSetPtr;
 typedef std::shared_ptr<TextureDescriptorSet> TextureDescriptorSetPtr;
@@ -197,6 +187,14 @@ namespace std {
 }
 
 struct Pipeline {
+    Pipeline(VkDevice* device) : p_device(device) {}
+    ~Pipeline() {
+        vkDestroyPipeline(*p_device, pipeline, nullptr);
+        vkDestroyPipelineLayout(*p_device, layout, nullptr);
+    }
+    VkDevice* p_device;
     VkPipeline pipeline;
     VkPipelineLayout layout;
 };
+
+typedef std::unique_ptr<Pipeline> PipelinePtr;

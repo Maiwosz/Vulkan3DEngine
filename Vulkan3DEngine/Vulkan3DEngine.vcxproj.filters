@@ -53,21 +53,6 @@
     <ClCompile Include="Src\TextureSampler.cpp">
       <Filter>Application\GraphicsEngine\Images</Filter>
     </ClCompile>
-    <ClCompile Include="Src\DescriptorPool.cpp">
-      <Filter>Application\GraphicsEngine\Descriptors\DescriptorPool</Filter>
-    </ClCompile>
-    <ClCompile Include="Src\DescriptorSet.cpp">
-      <Filter>Application\GraphicsEngine\Descriptors\DescriptorSet</Filter>
-    </ClCompile>
-    <ClCompile Include="Src\GlobalDescriptorSet.cpp">
-      <Filter>Application\GraphicsEngine\Descriptors\DescriptorSet</Filter>
-    </ClCompile>
-    <ClCompile Include="Src\ModelDescriptorSet.cpp">
-      <Filter>Application\GraphicsEngine\Descriptors\DescriptorSet</Filter>
-    </ClCompile>
-    <ClCompile Include="Src\TextureDescriptorSet.cpp">
-      <Filter>Application\GraphicsEngine\Descriptors\DescriptorSet</Filter>
-    </ClCompile>
     <ClCompile Include="Src\SwapChain.cpp">
       <Filter>Application\GraphicsEngine\Renderer\SwapChain</Filter>
     </ClCompile>
@@ -109,6 +94,9 @@
     </ClCompile>
     <ClCompile Include="Src\RendererInits.cpp">
       <Filter>Application\GraphicsEngine\Renderer</Filter>
+    </ClCompile>
+    <ClCompile Include="Src\Descriptors.cpp">
+      <Filter>Application\GraphicsEngine\Descriptors</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -167,21 +155,6 @@
     <ClInclude Include="Src\TextureSampler.h">
       <Filter>Application\GraphicsEngine\Images</Filter>
     </ClInclude>
-    <ClInclude Include="Src\DescriptorPool.h">
-      <Filter>Application\GraphicsEngine\Descriptors\DescriptorPool</Filter>
-    </ClInclude>
-    <ClInclude Include="Src\DescriptorSet.h">
-      <Filter>Application\GraphicsEngine\Descriptors\DescriptorSet</Filter>
-    </ClInclude>
-    <ClInclude Include="Src\GlobalDescriptorSet.h">
-      <Filter>Application\GraphicsEngine\Descriptors\DescriptorSet</Filter>
-    </ClInclude>
-    <ClInclude Include="Src\ModelDescriptorSet.h">
-      <Filter>Application\GraphicsEngine\Descriptors\DescriptorSet</Filter>
-    </ClInclude>
-    <ClInclude Include="Src\TextureDescriptorSet.h">
-      <Filter>Application\GraphicsEngine\Descriptors\DescriptorSet</Filter>
-    </ClInclude>
     <ClInclude Include="Src\SwapChain.h">
       <Filter>Application\GraphicsEngine\Renderer\SwapChain</Filter>
     </ClInclude>
@@ -223,6 +196,9 @@
     </ClInclude>
     <ClInclude Include="Src\RendererInits.h">
       <Filter>Application\GraphicsEngine\Renderer</Filter>
+    </ClInclude>
+    <ClInclude Include="Src\Descriptors.h">
+      <Filter>Application\GraphicsEngine\Descriptors</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

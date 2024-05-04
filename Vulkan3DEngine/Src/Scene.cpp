@@ -1,14 +1,16 @@
 #include "Scene.h"
 #include "Application.h"
 #include "UniformBuffer.h"
+#include "Descriptors.h"
 #include "GlobalDescriptorSet.h"
 #include "SceneObjectManager.h"
 #include "Camera.h"
 #include "InputSystem.h"
+#include "RendererInits.h"
 
 Scene::Scene()
 {
-    int maxFramesInFlight = GraphicsEngine::get()->getRenderer()->s_maxFramesInFlight;
+    int maxFramesInFlight = Renderer::s_maxFramesInFlight;
 
     m_uniformBuffers.resize(maxFramesInFlight);
 
@@ -18,8 +20,24 @@ Scene::Scene()
 
     m_globalDescriptorSets.resize(maxFramesInFlight);
 
+    //create a descriptor pool that will hold <maxFramesInFlight> sets with 1 uniform buffer each
+    std::vector<DescriptorAllocator::PoolSizeRatio> sizes =
+    {
+        { VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1 }
+    };
+
+    m_globalDescriptorAllocator.initPool(GraphicsEngine::get()->getRenderer()->getDevice()->get(), maxFramesInFlight, sizes);
+
+    DescriptorWriter writer;
+
     for (int i = 0; i < maxFramesInFlight; i++) {
-        m_globalDescriptorSets[i] = GraphicsEngine::get()->getRenderer()->createGlobalDescriptorSet(m_uniformBuffers[i]->get());
+        m_globalDescriptorSets[i] = m_globalDescriptorAllocator.allocate(GraphicsEngine::get()->getRenderer()->getDevice()->get(),
+            GraphicsEngine::get()->getRenderer()->m_globalDescriptorSetLayout);
+        
+        
+        writer.writeBuffer(0, m_uniformBuffers[i]->get(), sizeof(GlobalUBO),0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER);
+        writer.updateSet(GraphicsEngine::get()->getRenderer()->getDevice()->get(), m_globalDescriptorSets[i]);
+        writer.clear();
     }
 
     m_sceneObjectManager = std::make_shared<SceneObjectManager>(this);
@@ -93,6 +111,7 @@ Scene::Scene()
 
 Scene::~Scene()
 {
+    m_globalDescriptorAllocator.destroyPool(GraphicsEngine::get()->getRenderer()->getDevice()->get());
 }
 
 void Scene::update()
@@ -141,6 +160,6 @@ void Scene::update()
 
 void Scene::draw()
 {
-    m_globalDescriptorSets[GraphicsEngine::get()->getRenderer()->getCurrentFrame()]->bind();
+    GraphicsEngine::get()->getRenderer()->bindDescriptorSet(m_globalDescriptorSets[GraphicsEngine::get()->getRenderer()->getCurrentFrame()], 0);
     m_sceneObjectManager->drawObjects();
 }

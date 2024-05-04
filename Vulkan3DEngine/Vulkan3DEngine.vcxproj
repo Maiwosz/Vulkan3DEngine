@@ -146,10 +146,8 @@
     <ClCompile Include="Src\Application.cpp" />
     <ClCompile Include="Src\Buffer.cpp" />
     <ClCompile Include="Src\Camera.cpp" />
-    <ClCompile Include="Src\DescriptorPool.cpp" />
-    <ClCompile Include="Src\DescriptorSet.cpp" />
+    <ClCompile Include="Src\Descriptors.cpp" />
     <ClCompile Include="Src\Device.cpp" />
-    <ClCompile Include="Src\GlobalDescriptorSet.cpp" />
     <ClCompile Include="Src\GraphicsEngine.cpp" />
     <ClCompile Include="Src\Image.cpp" />
     <ClCompile Include="Src\ImageView.cpp" />
@@ -161,7 +159,6 @@
     <ClCompile Include="Src\Model.cpp" />
     <ClCompile Include="Src\ModelData.cpp" />
     <ClCompile Include="Src\ModelDataManager.cpp" />
-    <ClCompile Include="Src\ModelDescriptorSet.cpp" />
     <ClCompile Include="Src\PipelineBuilder.cpp" />
     <ClCompile Include="Src\Renderer.cpp" />
     <ClCompile Include="Src\RendererInits.cpp" />
@@ -173,7 +170,6 @@
     <ClCompile Include="Src\StagingBuffer.cpp" />
     <ClCompile Include="Src\SwapChain.cpp" />
     <ClCompile Include="Src\Texture.cpp" />
-    <ClCompile Include="Src\TextureDescriptorSet.cpp" />
     <ClCompile Include="Src\TextureManager.cpp" />
     <ClCompile Include="Src\TextureSampler.cpp" />
     <ClCompile Include="Src\ThreadPool.cpp" />
@@ -182,14 +178,12 @@
     <ClCompile Include="Src\Window.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="Src\Descriptors.h" />
     <ClInclude Include="Src\RendererInits.h" />
     <ClInclude Include="Src\Application.h" />
     <ClInclude Include="Src\Buffer.h" />
     <ClInclude Include="Src\Camera.h" />
-    <ClInclude Include="Src\DescriptorPool.h" />
-    <ClInclude Include="Src\DescriptorSet.h" />
     <ClInclude Include="Src\Device.h" />
-    <ClInclude Include="Src\GlobalDescriptorSet.h" />
     <ClInclude Include="Src\GraphicsEngine.h" />
     <ClInclude Include="Src\Image.h" />
     <ClInclude Include="Src\ImageView.h" />
@@ -201,7 +195,6 @@
     <ClInclude Include="Src\Model.h" />
     <ClInclude Include="Src\ModelData.h" />
     <ClInclude Include="Src\ModelDataManager.h" />
-    <ClInclude Include="Src\ModelDescriptorSet.h" />
     <ClInclude Include="Src\PipelineBuilder.h" />
     <ClInclude Include="Src\Prerequisites.h" />
     <ClInclude Include="Src\Renderer.h" />
@@ -213,7 +206,6 @@
     <ClInclude Include="Src\StagingBuffer.h" />
     <ClInclude Include="Src\SwapChain.h" />
     <ClInclude Include="Src\Texture.h" />
-    <ClInclude Include="Src\TextureDescriptorSet.h" />
     <ClInclude Include="Src\TextureManager.h" />
     <ClInclude Include="Src\TextureSampler.h" />
     <ClInclude Include="Src\ThreadPool.h" />

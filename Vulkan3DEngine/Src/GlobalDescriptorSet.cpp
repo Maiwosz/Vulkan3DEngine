@@ -13,7 +13,7 @@ GlobalDescriptorSetLayout::~GlobalDescriptorSetLayout()
 }
 
 GlobalDescriptorSet::GlobalDescriptorSet(VkBuffer uniformBuffer, Renderer* renderer) :
-    DescriptorSet(renderer->m_globalDescriptorSetLayout->get(), renderer), m_renderer(renderer)
+    DescriptorSet(renderer->m_globalDescriptorSetLayout, renderer), m_renderer(renderer)
 {
     VkDescriptorBufferInfo bufferInfo{};
     bufferInfo.buffer = uniformBuffer;

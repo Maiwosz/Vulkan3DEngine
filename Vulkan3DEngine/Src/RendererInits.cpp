@@ -73,3 +73,44 @@ VkPipelineShaderStageCreateInfo RendererInits::pipelineShaderStageCreateInfo(VkS
     info.pName = entry;
     return info;
 }
+
+VkWriteDescriptorSet RendererInits::writeDescriptorImage(VkDescriptorType type, VkDescriptorSet dstSet,
+    VkDescriptorImageInfo* imageInfo, uint32_t binding)
+{
+    VkWriteDescriptorSet write = {};
+    write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    write.pNext = nullptr;
+
+    write.dstBinding = binding;
+    write.dstSet = dstSet;
+    write.descriptorCount = 1;
+    write.descriptorType = type;
+    write.pImageInfo = imageInfo;
+
+    return write;
+}
+
+VkWriteDescriptorSet RendererInits::writeDescriptorBuffer(VkDescriptorType type, VkDescriptorSet dstSet,
+    VkDescriptorBufferInfo* bufferInfo, uint32_t binding)
+{
+    VkWriteDescriptorSet write = {};
+    write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    write.pNext = nullptr;
+
+    write.dstBinding = binding;
+    write.dstSet = dstSet;
+    write.descriptorCount = 1;
+    write.descriptorType = type;
+    write.pBufferInfo = bufferInfo;
+
+    return write;
+}
+
+VkDescriptorBufferInfo RendererInits::bufferInfo(VkBuffer buffer, VkDeviceSize offset, VkDeviceSize range)
+{
+    VkDescriptorBufferInfo binfo{};
+    binfo.buffer = buffer;
+    binfo.offset = offset;
+    binfo.range = range;
+    return binfo;
+}

@@ -2,6 +2,7 @@
 #include "Resource.h"
 #include "Prerequisites.h"
 #include <vector>
+#include "Descriptors.h"
 
 class Texture : public Resource
 {
@@ -23,5 +24,13 @@ private:
 	ImagePtr m_image;
 	ImageViewPtr m_imageView;
 	TextureSamplerPtr m_textureSampler;
-	std::vector<TextureDescriptorSetPtr> m_descriptorSets;//one for every frame in flight;
+
+	static bool m_descriptorAllocatorInitialized;
+	static DescriptorAllocatorGrowable m_descriptorAllocator;
+	std::vector<VkDescriptorSet> m_descriptorSets;//one for every frame in flight;
+
+	std::vector<DescriptorAllocatorGrowable::PoolSizeRatio> m_sizes =
+	{
+		{ VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1 }
+	};
 };

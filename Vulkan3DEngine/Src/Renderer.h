@@ -4,7 +4,8 @@
 #include "Device.h"
 #include "SwapChain.h"
 #include "PipelineBuilder.h"
-#include "DescriptorSet.h"
+//#include "DescriptorSet.h"
+#include "Descriptors.h"
 
 class Renderer
 {
@@ -21,15 +22,14 @@ public:
 		VkImageUsageFlags usage, VkMemoryPropertyFlags properties);
 	ImageViewPtr createImageView(VkImage image, VkFormat format, VkImageAspectFlags aspectFlags, uint32_t mipLevels);
 	TextureSamplerPtr createTextureSampler(uint32_t mipLevels);
-	TextureDescriptorSetPtr createTextureDescriptorSet(VkImageView imageView, VkSampler sampler);
-	ModelDescriptorSetPtr createModelDescriptorSet(VkBuffer uniformBuffer);
-	GlobalDescriptorSetPtr createGlobalDescriptorSet(VkBuffer uniformBuffer);
 
 	DevicePtr getDevice() { return m_device; }
 	SwapChainPtr getSwapChain() { return m_swapChain; }
 
 	void drawFrameBegin();
 	void drawFrameEnd();
+
+	void bindDescriptorSet(VkDescriptorSet set, int position);
 
 	VkCommandBuffer getCurrentCommandBuffer() { return m_commandBuffers[m_currentFrame]; }
 	const uint32_t getCurrentFrame() { return m_currentFrame; }
@@ -38,6 +38,10 @@ public:
 	//Settings
 	static VkSampleCountFlagBits s_msaaSamples;
 	static const int s_maxFramesInFlight = 2;
+
+	VkDescriptorSetLayout m_globalDescriptorSetLayout;
+	VkDescriptorSetLayout m_textureDescriptorSetLayout;
+	VkDescriptorSetLayout m_modelDescriptorSetLayout;
 private:
 	//Command Buffer // To separate class later?
 	void createCommandBuffers();
@@ -49,11 +53,8 @@ private:
 	WindowPtr m_window;
 	DevicePtr m_device;
 	SwapChainPtr m_swapChain;
-	Pipeline m_graphicsPipeline;
-	DescriptorPoolPtr m_descriptorPool;
-	GlobalDescriptorSetLayoutPtr m_globalDescriptorSetLayout;
-	TextureDescriptorSetLayoutPtr m_textureDescriptorSetLayout;
-	ModelDescriptorSetLayoutPtr m_modelDescriptorSetLayout;
+	PipelinePtr m_graphicsPipeline;
+	DescriptorAllocatorGrowablePtr m_descriptorAllocator;
 
 	//Command Buffer // To separate class later?
 	std::vector<VkCommandBuffer> m_commandBuffers;
@@ -72,15 +73,6 @@ private:
 	friend class VertexBuffer;
 	friend class IndexBuffer;
 	friend class UniformBuffer;
-	friend class DescriptorPool;
-	friend class DescriptorSetLayout;
-	friend class GlobalDescriptorSetLayout;
-	friend class TextureDescriptorSetLayout;
-	friend class ModelDescriptorSetLayout;
-	friend class DescriptorSet;
-	friend class GlobalDescriptorSet;
-	friend class TextureDescriptorSet;
-	friend class ModelDescriptorSet;
 	friend class Image;
 	friend class ImageView;
 	friend class TextureSampler;
