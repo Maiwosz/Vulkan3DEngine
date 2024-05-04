@@ -13,7 +13,7 @@ TextureDescriptorSetLayout::~TextureDescriptorSetLayout()
 }
 
 TextureDescriptorSet::TextureDescriptorSet(VkImageView imageView, VkSampler sampler, Renderer* renderer):
-	DescriptorSet(renderer->m_textureDescriptorSetLayout->get(), renderer), m_renderer(renderer)
+	DescriptorSet(renderer->m_textureDescriptorSetLayout, renderer), m_renderer(renderer)
 {
     VkDescriptorImageInfo imageInfo{};
     imageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;

@@ -6,10 +6,6 @@
 #include "Image.h"
 #include "ImageView.h"
 #include "TextureSampler.h"
-#include "GlobalDescriptorSet.h"
-#include "TextureDescriptorSet.h"
-#include "ModelDescriptorSet.h"
-#include "DescriptorPool.h"
 
 #include "Application.h"
 #include "RendererInits.h"
@@ -28,37 +24,20 @@ Renderer::Renderer(WindowPtr window) : m_window(window)
     }
     catch (...) { throw std::exception("SwapChain not created successfully"); }
 
-    try {
-        m_globalDescriptorSetLayout = std::make_shared<GlobalDescriptorSetLayout>(this);
-    }
-    catch (...) { throw std::exception("GlobalDescriptorSetLayout not created successfully"); }
-
-    try {
-        m_textureDescriptorSetLayout = std::make_shared<TextureDescriptorSetLayout>(this);
-    }
-    catch (...) { throw std::exception("TextureDescriptorSetLayout not created successfully"); }
-
-    try {
-        m_modelDescriptorSetLayout = std::make_shared<ModelDescriptorSetLayout>(this);
-    }
-    catch (...) { throw std::exception("ModelDescriptorSetLayout not created successfully"); }
-
     createGraphicsPipeline();
     
     createCommandBuffers();
-
-    try {
-        m_descriptorPool = std::make_shared<DescriptorPool>(64, this);
-    }
-    catch (...) { throw std::exception("DescriptorPool not created successfully"); }
-
-    
 }
 
 Renderer::~Renderer()
 {
-    vkDestroyPipeline(m_device->get(), m_graphicsPipeline.pipeline, nullptr);
-    vkDestroyPipelineLayout(m_device->get(), m_graphicsPipeline.layout, nullptr);
+    m_descriptorAllocator.reset();
+    m_graphicsPipeline.reset();
+    vkDestroyDescriptorSetLayout(m_device->get(), m_globalDescriptorSetLayout, nullptr);
+    vkDestroyDescriptorSetLayout(m_device->get(), m_modelDescriptorSetLayout, nullptr);
+    vkDestroyDescriptorSetLayout(m_device->get(), m_textureDescriptorSetLayout, nullptr);
+    m_swapChain.reset();
+    m_device.reset();
 }
 
 StagingBufferPtr Renderer::createStagingBuffer(VkDeviceSize bufferSize)
@@ -96,20 +75,6 @@ TextureSamplerPtr Renderer::createTextureSampler(uint32_t mipLevels)
     return std::make_shared<TextureSampler>(mipLevels, this);
 }
 
-TextureDescriptorSetPtr Renderer::createTextureDescriptorSet(VkImageView imageView, VkSampler sampler)
-{
-    return std::make_shared<TextureDescriptorSet>(imageView, sampler, this);
-}
-
-ModelDescriptorSetPtr Renderer::createModelDescriptorSet(VkBuffer uniformBuffer)
-{
-    return std::make_shared<ModelDescriptorSet>(uniformBuffer, this);
-}
-
-GlobalDescriptorSetPtr Renderer::createGlobalDescriptorSet(VkBuffer uniformBuffer)
-{
-    return std::make_shared<GlobalDescriptorSet>(uniformBuffer, this);
-}
 
 void Renderer::drawFrameBegin()
 {
@@ -182,9 +147,14 @@ void Renderer::drawFrameEnd()
     m_currentFrame = (m_currentFrame + 1) % Renderer::s_maxFramesInFlight;
 }
 
+void Renderer::bindDescriptorSet(VkDescriptorSet set, int position)
+{
+    m_currentDescriptorSets[position] = set;
+}
+
 void Renderer::bindDescriptorSets()
 {
-    vkCmdBindDescriptorSets(m_commandBuffers[m_currentFrame], VK_PIPELINE_BIND_POINT_GRAPHICS, m_graphicsPipeline.layout /*m_graphicsPipeline->getLayout()*/,
+    vkCmdBindDescriptorSets(m_commandBuffers[m_currentFrame], VK_PIPELINE_BIND_POINT_GRAPHICS, m_graphicsPipeline->layout,
         0, static_cast<uint32_t>(sizeof(m_currentDescriptorSets) / sizeof(m_currentDescriptorSets[0])), m_currentDescriptorSets, 0, nullptr);
 }
 
@@ -230,7 +200,7 @@ void Renderer::recordCommandBufferBegin(VkCommandBuffer commandBuffer, uint32_t 
 
     vkCmdBeginRenderPass(commandBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
 
-    vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_graphicsPipeline.pipeline /*m_graphicsPipeline->get()*/);
+    vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_graphicsPipeline->pipeline);
 
     VkViewport viewport{};
     viewport.x = 0.0f;
@@ -258,22 +228,38 @@ void Renderer::recordCommandBufferEnd(VkCommandBuffer commandBuffer)
 
 void Renderer::createGraphicsPipeline()
 {
-    VkDescriptorSetLayout layouts[] = {
-        m_globalDescriptorSetLayout->get(),
-        m_modelDescriptorSetLayout->get(),
-        m_textureDescriptorSetLayout->get()
-    };
+    m_graphicsPipeline = std::make_unique<Pipeline>(&m_device->get());
+
+    std::vector <VkDescriptorSetLayout> layouts;
+
+    DescriptorLayoutBuilder layoutBuilder;
+
+    layoutBuilder.addBinding(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER);
+    m_globalDescriptorSetLayout = layoutBuilder.build(m_device->get(), VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT);
+
+    layouts.push_back(m_globalDescriptorSetLayout);
+
+    m_modelDescriptorSetLayout = layoutBuilder.build(m_device->get(), VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT);
+
+    layouts.push_back(m_modelDescriptorSetLayout);
+
+    layoutBuilder.clear();
+
+    layoutBuilder.addBinding(0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER);
+    m_textureDescriptorSetLayout = layoutBuilder.build(m_device->get(), VK_SHADER_STAGE_FRAGMENT_BIT);
+
+    layouts.push_back(m_textureDescriptorSetLayout);
 
     VkPipelineLayoutCreateInfo mesh_layout_info = RendererInits::pipelineLayoutCreateInfo();
-    mesh_layout_info.setLayoutCount = sizeof(layouts) / sizeof(layouts[0]);
-    mesh_layout_info.pSetLayouts = layouts;
+    mesh_layout_info.setLayoutCount = layouts.size();
+    mesh_layout_info.pSetLayouts = layouts.data();
     mesh_layout_info.pPushConstantRanges = nullptr;
     mesh_layout_info.pushConstantRangeCount = 0;
 
     VkPipelineLayout newLayout;
     VK_CHECK(vkCreatePipelineLayout(m_device->get(), &mesh_layout_info, nullptr, &newLayout));
     
-    m_graphicsPipeline.layout = newLayout;
+    m_graphicsPipeline->layout = newLayout;
 
     PipelineBuilder builder(this);
 
@@ -306,7 +292,7 @@ void Renderer::createGraphicsPipeline()
     builder.enableDepthtest(true, VK_COMPARE_OP_LESS);
 
     // Zbuduj potok
-    m_graphicsPipeline.pipeline = builder.buildPipeline(m_graphicsPipeline.layout, m_device->get());
+    m_graphicsPipeline->pipeline = builder.buildPipeline(m_graphicsPipeline->layout, m_device->get());
 
     vkDestroyShaderModule(m_device->get(), vertShaderModule, nullptr);
     vkDestroyShaderModule(m_device->get(), fragShaderModule, nullptr);

@@ -13,7 +13,7 @@ ModelDescriptorSetLayout::~ModelDescriptorSetLayout()
 }
 
 ModelDescriptorSet::ModelDescriptorSet(VkBuffer uniformBuffer, Renderer* renderer) :
-    DescriptorSet(renderer->m_modelDescriptorSetLayout->get(), renderer), m_renderer(renderer)
+    DescriptorSet(renderer->m_modelDescriptorSetLayout, renderer), m_renderer(renderer)
 {
     VkDescriptorBufferInfo bufferInfo{};
     bufferInfo.buffer = uniformBuffer;

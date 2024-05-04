@@ -1,6 +1,7 @@
 #pragma once
 #include "Prerequisites.h"
 #include "Model.h"
+#include "Descriptors.h"
 #include <string>
 
 class Scene {
@@ -14,7 +15,8 @@ public:
 	CameraPtr getCamera() { return m_camera; }
 private:
 	std::vector<UniformBufferPtr> m_uniformBuffers;
-	std::vector<GlobalDescriptorSetPtr> m_globalDescriptorSets;
+	DescriptorAllocator m_globalDescriptorAllocator;
+	std::vector<VkDescriptorSet> m_globalDescriptorSets;
 	SceneObjectManagerPtr m_sceneObjectManager;
 
 	GlobalUBO ubo{};

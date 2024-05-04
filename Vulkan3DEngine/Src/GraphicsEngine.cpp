@@ -28,6 +28,10 @@ GraphicsEngine::GraphicsEngine(WindowPtr window): m_window(window)
 
 GraphicsEngine::~GraphicsEngine()
 {
+    m_modelDataManager.reset();
+    m_textureManager.reset();
+    m_meshManager.reset();
+    m_renderer.reset();
     GraphicsEngine::m_engine = nullptr;
 }
 
