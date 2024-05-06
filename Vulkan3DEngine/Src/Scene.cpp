@@ -2,7 +2,6 @@
 #include "Application.h"
 #include "UniformBuffer.h"
 #include "Descriptors.h"
-#include "GlobalDescriptorSet.h"
 #include "SceneObjectManager.h"
 #include "Camera.h"
 #include "InputSystem.h"
@@ -26,17 +25,17 @@ Scene::Scene()
         { VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1 }
     };
 
-    m_globalDescriptorAllocator.initPool(GraphicsEngine::get()->getRenderer()->getDevice()->get(), maxFramesInFlight, sizes);
+    m_globalDescriptorAllocator.initPool(GraphicsEngine::get()->getDevice()->get(), maxFramesInFlight, sizes);
 
     DescriptorWriter writer;
 
     for (int i = 0; i < maxFramesInFlight; i++) {
-        m_globalDescriptorSets[i] = m_globalDescriptorAllocator.allocate(GraphicsEngine::get()->getRenderer()->getDevice()->get(),
+        m_globalDescriptorSets[i] = m_globalDescriptorAllocator.allocate(GraphicsEngine::get()->getDevice()->get(),
             GraphicsEngine::get()->getRenderer()->m_globalDescriptorSetLayout);
         
         
         writer.writeBuffer(0, m_uniformBuffers[i]->get(), sizeof(GlobalUBO),0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER);
-        writer.updateSet(GraphicsEngine::get()->getRenderer()->getDevice()->get(), m_globalDescriptorSets[i]);
+        writer.updateSet(GraphicsEngine::get()->getDevice()->get(), m_globalDescriptorSets[i]);
         writer.clear();
     }
 
@@ -111,7 +110,7 @@ Scene::Scene()
 
 Scene::~Scene()
 {
-    m_globalDescriptorAllocator.destroyPool(GraphicsEngine::get()->getRenderer()->getDevice()->get());
+    m_globalDescriptorAllocator.destroyPool(GraphicsEngine::get()->getDevice()->get());
 }
 
 void Scene::update()

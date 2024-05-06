@@ -23,7 +23,7 @@ ModelData::~ModelData()
 
 void ModelData::Reload()
 {
-	vkDeviceWaitIdle(GraphicsEngine::get()->getRenderer()->getDevice()->get());
+	vkDeviceWaitIdle(GraphicsEngine::get()->getDevice()->get());
 
 	// Free the old resources
 	m_mesh.reset();

@@ -15,11 +15,11 @@ public:
 	void update();
 	void draw();
 
-	static uint32_t s_window_width;
-	static uint32_t s_window_height;
+	//static uint32_t s_window_width;
+	//static uint32_t s_window_height;
 
 	static float s_deltaTime;
 private:
-	WindowPtr m_window;
+	//WindowPtr m_window;
 	ScenePtr m_scene;
 };

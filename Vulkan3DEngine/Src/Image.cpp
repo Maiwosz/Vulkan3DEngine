@@ -1,5 +1,7 @@
 #include "Image.h"
 #include "Renderer.h"
+#include "GraphicsEngine.h"
+
 
 Image::Image(uint32_t width, uint32_t height, uint32_t mipLevels, VkSampleCountFlagBits numSamples, VkFormat format, VkImageTiling tiling, VkImageUsageFlags usage,
 	VkMemoryPropertyFlags properties, Renderer* renderer):
@@ -21,33 +23,33 @@ Image::Image(uint32_t width, uint32_t height, uint32_t mipLevels, VkSampleCountF
 	imageInfo.samples = numSamples;
 	imageInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 	
-	if (vkCreateImage(m_renderer->m_device->get(), &imageInfo, nullptr, &m_image) != VK_SUCCESS) {
+	if (vkCreateImage(GraphicsEngine::get()->getDevice()->get(), &imageInfo, nullptr, &m_image) != VK_SUCCESS) {
 		throw std::runtime_error("failed to create image!");
 	}
 	VkMemoryRequirements memRequirements;
-	vkGetImageMemoryRequirements(m_renderer->m_device->get(), m_image, &memRequirements);
+	vkGetImageMemoryRequirements(GraphicsEngine::get()->getDevice()->get(), m_image, &memRequirements);
 	
 	VkMemoryAllocateInfo allocInfo{};
 	allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
 	allocInfo.allocationSize = memRequirements.size;
-	allocInfo.memoryTypeIndex = m_renderer->m_device->findMemoryType(memRequirements.memoryTypeBits, properties);
+	allocInfo.memoryTypeIndex = GraphicsEngine::get()->getDevice()->findMemoryType(memRequirements.memoryTypeBits, properties);
 	
-	if (vkAllocateMemory(m_renderer->m_device->get(), &allocInfo, nullptr, &m_imageMemory) != VK_SUCCESS) {
+	if (vkAllocateMemory(GraphicsEngine::get()->getDevice()->get(), &allocInfo, nullptr, &m_imageMemory) != VK_SUCCESS) {
 		throw std::runtime_error("failed to allocate image memory!");
 	}
 	
-	vkBindImageMemory(m_renderer->m_device->get(), m_image, m_imageMemory, 0);
+	vkBindImageMemory(GraphicsEngine::get()->getDevice()->get(), m_image, m_imageMemory, 0);
 }
 
 Image::~Image()
 {
-	vkDestroyImage(m_renderer->m_device->get(), m_image, nullptr);
-	vkFreeMemory(m_renderer->m_device->get(), m_imageMemory, nullptr);
+	vkDestroyImage(GraphicsEngine::get()->getDevice()->get(), m_image, nullptr);
+	vkFreeMemory(GraphicsEngine::get()->getDevice()->get(), m_imageMemory, nullptr);
 }
 
 void Image::transitionImageLayout(VkImageLayout newLayout)
 {
-	VkCommandBuffer commandBuffer = m_renderer->m_device->beginSingleTimeCommands();
+	VkCommandBuffer commandBuffer = GraphicsEngine::get()->getDevice()->beginSingleTimeCommands();
 	
 	VkImageMemoryBarrier barrier{};
 	barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
@@ -60,7 +62,7 @@ void Image::transitionImageLayout(VkImageLayout newLayout)
 	if (newLayout == VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL) {
 		barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
 		
-		if (m_renderer->m_device->hasStencilComponent(m_format)) {
+		if (GraphicsEngine::get()->getDevice()->hasStencilComponent(m_format)) {
 			barrier.subresourceRange.aspectMask |= VK_IMAGE_ASPECT_STENCIL_BIT;
 		}
 	}
@@ -115,7 +117,7 @@ void Image::transitionImageLayout(VkImageLayout newLayout)
 		1, &barrier
 	);
 
-	m_renderer->m_device->endSingleTimeCommands(commandBuffer);
+	GraphicsEngine::get()->getDevice()->endSingleTimeCommands(commandBuffer);
 
 	m_layout = newLayout;
 }
@@ -129,13 +131,13 @@ void Image::generateMipmaps()
 {
 	// Check if image format supports linear blitting
 	VkFormatProperties formatProperties;
-	vkGetPhysicalDeviceFormatProperties(m_renderer->m_device->getPhysicalDevice(), m_format, &formatProperties);
+	vkGetPhysicalDeviceFormatProperties(GraphicsEngine::get()->getDevice()->getPhysicalDevice(), m_format, &formatProperties);
 
 	if (!(formatProperties.optimalTilingFeatures & VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT)) {
 		throw std::runtime_error("texture image format does not support linear blitting!");
 	}
 
-	VkCommandBuffer commandBuffer = m_renderer->m_device->beginSingleTimeCommands();
+	VkCommandBuffer commandBuffer = GraphicsEngine::get()->getDevice()->beginSingleTimeCommands();
 
 	VkImageMemoryBarrier barrier{};
 	barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
@@ -199,5 +201,5 @@ void Image::generateMipmaps()
 		1, &barrier);
 
 	m_layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-	m_renderer->m_device->endSingleTimeCommands(commandBuffer);
+	GraphicsEngine::get()->getDevice()->endSingleTimeCommands(commandBuffer);
 }

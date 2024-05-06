@@ -12,12 +12,12 @@
 
 VkSampleCountFlagBits Renderer::s_msaaSamples = VK_SAMPLE_COUNT_1_BIT;
 
-Renderer::Renderer(WindowPtr window) : m_window(window)
+Renderer::Renderer(/*WindowPtr window*/)/* : m_window(window)*/
 {
-    try {
-        m_device = std::make_shared<Device>(this);
-    }
-    catch (...) { throw std::exception("Device not created successfully"); }
+    //try {
+    //    m_device = std::make_shared<Device>(this);
+    //}
+    //catch (...) { throw std::exception("Device not created successfully"); }
 
     try {
         m_swapChain = std::make_shared<SwapChain>(this);
@@ -33,11 +33,11 @@ Renderer::~Renderer()
 {
     m_descriptorAllocator.reset();
     m_graphicsPipeline.reset();
-    vkDestroyDescriptorSetLayout(m_device->get(), m_globalDescriptorSetLayout, nullptr);
-    vkDestroyDescriptorSetLayout(m_device->get(), m_modelDescriptorSetLayout, nullptr);
-    vkDestroyDescriptorSetLayout(m_device->get(), m_textureDescriptorSetLayout, nullptr);
+    vkDestroyDescriptorSetLayout(GraphicsEngine::get()->getDevice()->get(), m_globalDescriptorSetLayout, nullptr);
+    vkDestroyDescriptorSetLayout(GraphicsEngine::get()->getDevice()->get(), m_modelDescriptorSetLayout, nullptr);
+    vkDestroyDescriptorSetLayout(GraphicsEngine::get()->getDevice()->get(), m_textureDescriptorSetLayout, nullptr);
     m_swapChain.reset();
-    m_device.reset();
+    //m_device.reset();
 }
 
 StagingBufferPtr Renderer::createStagingBuffer(VkDeviceSize bufferSize)
@@ -78,10 +78,10 @@ TextureSamplerPtr Renderer::createTextureSampler(uint32_t mipLevels)
 
 void Renderer::drawFrameBegin()
 {
-    vkWaitForFences(m_device->get(), 1, &m_swapChain->m_inFlightFences[m_currentFrame], VK_TRUE, UINT64_MAX);
+    vkWaitForFences(GraphicsEngine::get()->getDevice()->get(), 1, &m_swapChain->m_inFlightFences[m_currentFrame], VK_TRUE, UINT64_MAX);
 
     
-    VkResult result = vkAcquireNextImageKHR(m_device->get(), m_swapChain->m_swapChain, UINT64_MAX,
+    VkResult result = vkAcquireNextImageKHR(GraphicsEngine::get()->getDevice()->get(), m_swapChain->m_swapChain, UINT64_MAX,
         m_swapChain->m_imageAvailableSemaphores[m_currentFrame], VK_NULL_HANDLE, &m_currentImageIndex);
 
     if (result == VK_ERROR_OUT_OF_DATE_KHR) {
@@ -92,7 +92,7 @@ void Renderer::drawFrameBegin()
          throw std::runtime_error("failed to acquire swap chain image!");
     }
 
-    vkResetFences(m_device->get(), 1, &m_swapChain->m_inFlightFences[m_currentFrame]);
+    vkResetFences(GraphicsEngine::get()->getDevice()->get(), 1, &m_swapChain->m_inFlightFences[m_currentFrame]);
 
     vkResetCommandBuffer(m_commandBuffers[m_currentFrame], /*VkCommandBufferResetFlagBits*/ 0);
     recordCommandBufferBegin(m_commandBuffers[m_currentFrame], m_currentImageIndex);
@@ -118,7 +118,7 @@ void Renderer::drawFrameEnd()
     submitInfo.signalSemaphoreCount = 1;
     submitInfo.pSignalSemaphores = signalSemaphores;
 
-    if (vkQueueSubmit(m_device->getGraphicsQueue(), 1, &submitInfo, m_swapChain->m_inFlightFences[m_currentFrame]) != VK_SUCCESS) {
+    if (vkQueueSubmit(GraphicsEngine::get()->getDevice()->getGraphicsQueue(), 1, &submitInfo, m_swapChain->m_inFlightFences[m_currentFrame]) != VK_SUCCESS) {
         throw std::runtime_error("failed to submit draw command buffer!");
     }
 
@@ -134,10 +134,10 @@ void Renderer::drawFrameEnd()
     presentInfo.pImageIndices = &m_currentImageIndex;
     presentInfo.pResults = nullptr; // Optional
 
-    VkResult result = vkQueuePresentKHR(m_device->getPresentQueue(), &presentInfo);
+    VkResult result = vkQueuePresentKHR(GraphicsEngine::get()->getDevice()->getPresentQueue(), &presentInfo);
 
-    if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR || m_window->wasWindowResized()) {
-        m_window->resetWindowResizedFlag();
+    if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR || GraphicsEngine::get()->getWindow()->wasWindowResized()) {
+        GraphicsEngine::get()->getWindow()->resetWindowResizedFlag();
         m_swapChain->recreateSwapChain();
     }
     else if (result != VK_SUCCESS) {
@@ -164,11 +164,11 @@ void Renderer::createCommandBuffers()
 
     VkCommandBufferAllocateInfo allocInfo{};
     allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-    allocInfo.commandPool =  m_device->getCommandPool();
+    allocInfo.commandPool = GraphicsEngine::get()->getDevice()->getCommandPool();
     allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
     allocInfo.commandBufferCount = (uint32_t)m_commandBuffers.size();
 
-    if (vkAllocateCommandBuffers(m_device->get(), &allocInfo, m_commandBuffers.data()) != VK_SUCCESS) {
+    if (vkAllocateCommandBuffers(GraphicsEngine::get()->getDevice()->get(), &allocInfo, m_commandBuffers.data()) != VK_SUCCESS) {
         throw std::runtime_error("failed to allocate command buffers!");
     }
 }
@@ -228,25 +228,27 @@ void Renderer::recordCommandBufferEnd(VkCommandBuffer commandBuffer)
 
 void Renderer::createGraphicsPipeline()
 {
-    m_graphicsPipeline = std::make_unique<Pipeline>(&m_device->get());
+    m_graphicsPipeline = std::make_unique<Pipeline>(&GraphicsEngine::get()->getDevice()->get());
 
     std::vector <VkDescriptorSetLayout> layouts;
 
     DescriptorLayoutBuilder layoutBuilder;
 
     layoutBuilder.addBinding(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER);
-    m_globalDescriptorSetLayout = layoutBuilder.build(m_device->get(), VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT);
+    m_globalDescriptorSetLayout = layoutBuilder.build(GraphicsEngine::get()->getDevice()->get(),
+        VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT);
 
     layouts.push_back(m_globalDescriptorSetLayout);
 
-    m_modelDescriptorSetLayout = layoutBuilder.build(m_device->get(), VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT);
+    m_modelDescriptorSetLayout = layoutBuilder.build(GraphicsEngine::get()->getDevice()->get(),
+        VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT);
 
     layouts.push_back(m_modelDescriptorSetLayout);
 
     layoutBuilder.clear();
 
     layoutBuilder.addBinding(0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER);
-    m_textureDescriptorSetLayout = layoutBuilder.build(m_device->get(), VK_SHADER_STAGE_FRAGMENT_BIT);
+    m_textureDescriptorSetLayout = layoutBuilder.build(GraphicsEngine::get()->getDevice()->get(), VK_SHADER_STAGE_FRAGMENT_BIT);
 
     layouts.push_back(m_textureDescriptorSetLayout);
 
@@ -257,15 +259,15 @@ void Renderer::createGraphicsPipeline()
     mesh_layout_info.pushConstantRangeCount = 0;
 
     VkPipelineLayout newLayout;
-    VK_CHECK(vkCreatePipelineLayout(m_device->get(), &mesh_layout_info, nullptr, &newLayout));
+    VK_CHECK(vkCreatePipelineLayout(GraphicsEngine::get()->getDevice()->get(), &mesh_layout_info, nullptr, &newLayout));
     
     m_graphicsPipeline->layout = newLayout;
 
     PipelineBuilder builder(this);
 
     // Ustaw modu³y shaderów
-    VkShaderModule vertShaderModule = compileShader("shaders/shader.vert", shaderc_vertex_shader, m_device->get());
-    VkShaderModule fragShaderModule = compileShader("shaders/shader.frag", shaderc_fragment_shader, m_device->get());
+    VkShaderModule vertShaderModule = compileShader("shaders/shader.vert", shaderc_vertex_shader, GraphicsEngine::get()->getDevice()->get());
+    VkShaderModule fragShaderModule = compileShader("shaders/shader.frag", shaderc_fragment_shader, GraphicsEngine::get()->getDevice()->get());
     
     builder.setShaders(vertShaderModule, fragShaderModule);
 
@@ -286,14 +288,14 @@ void Renderer::createGraphicsPipeline()
 
     // Ustaw formaty za³¹czników
     builder.setColorAttachmentFormat(m_swapChain->m_swapChainImageFormat);
-    builder.setDepthFormat(m_device->findDepthFormat());
+    builder.setDepthFormat(GraphicsEngine::get()->getDevice()->findDepthFormat());
 
     // W³¹cz test g³êbi
     builder.enableDepthtest(true, VK_COMPARE_OP_LESS);
 
     // Zbuduj potok
-    m_graphicsPipeline->pipeline = builder.buildPipeline(m_graphicsPipeline->layout, m_device->get());
+    m_graphicsPipeline->pipeline = builder.buildPipeline(m_graphicsPipeline->layout, GraphicsEngine::get()->getDevice()->get());
 
-    vkDestroyShaderModule(m_device->get(), vertShaderModule, nullptr);
-    vkDestroyShaderModule(m_device->get(), fragShaderModule, nullptr);
+    vkDestroyShaderModule(GraphicsEngine::get()->getDevice()->get(), vertShaderModule, nullptr);
+    vkDestroyShaderModule(GraphicsEngine::get()->getDevice()->get(), fragShaderModule, nullptr);
 }

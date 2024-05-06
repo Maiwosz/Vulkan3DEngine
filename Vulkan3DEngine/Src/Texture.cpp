@@ -5,7 +5,6 @@
 #include "Image.h"
 #include "ImageView.h"
 #include "TextureSampler.h"
-#include "TextureDescriptorSet.h"
 
 #define STB_IMAGE_IMPLEMENTATION
 #include <stb_image.h>
@@ -20,7 +19,7 @@ Texture::Texture(const char* full_path) : Resource(full_path)
 
 Texture::~Texture()
 {
-	m_descriptorAllocator.destroyPools(GraphicsEngine::get()->getRenderer()->getDevice()->get()); 
+	m_descriptorAllocator.destroyPools(GraphicsEngine::get()->getDevice()->get());
 }
 
 void Texture::Load(const char* full_path)
@@ -61,7 +60,7 @@ void Texture::Load(const char* full_path)
 
 	if (!m_descriptorAllocatorInitialized) {
 		{
-			m_descriptorAllocator.init(GraphicsEngine::get()->getRenderer()->getDevice()->get(), 1000, m_sizes);
+			m_descriptorAllocator.init(GraphicsEngine::get()->getDevice()->get(), 1000, m_sizes);
 			m_descriptorAllocatorInitialized = true;
 		}
 	}
@@ -70,11 +69,11 @@ void Texture::Load(const char* full_path)
 	//Initialize uniformBuffers and descriptorSets
 	for (int i = 0; i < Renderer::s_maxFramesInFlight; i++) {
 
-		VkDescriptorSet textureDescriptorSets = m_descriptorAllocator.allocate(GraphicsEngine::get()->getRenderer()->getDevice()->get(),
+		VkDescriptorSet textureDescriptorSets = m_descriptorAllocator.allocate(GraphicsEngine::get()->getDevice()->get(),
 			GraphicsEngine::get()->getRenderer()->m_textureDescriptorSetLayout);
 
 		writer.writeImage(0, m_imageView->get(), m_textureSampler->get(), m_image->getLayout(), VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER);
-		writer.updateSet(GraphicsEngine::get()->getRenderer()->getDevice()->get(), textureDescriptorSets);
+		writer.updateSet(GraphicsEngine::get()->getDevice()->get(), textureDescriptorSets);
 		writer.clear();
 
 		m_descriptorSets.push_back(textureDescriptorSets);
@@ -83,7 +82,7 @@ void Texture::Load(const char* full_path)
 
 void Texture::Reload()
 {
-    vkDeviceWaitIdle(GraphicsEngine::get()->getRenderer()->getDevice()->get());
+    vkDeviceWaitIdle(GraphicsEngine::get()->getDevice()->get());
 
     // Free the old resources
     m_descriptorSets.clear();

@@ -143,6 +143,7 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="Src\Instance.cpp" />
     <ClCompile Include="Src\Application.cpp" />
     <ClCompile Include="Src\Buffer.cpp" />
     <ClCompile Include="Src\Camera.cpp" />
@@ -178,6 +179,7 @@
     <ClCompile Include="Src\Window.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="Src\Instance.h" />
     <ClInclude Include="Src\Descriptors.h" />
     <ClInclude Include="Src\RendererInits.h" />
     <ClInclude Include="Src\Application.h" />

@@ -1,10 +1,11 @@
 #include "TextureSampler.h"
 #include "Renderer.h"
+#include "GraphicsEngine.h"
 
 TextureSampler::TextureSampler(uint32_t mipLevels, Renderer* renderer):m_renderer(renderer)
 {
     VkPhysicalDeviceProperties properties{};
-    vkGetPhysicalDeviceProperties(m_renderer->m_device->getPhysicalDevice(), &properties);
+    vkGetPhysicalDeviceProperties(GraphicsEngine::get()->getDevice()->getPhysicalDevice(), &properties);
 
     VkSamplerCreateInfo samplerInfo{};
     samplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
@@ -24,12 +25,12 @@ TextureSampler::TextureSampler(uint32_t mipLevels, Renderer* renderer):m_rendere
     samplerInfo.maxLod = static_cast<float>(mipLevels);
     samplerInfo.mipLodBias = 0.0f; // Optional
 
-    if (vkCreateSampler(m_renderer->m_device->get(), &samplerInfo, nullptr, &m_textureSampler) != VK_SUCCESS) {
+    if (vkCreateSampler(GraphicsEngine::get()->getDevice()->get(), &samplerInfo, nullptr, &m_textureSampler) != VK_SUCCESS) {
         throw std::runtime_error("failed to create texture sampler!");
     }
 }
 
 TextureSampler::~TextureSampler()
 {
-    vkDestroySampler(m_renderer->m_device->get(), m_textureSampler, nullptr);
+    vkDestroySampler(GraphicsEngine::get()->getDevice()->get(), m_textureSampler, nullptr);
 }

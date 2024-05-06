@@ -1,7 +1,6 @@
 #include "Model.h"
 #include "Application.h"
 #include "UniformBuffer.h"
-#include "ModelDescriptorSet.h"
 #include "ModelData.h"
 #include "Mesh.h"
 #include "Texture.h"
@@ -13,7 +12,7 @@ Model::Model(ModelDataPtr modelData, Scene* scene) : SceneObject(scene), m_model
 {
 	if (!m_descriptorAllocatorInitialized) {
 		{
-			m_descriptorAllocator.init(GraphicsEngine::get()->getRenderer()->getDevice()->get(), 1000, m_sizes);
+			m_descriptorAllocator.init(GraphicsEngine::get()->getDevice()->get(), 1000, m_sizes);
 			m_descriptorAllocatorInitialized = true;
 		}
 	}
@@ -23,11 +22,11 @@ Model::Model(ModelDataPtr modelData, Scene* scene) : SceneObject(scene), m_model
 	for (int i = 0; i < Renderer::s_maxFramesInFlight; i++) {
 		m_uniformBuffers.push_back(GraphicsEngine::get()->getRenderer()->createUniformBuffer(sizeof(ModelUBO)));
 
-		VkDescriptorSet modelDescriptorSets = m_descriptorAllocator.allocate(GraphicsEngine::get()->getRenderer()->getDevice()->get(),
+		VkDescriptorSet modelDescriptorSets = m_descriptorAllocator.allocate(GraphicsEngine::get()->getDevice()->get(),
 			GraphicsEngine::get()->getRenderer()->m_modelDescriptorSetLayout);
 
 		writer.writeBuffer(0, m_uniformBuffers[i]->get(), sizeof(ModelUBO), 0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER);
-		writer.updateSet(GraphicsEngine::get()->getRenderer()->getDevice()->get(), modelDescriptorSets);
+		writer.updateSet(GraphicsEngine::get()->getDevice()->get(), modelDescriptorSets);
 		writer.clear();
 
 		m_descriptorSets.push_back(modelDescriptorSets);
@@ -36,7 +35,7 @@ Model::Model(ModelDataPtr modelData, Scene* scene) : SceneObject(scene), m_model
 
 Model::~Model()
 {
-	m_descriptorAllocator.destroyPools(GraphicsEngine::get()->getRenderer()->getDevice()->get());
+	m_descriptorAllocator.destroyPools(GraphicsEngine::get()->getDevice()->get());
 }
 
 void Model::update()

@@ -1,6 +1,8 @@
 #pragma once
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
+
+#include "Prerequisites.h"
 #include <string>
 
 class Window
@@ -10,6 +12,8 @@ public:
 	~Window();
 
 	GLFWwindow* get() const { return m_window; } // Getter method for m_window
+	VkSurfaceKHR& getSurface() { return m_surface; }
+	void createSurface();
 
 	bool shouldClose() { return glfwWindowShouldClose(m_window); }
 	VkExtent2D getExtent() { return { static_cast<uint32_t>(m_width), static_cast<uint32_t>(m_height) }; }
@@ -30,7 +34,7 @@ private:
 	static void windowIconifyCallback(GLFWwindow* window, int iconified);
 
 	GLFWwindow* m_window;
-
+	VkSurfaceKHR m_surface;
 	int m_width;
 	int m_height;
 	std::string m_windowName;
