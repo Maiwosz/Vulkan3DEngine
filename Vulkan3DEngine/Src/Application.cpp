@@ -4,12 +4,12 @@
 #include <thread>
 
 float Application::s_deltaTime = 0.0f;
-uint32_t Application::s_window_width = 1280;
-uint32_t Application::s_window_height = 720;
+//uint32_t Application::s_window_width = 1280;
+//uint32_t Application::s_window_height = 720;
 
 Application::Application()
 {
-    m_window = std::make_shared<Window>(s_window_width, s_window_height, "Vulkan3DEngine");
+    //m_window = std::make_shared<Window>(s_window_width, s_window_height, "Vulkan3DEngine");
     try
     {
         size_t numThreads = std::thread::hardware_concurrency();
@@ -27,7 +27,8 @@ Application::Application()
     }
     try 
     {
-        GraphicsEngine::create(m_window);
+        GraphicsEngine::create();
+        GraphicsEngine::get()->init();
     }
     catch (...) {
         throw std::exception("Failed to create GraphicsEngine");
@@ -51,17 +52,17 @@ void Application::run()
 
     auto startTime = std::chrono::high_resolution_clock::now();
 
-    while (!m_window->shouldClose()) {
+    while (!GraphicsEngine::get()->getWindow()->shouldClose()) {
         
         
         glfwPollEvents();
 
-        if (m_window->wasWindowResized()) {
-            s_window_width = m_window->getExtent().width;
-            s_window_height = m_window->getExtent().height;
-        }
+        //if (m_window->wasWindowResized()) {
+        //    s_window_width = m_window->getExtent().width;
+        //    s_window_height = m_window->getExtent().height;
+        //}
 
-        if(m_window->isFocused()) {
+        if(GraphicsEngine::get()->getWindow()->isFocused()) {
             InputSystem::get()->addListener(m_scene->getCamera().get());
             InputSystem::get()->showCursor(false);
         }
@@ -79,7 +80,7 @@ void Application::run()
 
         startTime = currentTime; // Update startTime for the next frame
     }
-    vkDeviceWaitIdle(GraphicsEngine::get()->getRenderer()->getDevice()->get());
+    vkDeviceWaitIdle(GraphicsEngine::get()->getDevice()->get());
 }
 
 void Application::update()
@@ -93,7 +94,7 @@ void Application::update()
 
 void Application::draw()
 {
-    if (m_window->isMinimized()) {
+    if (GraphicsEngine::get()->getWindow()->isMinimized()) {
         return;
     }
 

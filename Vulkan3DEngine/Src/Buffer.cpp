@@ -1,6 +1,7 @@
 #include "Buffer.h"
 #include "Renderer.h"
 #include "Image.h"
+#include "GraphicsEngine.h"
 
 Buffer::Buffer(Renderer* renderer) : m_renderer(renderer)
 {
@@ -9,8 +10,8 @@ Buffer::Buffer(Renderer* renderer) : m_renderer(renderer)
 Buffer::~Buffer()
 {
     unmap();
-    vkDestroyBuffer(m_renderer->m_device->get(), m_buffer, nullptr);
-    vkFreeMemory(m_renderer->m_device->get(), m_bufferMemory, nullptr);
+    vkDestroyBuffer(GraphicsEngine::get()->getDevice()->get(), m_buffer, nullptr);
+    vkFreeMemory(GraphicsEngine::get()->getDevice()->get(), m_bufferMemory, nullptr);
 }
 
 void Buffer::createBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties, VkBuffer& buffer, VkDeviceMemory& bufferMemory)
@@ -21,39 +22,39 @@ void Buffer::createBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryP
     bufferInfo.usage = usage;
     bufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 
-    if (vkCreateBuffer(m_renderer->m_device->get(), &bufferInfo, nullptr, &buffer) != VK_SUCCESS) {
+    if (vkCreateBuffer(GraphicsEngine::get()->getDevice()->get(), &bufferInfo, nullptr, &buffer) != VK_SUCCESS) {
         throw std::runtime_error("failed to create buffer!");
     }
 
     VkMemoryRequirements memRequirements;
-    vkGetBufferMemoryRequirements(m_renderer->m_device->get(), buffer, &memRequirements);
+    vkGetBufferMemoryRequirements(GraphicsEngine::get()->getDevice()->get(), buffer, &memRequirements);
 
     VkMemoryAllocateInfo allocInfo{};
     allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
     allocInfo.allocationSize = memRequirements.size;
-    allocInfo.memoryTypeIndex = m_renderer->m_device->findMemoryType(memRequirements.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+    allocInfo.memoryTypeIndex = GraphicsEngine::get()->getDevice()->findMemoryType(memRequirements.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
 
-    if (vkAllocateMemory(m_renderer->m_device->get(), &allocInfo, nullptr, &bufferMemory) != VK_SUCCESS) {
+    if (vkAllocateMemory(GraphicsEngine::get()->getDevice()->get(), &allocInfo, nullptr, &bufferMemory) != VK_SUCCESS) {
         throw std::runtime_error("failed to allocate buffer memory!");
     }
 
-    vkBindBufferMemory(m_renderer->m_device->get(), buffer, bufferMemory, 0);
+    vkBindBufferMemory(GraphicsEngine::get()->getDevice()->get(), buffer, bufferMemory, 0);
 }
 
 void Buffer::copyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size)
 {
-    VkCommandBuffer commandBuffer = m_renderer->m_device->beginSingleTimeCommands();
+    VkCommandBuffer commandBuffer = GraphicsEngine::get()->getDevice()->beginSingleTimeCommands();
     
     VkBufferCopy copyRegion{};
     copyRegion.size = size;
     vkCmdCopyBuffer(commandBuffer, srcBuffer, dstBuffer, 1, &copyRegion);
     
-    m_renderer->m_device->endSingleTimeCommands(commandBuffer);
+    GraphicsEngine::get()->getDevice()->endSingleTimeCommands(commandBuffer);
 }
 
 void Buffer::copyBufferToImage(ImagePtr image)
 {
-    VkCommandBuffer commandBuffer = m_renderer->m_device->beginSingleTimeCommands();
+    VkCommandBuffer commandBuffer = GraphicsEngine::get()->getDevice()->beginSingleTimeCommands();
 
     VkBufferImageCopy region{};
     region.bufferOffset = 0;
@@ -69,18 +70,18 @@ void Buffer::copyBufferToImage(ImagePtr image)
     vkCmdCopyBufferToImage(commandBuffer, m_buffer, image->get(), VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
     image->updateLayout(VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
 
-    m_renderer->m_device->endSingleTimeCommands(commandBuffer);
+    GraphicsEngine::get()->getDevice()->endSingleTimeCommands(commandBuffer);
 }
 
 VkResult Buffer::map(VkDeviceSize size, VkDeviceSize offset)
 {
-    return vkMapMemory(m_renderer->m_device->get(), m_bufferMemory, offset, size, 0, &m_mapped);
+    return vkMapMemory(GraphicsEngine::get()->getDevice()->get(), m_bufferMemory, offset, size, 0, &m_mapped);
 }
 
 void Buffer::unmap()
 {
     if (m_mapped) {
-        vkUnmapMemory(m_renderer->m_device->get(), m_bufferMemory);
+        vkUnmapMemory(GraphicsEngine::get()->getDevice()->get(), m_bufferMemory);
         m_mapped = nullptr;
     }
 }

@@ -2,6 +2,7 @@
 #include "Renderer.h"
 #include "ImageView.h"
 #include "Image.h"
+#include "GraphicsEngine.h"
 
 SwapChain::SwapChain( Renderer* renderer): m_renderer(renderer)
 {
@@ -17,22 +18,22 @@ SwapChain::SwapChain( Renderer* renderer): m_renderer(renderer)
 SwapChain::~SwapChain()
 {
 	for (size_t i = 0; i < Renderer::s_maxFramesInFlight; i++) {
-		vkDestroySemaphore(m_renderer->m_device->get(), m_renderFinishedSemaphores[i], nullptr);
-		vkDestroySemaphore(m_renderer->m_device->get(), m_imageAvailableSemaphores[i], nullptr);
-		vkDestroyFence(m_renderer->m_device->get(), m_inFlightFences[i], nullptr);
+		vkDestroySemaphore(GraphicsEngine::get()->getDevice()->get(), m_renderFinishedSemaphores[i], nullptr);
+		vkDestroySemaphore(GraphicsEngine::get()->getDevice()->get(), m_imageAvailableSemaphores[i], nullptr);
+		vkDestroyFence(GraphicsEngine::get()->getDevice()->get(), m_inFlightFences[i], nullptr);
 	}
 
 	cleanupSwapChain();
 
-	vkDestroyRenderPass(m_renderer->m_device->get(), m_renderPass, nullptr);
+	vkDestroyRenderPass(GraphicsEngine::get()->getDevice()->get(), m_renderPass, nullptr);
 }
 
 void SwapChain::createSwapChain()
 {
-	SwapChainSupportDetails swapChainSupport = m_renderer->m_device->querySwapChainSupport(m_renderer->m_device->getPhysicalDevice());
-	VkSurfaceFormatKHR surfaceFormat = m_renderer->m_device->chooseSwapSurfaceFormat(swapChainSupport.formats);
-	VkPresentModeKHR presentMode = m_renderer->m_device->chooseSwapPresentMode(swapChainSupport.presentModes);
-	VkExtent2D extent = m_renderer->m_device->chooseSwapExtent(swapChainSupport.capabilities);
+	SwapChainSupportDetails swapChainSupport = GraphicsEngine::get()->getDevice()->querySwapChainSupport(GraphicsEngine::get()->getDevice()->getPhysicalDevice());
+	VkSurfaceFormatKHR surfaceFormat = GraphicsEngine::get()->getDevice()->chooseSwapSurfaceFormat(swapChainSupport.formats);
+	VkPresentModeKHR presentMode = GraphicsEngine::get()->getDevice()->chooseSwapPresentMode(swapChainSupport.presentModes);
+	VkExtent2D extent = GraphicsEngine::get()->getDevice()->chooseSwapExtent(swapChainSupport.capabilities);
 
 	uint32_t imageCount = swapChainSupport.capabilities.minImageCount + 1;
 	if (swapChainSupport.capabilities.maxImageCount > 0 &&
@@ -42,7 +43,7 @@ void SwapChain::createSwapChain()
 
 	VkSwapchainCreateInfoKHR createInfo{};
 	createInfo.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
-	createInfo.surface = m_renderer->m_device->getSurface();
+	createInfo.surface = GraphicsEngine::get()->getWindow()->getSurface();
 
 	createInfo.minImageCount = imageCount;
 	createInfo.imageFormat = surfaceFormat.format;
@@ -51,7 +52,7 @@ void SwapChain::createSwapChain()
 	createInfo.imageArrayLayers = 1;
 	createInfo.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
 
-	QueueFamilyIndices indices = m_renderer->m_device->findQueueFamilies(m_renderer->m_device->getPhysicalDevice());
+	QueueFamilyIndices indices = GraphicsEngine::get()->getDevice()->findQueueFamilies(GraphicsEngine::get()->getDevice()->getPhysicalDevice());
 	uint32_t queueFamilyIndices[] = { indices.graphicsFamily.value(), indices.presentFamily.value() };
 
 	if (indices.graphicsFamily != indices.presentFamily) {
@@ -73,13 +74,13 @@ void SwapChain::createSwapChain()
 
 	createInfo.oldSwapchain = VK_NULL_HANDLE;
 
-	if (vkCreateSwapchainKHR(m_renderer->m_device->get(), &createInfo, nullptr, &m_swapChain) != VK_SUCCESS) {
+	if (vkCreateSwapchainKHR(GraphicsEngine::get()->getDevice()->get(), &createInfo, nullptr, &m_swapChain) != VK_SUCCESS) {
 		throw std::runtime_error("failed to create swap chain!");
 	}
 
-	vkGetSwapchainImagesKHR(m_renderer->m_device->get(), m_swapChain, &imageCount, nullptr);
+	vkGetSwapchainImagesKHR(GraphicsEngine::get()->getDevice()->get(), m_swapChain, &imageCount, nullptr);
 	m_swapChainImages.resize(imageCount);
-	vkGetSwapchainImagesKHR(m_renderer->m_device->get(), m_swapChain, &imageCount, m_swapChainImages.data());
+	vkGetSwapchainImagesKHR(GraphicsEngine::get()->getDevice()->get(), m_swapChain, &imageCount, m_swapChainImages.data());
 
 	m_swapChainImageFormat = surfaceFormat.format;
 	m_swapChainExtent = extent;
@@ -88,13 +89,13 @@ void SwapChain::createSwapChain()
 void SwapChain::recreateSwapChain()
 {
 	int width = 0, height = 0;
-	glfwGetFramebufferSize(m_renderer->m_window->get(), &width, &height);
+	glfwGetFramebufferSize(GraphicsEngine::get()->getWindow()->get(), &width, &height);
 	while (width == 0 || height == 0) {
-		glfwGetFramebufferSize(m_renderer->m_window->get(), &width, &height);
+		glfwGetFramebufferSize(GraphicsEngine::get()->getWindow()->get(), &width, &height);
 		glfwWaitEvents();
 	}
 
-	vkDeviceWaitIdle(m_renderer->m_device->get());
+	vkDeviceWaitIdle(GraphicsEngine::get()->getDevice()->get());
 	
 	cleanupSwapChain();
 
@@ -108,7 +109,7 @@ void SwapChain::recreateSwapChain()
 void SwapChain::cleanupSwapChain()
 {
 	for (auto framebuffer : m_swapChainFramebuffers) {
-		vkDestroyFramebuffer(m_renderer->m_device->get(), framebuffer, nullptr);
+		vkDestroyFramebuffer(GraphicsEngine::get()->getDevice()->get(), framebuffer, nullptr);
 
 	}
 
@@ -117,7 +118,7 @@ void SwapChain::cleanupSwapChain()
 		imageView.reset();
 	}
 
-	vkDestroySwapchainKHR(m_renderer->m_device->get(), m_swapChain, nullptr);
+	vkDestroySwapchainKHR(GraphicsEngine::get()->getDevice()->get(), m_swapChain, nullptr);
 }
 
 void SwapChain::createImageViews()
@@ -144,7 +145,7 @@ void SwapChain::createRenderPass()
 	colorAttachment.finalLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
 
 	VkAttachmentDescription depthAttachment{};
-	depthAttachment.format = m_renderer->m_device->findDepthFormat();
+	depthAttachment.format = GraphicsEngine::get()->getDevice()->findDepthFormat();
 	depthAttachment.samples = msaaSamples;
 	depthAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
 	depthAttachment.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
@@ -200,7 +201,7 @@ void SwapChain::createRenderPass()
 	renderPassInfo.dependencyCount = 1;
 	renderPassInfo.pDependencies = &dependency;
 
-	if (vkCreateRenderPass(m_renderer->m_device->get(), &renderPassInfo, nullptr, &m_renderPass) != VK_SUCCESS) {
+	if (vkCreateRenderPass(GraphicsEngine::get()->getDevice()->get(), &renderPassInfo, nullptr, &m_renderPass) != VK_SUCCESS) {
 		throw std::runtime_error("failed to create render pass!");
 	}
 }
@@ -217,7 +218,7 @@ void SwapChain::createColorResources()
 
 void SwapChain::createDepthResources()
 {
-	VkFormat depthFormat = m_renderer->m_device->findDepthFormat();
+	VkFormat depthFormat = GraphicsEngine::get()->getDevice()->findDepthFormat();
 
 	m_depthImage = m_renderer->createImage(m_swapChainExtent.width, m_swapChainExtent.height, 1, Renderer::s_msaaSamples, depthFormat,
 		VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
@@ -247,7 +248,7 @@ void SwapChain::createFramebuffers()
 		framebufferInfo.height = m_swapChainExtent.height;
 		framebufferInfo.layers = 1;
 
-		if (vkCreateFramebuffer(m_renderer->m_device->get(), &framebufferInfo, nullptr, &m_swapChainFramebuffers[i]) != VK_SUCCESS) {
+		if (vkCreateFramebuffer(GraphicsEngine::get()->getDevice()->get(), &framebufferInfo, nullptr, &m_swapChainFramebuffers[i]) != VK_SUCCESS) {
 			throw std::runtime_error("failed to create framebuffer!");
 		}
 	}
@@ -269,9 +270,9 @@ void SwapChain::createSyncObjects()
 	fenceInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
 	
 	for (size_t i = 0; i < maxFramesInFlight; i++) {
-	if (vkCreateSemaphore(m_renderer->m_device->get(), &semaphoreInfo, nullptr, &m_imageAvailableSemaphores[i]) != VK_SUCCESS ||
-		vkCreateSemaphore(m_renderer->m_device->get(), &semaphoreInfo, nullptr, &m_renderFinishedSemaphores[i]) != VK_SUCCESS ||
-		vkCreateFence(m_renderer->m_device->get(), &fenceInfo, nullptr, &m_inFlightFences[i]) != VK_SUCCESS) {
+	if (vkCreateSemaphore(GraphicsEngine::get()->getDevice()->get(), &semaphoreInfo, nullptr, &m_imageAvailableSemaphores[i]) != VK_SUCCESS ||
+		vkCreateSemaphore(GraphicsEngine::get()->getDevice()->get(), &semaphoreInfo, nullptr, &m_renderFinishedSemaphores[i]) != VK_SUCCESS ||
+		vkCreateFence(GraphicsEngine::get()->getDevice()->get(), &fenceInfo, nullptr, &m_inFlightFences[i]) != VK_SUCCESS) {
 		throw std::runtime_error("failed to create synchronization objects for a frame!");
 	}
 	}

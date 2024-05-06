@@ -4,13 +4,12 @@
 #include "Device.h"
 #include "SwapChain.h"
 #include "PipelineBuilder.h"
-//#include "DescriptorSet.h"
 #include "Descriptors.h"
 
 class Renderer
 {
 public:
-	Renderer(WindowPtr window);
+	Renderer(/*WindowPtr window*/);
 	~Renderer();
 
 	//Tworzenie zasobów przenieœæ do osobnej klasy
@@ -23,7 +22,7 @@ public:
 	ImageViewPtr createImageView(VkImage image, VkFormat format, VkImageAspectFlags aspectFlags, uint32_t mipLevels);
 	TextureSamplerPtr createTextureSampler(uint32_t mipLevels);
 
-	DevicePtr getDevice() { return m_device; }
+	//DevicePtr getDevice() { return m_device; }
 	SwapChainPtr getSwapChain() { return m_swapChain; }
 
 	void drawFrameBegin();
@@ -50,8 +49,8 @@ private:
 
 	void createGraphicsPipeline();
 	
-	WindowPtr m_window;
-	DevicePtr m_device;
+	/*WindowPtr m_window;*/
+	//DevicePtr m_device;
 	SwapChainPtr m_swapChain;
 	PipelinePtr m_graphicsPipeline;
 	DescriptorAllocatorGrowablePtr m_descriptorAllocator;
@@ -67,7 +66,7 @@ private:
 	friend class SwapChain;
 	friend class GraphicsPipeline;
 	friend class PipelineBuilder;
-	friend class Device;
+	//friend class Device;
 	friend class Buffer;
 	friend class StagingBuffer;
 	friend class VertexBuffer;

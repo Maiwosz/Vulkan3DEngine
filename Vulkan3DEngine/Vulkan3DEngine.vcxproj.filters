@@ -6,7 +6,7 @@
       <Filter>Application\GraphicsEngine</Filter>
     </ClCompile>
     <ClCompile Include="Src\Window.cpp">
-      <Filter>Application\WindowingSystem</Filter>
+      <Filter>Application\GraphicsEngine\Window</Filter>
     </ClCompile>
     <ClCompile Include="Src\ThreadPool.cpp">
       <Filter>Application\ThreadPool</Filter>
@@ -60,7 +60,7 @@
       <Filter>Application\GraphicsEngine\Renderer\PipelineBuilder</Filter>
     </ClCompile>
     <ClCompile Include="Src\Device.cpp">
-      <Filter>Application\GraphicsEngine\Renderer\Device</Filter>
+      <Filter>Application\GraphicsEngine\Device</Filter>
     </ClCompile>
     <ClCompile Include="Src\SceneObjectManager.cpp">
       <Filter>Application\GraphicsEngine\Scene\SceneObjectManager</Filter>
@@ -98,6 +98,9 @@
     <ClCompile Include="Src\Descriptors.cpp">
       <Filter>Application\GraphicsEngine\Descriptors</Filter>
     </ClCompile>
+    <ClCompile Include="Src\Instance.cpp">
+      <Filter>Application\GraphicsEngine\Instance</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Src\Prerequisites.h" />
@@ -105,7 +108,7 @@
       <Filter>Application\GraphicsEngine</Filter>
     </ClInclude>
     <ClInclude Include="Src\Window.h">
-      <Filter>Application\WindowingSystem</Filter>
+      <Filter>Application\GraphicsEngine\Window</Filter>
     </ClInclude>
     <ClInclude Include="Src\ThreadPool.h">
       <Filter>Application\ThreadPool</Filter>
@@ -162,7 +165,7 @@
       <Filter>Application\GraphicsEngine\Renderer\PipelineBuilder</Filter>
     </ClInclude>
     <ClInclude Include="Src\Device.h">
-      <Filter>Application\GraphicsEngine\Renderer\Device</Filter>
+      <Filter>Application\GraphicsEngine\Device</Filter>
     </ClInclude>
     <ClInclude Include="Src\SceneObjectManager.h">
       <Filter>Application\GraphicsEngine\Scene\SceneObjectManager</Filter>
@@ -200,6 +203,9 @@
     <ClInclude Include="Src\Descriptors.h">
       <Filter>Application\GraphicsEngine\Descriptors</Filter>
     </ClInclude>
+    <ClInclude Include="Src\Instance.h">
+      <Filter>Application\GraphicsEngine\Instance</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <None Include="Shaders\Shader.vert">
@@ -219,20 +225,8 @@
     <Filter Include="Application\InputSystem">
       <UniqueIdentifier>{7217a741-b806-438c-b4ce-f62c51bc381b}</UniqueIdentifier>
     </Filter>
-    <Filter Include="Application\WindowingSystem">
-      <UniqueIdentifier>{71b4fcbb-7907-44e5-aad6-a43a9e685b14}</UniqueIdentifier>
-    </Filter>
     <Filter Include="Application\ThreadPool">
       <UniqueIdentifier>{26fc1fee-33e2-4a98-8483-2f912a8fa1bd}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Application\GraphicsEngine\Descriptors">
-      <UniqueIdentifier>{91c5c937-c5c2-4cc0-9d19-37d16231a80e}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Application\GraphicsEngine\Buffers">
-      <UniqueIdentifier>{e228bf09-f249-420b-a12e-cf9d6bd631fe}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Application\GraphicsEngine\Images">
-      <UniqueIdentifier>{3a3430b4-4efd-4523-a0e9-917935898179}</UniqueIdentifier>
     </Filter>
     <Filter Include="Application\GraphicsEngine\ResourceManagers">
       <UniqueIdentifier>{e345b9e5-047e-476c-9b91-f3f76d863541}</UniqueIdentifier>
@@ -242,15 +236,6 @@
     </Filter>
     <Filter Include="Application\GraphicsEngine\Renderer">
       <UniqueIdentifier>{b79260e3-062a-4728-84f2-9c64cf576825}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Application\GraphicsEngine\Descriptors\DescriptorPool">
-      <UniqueIdentifier>{0c9d8fbf-1922-4039-806a-7497167b23b4}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Application\GraphicsEngine\Descriptors\DescriptorSet">
-      <UniqueIdentifier>{ecb4398e-d23b-444d-9cfa-e3f96d0a4196}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Application\GraphicsEngine\Renderer\Device">
-      <UniqueIdentifier>{b3ecf183-f434-42f8-a0d2-1b282c0dc814}</UniqueIdentifier>
     </Filter>
     <Filter Include="Application\GraphicsEngine\Renderer\PipelineBuilder">
       <UniqueIdentifier>{a89326bf-50cf-491c-aede-41b73a085d83}</UniqueIdentifier>
@@ -281,6 +266,24 @@
     </Filter>
     <Filter Include="Application\GraphicsEngine\Renderer\Shaders">
       <UniqueIdentifier>{97b1b8b9-c10b-4501-a242-370c9f5bcc4b}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Application\GraphicsEngine\Buffers">
+      <UniqueIdentifier>{e228bf09-f249-420b-a12e-cf9d6bd631fe}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Application\GraphicsEngine\Images">
+      <UniqueIdentifier>{3a3430b4-4efd-4523-a0e9-917935898179}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Application\GraphicsEngine\Descriptors">
+      <UniqueIdentifier>{91c5c937-c5c2-4cc0-9d19-37d16231a80e}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Application\GraphicsEngine\Device">
+      <UniqueIdentifier>{b3ecf183-f434-42f8-a0d2-1b282c0dc814}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Application\GraphicsEngine\Window">
+      <UniqueIdentifier>{71b4fcbb-7907-44e5-aad6-a43a9e685b14}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Application\GraphicsEngine\Instance">
+      <UniqueIdentifier>{65e632e9-2abf-4ffb-bfb8-8b06beabb7fe}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
 </Project>

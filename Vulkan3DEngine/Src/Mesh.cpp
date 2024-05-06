@@ -89,7 +89,7 @@ void Mesh::Load(const char* full_path)
 
 void Mesh::Reload()
 {
-    vkDeviceWaitIdle(GraphicsEngine::get()->getRenderer()->getDevice()->get());
+    vkDeviceWaitIdle(GraphicsEngine::get()->getDevice()->get());
 
     // Free the old resources
     m_vertexBuffer.reset();

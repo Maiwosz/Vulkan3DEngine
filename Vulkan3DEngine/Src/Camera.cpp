@@ -2,6 +2,7 @@
 #include "InputSystem.h"
 #include "Application.h"
 #include "Window.h"
+#include "GraphicsEngine.h"
 
 Camera::Camera(glm::vec3 startPosition, float startPitch, float startYaw, Scene* scene) :
     SceneObject(startPosition, glm::vec3(startPitch, startYaw, 0.0f), 1.0f , scene),
@@ -128,7 +129,9 @@ void Camera::onMouseMove(const glm::vec2& mouse_pos)
     updateCameraVectors(); // Update the camera vectors after changing the yaw and pitch
 
     // Reset the mouse position to the center of the window
-    glm::vec2 centerPosition = glm::vec2(Application::s_window_width / 2.0f, Application::s_window_height / 2.0f);
+    glm::vec2 centerPosition = glm::vec2(GraphicsEngine::get()->getWindow()->getExtent().width / 2.0f,
+        GraphicsEngine::get()->getWindow()->getExtent().height / 2.0f);
+
     InputSystem::get()->setCursorPosition(centerPosition);
 
     // Update the last mouse position

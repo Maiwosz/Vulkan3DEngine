@@ -1,5 +1,6 @@
 #include "ImageView.h"
 #include "Renderer.h"
+#include "GraphicsEngine.h"
 
 ImageView::ImageView(VkImage image, VkFormat format, VkImageAspectFlags aspectFlags, uint32_t mipLevels, Renderer* renderer): m_renderer(renderer)
 {
@@ -14,7 +15,7 @@ ImageView::ImageView(VkImage image, VkFormat format, VkImageAspectFlags aspectFl
     viewInfo.subresourceRange.baseArrayLayer = 0;
     viewInfo.subresourceRange.layerCount = 1;
 
-	if (vkCreateImageView(m_renderer->m_device->get(), &viewInfo, nullptr, &m_imageView) != VK_SUCCESS)
+	if (vkCreateImageView(GraphicsEngine::get()->getDevice()->get(), &viewInfo, nullptr, &m_imageView) != VK_SUCCESS)
 	{
 		throw std::runtime_error("failed to create texture image view!");
 	}
@@ -22,5 +23,5 @@ ImageView::ImageView(VkImage image, VkFormat format, VkImageAspectFlags aspectFl
 
 ImageView::~ImageView()
 {
-	vkDestroyImageView(m_renderer->m_device->get(), m_imageView, nullptr);
+	vkDestroyImageView(GraphicsEngine::get()->getDevice()->get(), m_imageView, nullptr);
 }
