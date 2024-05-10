@@ -151,7 +151,6 @@
     <ClCompile Include="Src\Device.cpp" />
     <ClCompile Include="Src\GraphicsEngine.cpp" />
     <ClCompile Include="Src\Image.cpp" />
-    <ClCompile Include="Src\ImageView.cpp" />
     <ClCompile Include="Src\IndexBuffer.cpp" />
     <ClCompile Include="Src\InputSystem.cpp" />
     <ClCompile Include="Src\main.cpp" />
@@ -172,7 +171,6 @@
     <ClCompile Include="Src\SwapChain.cpp" />
     <ClCompile Include="Src\Texture.cpp" />
     <ClCompile Include="Src\TextureManager.cpp" />
-    <ClCompile Include="Src\TextureSampler.cpp" />
     <ClCompile Include="Src\ThreadPool.cpp" />
     <ClCompile Include="Src\UniformBuffer.cpp" />
     <ClCompile Include="Src\VertexBuffer.cpp" />
@@ -188,7 +186,6 @@
     <ClInclude Include="Src\Device.h" />
     <ClInclude Include="Src\GraphicsEngine.h" />
     <ClInclude Include="Src\Image.h" />
-    <ClInclude Include="Src\ImageView.h" />
     <ClInclude Include="Src\IndexBuffer.h" />
     <ClInclude Include="Src\InputListener.h" />
     <ClInclude Include="Src\InputSystem.h" />
@@ -209,7 +206,6 @@
     <ClInclude Include="Src\SwapChain.h" />
     <ClInclude Include="Src\Texture.h" />
     <ClInclude Include="Src\TextureManager.h" />
-    <ClInclude Include="Src\TextureSampler.h" />
     <ClInclude Include="Src\ThreadPool.h" />
     <ClInclude Include="Src\UniformBuffer.h" />
     <ClInclude Include="Src\VertexBuffer.h" />

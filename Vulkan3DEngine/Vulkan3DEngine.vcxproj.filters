@@ -23,9 +23,6 @@
     <ClCompile Include="Src\Image.cpp">
       <Filter>Application\GraphicsEngine\Images</Filter>
     </ClCompile>
-    <ClCompile Include="Src\ImageView.cpp">
-      <Filter>Application\GraphicsEngine\Images</Filter>
-    </ClCompile>
     <ClCompile Include="Src\IndexBuffer.cpp">
       <Filter>Application\GraphicsEngine\Buffers</Filter>
     </ClCompile>
@@ -49,9 +46,6 @@
     </ClCompile>
     <ClCompile Include="Src\VertexBuffer.cpp">
       <Filter>Application\GraphicsEngine\Buffers</Filter>
-    </ClCompile>
-    <ClCompile Include="Src\TextureSampler.cpp">
-      <Filter>Application\GraphicsEngine\Images</Filter>
     </ClCompile>
     <ClCompile Include="Src\SwapChain.cpp">
       <Filter>Application\GraphicsEngine\Renderer\SwapChain</Filter>
@@ -128,9 +122,6 @@
     <ClInclude Include="Src\Image.h">
       <Filter>Application\GraphicsEngine\Images</Filter>
     </ClInclude>
-    <ClInclude Include="Src\ImageView.h">
-      <Filter>Application\GraphicsEngine\Images</Filter>
-    </ClInclude>
     <ClInclude Include="Src\IndexBuffer.h">
       <Filter>Application\GraphicsEngine\Buffers</Filter>
     </ClInclude>
@@ -154,9 +145,6 @@
     </ClInclude>
     <ClInclude Include="Src\VertexBuffer.h">
       <Filter>Application\GraphicsEngine\Buffers</Filter>
-    </ClInclude>
-    <ClInclude Include="Src\TextureSampler.h">
-      <Filter>Application\GraphicsEngine\Images</Filter>
     </ClInclude>
     <ClInclude Include="Src\SwapChain.h">
       <Filter>Application\GraphicsEngine\Renderer\SwapChain</Filter>

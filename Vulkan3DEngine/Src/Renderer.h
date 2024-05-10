@@ -19,8 +19,6 @@ public:
 	UniformBufferPtr createUniformBuffer(VkDeviceSize deviceSize);
 	ImagePtr createImage(uint32_t width, uint32_t height, uint32_t mipLevels, VkSampleCountFlagBits numSamples, VkFormat format, VkImageTiling tiling,
 		VkImageUsageFlags usage, VkMemoryPropertyFlags properties);
-	ImageViewPtr createImageView(VkImage image, VkFormat format, VkImageAspectFlags aspectFlags, uint32_t mipLevels);
-	TextureSamplerPtr createTextureSampler(uint32_t mipLevels);
 
 	//DevicePtr getDevice() { return m_device; }
 	SwapChainPtr getSwapChain() { return m_swapChain; }
@@ -66,7 +64,6 @@ private:
 	friend class SwapChain;
 	friend class GraphicsPipeline;
 	friend class PipelineBuilder;
-	//friend class Device;
 	friend class Buffer;
 	friend class StagingBuffer;
 	friend class VertexBuffer;
@@ -74,7 +71,6 @@ private:
 	friend class UniformBuffer;
 	friend class Image;
 	friend class ImageView;
-	friend class TextureSampler;
 	friend class DepthBuffer;
 };
 

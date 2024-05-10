@@ -3,8 +3,7 @@
 #include "GraphicsEngine.h"
 #include "StagingBuffer.h"
 #include "Image.h"
-#include "ImageView.h"
-#include "TextureSampler.h"
+#include "RendererInits.h"
 
 #define STB_IMAGE_IMPLEMENTATION
 #include <stb_image.h>
@@ -20,6 +19,10 @@ Texture::Texture(const char* full_path) : Resource(full_path)
 Texture::~Texture()
 {
 	m_descriptorAllocator.destroyPools(GraphicsEngine::get()->getDevice()->get());
+	m_descriptorSets.clear();
+	vkDestroySampler(GraphicsEngine::get()->getDevice()->get(), m_sampler, nullptr);
+	vkDestroyImageView(GraphicsEngine::get()->getDevice()->get(), m_imageView, nullptr);
+	m_image.reset();
 }
 
 void Texture::Load(const char* full_path)
@@ -55,8 +58,17 @@ void Texture::Load(const char* full_path)
 
 	m_image->generateMipmaps();
 
-	m_imageView = GraphicsEngine::get()->getRenderer()->createImageView(m_image->get(), VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_ASPECT_COLOR_BIT, mipLevels);
-	m_textureSampler = GraphicsEngine::get()->getRenderer()->createTextureSampler(mipLevels);
+	VkImageViewCreateInfo viewInfo = RendererInits::imageviewCreateInfo(m_image->get(), VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_ASPECT_COLOR_BIT, mipLevels);
+
+	if (vkCreateImageView(GraphicsEngine::get()->getDevice()->get(), &viewInfo, nullptr, &m_imageView) != VK_SUCCESS) {
+		throw std::runtime_error("failed to create image view!");
+	}
+	
+	VkSamplerCreateInfo samplerInfo = RendererInits::samplerCreateInfo(mipLevels, GraphicsEngine::get()->getDevice()->getPhysicalDevice());
+	
+	if (vkCreateSampler(GraphicsEngine::get()->getDevice()->get(), &samplerInfo, nullptr, &m_sampler) != VK_SUCCESS) {
+		throw std::runtime_error("failed to create texture sampler!");
+	}
 
 	if (!m_descriptorAllocatorInitialized) {
 		{
@@ -72,7 +84,7 @@ void Texture::Load(const char* full_path)
 		VkDescriptorSet textureDescriptorSets = m_descriptorAllocator.allocate(GraphicsEngine::get()->getDevice()->get(),
 			GraphicsEngine::get()->getRenderer()->m_textureDescriptorSetLayout);
 
-		writer.writeImage(0, m_imageView->get(), m_textureSampler->get(), m_image->getLayout(), VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER);
+		writer.writeImage(0, m_imageView, m_sampler, m_image->getLayout(), VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER);
 		writer.updateSet(GraphicsEngine::get()->getDevice()->get(), textureDescriptorSets);
 		writer.clear();
 
@@ -86,8 +98,8 @@ void Texture::Reload()
 
     // Free the old resources
     m_descriptorSets.clear();
-    m_textureSampler.reset();
-    m_imageView.reset();
+	vkDestroySampler(GraphicsEngine::get()->getDevice()->get(), m_sampler, nullptr);
+	vkDestroyImageView(GraphicsEngine::get()->getDevice()->get(), m_imageView, nullptr);
     m_image.reset();
 
     // Load the new texture
