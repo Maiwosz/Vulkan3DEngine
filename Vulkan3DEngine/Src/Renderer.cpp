@@ -4,21 +4,14 @@
 #include "IndexBuffer.h"
 #include "UniformBuffer.h"
 #include "Image.h"
-#include "ImageView.h"
-#include "TextureSampler.h"
 
 #include "Application.h"
 #include "RendererInits.h"
 
 VkSampleCountFlagBits Renderer::s_msaaSamples = VK_SAMPLE_COUNT_1_BIT;
 
-Renderer::Renderer(/*WindowPtr window*/)/* : m_window(window)*/
+Renderer::Renderer()
 {
-    //try {
-    //    m_device = std::make_shared<Device>(this);
-    //}
-    //catch (...) { throw std::exception("Device not created successfully"); }
-
     try {
         m_swapChain = std::make_shared<SwapChain>(this);
     }
@@ -37,7 +30,6 @@ Renderer::~Renderer()
     vkDestroyDescriptorSetLayout(GraphicsEngine::get()->getDevice()->get(), m_modelDescriptorSetLayout, nullptr);
     vkDestroyDescriptorSetLayout(GraphicsEngine::get()->getDevice()->get(), m_textureDescriptorSetLayout, nullptr);
     m_swapChain.reset();
-    //m_device.reset();
 }
 
 StagingBufferPtr Renderer::createStagingBuffer(VkDeviceSize bufferSize)
@@ -64,17 +56,6 @@ ImagePtr Renderer::createImage(uint32_t width, uint32_t height, uint32_t mipLeve
 {
     return std::make_shared<Image>(width, height, mipLevels, numSamples, format, tiling, usage, properties, this);
 }
-
-ImageViewPtr Renderer::createImageView(VkImage image, VkFormat format, VkImageAspectFlags aspectFlags, uint32_t mipLevels)
-{
-    return std::make_shared<ImageView>(image, format, aspectFlags, mipLevels, this);
-}
-
-TextureSamplerPtr Renderer::createTextureSampler(uint32_t mipLevels)
-{
-    return std::make_shared<TextureSampler>(mipLevels, this);
-}
-
 
 void Renderer::drawFrameBegin()
 {

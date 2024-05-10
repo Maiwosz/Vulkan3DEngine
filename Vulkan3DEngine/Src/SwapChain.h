@@ -29,15 +29,18 @@ private:
 	std::vector<VkImage> m_swapChainImages;
 	VkFormat m_swapChainImageFormat;
 	VkExtent2D m_swapChainExtent;
-	std::vector<ImageViewPtr> m_swapChainImageViews;
+	//std::vector<ImageViewPtr> m_swapChainImageViews;
+	std::vector<VkImageView> m_swapChainImageViews;
 
 	VkRenderPass m_renderPass;
 
 	ImagePtr m_depthImage;
-	ImageViewPtr m_depthImageView;
+	//ImageViewPtr m_depthImageView;
+	VkImageView m_depthImageView;
 
 	ImagePtr m_colorImage;
-	ImageViewPtr m_colorImageView;
+	VkImageView m_colorImageView;
+	//ImageViewPtr m_colorImageView;
 
 	std::vector<VkFramebuffer> m_swapChainFramebuffers;
 

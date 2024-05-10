@@ -5,7 +5,9 @@ namespace RendererInits {
 
 	VkImageCreateInfo imageCreateInfo(VkFormat format, VkImageUsageFlags usageFlags, VkExtent3D extent);
 
-	VkImageViewCreateInfo imageviewCreateInfo(VkFormat format, VkImage image, VkImageAspectFlags aspectFlags);
+	VkImageViewCreateInfo imageviewCreateInfo(VkImage image, VkFormat format, VkImageAspectFlags aspectFlags, uint32_t mipLevels);
+
+	VkSamplerCreateInfo samplerCreateInfo(uint32_t mipLevels, VkPhysicalDevice physicalDevice);
 
 	VkPipelineLayoutCreateInfo pipelineLayoutCreateInfo();
 

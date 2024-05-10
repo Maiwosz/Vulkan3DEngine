@@ -1,8 +1,8 @@
 #include "SwapChain.h"
 #include "Renderer.h"
-#include "ImageView.h"
 #include "Image.h"
 #include "GraphicsEngine.h"
+#include "RendererInits.h"
 
 SwapChain::SwapChain( Renderer* renderer): m_renderer(renderer)
 {
@@ -114,9 +114,11 @@ void SwapChain::cleanupSwapChain()
 	}
 
 	for (auto imageView : m_swapChainImageViews) {
-		//vkDestroyImageView(m_renderer->m_device->get(), imageView->get(), nullptr);
-		imageView.reset();
+		vkDestroyImageView(GraphicsEngine::get()->getDevice()->get(), imageView, nullptr);
 	}
+
+	vkDestroyImageView(GraphicsEngine::get()->getDevice()->get(), m_colorImageView, nullptr);
+	vkDestroyImageView(GraphicsEngine::get()->getDevice()->get(), m_depthImageView, nullptr);
 
 	vkDestroySwapchainKHR(GraphicsEngine::get()->getDevice()->get(), m_swapChain, nullptr);
 }
@@ -126,7 +128,11 @@ void SwapChain::createImageViews()
 	m_swapChainImageViews.resize(m_swapChainImages.size());
 	
 	for (uint32_t i = 0; i < m_swapChainImages.size(); i++) {
-		m_swapChainImageViews[i] = m_renderer->createImageView(m_swapChainImages[i], m_swapChainImageFormat, VK_IMAGE_ASPECT_COLOR_BIT, 1);
+		VkImageViewCreateInfo viewInfo = RendererInits::imageviewCreateInfo(m_swapChainImages[i], m_swapChainImageFormat, VK_IMAGE_ASPECT_COLOR_BIT, 1);
+
+		if (vkCreateImageView(GraphicsEngine::get()->getDevice()->get(), &viewInfo, nullptr, &m_swapChainImageViews[i]) != VK_SUCCESS) {
+			throw std::runtime_error("failed to create swap chain image view!");
+		}
 	}
 }
 
@@ -213,7 +219,11 @@ void SwapChain::createColorResources()
 	m_colorImage = m_renderer->createImage(m_swapChainExtent.width, m_swapChainExtent.height, 1, Renderer::s_msaaSamples, colorFormat,
 		VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
 		VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-	m_colorImageView = m_renderer->createImageView(m_colorImage->get(), colorFormat, VK_IMAGE_ASPECT_COLOR_BIT, 1);
+
+	VkImageViewCreateInfo viewInfo = RendererInits::imageviewCreateInfo(m_colorImage->get(), colorFormat, VK_IMAGE_ASPECT_COLOR_BIT, 1);
+	if (vkCreateImageView(GraphicsEngine::get()->getDevice()->get(), &viewInfo, nullptr, &m_colorImageView) != VK_SUCCESS) {
+		throw std::runtime_error("failed to create swapChain colorImageView!");
+	}
 }
 
 void SwapChain::createDepthResources()
@@ -223,7 +233,10 @@ void SwapChain::createDepthResources()
 	m_depthImage = m_renderer->createImage(m_swapChainExtent.width, m_swapChainExtent.height, 1, Renderer::s_msaaSamples, depthFormat,
 		VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 
-	m_depthImageView = m_renderer->createImageView(m_depthImage->get(), depthFormat, VK_IMAGE_ASPECT_DEPTH_BIT, 1);
+	VkImageViewCreateInfo viewInfo = RendererInits::imageviewCreateInfo(m_depthImage->get(), depthFormat, VK_IMAGE_ASPECT_DEPTH_BIT, 1);
+	if (vkCreateImageView(GraphicsEngine::get()->getDevice()->get(), &viewInfo, nullptr, &m_depthImageView) != VK_SUCCESS) {
+		throw std::runtime_error("failed to create swapChain depthImageView!");
+	}
 
 	m_depthImage->transitionImageLayout(VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL);
 }
@@ -234,9 +247,9 @@ void SwapChain::createFramebuffers()
 
 	for (size_t i = 0; i < m_swapChainImageViews.size(); i++) {
 		std::array<VkImageView, 3> attachments = {
-			m_colorImageView->get(),
-			m_depthImageView->get(),
-			m_swapChainImageViews[i]->get()
+			m_colorImageView,
+			m_depthImageView,
+			m_swapChainImageViews[i]
 		};
 
 		VkFramebufferCreateInfo framebufferInfo{};

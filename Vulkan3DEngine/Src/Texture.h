@@ -11,9 +11,9 @@ public:
 	~Texture();
 
 	ImagePtr getImage() { return m_image; }
-	ImageViewPtr getImageView() { return m_imageView; }
-	TextureSamplerPtr getTextureSampler() { return m_textureSampler; }
-
+	VkImageView getImageView() { return m_imageView; }
+	//ImageViewPtr getImageView() { return m_imageView; }
+	VkSampler getSampler() { return m_sampler; }
 	
 	void Reload() override;
 
@@ -22,8 +22,9 @@ private:
 	void Load(const char* full_path) override;
 
 	ImagePtr m_image;
-	ImageViewPtr m_imageView;
-	TextureSamplerPtr m_textureSampler;
+	VkImageView m_imageView;
+	//ImageViewPtr m_imageView;
+	VkSampler m_sampler;
 
 	static bool m_descriptorAllocatorInitialized;
 	static DescriptorAllocatorGrowable m_descriptorAllocator;
