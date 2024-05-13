@@ -20,12 +20,20 @@ Renderer::Renderer()
     createGraphicsPipeline();
     
     createCommandBuffers();
+
+    initImgui();
 }
 
 Renderer::~Renderer()
 {
+    ImGui_ImplVulkan_Shutdown();
+    ImGui_ImplGlfw_Shutdown();
+    ImGui::DestroyContext();
+    vkDestroyDescriptorPool(GraphicsEngine::get()->getDevice()->get(), m_imguiPool, nullptr);
+    
     m_descriptorAllocator.reset();
     m_graphicsPipeline.reset();
+
     vkDestroyDescriptorSetLayout(GraphicsEngine::get()->getDevice()->get(), m_globalDescriptorSetLayout, nullptr);
     vkDestroyDescriptorSetLayout(GraphicsEngine::get()->getDevice()->get(), m_modelDescriptorSetLayout, nullptr);
     vkDestroyDescriptorSetLayout(GraphicsEngine::get()->getDevice()->get(), m_textureDescriptorSetLayout, nullptr);
@@ -158,7 +166,7 @@ void Renderer::recordCommandBufferBegin(VkCommandBuffer commandBuffer, uint32_t 
 {
     VkCommandBufferBeginInfo beginInfo{};
     beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-    beginInfo.flags = 0; // Optional
+    beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT; // Imgui
     beginInfo.pInheritanceInfo = nullptr; // Optional
 
     if (vkBeginCommandBuffer(commandBuffer, &beginInfo) != VK_SUCCESS) {
@@ -279,4 +287,58 @@ void Renderer::createGraphicsPipeline()
 
     vkDestroyShaderModule(GraphicsEngine::get()->getDevice()->get(), vertShaderModule, nullptr);
     vkDestroyShaderModule(GraphicsEngine::get()->getDevice()->get(), fragShaderModule, nullptr);
+}
+
+void Renderer::initImgui()
+{
+
+    VkDescriptorPoolSize pool_sizes[] =
+    {
+        { VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1 },
+    };
+
+    VkDescriptorPoolCreateInfo pool_info = {};
+    pool_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+    pool_info.flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT;
+    pool_info.maxSets = 1;
+    pool_info.poolSizeCount = std::size(pool_sizes);
+    pool_info.pPoolSizes = pool_sizes;
+
+    VK_CHECK(vkCreateDescriptorPool(GraphicsEngine::get()->getDevice()->get(), &pool_info, nullptr, &m_imguiPool));
+
+    // Setup Dear ImGui context
+    IMGUI_CHECKVERSION();
+    ImGui::CreateContext();
+    ImGuiIO& io = ImGui::GetIO(); (void)io;
+    io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;     // Enable Keyboard Controls
+    io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;      // Enable Gamepad Controls
+
+    // Setup Dear ImGui style
+    ImGui::StyleColorsDark();
+    //ImGui::StyleColorsLight();
+
+    // Setup Platform/Renderer backends
+    ImGui_ImplGlfw_InitForVulkan(GraphicsEngine::get()->getWindow()->get(), true);
+    ImGui_ImplVulkan_InitInfo info;
+    info.Instance = Instance::get()->getVkInstance();
+    info.PhysicalDevice = GraphicsEngine::get()->getDevice()->getPhysicalDevice();
+    info.Device = GraphicsEngine::get()->getDevice()->get();
+    info.QueueFamily = GraphicsEngine::get()->getDevice()->findQueueFamilies(GraphicsEngine::get()->getDevice()->getPhysicalDevice()).graphicsFamily.value();
+    info.Queue = GraphicsEngine::get()->getDevice()->getGraphicsQueue();
+    info.PipelineCache = VK_NULL_HANDLE;
+    info.DescriptorPool = m_imguiPool;
+    info.MinAllocationSize = 1024 * 1024;
+    info.Allocator = nullptr;
+    info.MinImageCount = s_maxFramesInFlight;//???
+    info.ImageCount = s_maxFramesInFlight;
+    info.MSAASamples = s_msaaSamples;
+    info.RenderPass = m_swapChain->getRenderPass();
+    info.Subpass = 0;
+    info.CheckVkResultFn = nullptr;
+    info.UseDynamicRendering = false;
+    ImGui_ImplVulkan_Init(&info);
+
+    ImGui_ImplVulkan_CreateFontsTexture();
+
+    vkDeviceWaitIdle(GraphicsEngine::get()->getDevice()->get());
 }

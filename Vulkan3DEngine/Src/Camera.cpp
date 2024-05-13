@@ -65,6 +65,8 @@ void Camera::updateCameraVectors()
 
 void Camera::onKeyDown(int key)
 {
+    if (Application::s_cursor_mode) return;
+
     if (key == 'W') {
         m_position += m_front * m_speed * Application::s_deltaTime; // Move forward
     }
@@ -86,28 +88,28 @@ void Camera::onKeyDown(int key)
     else if (key == 160 && !ctrlPressed) { // Key code for Left Shift
         ctrlPressed = true;
         m_speed = m_speed * 3.0f; // Increase speed
-    }
-    else if (key == 9 && !tabPressed) {//Key for Tab
-        tabPressed = true;
-        //m_position = glm::vec3(0.0f, 0.0f, 2.0f);
-        std::cout << "Current camera position: " << m_position.x << ", " << m_position.y << ", " << m_position.z << "\n";
-        std::cout << "Current camera rotation: " << m_rotation.x << ", " << m_rotation.y << ", " << m_rotation.z << "\n";
+        m_mouseSensitivity = m_mouseSensitivity / 3.0f;
     }
 }
 
 void Camera::onKeyUp(int key)
 {
+    if (Application::s_cursor_mode) return;
+
     if (key == 160 && ctrlPressed) { // Key code for Left Shift
         ctrlPressed = false;
         m_speed = m_speed / 3.0f; // Reset speed
+        m_mouseSensitivity = m_mouseSensitivity * 3.0f;
     }
-    else if (key == 9 && tabPressed) {
-        tabPressed = false;
+    else if (key == 9) {//Key for Tab
+        m_position = glm::vec3(-8.0f, 8.0f, 8.0f);
     }
 }
 
 void Camera::onMouseMove(const glm::vec2& mouse_pos)
 {
+    if (Application::s_cursor_mode) return;
+
     static glm::vec2 lastMousePos = mouse_pos; // Store the last mouse position
 
     // Calculate the difference in mouse position
@@ -148,12 +150,14 @@ void Camera::onLeftMouseUp(const glm::vec2& mouse_pos)
 
 void Camera::onRightMouseDown(const glm::vec2& mouse_pos)
 {
+    if (Application::s_cursor_mode) return;
     // Zoom in
     m_zoom = 15;
 }
 
 void Camera::onRightMouseUp(const glm::vec2& mouse_pos)
 {
+    if (Application::s_cursor_mode) return;
     // Zoom out
     m_zoom = 45;
 }

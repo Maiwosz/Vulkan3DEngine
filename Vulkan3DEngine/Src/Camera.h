@@ -38,6 +38,5 @@ private:
     float m_zoomSpeed;
 
     bool ctrlPressed = false;
-    bool tabPressed = false;
 };
 
