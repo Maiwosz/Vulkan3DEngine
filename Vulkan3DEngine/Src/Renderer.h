@@ -9,7 +9,7 @@
 class Renderer
 {
 public:
-	Renderer(/*WindowPtr window*/);
+	Renderer();
 	~Renderer();
 
 	//Tworzenie zasobów przenieœæ do osobnej klasy
@@ -46,15 +46,17 @@ private:
 	void recordCommandBufferEnd(VkCommandBuffer commandBuffer);
 
 	void createGraphicsPipeline();
+
+	void initImgui();
 	
-	/*WindowPtr m_window;*/
-	//DevicePtr m_device;
 	SwapChainPtr m_swapChain;
 	PipelinePtr m_graphicsPipeline;
 	DescriptorAllocatorGrowablePtr m_descriptorAllocator;
 
 	//Command Buffer // To separate class later?
 	std::vector<VkCommandBuffer> m_commandBuffers;
+
+	VkDescriptorPool m_imguiPool;
 
 	VkDescriptorSet m_currentDescriptorSets[3];
 

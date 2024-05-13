@@ -21,10 +21,10 @@ GraphicsEngine* GraphicsEngine::get()
     return m_engine;
 }
 
-void GraphicsEngine::create(/*WindowPtr window*/)
+void GraphicsEngine::create()
 {
     if (GraphicsEngine::m_engine) throw std::exception("Graphics Engine already created");
-    GraphicsEngine::m_engine = new GraphicsEngine(/*window*/);
+    GraphicsEngine::m_engine = new GraphicsEngine();
 }
 
 void GraphicsEngine::release()

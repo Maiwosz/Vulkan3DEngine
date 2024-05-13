@@ -6,7 +6,7 @@
 #include "Scene.h"
 #include <chrono>
 
-class Application
+class Application : public InputListener
 {
 public:
 	Application();
@@ -14,12 +14,20 @@ public:
 	void run();
 	void update();
 	void draw();
+	void drawUI();
 
-	//static uint32_t s_window_width;
-	//static uint32_t s_window_height;
-
+	static bool s_cursor_mode;
 	static float s_deltaTime;
 private:
-	//WindowPtr m_window;
+	// Inherited via InputListener
+	virtual void onKeyDown(int key) override;
+	virtual void onKeyUp(int key) override;
+
+	virtual void onMouseMove(const glm::vec2& mouse_pos) override;
+	virtual void onLeftMouseDown(const glm::vec2& mouse_pos) override;
+	virtual void onLeftMouseUp(const glm::vec2& mouse_pos) override;
+	virtual void onRightMouseDown(const glm::vec2& mouse_pos) override;
+	virtual void onRightMouseUp(const glm::vec2& mouse_pos) override;
+
 	ScenePtr m_scene;
 };

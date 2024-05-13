@@ -50,27 +50,6 @@ Scene::Scene()
     m_pointLight1.radius = 12.0f;
     m_pointLight1.intensity = 1.2f;
 
-    //m_pointLight2.color = glm::vec3(0.0f, 0.3f, 0.0f);
-    //m_pointLight2.radius = 5.0f;
-    //m_pointLight2.intensity = 1.0f;
-    //            
-    //m_pointLight2Sphere = m_sceneObjectManager->createModel("Sphere.JSON");
-    //m_pointLight2Sphere->setScale(0.2);
-    //
-    //m_pointLight3.color = glm::vec3(0.0f, 0.0f, 0.3f);
-    //m_pointLight3.radius = 5.0f;
-    //m_pointLight3.intensity = 1.0f;
-    //            
-    //m_pointLight3Sphere = m_sceneObjectManager->createModel("Sphere.JSON");
-    //m_pointLight3Sphere->setScale(0.2);
-
-    //m_floor = m_sceneObjectManager->createModel("Floor.JSON");
-    //m_statue1 = m_sceneObjectManager->createModel("Statue.JSON");
-    //m_statue2 = m_sceneObjectManager->createModel("Flora_C.JSON");
-    //m_statue3 = m_sceneObjectManager->createModel("Hygieia_C.JSON");
-    //m_statue4 = m_sceneObjectManager->createModel("Omphale_C.JSON");
-    //m_pointLight1Sphere = m_sceneObjectManager->createModel("Sphere.JSON");
-
     std::vector<std::future<ModelPtr>> futures;
     
     // Dodaj zadania do puli w¹tków
@@ -133,16 +112,6 @@ void Scene::update()
     m_pointLight1.position.y = centerPoint.y;
     m_pointLight1.position.z = centerPoint.z + radius * sin(glm::radians(m_lightAngle));
     m_pointLight1Sphere->setPosition(m_pointLight1.position);
-
-    //m_pointLight2.position.x = centerPoint.x + radius * cos(glm::radians(m_lightAngle + 120));
-    //m_pointLight2.position.y = centerPoint.y;
-    //m_pointLight2.position.z = centerPoint.z + radius * sin(glm::radians(m_lightAngle + 120));
-    //m_pointLight2Sphere->setPosition(m_pointLight2.position);
-    //
-    //m_pointLight3.position.x = centerPoint.x + radius * cos(glm::radians(m_lightAngle + 240));
-    //m_pointLight3.position.y = centerPoint.y;
-    //m_pointLight3.position.z = centerPoint.z + radius * sin(glm::radians(m_lightAngle + 240));
-    //m_pointLight3Sphere->setPosition(m_pointLight3.position);
     
     m_sceneObjectManager->updateObjects();
 
@@ -150,8 +119,6 @@ void Scene::update()
     
     ubo.directionalLight = m_light;
     ubo.pointLights[0] = m_pointLight1;
-    ubo.pointLights[1] = m_pointLight2;
-    ubo.pointLights[2] = m_pointLight3;
     ubo.activePointLightCount = 1;
     
     memcpy(m_uniformBuffers[GraphicsEngine::get()->getRenderer()->getCurrentFrame()]->getMappedMemory(), &ubo, sizeof(ubo));
