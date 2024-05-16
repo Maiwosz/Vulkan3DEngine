@@ -67,6 +67,7 @@ class Scene;
 class SceneObject;
 class Model;
 class Camera;
+class PointLightObject;
 class SceneObjectManager;
 
 
@@ -99,19 +100,18 @@ typedef std::shared_ptr<SceneObject> SceneObjectPtr;
 typedef std::shared_ptr<Scene> ScenePtr;
 typedef std::shared_ptr<Model> ModelPtr;
 typedef std::shared_ptr<Camera> CameraPtr;
+typedef std::shared_ptr<PointLightObject> PointLightObjectPtr;
 typedef std::shared_ptr<SceneObjectManager> SceneObjectManagerPtr;
 
 struct DirectionalLight {
     alignas(16) glm::vec3 direction = glm::vec3(0.0f, 1.0f, 0.0f); // Light coming from above
-    alignas(16) glm::vec3 color = glm::vec3(1.0f, 1.0f, 1.0f); // White light
-    alignas(4) float intensity = 1.0f; // Full intensity
+    alignas(16) glm::vec4 color = glm::vec4(1.0f, 1.0f, 1.0f, 1.0f); // w is for intensity
 };
 
 struct PointLight {
-    alignas(16) glm::vec3 position = glm::vec3(0.0f, 0.0f, 0.0f); // At the origin
-    alignas(16) glm::vec3 color = glm::vec3(1.0f, 1.0f, 1.0f); // White light
-    alignas(4) float intensity = 1.0f; // Full intensity
+    glm::vec3 position = glm::vec3(0.0f, 0.0f, 0.0f); // At the origin
     alignas(4) float radius = 10.0f; // Light radius
+    alignas(16) glm::vec4 color = glm::vec4(1.0f, 1.0f, 1.0f, 1.0f); // w is for intensity
 };
 
 struct GlobalUBO {
@@ -126,7 +126,7 @@ struct GlobalUBO {
 
 struct ModelUBO {
     glm::mat4 model;
-    float shininess = 1.0f;
+    alignas(4) float shininess = 1.0f;
     alignas(4) float kd = 0.8f; // Large diffuse coefficient
     alignas(4) float ks = 0.2f; // Small specular coefficient
 };

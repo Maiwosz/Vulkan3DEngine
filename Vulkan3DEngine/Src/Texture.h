@@ -12,18 +12,14 @@ public:
 
 	ImagePtr getImage() { return m_image; }
 	VkImageView getImageView() { return m_imageView; }
-	//ImageViewPtr getImageView() { return m_imageView; }
 	VkSampler getSampler() { return m_sampler; }
 	
 	void Reload() override;
-
-	void draw();
 private:
 	void Load(const char* full_path) override;
 
 	ImagePtr m_image;
 	VkImageView m_imageView;
-	//ImageViewPtr m_imageView;
 	VkSampler m_sampler;
 
 	static bool m_descriptorAllocatorInitialized;
@@ -34,4 +30,6 @@ private:
 	{
 		{ VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1 }
 	};
+
+	friend class Renderer;
 };

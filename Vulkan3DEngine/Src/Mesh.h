@@ -14,8 +14,6 @@ public:
 	
 	void Reload() override;
 
-	void draw();
-
 	bool hasIndexBuffer() const { return m_hasIndexBuffer; }
 
 	size_t getIndicesSize() const { return m_indices.size(); }
@@ -29,5 +27,7 @@ private:
 	IndexBufferPtr m_indexBuffer;
 
 	bool m_hasIndexBuffer;
+
+	friend class Renderer;
 };
 

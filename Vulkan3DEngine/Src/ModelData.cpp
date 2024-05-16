@@ -3,13 +3,13 @@
 #include "Texture.h"
 #include "ThreadPool.h"
 
-
 #include <fstream>
 #include <future>
+#include <filesystem> // do pobrania nazwy pliku bez rozszerzenia
 
-ModelData::ModelData(MeshPtr mesh, TexturePtr texture):m_mesh(mesh), m_texture(texture)
+ModelData::ModelData(MeshPtr mesh, TexturePtr texture) :m_mesh(mesh), m_texture(texture)
 {
-	
+
 }
 
 ModelData::ModelData(const char* full_path) : Resource(full_path)
@@ -42,12 +42,13 @@ void ModelData::Load(const char* full_path)
 	nlohmann::json j;
 	file >> j;
 
+	// Load the name from the file path
+	m_name = std::filesystem::path(full_path).stem().string();
+
 	// Read the mesh file path
 	std::string mesh_path = j["mesh_path"];
 
 	// Load the mesh
-	//m_mesh = GraphicsEngine::get()->getMeshManager()->loadMesh(mesh_path);
-
 	std::future<MeshPtr> meshFuture;
 	meshFuture = ThreadPool::get()->enqueue([mesh_path]()->MeshPtr { return GraphicsEngine::get()->getMeshManager()->loadMesh(mesh_path); });
 
@@ -55,10 +56,22 @@ void ModelData::Load(const char* full_path)
 	std::string texture_path = j["texture_path"];
 
 	// Load the texture
-	//m_texture = GraphicsEngine::get()->getTextureManager()->loadTexture(texture_path);
-
 	std::future<TexturePtr> textureFuture;
 	textureFuture = ThreadPool::get()->enqueue([texture_path]()->TexturePtr { return GraphicsEngine::get()->getTextureManager()->loadTexture(texture_path); });
+
+	// Load the variables if they exist in the JSON file
+	if (j.find("scale") != j.end()) {
+		m_scale = j["scale"];
+	}
+	if (j.find("shininess") != j.end()) {
+		m_shininess = j["shininess"];
+	}
+	if (j.find("kd") != j.end()) {
+		m_kd = j["kd"];
+	}
+	if (j.find("ks") != j.end()) {
+		m_ks = j["ks"];
+	}
 
 	// Read the initial transformations
 	std::vector<float> translationVec = j["translation"].get<std::vector<float>>();

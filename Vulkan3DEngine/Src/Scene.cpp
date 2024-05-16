@@ -7,6 +7,8 @@
 #include "InputSystem.h"
 #include "RendererInits.h"
 
+#include <algorithm>
+
 Scene::Scene()
 {
     int maxFramesInFlight = Renderer::s_maxFramesInFlight;
@@ -44,11 +46,11 @@ Scene::Scene()
     m_camera = m_sceneObjectManager->createCamera(glm::vec3(-8.0f, 8.0f, 8.0f), -30.0f, 45.0f); 
 
     m_light.direction = glm::vec3(0.0f, -1.0f, -1.0f);
-    m_light.intensity = 0.0f;
+    m_light.color.w = 0.0f;
 
-    m_pointLight1.color = glm::vec3(1.0f, 1.0f, 1.0f);
-    m_pointLight1.radius = 12.0f;
-    m_pointLight1.intensity = 1.2f;
+    m_pointLight1 = m_sceneObjectManager->createPointLight(0.2f, glm::vec3(1.0f, 0.0f, 0.0f), 10.0f);
+    m_pointLight2 = m_sceneObjectManager->createPointLight(0.2f, glm::vec3(0.0f, 1.0f, 0.0f), 10.0f);
+    m_pointLight3 = m_sceneObjectManager->createPointLight(0.2f, glm::vec3(0.0f, 0.0f, 1.0f), 10.0f);
 
     std::vector<std::future<ModelPtr>> futures;
     
@@ -58,7 +60,6 @@ Scene::Scene()
     futures.push_back(ThreadPool::get()->enqueue([this]()->ModelPtr { return m_sceneObjectManager->createModel("Flora_C.JSON"); }));
     futures.push_back(ThreadPool::get()->enqueue([this]()->ModelPtr { return m_sceneObjectManager->createModel("Hygieia_C.JSON"); }));
     futures.push_back(ThreadPool::get()->enqueue([this]()->ModelPtr { return m_sceneObjectManager->createModel("Omphale_C.JSON"); }));
-    futures.push_back(ThreadPool::get()->enqueue([this]()->ModelPtr { return m_sceneObjectManager->createModel("Sphere.JSON"); }));
     
     // Oczekuj na wyniki zadañ
     m_floor = futures[0].get();
@@ -66,25 +67,24 @@ Scene::Scene()
     m_statue2 = futures[2].get();
     m_statue3 = futures[3].get();
     m_statue4 = futures[4].get();
-    m_pointLight1Sphere = futures[5].get();
-    
-    m_pointLight1Sphere->setScale(0.2f);
+
+    //m_floor->m_shininess = 1.0f;
     
     m_statue1->move(5.0f, 0.0f, 0.0f);
     m_statue1->rotate(0.0f, 90.0f, 0.0f);
-    m_statue1->m_shininess = 0.3f;
+    //m_statue1->m_shininess = 0.3f;
     
     m_statue2->move(-5.0f, 0.0f, 0.0f);
     m_statue2->rotate(0.0f, -90.0f, 0.0f);
-    m_statue2->m_shininess = 0.3f;
+    //m_statue2->m_shininess = 0.3f;
     
     m_statue3->move(0.0f, 0.0f, 5.0f);
     m_statue3->rotate(0.0f, 90.0f, 0.0f);
-    m_statue3->m_shininess = 0.3f;
+    //m_statue3->m_shininess = 0.3f;
     
     m_statue4->move(0.0f, 0.0f, -5.0f);
     m_statue4->rotate(0.0f, 180.0f, 0.0f);
-    m_statue4->m_shininess = 0.3f;
+    //m_statue4->m_shininess = 0.3f;
 }
 
 Scene::~Scene()
@@ -108,18 +108,42 @@ void Scene::update()
     // Calculate the new light position
     m_lightAngle += Application::s_deltaTime * lightRotationSpeed;
 
-    m_pointLight1.position.x = centerPoint.x + radius * cos(glm::radians(m_lightAngle));
-    m_pointLight1.position.y = centerPoint.y;
-    m_pointLight1.position.z = centerPoint.z + radius * sin(glm::radians(m_lightAngle));
-    m_pointLight1Sphere->setPosition(m_pointLight1.position);
+    float x = centerPoint.x + radius * cos(glm::radians(m_lightAngle));
+    float y = centerPoint.y;
+    float z = centerPoint.z + radius * sin(glm::radians(m_lightAngle));
+
+    m_pointLight1->setPosition(x, y, z);
+
+    x = centerPoint.x + radius * cos(glm::radians(m_lightAngle + 120));
+    y = centerPoint.y;
+    z = centerPoint.z + radius * sin(glm::radians(m_lightAngle + 120));
+
+    m_pointLight2->setPosition(x, y, z);
+
+    x = centerPoint.x + radius * cos(glm::radians(m_lightAngle + 240));
+    y = centerPoint.y;
+    z = centerPoint.z + radius * sin(glm::radians(m_lightAngle + 240));
+
+    m_pointLight3->setPosition(x, y, z);
     
     m_sceneObjectManager->updateObjects();
 
     //Update uniform buffer
+
+    auto distanceToCamera = [&](PointLight* light1, PointLight* light2) {
+        float distance1 = glm::distance(light1->position, m_camera->getPosition());
+        float distance2 = glm::distance(light2->position, m_camera->getPosition());
+        return distance1 > distance2;
+        };
+
+    std::sort(m_pointLights.begin(), m_pointLights.end(), distanceToCamera);
+
     
     ubo.directionalLight = m_light;
-    ubo.pointLights[0] = m_pointLight1;
-    ubo.activePointLightCount = 1;
+    for (int i = 0; i < m_pointLights.size(); i++) {
+        ubo.pointLights[i] = *m_pointLights[i];
+        ubo.activePointLightCount = m_pointLights.size();
+    }
     
     memcpy(m_uniformBuffers[GraphicsEngine::get()->getRenderer()->getCurrentFrame()]->getMappedMemory(), &ubo, sizeof(ubo));
 }

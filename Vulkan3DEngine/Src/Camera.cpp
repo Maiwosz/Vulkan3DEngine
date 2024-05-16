@@ -88,7 +88,6 @@ void Camera::onKeyDown(int key)
     else if (key == 160 && !ctrlPressed) { // Key code for Left Shift
         ctrlPressed = true;
         m_speed = m_speed * 3.0f; // Increase speed
-        m_mouseSensitivity = m_mouseSensitivity / 3.0f;
     }
 }
 
@@ -99,7 +98,6 @@ void Camera::onKeyUp(int key)
     if (key == 160 && ctrlPressed) { // Key code for Left Shift
         ctrlPressed = false;
         m_speed = m_speed / 3.0f; // Reset speed
-        m_mouseSensitivity = m_mouseSensitivity * 3.0f;
     }
     else if (key == 9) {//Key for Tab
         m_position = glm::vec3(-8.0f, 8.0f, 8.0f);

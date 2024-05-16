@@ -119,6 +119,9 @@
     <ClCompile Include="Libs\imgui\misc\cpp\imgui_stdlib.cpp">
       <Filter>ImGui</Filter>
     </ClCompile>
+    <ClCompile Include="Src\PointLightObject.cpp">
+      <Filter>Application\GraphicsEngine\Scene\SceneObjectManager\SceneObject\PointLight</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Src\Prerequisites.h" />
@@ -245,12 +248,21 @@
     <ClInclude Include="Libs\imgui\misc\cpp\imgui_stdlib.h">
       <Filter>ImGui</Filter>
     </ClInclude>
+    <ClInclude Include="Src\PointLightObject.h">
+      <Filter>Application\GraphicsEngine\Scene\SceneObjectManager\SceneObject\PointLight</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <None Include="Shaders\Shader.vert">
       <Filter>Application\GraphicsEngine\Renderer\Shaders</Filter>
     </None>
     <None Include="Shaders\Shader.frag">
+      <Filter>Application\GraphicsEngine\Renderer\Shaders</Filter>
+    </None>
+    <None Include="Shaders\pointLight.vert">
+      <Filter>Application\GraphicsEngine\Renderer\Shaders</Filter>
+    </None>
+    <None Include="Shaders\pointLight.frag">
       <Filter>Application\GraphicsEngine\Renderer\Shaders</Filter>
     </None>
   </ItemGroup>
@@ -326,6 +338,9 @@
     </Filter>
     <Filter Include="ImGui">
       <UniqueIdentifier>{c287c720-0123-4799-83c7-c8be99fd1baa}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Application\GraphicsEngine\Scene\SceneObjectManager\SceneObject\PointLight">
+      <UniqueIdentifier>{61ba4a1b-19d1-4358-8394-1d56358c1093}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
 </Project>

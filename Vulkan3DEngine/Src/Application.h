@@ -14,11 +14,13 @@ public:
 	void run();
 	void update();
 	void draw();
-	void drawUI();
-
+	
 	static bool s_cursor_mode;
 	static float s_deltaTime;
 private:
+	void drawFpsCounter();
+	void drawExitPopup();
+
 	// Inherited via InputListener
 	virtual void onKeyDown(int key) override;
 	virtual void onKeyUp(int key) override;
@@ -29,5 +31,5 @@ private:
 	virtual void onRightMouseDown(const glm::vec2& mouse_pos) override;
 	virtual void onRightMouseUp(const glm::vec2& mouse_pos) override;
 
-	ScenePtr m_scene;
+	bool m_showExitPopup;
 };

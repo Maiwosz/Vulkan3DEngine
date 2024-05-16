@@ -44,30 +44,15 @@ void Model::update()
 
 	ubo.model = m_modelData->initialPosition * positionMatrix * m_modelData->initialRotation * rotationMatrix * m_modelData->initialScale * scaleMatrix;
 
-	ubo.shininess = m_shininess;
+	ubo.shininess = m_modelData->m_shininess;
 
-	ubo.kd = 0.8f;//kd;
-	ubo.ks = 0.2f;//ks;
+	ubo.kd = m_modelData->m_kd;
+	ubo.ks = m_modelData->m_ks;
 
 	memcpy(m_uniformBuffers[GraphicsEngine::get()->getRenderer()->getCurrentFrame()]->getMappedMemory(), &ubo, sizeof(ubo));
 }
 
 void Model::draw()
 {
-	GraphicsEngine::get()->getRenderer()->bindDescriptorSet(m_descriptorSets[GraphicsEngine::get()->getRenderer()->getCurrentFrame()], 1);
-
-	m_modelData->m_mesh->draw();
-	if (m_modelData->m_texture) {
-		m_modelData->m_texture->draw();
-	}
-
-	GraphicsEngine::get()->getRenderer()->bindDescriptorSets();
-
-	if (m_modelData->m_mesh->hasIndexBuffer()) {
-		vkCmdDrawIndexed(GraphicsEngine::get()->getRenderer()->getCurrentCommandBuffer(),
-			static_cast<uint32_t>(m_modelData->m_mesh->getIndicesSize()), 1, 0, 0, 0);
-	}
-	else {
-		vkCmdDraw(GraphicsEngine::get()->getRenderer()->getCurrentCommandBuffer(), 3, 1, 0, 0);
-	}
+	GraphicsEngine::get()->getRenderer()->drawModel(this);
 }

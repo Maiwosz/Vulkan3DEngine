@@ -18,9 +18,16 @@ private:
 	MeshPtr m_mesh;
 	TexturePtr m_texture;
 
+	std::string m_name;
+	float m_scale = 1.0f;
+	float m_shininess = 1.0f;
+	float m_kd = 0.8f;
+	float m_ks = 0.2f;
+
 	glm::mat4 initialScale;
 	glm::mat4 initialPosition;
 	glm::mat4 initialRotation;
 
 	friend class Model;
+	friend class Renderer;
 };
