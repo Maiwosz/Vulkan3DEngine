@@ -30,21 +30,18 @@ private:
 	ModelPtr m_statue3;
 	ModelPtr m_statue4;
 
-	ModelPtr m_pointLight1Sphere;
-	ModelPtr m_pointLight2Sphere;
-	ModelPtr m_pointLight3Sphere;
-
 	DirectionalLight m_light;
-	PointLight m_pointLight1;
-	PointLight m_pointLight2;
-	PointLight m_pointLight3;
-	PointLight m_pointLight4;
-	PointLight m_pointLight5;
-	PointLight m_pointLight6;
+	//PointLight m_pointLight1;
+	PointLightObjectPtr m_pointLight1;
+	PointLightObjectPtr m_pointLight2;
+	PointLightObjectPtr m_pointLight3;
+	std::vector<PointLight*> m_pointLights;
 
 	float m_lightAngle = 0.0f;
 
+	friend class Renderer;
 	friend class Camera;
 	friend class SceneObjectManager;
+	friend class PointLightObject;
 };
 

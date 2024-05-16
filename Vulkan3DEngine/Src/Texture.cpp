@@ -106,8 +106,3 @@ void Texture::Reload()
 	Load(m_full_path.c_str());
 }
 
-void Texture::draw()
-{
-	GraphicsEngine::get()->getRenderer()->bindDescriptorSet(m_descriptorSets[GraphicsEngine::get()->getRenderer()->getCurrentFrame()], 2);
-}
-

@@ -163,6 +163,7 @@
     <ClCompile Include="Libs\imgui\imgui_tables.cpp" />
     <ClCompile Include="Libs\imgui\imgui_widgets.cpp" />
     <ClCompile Include="Libs\imgui\misc\cpp\imgui_stdlib.cpp" />
+    <ClCompile Include="Src\PointLightObject.cpp" />
     <ClCompile Include="Src\Instance.cpp" />
     <ClCompile Include="Src\Application.cpp" />
     <ClCompile Include="Src\Buffer.cpp" />
@@ -206,6 +207,7 @@
     <ClInclude Include="Libs\imgui\imstb_textedit.h" />
     <ClInclude Include="Libs\imgui\imstb_truetype.h" />
     <ClInclude Include="Libs\imgui\misc\cpp\imgui_stdlib.h" />
+    <ClInclude Include="Src\PointLightObject.h" />
     <ClInclude Include="Src\Instance.h" />
     <ClInclude Include="Src\Descriptors.h" />
     <ClInclude Include="Src\RendererInits.h" />
@@ -241,6 +243,8 @@
     <ClInclude Include="Src\Window.h" />
   </ItemGroup>
   <ItemGroup>
+    <None Include="Shaders\pointLight.frag" />
+    <None Include="Shaders\pointLight.vert" />
     <None Include="Shaders\Shader.frag" />
     <None Include="Shaders\Shader.vert" />
   </ItemGroup>

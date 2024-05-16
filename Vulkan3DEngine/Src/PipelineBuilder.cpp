@@ -182,8 +182,8 @@ void PipelineBuilder::enableBlendingAlphablend()
 {
     m_colorBlendAttachment.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
     m_colorBlendAttachment.blendEnable = VK_TRUE;
-    m_colorBlendAttachment.srcColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_DST_ALPHA;
-    m_colorBlendAttachment.dstColorBlendFactor = VK_BLEND_FACTOR_DST_ALPHA;
+    m_colorBlendAttachment.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
+    m_colorBlendAttachment.dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
     m_colorBlendAttachment.colorBlendOp = VK_BLEND_OP_ADD;
     m_colorBlendAttachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
     m_colorBlendAttachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
@@ -291,6 +291,8 @@ std::vector<char> readFile(const std::string& filename)
     return buffer;
 }
 
+#include <fmt/core.h>
+
 VkShaderModule compileShader(const std::string& filename, shaderc_shader_kind kind, VkDevice device)
 {
     shaderc::Compiler compiler;
@@ -303,7 +305,8 @@ VkShaderModule compileShader(const std::string& filename, shaderc_shader_kind ki
     // Compile the shader
     shaderc::SpvCompilationResult shader = compiler.CompileGlslToSpv(shaderCode, kind, filename.c_str(), options);
     if (shader.GetCompilationStatus() != shaderc_compilation_status_success) {
-        throw std::runtime_error(shader.GetErrorMessage());
+        fmt::print("Error compiling shader {}: {}\n", filename, shader.GetErrorMessage());
+        return VK_NULL_HANDLE;
     }
     std::vector<uint32_t> shaderCodeSPIRV(shader.cbegin(), shader.cend());
 
@@ -312,5 +315,6 @@ VkShaderModule compileShader(const std::string& filename, shaderc_shader_kind ki
 
     return shaderModule;
 }
+
 
 

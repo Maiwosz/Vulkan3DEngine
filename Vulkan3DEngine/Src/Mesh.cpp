@@ -103,11 +103,3 @@ void Mesh::Reload()
     // Load the new mesh
     Load(m_full_path.c_str());
 }
-
-void Mesh::draw()
-{
-	m_vertexBuffer->bind();
-	if (m_hasIndexBuffer) {
-		m_indexBuffer->bind();
-	}
-}

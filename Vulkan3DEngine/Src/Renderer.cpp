@@ -18,6 +18,7 @@ Renderer::Renderer()
     catch (...) { throw std::exception("SwapChain not created successfully"); }
 
     createGraphicsPipeline();
+    createPointLightPipeline();
     
     createCommandBuffers();
 
@@ -33,6 +34,7 @@ Renderer::~Renderer()
     
     m_descriptorAllocator.reset();
     m_graphicsPipeline.reset();
+    m_pointLightPipeline.reset();
 
     vkDestroyDescriptorSetLayout(GraphicsEngine::get()->getDevice()->get(), m_globalDescriptorSetLayout, nullptr);
     vkDestroyDescriptorSetLayout(GraphicsEngine::get()->getDevice()->get(), m_modelDescriptorSetLayout, nullptr);
@@ -65,7 +67,7 @@ ImagePtr Renderer::createImage(uint32_t width, uint32_t height, uint32_t mipLeve
     return std::make_shared<Image>(width, height, mipLevels, numSamples, format, tiling, usage, properties, this);
 }
 
-void Renderer::drawFrameBegin()
+void Renderer::drawFrame()
 {
     vkWaitForFences(GraphicsEngine::get()->getDevice()->get(), 1, &m_swapChain->m_inFlightFences[m_currentFrame], VK_TRUE, UINT64_MAX);
 
@@ -84,12 +86,8 @@ void Renderer::drawFrameBegin()
     vkResetFences(GraphicsEngine::get()->getDevice()->get(), 1, &m_swapChain->m_inFlightFences[m_currentFrame]);
 
     vkResetCommandBuffer(m_commandBuffers[m_currentFrame], /*VkCommandBufferResetFlagBits*/ 0);
-    recordCommandBufferBegin(m_commandBuffers[m_currentFrame], m_currentImageIndex);
-}
 
-void Renderer::drawFrameEnd()
-{
-    recordCommandBufferEnd(m_commandBuffers[m_currentFrame]);
+    recordCommandBuffer(m_commandBuffers[m_currentFrame], m_currentImageIndex);
 
     VkSubmitInfo submitInfo{};
     submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
@@ -123,7 +121,7 @@ void Renderer::drawFrameEnd()
     presentInfo.pImageIndices = &m_currentImageIndex;
     presentInfo.pResults = nullptr; // Optional
 
-    VkResult result = vkQueuePresentKHR(GraphicsEngine::get()->getDevice()->getPresentQueue(), &presentInfo);
+    result = vkQueuePresentKHR(GraphicsEngine::get()->getDevice()->getPresentQueue(), &presentInfo);
 
     if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR || GraphicsEngine::get()->getWindow()->wasWindowResized()) {
         GraphicsEngine::get()->getWindow()->resetWindowResizedFlag();
@@ -136,15 +134,14 @@ void Renderer::drawFrameEnd()
     m_currentFrame = (m_currentFrame + 1) % Renderer::s_maxFramesInFlight;
 }
 
+void Renderer::drawModel(Model* model)
+{
+    m_modelDraws.push_back(model);
+}
+
 void Renderer::bindDescriptorSet(VkDescriptorSet set, int position)
 {
     m_currentDescriptorSets[position] = set;
-}
-
-void Renderer::bindDescriptorSets()
-{
-    vkCmdBindDescriptorSets(m_commandBuffers[m_currentFrame], VK_PIPELINE_BIND_POINT_GRAPHICS, m_graphicsPipeline->layout,
-        0, static_cast<uint32_t>(sizeof(m_currentDescriptorSets) / sizeof(m_currentDescriptorSets[0])), m_currentDescriptorSets, 0, nullptr);
 }
 
 void Renderer::createCommandBuffers()
@@ -162,7 +159,7 @@ void Renderer::createCommandBuffers()
     }
 }
 
-void Renderer::recordCommandBufferBegin(VkCommandBuffer commandBuffer, uint32_t imageIndex)
+void Renderer::recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex)
 {
     VkCommandBufferBeginInfo beginInfo{};
     beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
@@ -204,10 +201,45 @@ void Renderer::recordCommandBufferBegin(VkCommandBuffer commandBuffer, uint32_t 
     scissor.offset = { 0, 0 };
     scissor.extent = m_swapChain->getSwapChainExtent();
     vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
-}
 
-void Renderer::recordCommandBufferEnd(VkCommandBuffer commandBuffer)
-{
+    m_currentDescriptorSets[0] = GraphicsEngine::get()->getScene()->m_globalDescriptorSets[m_currentFrame];
+
+    for(auto m : m_modelDraws) {
+        m_currentDescriptorSets[1] = m->m_descriptorSets[GraphicsEngine::get()->getRenderer()->getCurrentFrame()];
+
+        m->m_modelData->m_mesh->m_vertexBuffer->bind();
+        if (m->m_modelData->m_mesh->m_hasIndexBuffer) {
+            m->m_modelData->m_mesh->m_indexBuffer->bind();
+        }
+
+        if (m->m_modelData->m_texture) {
+            m_currentDescriptorSets[2] = m->m_modelData->m_texture->m_descriptorSets[GraphicsEngine::get()->getRenderer()->getCurrentFrame()];
+        }
+
+        vkCmdBindDescriptorSets(m_commandBuffers[m_currentFrame], VK_PIPELINE_BIND_POINT_GRAPHICS, m_graphicsPipeline->layout,
+            0, static_cast<uint32_t>(sizeof(m_currentDescriptorSets) / sizeof(m_currentDescriptorSets[0])), m_currentDescriptorSets, 0, nullptr);
+
+        if (m->m_modelData->m_mesh->m_hasIndexBuffer) {
+            vkCmdDrawIndexed(GraphicsEngine::get()->getRenderer()->getCurrentCommandBuffer(),
+                static_cast<uint32_t>(m->m_modelData->m_mesh->getIndicesSize()), 1, 0, 0, 0);
+        }
+        else {
+            vkCmdDraw(GraphicsEngine::get()->getRenderer()->getCurrentCommandBuffer(), 3, 1, 0, 0);
+        }
+    }
+
+    m_modelDraws.clear();
+
+    m_currentGlobalDescriptorSet[0] = m_currentDescriptorSets[0];
+
+    vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pointLightPipeline->pipeline);
+    vkCmdBindDescriptorSets(m_commandBuffers[m_currentFrame], VK_PIPELINE_BIND_POINT_GRAPHICS, m_pointLightPipeline->layout,
+        0, 1, m_currentGlobalDescriptorSet, 0, nullptr);
+    vkCmdDraw(commandBuffer, 6, GraphicsEngine::get()->getScene()->m_pointLights.size(), 0, 0);
+
+    ImGui::Render();
+    ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), m_commandBuffers[m_currentFrame], 0);
+
     vkCmdEndRenderPass(commandBuffer);
 
     if (vkEndCommandBuffer(commandBuffer) != VK_SUCCESS) {
@@ -284,6 +316,63 @@ void Renderer::createGraphicsPipeline()
 
     // Zbuduj potok
     m_graphicsPipeline->pipeline = builder.buildPipeline(m_graphicsPipeline->layout, GraphicsEngine::get()->getDevice()->get());
+
+    vkDestroyShaderModule(GraphicsEngine::get()->getDevice()->get(), vertShaderModule, nullptr);
+    vkDestroyShaderModule(GraphicsEngine::get()->getDevice()->get(), fragShaderModule, nullptr);
+}
+
+void Renderer::createPointLightPipeline()
+{
+    m_pointLightPipeline = std::make_unique<Pipeline>(&GraphicsEngine::get()->getDevice()->get());
+
+    std::vector <VkDescriptorSetLayout> layouts;
+
+    layouts.push_back(m_globalDescriptorSetLayout);
+
+    VkPipelineLayoutCreateInfo billboard_layout_info = RendererInits::pipelineLayoutCreateInfo();
+    billboard_layout_info.setLayoutCount = layouts.size();
+    billboard_layout_info.pSetLayouts = layouts.data();
+    billboard_layout_info.pPushConstantRanges = nullptr;
+    billboard_layout_info.pushConstantRangeCount = 0;
+
+    VkPipelineLayout newLayout;
+    VK_CHECK(vkCreatePipelineLayout(GraphicsEngine::get()->getDevice()->get(), &billboard_layout_info, nullptr, &newLayout));
+
+    m_pointLightPipeline->layout = newLayout;
+
+    PipelineBuilder builder(this);
+
+    // Ustaw modu³y shaderów dla billboardów
+    VkShaderModule vertShaderModule = compileShader("shaders/pointLight.vert", shaderc_vertex_shader, GraphicsEngine::get()->getDevice()->get());
+    VkShaderModule fragShaderModule = compileShader("shaders/pointLight.frag", shaderc_fragment_shader, GraphicsEngine::get()->getDevice()->get());
+
+    builder.setShaders(vertShaderModule, fragShaderModule);
+
+    // Ustaw topologiê wejœciow¹ na punkty
+    builder.setInputTopology(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST);
+
+    // Ustaw tryb poligonu na wype³nienie
+    builder.setPolygonMode(VK_POLYGON_MODE_FILL);
+
+    // Wy³¹cz usuwanie tylnych œcian
+    builder.setCullMode(VK_CULL_MODE_NONE, VK_FRONT_FACE_COUNTER_CLOCKWISE);
+
+    // Wy³¹cz próbkowanie wielokrotne
+    builder.setMultisampling(s_msaaSamples, 0.2f);
+
+    // Wy³¹cz mieszanie kolorów
+    //builder.disableBlending();
+    builder.enableBlendingAlphablend();
+
+    // Ustaw formaty za³¹czników
+    builder.setColorAttachmentFormat(m_swapChain->m_swapChainImageFormat);
+    builder.setDepthFormat(GraphicsEngine::get()->getDevice()->findDepthFormat());
+
+    // Wy³¹cz test g³êbi
+    builder.enableDepthtest(false, VK_COMPARE_OP_LESS);
+
+    // Zbuduj potok
+    m_pointLightPipeline->pipeline = builder.buildPipeline(m_pointLightPipeline->layout, GraphicsEngine::get()->getDevice()->get());
 
     vkDestroyShaderModule(GraphicsEngine::get()->getDevice()->get(), vertShaderModule, nullptr);
     vkDestroyShaderModule(GraphicsEngine::get()->getDevice()->get(), fragShaderModule, nullptr);

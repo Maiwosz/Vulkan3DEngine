@@ -7,7 +7,7 @@
 #include "MeshManager.h"
 #include "TextureManager.h"
 #include "ModelDataManager.h"
-
+#include "Scene.h"
 #include <iostream>
 
 class GraphicsEngine
@@ -27,6 +27,7 @@ public:
     MeshManagerPtr getMeshManager() { return m_meshManager; };
     TextureManagerPtr getTextureManager() { return m_textureManager; };
     ModelDataManagerPtr getModelDataManager() { return m_modelDataManager; };
+    ScenePtr getScene() { return m_scene; };
 private:
     //Resources
     static GraphicsEngine* m_engine;
@@ -38,5 +39,6 @@ private:
     MeshManagerPtr m_meshManager;
     TextureManagerPtr m_textureManager;
     ModelDataManagerPtr m_modelDataManager;
+    ScenePtr m_scene;
 };
 

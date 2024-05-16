@@ -14,6 +14,34 @@ std::shared_ptr<Model> SceneObjectManager::createModel(const std::string& name)
     return model;
 }
 
+std::shared_ptr<PointLightObject> SceneObjectManager::createPointLight()
+{
+    PointLightObjectPtr light = std::make_shared<PointLightObject>(p_scene);
+    m_objects.push_back(light);
+    return light;
+}
+
+std::shared_ptr<PointLightObject> SceneObjectManager::createPointLight(glm::vec3 color, float intensity)
+{
+    PointLightObjectPtr light = std::make_shared<PointLightObject>(color, intensity, p_scene);
+    m_objects.push_back(light);
+    return light;
+}
+
+std::shared_ptr<PointLightObject> SceneObjectManager::createPointLight(float radius, glm::vec3 color, float intensity)
+{
+    PointLightObjectPtr light = std::make_shared<PointLightObject>(radius, color, intensity, p_scene);
+    m_objects.push_back(light);
+    return light;
+}
+
+std::shared_ptr<PointLightObject> SceneObjectManager::createPointLight(glm::vec3 position, float radius, glm::vec3 color, float intensity)
+{
+    PointLightObjectPtr light = std::make_shared<PointLightObject>(position, radius, color, intensity, p_scene);
+    m_objects.push_back(light);
+    return light;
+}
+
 std::shared_ptr<Camera> SceneObjectManager::createCamera(glm::vec3 startPosition, float startPitch, float startYaw)
 {
     std::shared_ptr<Camera> camera = std::make_shared<Camera>(startPosition, startPitch, startYaw, p_scene);

@@ -19,22 +19,18 @@ public:
 	UniformBufferPtr createUniformBuffer(VkDeviceSize deviceSize);
 	ImagePtr createImage(uint32_t width, uint32_t height, uint32_t mipLevels, VkSampleCountFlagBits numSamples, VkFormat format, VkImageTiling tiling,
 		VkImageUsageFlags usage, VkMemoryPropertyFlags properties);
-
-	//DevicePtr getDevice() { return m_device; }
 	SwapChainPtr getSwapChain() { return m_swapChain; }
 
-	void drawFrameBegin();
-	void drawFrameEnd();
-
+	void drawFrame();
+	void drawModel(Model* model);
 	void bindDescriptorSet(VkDescriptorSet set, int position);
 
 	VkCommandBuffer getCurrentCommandBuffer() { return m_commandBuffers[m_currentFrame]; }
 	const uint32_t getCurrentFrame() { return m_currentFrame; }
-	void bindDescriptorSets();
 
 	//Settings
 	static VkSampleCountFlagBits s_msaaSamples;
-	static const int s_maxFramesInFlight = 2;
+	static const int s_maxFramesInFlight = 3;
 
 	VkDescriptorSetLayout m_globalDescriptorSetLayout;
 	VkDescriptorSetLayout m_textureDescriptorSetLayout;
@@ -42,23 +38,27 @@ public:
 private:
 	//Command Buffer // To separate class later?
 	void createCommandBuffers();
-	void recordCommandBufferBegin(VkCommandBuffer commandBuffer, uint32_t imageIndex);
-	void recordCommandBufferEnd(VkCommandBuffer commandBuffer);
+	void recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex);
 
 	void createGraphicsPipeline();
+	void createPointLightPipeline();
 
 	void initImgui();
 	
 	SwapChainPtr m_swapChain;
 	PipelinePtr m_graphicsPipeline;
+	PipelinePtr m_pointLightPipeline;
 	DescriptorAllocatorGrowablePtr m_descriptorAllocator;
 
 	//Command Buffer // To separate class later?
 	std::vector<VkCommandBuffer> m_commandBuffers;
 
+	std::vector<Model*> m_modelDraws;
+
 	VkDescriptorPool m_imguiPool;
 
 	VkDescriptorSet m_currentDescriptorSets[3];
+	VkDescriptorSet m_currentGlobalDescriptorSet[1];
 
 	uint32_t m_currentFrame = 0;
 	uint32_t m_currentImageIndex;

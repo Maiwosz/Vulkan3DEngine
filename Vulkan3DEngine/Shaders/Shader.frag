@@ -2,15 +2,13 @@
 
 struct DirectionalLight {
     vec3 direction;
-    vec3 color;
-    float intensity;
+    vec4 color; // w is for intensity
 };
 
 struct PointLight {
     vec3 position;
-    vec3 color;
-    float intensity;
     float radius;
+    vec4 color;  // w is for intensity
 };
 
 layout(set = 0, binding = 0) uniform GlobalUniformBufferObject {
@@ -51,7 +49,7 @@ void main() {
     float diff = max(dot(normal, lightDir), 0.0);
     vec3 halfwayDir = normalize(lightDir + viewDir);
     float spec = pow(max(dot(normal, halfwayDir), 0.0), model.shininess);
-    directional += global.directionalLight.intensity * (model.kd * diff + model.ks * spec) * global.directionalLight.color;
+    directional += global.directionalLight.color.w * (model.kd * diff + model.ks * spec) * global.directionalLight.color.xyz;
 
     // Point light
     vec3 point = vec3(0.0, 0.0, 0.0);
@@ -64,7 +62,7 @@ void main() {
         vec3 halfwayDir = normalize(lightDir + viewDir);
         float spec = pow(max(dot(normal, halfwayDir), 0.0), model.shininess);
 
-        float d = max(distance - global.pointLights[i].radius, 0.0);
+        float d = max(distance - global.pointLights[i].radius, 0.0) / global.pointLights[i].color.w;
         L /= distance;
 
         // Attenuation
@@ -75,13 +73,13 @@ void main() {
         // scale and bias attenuation such that:
         //   attenuation == 0 at extent of max influence
         //   attenuation == 1 when d == 0
-        float cutoff = 0.001;
+        float cutoff = 0.0001;
         attenuation = (attenuation - cutoff) / (1 - cutoff);
         attenuation = max(attenuation, 0.0);
          
         //diff = max(dot(normal, L), 0.0);
 
-        point += attenuation * global.pointLights[i].intensity * (model.kd * diff + model.ks * spec) * global.pointLights[i].color;
+        point += global.pointLights[i].color.xyz * (model.kd * diff + model.ks * spec) * global.pointLights[i].color.w * attenuation;
     }
 
 

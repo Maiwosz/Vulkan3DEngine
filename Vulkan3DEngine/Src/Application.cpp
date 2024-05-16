@@ -35,67 +35,68 @@ Application::Application()
     InputSystem::get()->addListener(this);
     InputSystem::get()->showCursor(false);
     s_cursor_mode = false;
+    m_showExitPopup = false;
 }
 
 Application::~Application()
 {
-    m_scene.reset();
     GraphicsEngine::release();
     InputSystem::release();
 }
 
 void Application::run()
 {
-    GraphicsEngine::get()->getTextureManager()->updateResources();
-    GraphicsEngine::get()->getMeshManager()->updateResources();
-    GraphicsEngine::get()->getModelDataManager()->updateResources();
+    GraphicsEngine* graphicsEngine = GraphicsEngine::get();
+    WindowPtr window = graphicsEngine->getWindow();
+    InputSystem* inputSystem = InputSystem::get();
+    ScenePtr scene = graphicsEngine->getScene();
+    Camera* camera = scene->getCamera().get();
 
-    m_scene = std::make_shared<Scene>();
+    graphicsEngine->getTextureManager()->updateResources();
+    graphicsEngine->getMeshManager()->updateResources();
+    graphicsEngine->getModelDataManager()->updateResources();
 
     auto startTime = std::chrono::high_resolution_clock::now();
 
-    while (!GraphicsEngine::get()->getWindow()->shouldClose()) {
-
-
+    while (!window->shouldClose()) {
         glfwPollEvents();
 
-
-        if (GraphicsEngine::get()->getWindow()->isFocused()) {
-            InputSystem::get()->addListener(this);
-            InputSystem::get()->addListener(m_scene->getCamera().get());
+        if (window->isFocused()) {
+            inputSystem->addListener(this);
+            inputSystem->addListener(camera);
         }
         else {
-            InputSystem::get()->removeListener(this);
-            InputSystem::get()->removeListener(m_scene->getCamera().get());
+            inputSystem->removeListener(this);
+            inputSystem->removeListener(camera);
         }
 
-        InputSystem::get()->update();
-
-        InputSystem::get()->showCursor(s_cursor_mode);
+        inputSystem->update();
+        inputSystem->showCursor(s_cursor_mode);
 
         ImGui_ImplVulkan_NewFrame();
         ImGui_ImplGlfw_NewFrame();
         ImGui::NewFrame();
 
         update();
-        
         draw();
 
         auto currentTime = std::chrono::high_resolution_clock::now();
         Application::s_deltaTime = std::chrono::duration<float, std::chrono::seconds::period>(currentTime - startTime).count();
-
         startTime = currentTime; // Update startTime for the next frame
     }
-    vkDeviceWaitIdle(GraphicsEngine::get()->getDevice()->get());
+    vkDeviceWaitIdle(graphicsEngine->getDevice()->get());
 }
 
 void Application::update()
 {
+    if (m_showExitPopup) {
+        return;
+    }
     GraphicsEngine::get()->getTextureManager()->updateResources();
     GraphicsEngine::get()->getMeshManager()->updateResources();
     GraphicsEngine::get()->getModelDataManager()->updateResources();
 
-    m_scene->update();
+    GraphicsEngine::get()->getScene()->update();
 }
 
 void Application::draw()
@@ -104,18 +105,20 @@ void Application::draw()
         return;
     }
 
-    GraphicsEngine::get()->getRenderer()->drawFrameBegin();
+    GraphicsEngine::get()->getScene()->draw();
 
-    m_scene->draw();
+    drawFpsCounter();
+    if (s_cursor_mode && !m_showExitPopup) {
+        ImGui::ShowDemoWindow();
+    }
+    if (m_showExitPopup) {
+        drawExitPopup();
+    }
 
-    drawUI();
-    ImGui::Render();
-    ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), GraphicsEngine::get()->getRenderer()->getCurrentCommandBuffer(), 0);
-
-    GraphicsEngine::get()->getRenderer()->drawFrameEnd();
+    GraphicsEngine::get()->getRenderer()->drawFrame();
 }
 
-void Application::drawUI()
+void Application::drawFpsCounter()
 {
 
     // Ustaw pozycjê i rozmiar okna ImGui
@@ -129,7 +132,7 @@ void Application::drawUI()
     // Oblicz FPS
     static float fps = 0.0f;
     fps = 1.0f / s_deltaTime;
-
+   
     // Wyœwietl FPS
     ImGui::Text("FPS: %.1f", fps);
     ImGui::Text("Frame Time: %.3f ms", s_deltaTime * 1000.0f); // przelicz na milisekundy
@@ -145,9 +148,28 @@ void Application::drawUI()
 
     // Zakoñcz okno ImGui
     ImGui::End();
+}
 
-    if (s_cursor_mode) {
-        ImGui::ShowDemoWindow();
+void Application::drawExitPopup()
+{
+    ImGui::OpenPopup("Exit Popup");
+    if (ImGui::BeginPopupModal("Exit Popup", NULL, ImGuiWindowFlags_AlwaysAutoResize))
+    {
+        ImGui::Text("Are you sure you want to quit?");
+        if (ImGui::Button("Yes", ImVec2(120, 0)))
+        {
+            glfwSetWindowShouldClose(GraphicsEngine::get()->getWindow()->get(), true);
+            ImGui::CloseCurrentPopup();
+        }
+        ImGui::SameLine();
+        if (ImGui::Button("No", ImVec2(120, 0)))
+        {
+            m_showExitPopup = false;
+            ImGui::CloseCurrentPopup();
+            s_cursor_mode = false;
+            InputSystem::get()->showCursor(!s_cursor_mode);
+        }
+        ImGui::EndPopup();
     }
 }
 
@@ -157,11 +179,24 @@ void Application::onKeyDown(int key)
 
 void Application::onKeyUp(int key)
 {
-    if (key == 112)
+    if (key == 112)//Key code for F1
     {
         s_cursor_mode = (s_cursor_mode) ? false : true;
-        InputSystem::get()->showCursor(s_cursor_mode);
-        fmt::print("F1 wcisniete");
+        InputSystem::get()->showCursor(!s_cursor_mode);
+    }
+    else if (key == 27)//Key code for ESC
+    {
+        if (!m_showExitPopup) {
+            m_showExitPopup = true;
+            s_cursor_mode = true;
+            InputSystem::get()->showCursor(!s_cursor_mode);
+        }
+        else {
+            m_showExitPopup = false;
+            ImGui::CloseCurrentPopup();
+            s_cursor_mode = false;
+            InputSystem::get()->showCursor(!s_cursor_mode);
+        }
     }
 }
 

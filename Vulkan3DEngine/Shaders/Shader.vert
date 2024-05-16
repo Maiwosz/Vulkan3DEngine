@@ -2,15 +2,13 @@
 
 struct DirectionalLight {
     vec3 direction;
-    vec3 color;
-    float intensity;
+    vec4 color; // w is for intensity
 };
 
 struct PointLight {
     vec3 position;
-    vec3 color;
-    float intensity;
     float radius;
+    vec4 color;  // w is for intensity
 };
 
 layout(set = 0, binding = 0) uniform GlobalUniformBufferObject {

@@ -9,6 +9,7 @@ GraphicsEngine::GraphicsEngine()
 
 GraphicsEngine::~GraphicsEngine()
 {
+    m_scene.reset();
     m_modelDataManager.reset();
     m_textureManager.reset();
     m_meshManager.reset();
@@ -82,5 +83,10 @@ void GraphicsEngine::init()
         m_modelDataManager = std::make_shared<ModelDataManager>();
     }
     catch (...) { throw std::exception("ModelManager not created successfully"); }
+    try
+    {
+        m_scene = std::make_shared<Scene>();
+    }
+    catch (...) { throw std::exception("Scene not created successfully"); }
 }
 

@@ -12,10 +12,10 @@ public:
 	void update() override;
 	void draw() override;
 
-	float m_scale = 1.0f;
-	float m_shininess = 1.0f;
-	float kd = 0.8f;
-	float ks = 0.2f;
+	//float m_scale = 1.0f;
+	//float m_shininess = 1.0f;
+	//float kd = 0.8f;
+	//float ks = 0.2f;
 private:
 	ModelDataPtr m_modelData;
 	std::vector<UniformBufferPtr> m_uniformBuffers;
@@ -33,5 +33,6 @@ private:
 	ModelUBO ubo{};
 
 	friend class Application;
+	friend class Renderer;
 };
 

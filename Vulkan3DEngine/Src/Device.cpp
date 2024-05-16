@@ -117,11 +117,6 @@ void Device::pickPhysicalDevice()
     }
 }
 
-//bool GraphicsEngine::isDeviceSuitable(VkPhysicalDevice device)
-//{
-//    return true;
-//}
-
 int Device::rateDeviceSuitability(VkPhysicalDevice device)
 {
     VkPhysicalDeviceProperties deviceProperties;
@@ -277,12 +272,6 @@ void Device::createLogicalDevice()
     createInfo.pEnabledFeatures = &deviceFeatures;
     createInfo.enabledExtensionCount = static_cast<uint32_t>(deviceExtensions.size());
     createInfo.ppEnabledExtensionNames = deviceExtensions.data();
-
-
-    /*if (enableValidationLayers) {
-        createInfo.enabledLayerCount = static_cast<uint32_t>(m_validation_layers.size());
-        createInfo.ppEnabledLayerNames = m_validation_layers.data();
-    }*/
 
     if (Instance::get()->validationLayersEnabled()) {
         createInfo.enabledLayerCount = static_cast<uint32_t>(Instance::get()->getValidationLayers().size());
