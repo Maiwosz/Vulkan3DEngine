@@ -11,9 +11,9 @@
 bool Texture::m_descriptorAllocatorInitialized = false;
 DescriptorAllocatorGrowable Texture::m_descriptorAllocator;
 
-Texture::Texture(const char* full_path) : Resource(full_path)
+Texture::Texture(const std::filesystem::path& full_path) : Resource(full_path)
 {
-    Load(full_path);
+	Load(full_path);
 }
 
 Texture::~Texture()
@@ -25,10 +25,10 @@ Texture::~Texture()
 	m_image.reset();
 }
 
-void Texture::Load(const char* full_path)
+void Texture::Load(const std::filesystem::path& full_path)
 {
 	int texWidth, texHeight, texChannels;
-	stbi_uc* pixels = stbi_load(full_path, &texWidth,
+	stbi_uc* pixels = stbi_load(full_path.string().c_str(), &texWidth,
 		&texHeight, &texChannels, STBI_rgb_alpha);
 	VkDeviceSize imageSize = texWidth * texHeight * 4;
 	uint32_t mipLevels = static_cast<uint32_t>(std::floor(std::log2(std::max(texWidth, texHeight)))) + 1;
@@ -63,9 +63,9 @@ void Texture::Load(const char* full_path)
 	if (vkCreateImageView(GraphicsEngine::get()->getDevice()->get(), &viewInfo, nullptr, &m_imageView) != VK_SUCCESS) {
 		throw std::runtime_error("failed to create image view!");
 	}
-	
+
 	VkSamplerCreateInfo samplerInfo = RendererInits::samplerCreateInfo(mipLevels, GraphicsEngine::get()->getDevice()->getPhysicalDevice());
-	
+
 	if (vkCreateSampler(GraphicsEngine::get()->getDevice()->get(), &samplerInfo, nullptr, &m_sampler) != VK_SUCCESS) {
 		throw std::runtime_error("failed to create texture sampler!");
 	}
@@ -94,15 +94,14 @@ void Texture::Load(const char* full_path)
 
 void Texture::Reload()
 {
-    vkDeviceWaitIdle(GraphicsEngine::get()->getDevice()->get());
+	vkDeviceWaitIdle(GraphicsEngine::get()->getDevice()->get());
 
-    // Free the old resources
-    m_descriptorSets.clear();
+	// Free the old resources
+	m_descriptorSets.clear();
 	vkDestroySampler(GraphicsEngine::get()->getDevice()->get(), m_sampler, nullptr);
 	vkDestroyImageView(GraphicsEngine::get()->getDevice()->get(), m_imageView, nullptr);
-    m_image.reset();
+	m_image.reset();
 
-    // Load the new texture
+	// Load the new texture
 	Load(m_full_path.c_str());
 }
-

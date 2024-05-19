@@ -4,9 +4,9 @@
 class SceneObject
 {
 public:
-    SceneObject(Scene* scene) : m_position(0.0f), m_rotation(0.0f), m_scale(1.0f), p_scene(scene) {}
-    SceneObject(glm::vec3 position, glm::vec3 rotation, float scale, Scene* scene) :
-        m_position(position), m_rotation(rotation), m_scale(scale), p_scene(scene) {}
+    SceneObject(Scene* scene, std::string name) : m_position(0.0f), m_rotation(0.0f), m_scale(1.0f), p_scene(scene), m_name(name) {}
+    SceneObject(glm::vec3 position, glm::vec3 rotation, float scale, Scene* scene, std::string name) :
+        m_position(position), m_rotation(rotation), m_scale(scale), p_scene(scene), m_name(name) {}
 
     // Move the object relative to its current position
     void move(float dx, float dy, float dz) {
@@ -57,6 +57,7 @@ public:
     bool isActive = true;
 protected:
     Scene* p_scene;
+    std::string m_name;
     glm::vec3 m_position = glm::vec3(0.0f);;
     glm::vec3 m_rotation = glm::vec3(0.0f);;
     float m_scale;
@@ -65,5 +66,7 @@ protected:
     glm::mat4 positionMatrix = glm::mat4(1.0f);
     glm::mat4 rotationMatrix = glm::mat4(1.0f);
     glm::mat4 scaleMatrix = glm::mat4(1.0f);
+
+    friend class SceneObjectManager;
 };
 

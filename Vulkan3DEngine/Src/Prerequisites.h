@@ -19,6 +19,7 @@
 
 #define FMT_HEADER_ONLY
 #include <fmt/core.h>
+#include <fmt/format.h>
 
 #include <json.hpp>
 
@@ -113,6 +114,8 @@ struct PointLight {
     alignas(4) float radius = 10.0f; // Light radius
     alignas(16) glm::vec4 color = glm::vec4(1.0f, 1.0f, 1.0f, 1.0f); // w is for intensity
 };
+
+typedef std::shared_ptr<PointLight> PointLightPtr;
 
 struct GlobalUBO {
     alignas(16) glm::mat4 view;

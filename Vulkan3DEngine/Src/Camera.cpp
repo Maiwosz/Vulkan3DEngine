@@ -5,7 +5,7 @@
 #include "GraphicsEngine.h"
 
 Camera::Camera(glm::vec3 startPosition, float startPitch, float startYaw, Scene* scene) :
-    SceneObject(startPosition, glm::vec3(startPitch, startYaw, 0.0f), 1.0f , scene),
+    SceneObject(startPosition, glm::vec3(startPitch, startYaw, 0.0f), 1.0f , scene, "Camera"),
     m_up(glm::vec3(0.0f, 1.0f, 0.0f)), m_speed(3.0f), m_mouseSensitivity(20.0f), m_zoom(45.0f), m_zoomSpeed(10.0f)
 {
     updateCameraVectors(); 

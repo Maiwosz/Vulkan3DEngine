@@ -1,7 +1,7 @@
 #include "TextureManager.h"
 
 TextureManager::TextureManager()
-    : ResourceManager("Assets\\Textures")
+    : ResourceManager("Assets/Textures")
 {
 }
 
@@ -9,12 +9,12 @@ TextureManager::~TextureManager()
 {
 }
 
-TexturePtr TextureManager::loadTexture(const std::string& name)
+TexturePtr TextureManager::loadTexture(const std::filesystem::path& name)
 {
     return std::static_pointer_cast<Texture>(loadResource(name));
 }
 
-Resource* TextureManager::createResourceFromFileConcrete(const char* file_path)
+Resource* TextureManager::createResourceFromFileConcrete(const std::filesystem::path& file_path)
 {
     Texture* texture = nullptr;
     try

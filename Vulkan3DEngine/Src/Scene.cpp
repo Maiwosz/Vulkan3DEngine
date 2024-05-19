@@ -130,7 +130,7 @@ void Scene::update()
 
     //Update uniform buffer
 
-    auto distanceToCamera = [&](PointLight* light1, PointLight* light2) {
+    auto distanceToCamera = [&](PointLightPtr light1, PointLightPtr light2) {
         float distance1 = glm::distance(light1->position, m_camera->getPosition());
         float distance2 = glm::distance(light2->position, m_camera->getPosition());
         return distance1 > distance2;

@@ -12,6 +12,7 @@ public:
     void update();
     void draw();
 
+	SceneObjectManagerPtr getSceneObjectManager() { return m_sceneObjectManager; };
 	CameraPtr getCamera() { return m_camera; }
 private:
 	std::vector<UniformBufferPtr> m_uniformBuffers;
@@ -35,7 +36,7 @@ private:
 	PointLightObjectPtr m_pointLight1;
 	PointLightObjectPtr m_pointLight2;
 	PointLightObjectPtr m_pointLight3;
-	std::vector<PointLight*> m_pointLights;
+	std::vector<PointLightPtr> m_pointLights;
 
 	float m_lightAngle = 0.0f;
 
