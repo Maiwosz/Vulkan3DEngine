@@ -1,6 +1,7 @@
 #include "Application.h"
 #include "InputSystem.h"
 #include "Camera.h"
+#include "SceneObjectManager.h"
 #include <thread>
 
 float Application::s_deltaTime = 0.0f;
@@ -73,10 +74,6 @@ void Application::run()
         inputSystem->update();
         inputSystem->showCursor(s_cursor_mode);
 
-        ImGui_ImplVulkan_NewFrame();
-        ImGui_ImplGlfw_NewFrame();
-        ImGui::NewFrame();
-
         update();
         draw();
 
@@ -92,9 +89,24 @@ void Application::update()
     if (m_showExitPopup) {
         return;
     }
-    GraphicsEngine::get()->getTextureManager()->updateResources();
-    GraphicsEngine::get()->getMeshManager()->updateResources();
-    GraphicsEngine::get()->getModelDataManager()->updateResources();
+    auto pool = ThreadPool::get();
+    std::vector<std::future<void>> futures;
+    
+    futures.push_back(pool->enqueue([] {
+        GraphicsEngine::get()->getTextureManager()->updateResources();
+        }));
+    
+    futures.push_back(pool->enqueue([] {
+        GraphicsEngine::get()->getMeshManager()->updateResources();
+        }));
+    
+    futures.push_back(pool->enqueue([] {
+        GraphicsEngine::get()->getModelDataManager()->updateResources();
+        }));
+    
+    for (auto& future : futures) {
+        future.get(); // Synchronize tasks
+    }
 
     GraphicsEngine::get()->getScene()->update();
 }
@@ -105,11 +117,16 @@ void Application::draw()
         return;
     }
 
+    ImGui_ImplVulkan_NewFrame();
+    ImGui_ImplGlfw_NewFrame();
+    ImGui::NewFrame();
+
     GraphicsEngine::get()->getScene()->draw();
 
     drawFpsCounter();
     if (s_cursor_mode && !m_showExitPopup) {
-        ImGui::ShowDemoWindow();
+        //ImGui::ShowDemoWindow();
+        GraphicsEngine::get()->getScene()->getSceneObjectManager()->drawInterface();
     }
     if (m_showExitPopup) {
         drawExitPopup();
@@ -120,10 +137,8 @@ void Application::draw()
 
 void Application::drawFpsCounter()
 {
-
     // Ustaw pozycjê i rozmiar okna ImGui
     ImGui::SetNextWindowPos(ImVec2(0, 0), ImGuiCond_Always);
-    //ImGui::SetNextWindowSize(ImVec2(180, 120), ImGuiCond_Always);
 
     // Utwórz okno ImGui
     ImGui::Begin("FPS Counter", NULL, ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoTitleBar |
@@ -131,11 +146,33 @@ void Application::drawFpsCounter()
 
     // Oblicz FPS
     static float fps = 0.0f;
-    fps = 1.0f / s_deltaTime;
-   
+    static float frameTime = 0.0f;
+    static int frameCount = 0;
+    static float maxFps = FLT_MIN;
+    static float lastTime = 0.0f;
+    static std::vector<float> fpsList; // Lista do przechowywania historii FPS
+
+    float currentTime = ImGui::GetTime();
+    frameCount++;
+    if (currentTime - lastTime >= 1.0f) { // Aktualizuj dane co sekundê
+        fps = frameCount;
+        frameTime = 1000.0f / fps;
+
+        frameCount = 0;
+        lastTime += 1.0f;
+
+        maxFps = std::max(maxFps, fps);
+
+        // Dodaj aktualne FPS do listy
+        fpsList.push_back(fps);
+        if (fpsList.size() > 1000) { // Ogranicz rozmiar listy do 1000
+            fpsList.erase(fpsList.begin());
+        }
+    }
+
     // Wyœwietl FPS
     ImGui::Text("FPS: %.1f", fps);
-    ImGui::Text("Frame Time: %.3f ms", s_deltaTime * 1000.0f); // przelicz na milisekundy
+    ImGui::Text("Frame Time: %.3f ms", frameTime); // przelicz na milisekundy
 
     // Dodaj wykres FPS
     static float fpsHistory[60] = { 0 };
@@ -144,17 +181,32 @@ void Application::drawFpsCounter()
     historyIndex = (historyIndex + 1) % 60;
 
     ImGui::Text("FPS Chart");
-    ImGui::PlotLines("", fpsHistory, 60, 0, NULL, 0.0f, 60.0f, ImVec2(160, 30)); 
+    ImGui::PlotLines("", fpsHistory, 60, 0, NULL, 0, maxFps, ImVec2(160, 30));
+
+    // Oblicz i wyœwietl 1% i 0.1% najni¿szych wartoœci FPS
+    if (!fpsList.empty()) {
+        std::sort(fpsList.begin(), fpsList.end());
+        int onePercentIndex = std::max(0, (int)(fpsList.size() * 0.01f));
+        int pointOnePercentIndex = std::max(0, (int)(fpsList.size() * 0.001f));
+        ImGui::Text("1%% Lows: %.1f FPS", fpsList[onePercentIndex]);
+        ImGui::Text("0.1%% Lows: %.1f FPS", fpsList[pointOnePercentIndex]);
+    }
 
     // Zakoñcz okno ImGui
     ImGui::End();
 }
 
+
 void Application::drawExitPopup()
 {
     ImGui::OpenPopup("Exit Popup");
-    if (ImGui::BeginPopupModal("Exit Popup", NULL, ImGuiWindowFlags_AlwaysAutoResize))
+    if (ImGui::BeginPopupModal("Exit Popup", NULL, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoMove))
     {
+        ImVec2 window_pos = ImVec2(GraphicsEngine::get()->getWindow()->getExtent().width / 2,
+            GraphicsEngine::get()->getWindow()->getExtent().height / 2);
+        ImVec2 window_pos_pivot = ImVec2(0.5f, 0.5f);
+        ImGui::SetNextWindowPos(window_pos, ImGuiCond_Always, window_pos_pivot);
+
         ImGui::Text("Are you sure you want to quit?");
         if (ImGui::Button("Yes", ImVec2(120, 0)))
         {
@@ -172,6 +224,7 @@ void Application::drawExitPopup()
         ImGui::EndPopup();
     }
 }
+
 
 void Application::onKeyDown(int key)
 {

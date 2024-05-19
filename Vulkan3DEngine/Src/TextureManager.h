@@ -8,8 +8,8 @@ public:
     TextureManager();
     ~TextureManager();
 
-    TexturePtr loadTexture(const std::string& name);
+    TexturePtr loadTexture(const std::filesystem::path& name);
 
 protected:
-    virtual Resource* createResourceFromFileConcrete(const char* file_path) override;
+    virtual Resource* createResourceFromFileConcrete(const std::filesystem::path& file_path) override;
 };

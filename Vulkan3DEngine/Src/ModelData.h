@@ -8,12 +8,12 @@ class ModelData : public Resource
 {
 public:
 	ModelData(MeshPtr mesh, TexturePtr texture);
-	ModelData(const char* full_path);
+	ModelData(const std::filesystem::path& full_path);
 	~ModelData();
 
 	void Reload() override;
 private:
-	void Load(const char* full_path) override;
+	void Load(const std::filesystem::path& full_path) override;
 
 	MeshPtr m_mesh;
 	TexturePtr m_texture;
@@ -24,9 +24,9 @@ private:
 	float m_kd = 0.8f;
 	float m_ks = 0.2f;
 
-	glm::mat4 initialScale;
-	glm::mat4 initialPosition;
-	glm::mat4 initialRotation;
+	glm::mat4 m_initialScale;
+	glm::mat4 m_initialPosition;
+	glm::mat4 m_initialRotation;
 
 	friend class Model;
 	friend class Renderer;

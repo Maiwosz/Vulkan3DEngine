@@ -34,6 +34,8 @@ public:
         return m_objects;
     }
 
+    void drawInterface();
+
 private:
     Scene* p_scene;
     std::vector<std::shared_ptr<SceneObject>> m_objects;

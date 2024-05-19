@@ -7,16 +7,16 @@
 class Texture : public Resource
 {
 public:
-	Texture(const char* full_path);
+	Texture(const std::filesystem::path& full_path);
 	~Texture();
 
 	ImagePtr getImage() { return m_image; }
 	VkImageView getImageView() { return m_imageView; }
 	VkSampler getSampler() { return m_sampler; }
-	
+
 	void Reload() override;
 private:
-	void Load(const char* full_path) override;
+	void Load(const std::filesystem::path& full_path) override;
 
 	ImagePtr m_image;
 	VkImageView m_imageView;

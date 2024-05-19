@@ -5,24 +5,34 @@
 #include <string>
 #include <filesystem>
 #include <chrono>
+#include <shared_mutex>
 #include <mutex>
+#include <set>
 
 class ResourceManager
 {
 public:
-    ResourceManager(const std::string& directory);
+    ResourceManager(const std::filesystem::path& directory);
     virtual ~ResourceManager();
-    ResourcePtr loadResource(const std::string& name);
-    void unloadResource(const std::string& name);
+    ResourcePtr loadResource(const std::filesystem::path& name);
+    void unloadResource(const std::filesystem::path& name);
     void updateResources();
+    std::set<std::filesystem::path> getAllResources() {
+        std::shared_lock lock(m_all_resources_mutex);
+        return m_all_resources;
+    }
 protected:
-    virtual Resource* createResourceFromFileConcrete(const char* file_path) = 0;
+    virtual Resource* createResourceFromFileConcrete(const std::filesystem::path& file_path) = 0;
 
 private:
     void updateResourceList();
 
-    std::string m_directory;
-    std::unordered_map<std::string, ResourcePtr> m_map_resources;
-    std::unordered_map<std::string, std::filesystem::file_time_type> m_last_write_time;
-    std::recursive_mutex m_mutex;
+    std::filesystem::path m_directory;
+    std::unordered_map<std::filesystem::path, ResourcePtr> m_map_resources;
+    std::unordered_map<std::filesystem::path, std::filesystem::file_time_type> m_last_write_time;
+    std::set<std::filesystem::path> m_all_resources;
+
+    std::shared_mutex m_all_resources_mutex;
+    std::mutex m_map_resources_mutex;
+    std::unordered_map<std::filesystem::path, std::mutex> m_individual_resource_mutexes;
 };

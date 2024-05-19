@@ -10,7 +10,7 @@ public:
     ModelDataManager();
     ~ModelDataManager();
 
-    ModelDataPtr loadModelData(const std::string& name);
+    ModelDataPtr loadModelData(const std::filesystem::path& name);
 protected:
-    virtual Resource* createResourceFromFileConcrete(const char* file_path) override;
+    virtual Resource* createResourceFromFileConcrete(const std::filesystem::path& file_path) override;
 };

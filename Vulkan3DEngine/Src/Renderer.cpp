@@ -5,6 +5,8 @@
 #include "UniformBuffer.h"
 #include "Image.h"
 
+#include <ranges>
+
 #include "Application.h"
 #include "RendererInits.h"
 
@@ -204,29 +206,29 @@ void Renderer::recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t image
 
     m_currentDescriptorSets[0] = GraphicsEngine::get()->getScene()->m_globalDescriptorSets[m_currentFrame];
 
-    for(auto m : m_modelDraws) {
+    std::ranges::for_each(m_modelDraws, [&](auto m) {
         m_currentDescriptorSets[1] = m->m_descriptorSets[GraphicsEngine::get()->getRenderer()->getCurrentFrame()];
 
-        m->m_modelData->m_mesh->m_vertexBuffer->bind();
-        if (m->m_modelData->m_mesh->m_hasIndexBuffer) {
-            m->m_modelData->m_mesh->m_indexBuffer->bind();
+        m->m_mesh->m_vertexBuffer->bind();
+        if (m->m_mesh->m_hasIndexBuffer) {
+            m->m_mesh->m_indexBuffer->bind();
         }
 
-        if (m->m_modelData->m_texture) {
-            m_currentDescriptorSets[2] = m->m_modelData->m_texture->m_descriptorSets[GraphicsEngine::get()->getRenderer()->getCurrentFrame()];
+        if (m->m_texture) {
+            m_currentDescriptorSets[2] = m->m_texture->m_descriptorSets[GraphicsEngine::get()->getRenderer()->getCurrentFrame()];
         }
 
         vkCmdBindDescriptorSets(m_commandBuffers[m_currentFrame], VK_PIPELINE_BIND_POINT_GRAPHICS, m_graphicsPipeline->layout,
             0, static_cast<uint32_t>(sizeof(m_currentDescriptorSets) / sizeof(m_currentDescriptorSets[0])), m_currentDescriptorSets, 0, nullptr);
 
-        if (m->m_modelData->m_mesh->m_hasIndexBuffer) {
+        if (m->m_mesh->m_hasIndexBuffer) {
             vkCmdDrawIndexed(GraphicsEngine::get()->getRenderer()->getCurrentCommandBuffer(),
-                static_cast<uint32_t>(m->m_modelData->m_mesh->getIndicesSize()), 1, 0, 0, 0);
+                static_cast<uint32_t>(m->m_mesh->getIndicesSize()), 1, 0, 0, 0);
         }
         else {
             vkCmdDraw(GraphicsEngine::get()->getRenderer()->getCurrentCommandBuffer(), 3, 1, 0, 0);
         }
-    }
+        });
 
     m_modelDraws.clear();
 

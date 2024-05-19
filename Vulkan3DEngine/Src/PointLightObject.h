@@ -15,7 +15,7 @@ public:
 	void update() override;
 	void draw() override;
 
-	PointLight m_light;
+	PointLightPtr m_light;
 private:
 	friend class Renderer;
 };

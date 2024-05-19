@@ -38,5 +38,7 @@ private:
     float m_zoomSpeed;
 
     bool ctrlPressed = false;
+
+    friend class SceneObjectManager;
 };
 
