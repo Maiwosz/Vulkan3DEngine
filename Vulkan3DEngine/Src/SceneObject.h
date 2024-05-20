@@ -58,8 +58,8 @@ public:
 protected:
     Scene* p_scene;
     std::string m_name;
-    glm::vec3 m_position = glm::vec3(0.0f);;
-    glm::vec3 m_rotation = glm::vec3(0.0f);;
+    glm::vec3 m_position = glm::vec3(0.0f);
+    glm::vec3 m_rotation = glm::vec3(0.0f);
     float m_scale;
 
     glm::mat4 transformMatrix = glm::mat4(1.0f);

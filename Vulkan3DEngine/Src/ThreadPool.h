@@ -7,6 +7,11 @@
 #include <functional>
 #include <atomic>
 
+template<typename F, typename... Args>
+concept Callable = requires(F f, Args... args) {
+    { std::invoke(f, args...) } -> std::same_as<typename std::invoke_result<F, Args...>::type>;
+};
+
 class ThreadPool {
 private:
     ThreadPool(size_t threads);
@@ -20,7 +25,7 @@ public:
 
     size_t getThreadCount() { return m_threadCount; }
 
-    template<class F, class ...Args>
+    template<Callable F, class ...Args>
     auto enqueue(F&& f, Args && ...args) -> std::future<typename std::invoke_result<F, Args...>::type>
     {
         using return_type = typename std::invoke_result<F, Args...>::type;

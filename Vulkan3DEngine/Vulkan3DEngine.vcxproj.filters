@@ -342,5 +342,8 @@
     <Filter Include="Application\GraphicsEngine\Scene\SceneObjectManager\SceneObject\PointLight">
       <UniqueIdentifier>{61ba4a1b-19d1-4358-8394-1d56358c1093}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Application\GraphicsEngine\Scene\SceneObjectManager\Animations">
+      <UniqueIdentifier>{9ee47b91-907f-4944-a001-3b6ae859ee65}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
 </Project>
