@@ -187,6 +187,12 @@ void SceneObjectManager::drawInterface()
                             light->m_light->color.w = intensity;
                         }
                     }
+
+                    std::string buttonLabel = "Remove Object";
+                    if (ImGui::Button(buttonLabel.c_str()))
+                    {
+                        removeObject(object);
+                    }
                 }
             }
             ImGui::EndTabItem();

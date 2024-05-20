@@ -12,5 +12,5 @@ public:
 
     ModelDataPtr loadModelData(const std::filesystem::path& name);
 protected:
-    virtual Resource* createResourceFromFileConcrete(const std::filesystem::path& file_path) override;
+    Resource* createResourceFromFileConcrete(const std::filesystem::path& file_path) override;
 };
