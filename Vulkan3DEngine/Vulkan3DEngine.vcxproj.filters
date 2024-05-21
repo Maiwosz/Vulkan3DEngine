@@ -122,6 +122,15 @@
     <ClCompile Include="Src\PointLightObject.cpp">
       <Filter>Application\GraphicsEngine\Scene\SceneObjectManager\SceneObject\PointLight</Filter>
     </ClCompile>
+    <ClCompile Include="Src\Animation.cpp">
+      <Filter>Application\GraphicsEngine\Scene\SceneObjectManager\Animations</Filter>
+    </ClCompile>
+    <ClCompile Include="Src\AnimationSequence.cpp">
+      <Filter>Application\GraphicsEngine\Scene\SceneObjectManager\Animations</Filter>
+    </ClCompile>
+    <ClCompile Include="Src\AnimationBuilder.cpp">
+      <Filter>Application\GraphicsEngine\Scene\SceneObjectManager\Animations</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Src\Prerequisites.h" />
@@ -250,6 +259,15 @@
     </ClInclude>
     <ClInclude Include="Src\PointLightObject.h">
       <Filter>Application\GraphicsEngine\Scene\SceneObjectManager\SceneObject\PointLight</Filter>
+    </ClInclude>
+    <ClInclude Include="Src\Animation.h">
+      <Filter>Application\GraphicsEngine\Scene\SceneObjectManager\Animations</Filter>
+    </ClInclude>
+    <ClInclude Include="Src\AnimationSequence.h">
+      <Filter>Application\GraphicsEngine\Scene\SceneObjectManager\Animations</Filter>
+    </ClInclude>
+    <ClInclude Include="Src\AnimationBuilder.h">
+      <Filter>Application\GraphicsEngine\Scene\SceneObjectManager\Animations</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

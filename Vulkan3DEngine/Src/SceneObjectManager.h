@@ -35,8 +35,10 @@ public:
     }
 
     void drawInterface();
+    void renderAnimationManager(SceneObject* object);
 
 private:
+    SceneObject* m_selectedObject = nullptr;
     Scene* p_scene;
     std::vector<std::shared_ptr<SceneObject>> m_objects;
 };
