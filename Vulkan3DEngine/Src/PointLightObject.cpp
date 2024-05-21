@@ -1,5 +1,6 @@
 #include "PointLightObject.h"
 #include "Scene.h"
+#include <iostream>
 
 PointLightObject::PointLightObject(Scene* scene) : SceneObject(scene, "PointLight")
 {
@@ -43,15 +44,18 @@ PointLightObject::PointLightObject(glm::vec3 position, float radius, glm::vec3 c
 
 PointLightObject::~PointLightObject()
 {
+    std::cout << "Rozmiar m_pointLights: " << p_scene->m_pointLights.size() << std::endl;
     auto it = std::find(p_scene->m_pointLights.begin(), p_scene->m_pointLights.end(), m_light);
     if (it != p_scene->m_pointLights.end())
     {
         p_scene->m_pointLights.erase(it);
     }
+    std::cout << "Rozmiar m_pointLights po usuniêiu m_light: " << p_scene->m_pointLights.size() << std::endl;
 }
 
 void PointLightObject::update()
 {
+    SceneObject::update();
     m_light->position = m_position;
 }
 

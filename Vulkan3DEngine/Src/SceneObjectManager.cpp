@@ -1,4 +1,6 @@
 #include "SceneObjectManager.h"
+#include "Animation.h"
+#include "AnimationSequence.h"
 #include <future>
 
 SceneObjectManager::SceneObjectManager(Scene* scene)
@@ -188,6 +190,24 @@ void SceneObjectManager::drawInterface()
                         }
                     }
 
+                    // Add button to manage animations
+                    std::string animationButtonLabel = "Manage Animations##" + std::to_string(i);
+                    if (ImGui::Button(animationButtonLabel.c_str()))
+                    {
+                        ImGui::OpenPopup("Animation Manager");
+                        m_selectedObject = object.get(); // Store the selected object for animation management
+                    }
+
+                    // Create the modal window for managing animations
+                    if (ImGui::BeginPopupModal("Animation Manager", NULL, ImGuiWindowFlags_AlwaysAutoResize))
+                    {
+                        renderAnimationManager(m_selectedObject);
+                        if (ImGui::Button("Close")) {
+                            ImGui::CloseCurrentPopup();
+                        }
+                        ImGui::EndPopup();
+                    }
+
                     std::string buttonLabel = "Remove Object";
                     if (ImGui::Button(buttonLabel.c_str()))
                     {
@@ -252,6 +272,88 @@ void SceneObjectManager::drawInterface()
 
     // End the ImGui window
     ImGui::End();
+}
+
+void SceneObjectManager::renderAnimationManager(SceneObject* object)
+{
+    if (!object) return;
+
+    // Display existing animations
+    auto animationSequence = object->getAnimationSequence();
+    if (animationSequence)
+    {
+        for (size_t i = 0; i < animationSequence->m_animations.size(); ++i)
+        {
+            auto& animation = animationSequence->m_animations[i];
+            std::string animationLabel = "Animation " + std::to_string(i + 1);
+
+            if (ImGui::CollapsingHeader(animationLabel.c_str()))
+            {
+                ImGui::Text("Duration: %.2f seconds", animation.m_duration);
+                //ImGui::Checkbox("Loop", &animation.m_loop);
+                if (ImGui::Button(("Remove##" + std::to_string(i)).c_str()))
+                {
+                    animationSequence->m_animations.erase(animationSequence->m_animations.begin() + i);
+                }
+            }
+        }
+    }
+
+    // Button to add a new animation
+    if (ImGui::Button("Add New Animation"))
+    {
+        ImGui::OpenPopup("New Animation");
+    }
+
+    // Modal window to add a new animation
+    if (ImGui::BeginPopupModal("New Animation", NULL, ImGuiWindowFlags_AlwaysAutoResize))
+    {
+        glm::vec3 startPos(0.0f, 0.0f, 0.0f);
+        glm::vec3 endPos(0.0f, 0.0f, 0.0f);
+
+        glm::vec3 startRot(0.0f, 0.0f, 0.0f);
+        glm::vec3 endRot(0.0f, 0.0f, 0.0f);
+
+        static float duration = 1.0f;
+        static bool loop = false;
+
+        if (ImGui::DragFloat3("Start Position", &startPos[0]) &&
+            ImGui::DragFloat3("End Position", &endPos[0]) &&
+            ImGui::DragFloat3("Start Rotation", &startRot[0]) &&
+            ImGui::DragFloat3("End Rotation", &endRot[0]) &&
+            ImGui::DragFloat("Duration", &duration) &&
+            ImGui::Checkbox("Loop", &loop))
+        {
+            if (ImGui::Button("Create"))
+            {
+                auto moveFunc = [object, startPos, endPos](float t) {
+                    glm::vec3 newPos = glm::mix(startPos, endPos, t);
+                    object->setPosition(newPos);
+                    };
+
+                auto rotateFunc = [object, startRot, endRot](float t) {
+                    glm::vec3 newRot = glm::mix(startRot, endRot, t);
+                    object->setRotation(newRot);
+                    };
+
+                Animation moveAnimation(moveFunc, duration);
+                Animation rotateAnimation(rotateFunc, duration);
+
+                auto newSequence = std::make_shared<AnimationSequence>();
+                newSequence->addAnimation(moveAnimation);
+                newSequence->addAnimation(rotateAnimation);
+
+                object->setAnimationSequence(newSequence);
+
+                ImGui::CloseCurrentPopup();
+            }
+        }
+        if (ImGui::Button("Cancel"))
+        {
+            ImGui::CloseCurrentPopup();
+        }
+        ImGui::EndPopup();
+    }
 }
 
 

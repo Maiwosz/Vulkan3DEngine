@@ -41,7 +41,7 @@ void GraphicsEngine::init()
 {
     try
     {
-        m_window = std::make_shared<Window>(Window::Resolution::R_1920x1080, "Vulkan3DEngine", Window::Mode::Borderless);
+        m_window = std::make_shared<Window>(Window::Resolution::R_1280x720, "Vulkan3DEngine", Window::Mode::Windowed);
     }
     catch (...) { throw std::exception("Window not created successfully"); }
     try

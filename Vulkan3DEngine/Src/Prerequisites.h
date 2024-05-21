@@ -70,6 +70,9 @@ class Model;
 class Camera;
 class PointLightObject;
 class SceneObjectManager;
+class Animation;
+class AnimationSequence;
+class AnimationBuilder;
 
 
 typedef std::shared_ptr<Window> WindowPtr;
@@ -103,6 +106,9 @@ typedef std::shared_ptr<Model> ModelPtr;
 typedef std::shared_ptr<Camera> CameraPtr;
 typedef std::shared_ptr<PointLightObject> PointLightObjectPtr;
 typedef std::shared_ptr<SceneObjectManager> SceneObjectManagerPtr;
+typedef std::shared_ptr<Animation> AnimationPtr;
+typedef std::shared_ptr<AnimationSequence> AnimationSequencePtr;
+typedef std::shared_ptr<AnimationBuilder> AnimationBuilderPtr;
 
 struct DirectionalLight {
     alignas(16) glm::vec3 direction = glm::vec3(0.0f, 1.0f, 0.0f); // Light coming from above

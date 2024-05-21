@@ -1,5 +1,7 @@
 #pragma once
 #include "Prerequisites.h"
+#include "AnimationSequence.h"
+#include <iostream>
 
 class SceneObject
 {
@@ -7,6 +9,9 @@ public:
     SceneObject(Scene* scene, std::string name) : m_position(0.0f), m_rotation(0.0f), m_scale(1.0f), p_scene(scene), m_name(name) {}
     SceneObject(glm::vec3 position, glm::vec3 rotation, float scale, Scene* scene, std::string name) :
         m_position(position), m_rotation(rotation), m_scale(scale), p_scene(scene), m_name(name) {}
+
+    ~SceneObject() {
+    }
 
     // Move the object relative to its current position
     void move(float dx, float dy, float dz) {
@@ -39,6 +44,9 @@ public:
     }
 
     virtual void update() {
+        if (m_animationSequence) {
+            m_animationSequence->update();
+        }
         positionMatrix = glm::translate(glm::mat4(1.0f), m_position);
         rotationMatrix = glm::rotate(glm::mat4(1.0f), glm::radians(m_rotation.x), glm::vec3(1.0f, 0.0f, 0.0f));
         rotationMatrix = glm::rotate(rotationMatrix, glm::radians(m_rotation.y), glm::vec3(0.0f, 1.0f, 0.0f));
@@ -54,12 +62,20 @@ public:
     glm::vec3 getRotation() const { return m_rotation; }
     float getScale() const { return m_scale; }
 
+    std::shared_ptr<AnimationSequence> getAnimationSequence() const {
+        return m_animationSequence;
+    }
+
+    void setAnimationSequence(std::shared_ptr<AnimationSequence> sequence) {
+        m_animationSequence = sequence;
+    }
+
     bool isActive = true;
 protected:
     Scene* p_scene;
     std::string m_name;
-    glm::vec3 m_position = glm::vec3(0.0f);
-    glm::vec3 m_rotation = glm::vec3(0.0f);
+    glm::vec3 m_position = glm::vec3(0.0f);;
+    glm::vec3 m_rotation = glm::vec3(0.0f);;
     float m_scale;
 
     glm::mat4 transformMatrix = glm::mat4(1.0f);
@@ -67,6 +83,9 @@ protected:
     glm::mat4 rotationMatrix = glm::mat4(1.0f);
     glm::mat4 scaleMatrix = glm::mat4(1.0f);
 
+    std::shared_ptr<AnimationSequence> m_animationSequence;
+
     friend class SceneObjectManager;
 };
+
 

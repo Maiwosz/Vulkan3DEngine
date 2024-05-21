@@ -6,6 +6,8 @@
 #include "Camera.h"
 #include "InputSystem.h"
 #include "RendererInits.h"
+#include "AnimationBuilder.h"
+#include "Animation.h"
 
 #include <algorithm>
 
@@ -85,6 +87,93 @@ Scene::Scene()
     m_statue4->move(0.0f, 0.0f, -5.0f);
     m_statue4->rotate(0.0f, 180.0f, 0.0f);
     //m_statue4->m_shininess = 0.3f;
+
+    glm::vec3 centerPoint = glm::vec3(0.0f, 6.0f, 0.0f);
+    float radius = 8.0f;
+    float lightRotationSpeed = 45.0f;
+    float duration = 360.0f / lightRotationSpeed;
+
+    auto light1Sequence = AnimationBuilder()
+        .orbit(m_pointLight1.get(), glm::vec3(0.0f, 6.0f, 0.0f), 8.0f, 45.0f, duration, glm::vec3(0.0f, 1.0f, 0.0f), 0)
+        .build();
+
+    auto light2Sequence = AnimationBuilder()
+        .orbit(m_pointLight2.get(), glm::vec3(0.0f, 6.0f, 0.0f), 8.0f, 45.0f, duration, glm::vec3(0.0f, 1.0f, 0.0f), 120)
+        .build();
+
+    auto light3Sequence = AnimationBuilder()
+        .orbit(m_pointLight3.get(), glm::vec3(0.0f, 6.0f, 0.0f), 8.0f, 45.0f, duration, glm::vec3(0.0f, 1.0f, 0.0f), 240)
+        .build();
+
+    // Assign animation sequences to lights
+    m_pointLight1->setAnimationSequence(light1Sequence);
+    m_pointLight2->setAnimationSequence(light2Sequence);
+    m_pointLight3->setAnimationSequence(light3Sequence);
+
+
+
+    // Tworzenie obiektu AnimationBuilder
+    AnimationBuilder builder1;
+
+    // Definiowanie pozycji startowej i koñcowej
+    glm::vec3 startPosition1 = { 6.0f, 0.0f, -6.0f };
+    glm::vec3 endPosition1 = { 6.0f, 0.0f, 6.0f };
+
+    // Definiowanie rotacji startowej i koñcowej
+    glm::vec3 startRotation1 = { 0.0f, 0.0f, 0.0f };
+    glm::vec3 endRotation1 = { 0.0f, 180.0f, 0.0f }; // Obrót o 180 stopni
+
+    // Definiowanie czasu trwania dla przesuniêcia i rotacji
+    float moveDuration = 3.0f; // sekundy
+    float rotateDuration = 2.0f; // sekundy
+
+    // Dodawanie animacji do budowniczego
+    builder1.move(m_statue1.get(), startPosition1, endPosition1, moveDuration);
+    builder1.rotate(m_statue1.get(), startRotation1, endRotation1, rotateDuration);
+    builder1.wait(moveDuration+ rotateDuration);
+    builder1.move(m_statue1.get(), endPosition1, startPosition1, moveDuration);
+    builder1.rotate(m_statue1.get(), endRotation1, startRotation1, rotateDuration);
+    builder1.wait(moveDuration + rotateDuration);
+
+    // Budowanie sekwencji animacji
+    std::shared_ptr<AnimationSequence> sequence1 = builder1.build();
+    sequence1->setLoop(true);
+
+    m_statue1->setAnimationSequence(sequence1);
+
+    // Tworzenie obiektu AnimationBuilder
+    AnimationBuilder builder2;
+
+    // Definiowanie pozycji startowej i koñcowej
+    glm::vec3 startPosition2 = { -6.0f, 0.0f, 6.0f };
+    glm::vec3 endPosition2 = { -6.0f, 0.0f, -6.0f };
+
+    // Definiowanie rotacji startowej i koñcowej
+    glm::vec3 startRotation2 = { 0.0f, 180.0f, 0.0f };
+    glm::vec3 endRotation2 = { 0.0f, 0.0f, 0.0f }; // Obrót o 180 stopni
+
+    // Dodawanie animacji do budowniczego
+    builder2.wait(moveDuration + rotateDuration);
+    builder2.move(m_statue2.get(), startPosition2, endPosition2, moveDuration);
+    builder2.rotate(m_statue2.get(), startRotation2, endRotation2, rotateDuration);
+    builder2.wait(moveDuration + rotateDuration);
+    builder2.move(m_statue2.get(), endPosition2, startPosition2, moveDuration);
+    builder2.rotate(m_statue2.get(), endRotation2, startRotation2, rotateDuration);
+
+    // Budowanie sekwencji animacji
+    std::shared_ptr<AnimationSequence> sequence = builder2.build();
+    sequence->setLoop(true);
+
+    m_statue2->setAnimationSequence(sequence);
+
+    m_floor.reset();
+    m_statue1.reset();
+    m_statue2.reset();
+    m_statue3.reset();
+    m_statue4.reset();
+    m_pointLight1.reset();
+    m_pointLight2.reset();
+    m_pointLight3.reset();
 }
 
 Scene::~Scene()
@@ -97,34 +186,6 @@ void Scene::update()
     ubo = GlobalUBO{};
 
     ubo.ambientCoefficient = 0.005f;
-
-    // Define the rotation speed for the light
-    float lightRotationSpeed = 45.0f;
-
-    //Point light rotation
-    glm::vec3 centerPoint = glm::vec3(0.0f, 6.0f, 0.0f);
-    float radius = 8.0f;
-
-    // Calculate the new light position
-    m_lightAngle += Application::s_deltaTime * lightRotationSpeed;
-
-    float x = centerPoint.x + radius * cos(glm::radians(m_lightAngle));
-    float y = centerPoint.y;
-    float z = centerPoint.z + radius * sin(glm::radians(m_lightAngle));
-
-    m_pointLight1->setPosition(x, y, z);
-
-    x = centerPoint.x + radius * cos(glm::radians(m_lightAngle + 120));
-    y = centerPoint.y;
-    z = centerPoint.z + radius * sin(glm::radians(m_lightAngle + 120));
-
-    m_pointLight2->setPosition(x, y, z);
-
-    x = centerPoint.x + radius * cos(glm::radians(m_lightAngle + 240));
-    y = centerPoint.y;
-    z = centerPoint.z + radius * sin(glm::radians(m_lightAngle + 240));
-
-    m_pointLight3->setPosition(x, y, z);
     
     m_sceneObjectManager->updateObjects();
 

@@ -5,8 +5,8 @@
 #include "Mesh.h"
 #include "Texture.h"
 
-bool  Model::m_descriptorAllocatorInitialized = false;
 DescriptorAllocatorGrowable Model::m_descriptorAllocator;
+int Model::m_modelCount = 0;
 
 std::string mat4ToString(const glm::mat4& mat) {
     std::stringstream ss;
@@ -24,11 +24,8 @@ Model::Model(ModelDataPtr modelData, Scene* scene):
 	m_shininess(modelData->m_shininess),m_kd(modelData->m_kd), m_ks(modelData->m_ks), m_initialPosition(modelData->m_initialPosition),
 	m_initialRotation(modelData->m_initialRotation), m_initialScale(modelData->m_initialScale)
 {
-	if (!m_descriptorAllocatorInitialized) {
-		{
-			m_descriptorAllocator.init(GraphicsEngine::get()->getDevice()->get(), 1000, m_sizes);
-			m_descriptorAllocatorInitialized = true;
-		}
+    if (m_modelCount++ == 0) {
+		m_descriptorAllocator.init(GraphicsEngine::get()->getDevice()->get(), 1000, m_sizes);
 	}
 
 	DescriptorWriter writer;
@@ -49,14 +46,17 @@ Model::Model(ModelDataPtr modelData, Scene* scene):
 
 Model::~Model()
 {
-	m_descriptorAllocator.destroyPools(GraphicsEngine::get()->getDevice()->get());
+    vkDeviceWaitIdle(GraphicsEngine::get()->getDevice()->get());
+    if (--m_modelCount == 0) {
+        m_descriptorAllocator.destroyPools(GraphicsEngine::get()->getDevice()->get());
+    }
 }
 
 void Model::update()
 {
 	SceneObject::update();
 
-	ubo.model = m_initialPosition * positionMatrix * m_initialRotation * rotationMatrix * m_initialScale * scaleMatrix;
+    ubo.model = m_initialPosition * positionMatrix * m_initialRotation * rotationMatrix * m_initialScale * scaleMatrix;
 
 	ubo.shininess = m_shininess;
 

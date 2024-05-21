@@ -22,6 +22,8 @@ private:
     MeshPtr m_mesh;
     TexturePtr m_texture;
 
+    
+
     //std::string m_name;
     float m_scale = 1.0f;
     float m_shininess = 1.0f;
@@ -34,7 +36,7 @@ private:
 
     std::vector<UniformBufferPtr> m_uniformBuffers;
 
-    static bool m_descriptorAllocatorInitialized;
+    static int m_modelCount;
     static DescriptorAllocatorGrowable m_descriptorAllocator;
 
     std::vector<DescriptorAllocatorGrowable::PoolSizeRatio> m_sizes =
