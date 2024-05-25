@@ -46,14 +46,14 @@ void ModelData::Load(const std::filesystem::path& full_path)
 	m_name = full_path.stem().string();
 
 	// Read the mesh file path
-	std::filesystem::path mesh_path = j["mesh_path"];
+	std::filesystem::path mesh_path = j["mesh"];
 
 	// Load the mesh
 	std::future<MeshPtr> meshFuture;
 	meshFuture = ThreadPool::get()->enqueue([mesh_path]()->MeshPtr { return GraphicsEngine::get()->getMeshManager()->loadMesh(mesh_path); });
 
 	// Read the texture file path
-	std::filesystem::path texture_path = j["texture_path"];
+	std::filesystem::path texture_path = j["texture"];
 
 	// Load the texture
 	std::future<TexturePtr> textureFuture;
@@ -74,23 +74,23 @@ void ModelData::Load(const std::filesystem::path& full_path)
 	}
 
 	// Read the initial transformations
-	std::vector<float> translationVec = j["translation"].get<std::vector<float>>();
+	std::vector<float> translationVec = j["positionOffset"].get<std::vector<float>>();
 	glm::vec3 translation(translationVec[0], translationVec[1], translationVec[2]);
-	std::vector<float> rotationVec = j["rotation"].get<std::vector<float>>();
+	std::vector<float> rotationVec = j["rotationOffset"].get<std::vector<float>>();
 	glm::vec3 rotation(rotationVec[0], rotationVec[1], rotationVec[2]);
-	float scale = j["scale"];
+	float scale = j["scaleOffset"];
 
 	// Initialize the model matrix to an identity matrix
-	m_initialScale = glm::mat4(1.0f);
-	m_initialPosition = glm::mat4(1.0f);
-	m_initialRotation = glm::mat4(1.0f);
+	m_scaleOffset = glm::mat4(1.0f);
+	m_positionOffset = glm::mat4(1.0f);
+	m_rotationOffset = glm::mat4(1.0f);
 
 	// Apply the initial transformations
-	m_initialScale = glm::scale(m_initialScale, glm::vec3(scale)); // skalowanie
-	m_initialPosition = glm::translate(m_initialPosition, glm::vec3(translation.x, translation.y, translation.z));
-	m_initialRotation = glm::rotate(m_initialRotation, glm::radians(rotation.x), glm::vec3(1.0f, 0.0f, 0.0f));
-	m_initialRotation = glm::rotate(m_initialRotation, glm::radians(rotation.y), glm::vec3(0.0f, 1.0f, 0.0f));
-	m_initialRotation = glm::rotate(m_initialRotation, glm::radians(rotation.z), glm::vec3(0.0f, 0.0f, 1.0f));
+	m_scaleOffset = glm::scale(m_scaleOffset, glm::vec3(scale)); // skalowanie
+	m_positionOffset = glm::translate(m_positionOffset, glm::vec3(translation.x, translation.y, translation.z));
+	m_rotationOffset = glm::rotate(m_rotationOffset, glm::radians(rotation.x), glm::vec3(1.0f, 0.0f, 0.0f));
+	m_rotationOffset = glm::rotate(m_rotationOffset, glm::radians(rotation.y), glm::vec3(0.0f, 1.0f, 0.0f));
+	m_rotationOffset = glm::rotate(m_rotationOffset, glm::radians(rotation.z), glm::vec3(0.0f, 0.0f, 1.0f));
 
 	// Close the file
 	file.close();

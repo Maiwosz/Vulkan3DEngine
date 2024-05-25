@@ -20,6 +20,7 @@ public:
 private:
 	void drawFpsCounter();
 	void drawExitPopup();
+	void checkAndReloadResources();
 
 	// Inherited via InputListener
 	virtual void onKeyDown(int key) override;
@@ -32,4 +33,7 @@ private:
 	virtual void onRightMouseUp(const glm::vec2& mouse_pos) override;
 
 	bool m_showExitPopup;
+	std::atomic<bool> m_stopCheckingResources; // Flag to stop the resource checking thread
+	std::thread m_checkResourcesThread; // Thread for resource checking
+
 };

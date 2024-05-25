@@ -1,0 +1,464 @@
+{
+    "directionalLight": {
+        "color": [
+            1.0,
+            1.0,
+            1.0
+        ],
+        "direction": [
+            0.0,
+            -1.0,
+            -1.0
+        ],
+        "intensity": 0.0
+    },
+    "sceneObjects": {
+        "Camera_1": {
+            "SceneObjectData": {
+                "animationSequence": null,
+                "name": "Camera",
+                "position": [
+                    -8.0,
+                    8.0,
+                    8.0
+                ],
+                "rotation": [
+                    -30.0,
+                    45.0,
+                    0.0
+                ],
+                "scale": 1.0
+            },
+            "type": "camera"
+        },
+        "Floor_1": {
+            "SceneObjectData": {
+                "animationSequence": null,
+                "name": "Floor",
+                "position": [
+                    0.0,
+                    0.0,
+                    0.0
+                ],
+                "rotation": [
+                    0.0,
+                    0.0,
+                    0.0
+                ],
+                "scale": 1.0
+            },
+            "modelData": "Floor.json",
+            "type": "model"
+        },
+        "Flora_C_1": {
+            "SceneObjectData": {
+                "animationSequence": {
+                    "animations": [
+                        {
+                            "active": true,
+                            "data": {
+                                "type": "wait"
+                            },
+                            "duration": 5.0,
+                            "elapsedTime": 0.0
+                        },
+                        {
+                            "active": true,
+                            "data": {
+                                "endPosition": [
+                                    -6.0,
+                                    0.0,
+                                    -6.0
+                                ],
+                                "startPosition": [
+                                    -6.0,
+                                    0.0,
+                                    6.0
+                                ],
+                                "type": "move"
+                            },
+                            "duration": 3.0,
+                            "elapsedTime": 0.0
+                        },
+                        {
+                            "active": true,
+                            "data": {
+                                "endRotation": [
+                                    0.0,
+                                    0.0,
+                                    0.0
+                                ],
+                                "startRotation": [
+                                    0.0,
+                                    180.0,
+                                    0.0
+                                ],
+                                "type": "rotate"
+                            },
+                            "duration": 2.0,
+                            "elapsedTime": 0.0
+                        },
+                        {
+                            "active": true,
+                            "data": {
+                                "type": "wait"
+                            },
+                            "duration": 5.0,
+                            "elapsedTime": 0.0
+                        },
+                        {
+                            "active": true,
+                            "data": {
+                                "endPosition": [
+                                    -6.0,
+                                    0.0,
+                                    6.0
+                                ],
+                                "startPosition": [
+                                    -6.0,
+                                    0.0,
+                                    -6.0
+                                ],
+                                "type": "move"
+                            },
+                            "duration": 3.0,
+                            "elapsedTime": 0.0
+                        },
+                        {
+                            "active": true,
+                            "data": {
+                                "endRotation": [
+                                    0.0,
+                                    180.0,
+                                    0.0
+                                ],
+                                "startRotation": [
+                                    0.0,
+                                    0.0,
+                                    0.0
+                                ],
+                                "type": "rotate"
+                            },
+                            "duration": 2.0,
+                            "elapsedTime": 0.0
+                        }
+                    ],
+                    "loop": true
+                },
+                "name": "Flora_C",
+                "position": [
+                    -5.0,
+                    0.0,
+                    0.0
+                ],
+                "rotation": [
+                    0.0,
+                    -90.0,
+                    0.0
+                ],
+                "scale": 1.0
+            },
+            "modelData": "Flora_C.json",
+            "type": "model"
+        },
+        "Hygieia_C_1": {
+            "SceneObjectData": {
+                "animationSequence": null,
+                "name": "Hygieia_C",
+                "position": [
+                    0.0,
+                    0.0,
+                    5.0
+                ],
+                "rotation": [
+                    0.0,
+                    90.0,
+                    0.0
+                ],
+                "scale": 1.0
+            },
+            "modelData": "Hygieia_C.json",
+            "type": "model"
+        },
+        "Omphale_C_1": {
+            "SceneObjectData": {
+                "animationSequence": null,
+                "name": "Omphale_C",
+                "position": [
+                    0.0,
+                    0.0,
+                    -5.0
+                ],
+                "rotation": [
+                    0.0,
+                    180.0,
+                    0.0
+                ],
+                "scale": 1.0
+            },
+            "modelData": "Omphale_C.json",
+            "type": "model"
+        },
+        "PointLight_1": {
+            "SceneObjectData": {
+                "animationSequence": {
+                    "animations": [
+                        {
+                            "active": true,
+                            "data": {
+                                "angularSpeed": 45.0,
+                                "axis": [
+                                    0.0,
+                                    1.0,
+                                    0.0
+                                ],
+                                "center": [
+                                    0.0,
+                                    6.0,
+                                    0.0
+                                ],
+                                "phaseShift": 0.0,
+                                "radius": 8.0,
+                                "type": "orbit"
+                            },
+                            "duration": 8.0,
+                            "elapsedTime": 0.0
+                        }
+                    ],
+                    "loop": true
+                },
+                "name": "PointLight",
+                "position": [
+                    0.0,
+                    0.0,
+                    0.0
+                ],
+                "rotation": [
+                    0.0,
+                    0.0,
+                    0.0
+                ],
+                "scale": 1.0
+            },
+            "color": [
+                1.0,
+                0.0,
+                0.0
+            ],
+            "intensity": 10.0,
+            "radius": 0.20000000298023224,
+            "type": "pointLight"
+        },
+        "PointLight_2": {
+            "SceneObjectData": {
+                "animationSequence": {
+                    "animations": [
+                        {
+                            "active": true,
+                            "data": {
+                                "angularSpeed": 45.0,
+                                "axis": [
+                                    0.0,
+                                    1.0,
+                                    0.0
+                                ],
+                                "center": [
+                                    0.0,
+                                    6.0,
+                                    0.0
+                                ],
+                                "phaseShift": 120.0,
+                                "radius": 8.0,
+                                "type": "orbit"
+                            },
+                            "duration": 8.0,
+                            "elapsedTime": 0.0
+                        }
+                    ],
+                    "loop": true
+                },
+                "name": "PointLight",
+                "position": [
+                    0.0,
+                    0.0,
+                    0.0
+                ],
+                "rotation": [
+                    0.0,
+                    0.0,
+                    0.0
+                ],
+                "scale": 1.0
+            },
+            "color": [
+                0.0,
+                1.0,
+                0.0
+            ],
+            "intensity": 10.0,
+            "radius": 0.20000000298023224,
+            "type": "pointLight"
+        },
+        "PointLight_3": {
+            "SceneObjectData": {
+                "animationSequence": {
+                    "animations": [
+                        {
+                            "active": true,
+                            "data": {
+                                "angularSpeed": 45.0,
+                                "axis": [
+                                    0.0,
+                                    1.0,
+                                    0.0
+                                ],
+                                "center": [
+                                    0.0,
+                                    6.0,
+                                    0.0
+                                ],
+                                "phaseShift": 240.0,
+                                "radius": 8.0,
+                                "type": "orbit"
+                            },
+                            "duration": 8.0,
+                            "elapsedTime": 0.0
+                        }
+                    ],
+                    "loop": true
+                },
+                "name": "PointLight",
+                "position": [
+                    0.0,
+                    0.0,
+                    0.0
+                ],
+                "rotation": [
+                    0.0,
+                    0.0,
+                    0.0
+                ],
+                "scale": 1.0
+            },
+            "color": [
+                0.0,
+                0.0,
+                1.0
+            ],
+            "intensity": 10.0,
+            "radius": 0.20000000298023224,
+            "type": "pointLight"
+        },
+        "Statue_1": {
+            "SceneObjectData": {
+                "animationSequence": {
+                    "animations": [
+                        {
+                            "active": true,
+                            "data": {
+                                "endPosition": [
+                                    6.0,
+                                    0.0,
+                                    6.0
+                                ],
+                                "startPosition": [
+                                    6.0,
+                                    0.0,
+                                    -6.0
+                                ],
+                                "type": "move"
+                            },
+                            "duration": 3.0,
+                            "elapsedTime": 0.0
+                        },
+                        {
+                            "active": true,
+                            "data": {
+                                "endRotation": [
+                                    0.0,
+                                    180.0,
+                                    0.0
+                                ],
+                                "startRotation": [
+                                    0.0,
+                                    0.0,
+                                    0.0
+                                ],
+                                "type": "rotate"
+                            },
+                            "duration": 2.0,
+                            "elapsedTime": 0.0
+                        },
+                        {
+                            "active": true,
+                            "data": {
+                                "type": "wait"
+                            },
+                            "duration": 5.0,
+                            "elapsedTime": 0.0
+                        },
+                        {
+                            "active": true,
+                            "data": {
+                                "endPosition": [
+                                    6.0,
+                                    0.0,
+                                    -6.0
+                                ],
+                                "startPosition": [
+                                    6.0,
+                                    0.0,
+                                    6.0
+                                ],
+                                "type": "move"
+                            },
+                            "duration": 3.0,
+                            "elapsedTime": 0.0
+                        },
+                        {
+                            "active": true,
+                            "data": {
+                                "endRotation": [
+                                    0.0,
+                                    0.0,
+                                    0.0
+                                ],
+                                "startRotation": [
+                                    0.0,
+                                    180.0,
+                                    0.0
+                                ],
+                                "type": "rotate"
+                            },
+                            "duration": 2.0,
+                            "elapsedTime": 0.0
+                        },
+                        {
+                            "active": true,
+                            "data": {
+                                "type": "wait"
+                            },
+                            "duration": 5.0,
+                            "elapsedTime": 0.0
+                        }
+                    ],
+                    "loop": true
+                },
+                "name": "Statue",
+                "position": [
+                    5.0,
+                    0.0,
+                    0.0
+                ],
+                "rotation": [
+                    0.0,
+                    90.0,
+                    0.0
+                ],
+                "scale": 1.0
+            },
+            "modelData": "Statue.json",
+            "type": "model"
+        }
+    }
+}

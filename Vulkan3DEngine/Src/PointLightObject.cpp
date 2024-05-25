@@ -42,15 +42,28 @@ PointLightObject::PointLightObject(glm::vec3 position, float radius, glm::vec3 c
     p_scene->m_pointLights.push_back(m_light);
 }
 
+PointLightObject::PointLightObject(const nlohmann::json& j, Scene* scene) : SceneObject(j["SceneObjectData"], scene) {
+    try {
+        m_light = std::make_shared<PointLight>();
+        from_json(j);
+        m_light->position = m_position;
+        p_scene->m_pointLights.push_back(m_light);
+        fmt::print("PointLightObject initialized successfully\n");
+    }
+    catch (const std::exception& e) {
+        fmt::print(stderr, "Error: Failed to initialize PointLightObject. Exception: {}\n", e.what());
+        throw;
+    }
+}
+
+
 PointLightObject::~PointLightObject()
 {
-    std::cout << "Rozmiar m_pointLights: " << p_scene->m_pointLights.size() << std::endl;
     auto it = std::find(p_scene->m_pointLights.begin(), p_scene->m_pointLights.end(), m_light);
     if (it != p_scene->m_pointLights.end())
     {
         p_scene->m_pointLights.erase(it);
     }
-    std::cout << "Rozmiar m_pointLights po usuniêiu m_light: " << p_scene->m_pointLights.size() << std::endl;
 }
 
 void PointLightObject::update()
@@ -62,3 +75,32 @@ void PointLightObject::update()
 void PointLightObject::draw()
 {
 }
+
+void PointLightObject::to_json(nlohmann::json& j) {
+    nlohmann::json SceneObjectJson;
+    SceneObject::to_json(SceneObjectJson); // Call base class method
+
+    j = nlohmann::json{
+        {"type", "pointLight"},
+        {"SceneObjectData", SceneObjectJson},
+        {"color", {m_light->color.x, m_light->color.y, m_light->color.z}},
+        {"intensity", m_light->color.w},
+        {"radius",  m_light->radius},
+    };
+}
+
+void PointLightObject::from_json(const nlohmann::json& j) {
+    // Wydrukuj zawartoœæ obiektu JSON
+    fmt::print("JSON content: {}\n", j.dump());
+
+    try {
+        m_light->color = glm::vec4(j["color"][0], j["color"][1], j["color"][2], j["intensity"]);
+        m_light->radius = j["radius"];
+    }
+    catch (const std::exception& e) {
+        fmt::print(stderr, "Error: Failed to deserialize PointLightObject. Exception: {}\n", e.what());
+        throw; // Rzuæmy wyj¹tek dalej, aby ³atwiej by³o œledziæ b³¹d
+    }
+}
+
+

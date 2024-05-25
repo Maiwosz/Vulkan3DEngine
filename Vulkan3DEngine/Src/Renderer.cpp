@@ -203,41 +203,44 @@ void Renderer::recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t image
     scissor.offset = { 0, 0 };
     scissor.extent = m_swapChain->getSwapChainExtent();
     vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
+    if (m_modelDraws.size() > 0) {
+        m_currentDescriptorSets[0] = GraphicsEngine::get()->getScene()->m_globalDescriptorSets[m_currentFrame];
 
-    m_currentDescriptorSets[0] = GraphicsEngine::get()->getScene()->m_globalDescriptorSets[m_currentFrame];
+        std::ranges::for_each(m_modelDraws, [&](auto m) {
+            m_currentDescriptorSets[1] = m->m_descriptorSets[GraphicsEngine::get()->getRenderer()->getCurrentFrame()];
 
-    std::ranges::for_each(m_modelDraws, [&](auto m) {
-        m_currentDescriptorSets[1] = m->m_descriptorSets[GraphicsEngine::get()->getRenderer()->getCurrentFrame()];
+            m->m_mesh->m_vertexBuffer->bind();
+            if (m->m_mesh->m_hasIndexBuffer) {
+                m->m_mesh->m_indexBuffer->bind();
+            }
 
-        m->m_mesh->m_vertexBuffer->bind();
-        if (m->m_mesh->m_hasIndexBuffer) {
-            m->m_mesh->m_indexBuffer->bind();
-        }
+            if (m->m_texture) {
+                m_currentDescriptorSets[2] = m->m_texture->m_descriptorSets[GraphicsEngine::get()->getRenderer()->getCurrentFrame()];
+            }
 
-        if (m->m_texture) {
-            m_currentDescriptorSets[2] = m->m_texture->m_descriptorSets[GraphicsEngine::get()->getRenderer()->getCurrentFrame()];
-        }
+            vkCmdBindDescriptorSets(m_commandBuffers[m_currentFrame], VK_PIPELINE_BIND_POINT_GRAPHICS, m_graphicsPipeline->layout,
+                0, static_cast<uint32_t>(sizeof(m_currentDescriptorSets) / sizeof(m_currentDescriptorSets[0])), m_currentDescriptorSets, 0, nullptr);
 
-        vkCmdBindDescriptorSets(m_commandBuffers[m_currentFrame], VK_PIPELINE_BIND_POINT_GRAPHICS, m_graphicsPipeline->layout,
-            0, static_cast<uint32_t>(sizeof(m_currentDescriptorSets) / sizeof(m_currentDescriptorSets[0])), m_currentDescriptorSets, 0, nullptr);
+            if (m->m_mesh->m_hasIndexBuffer) {
+                vkCmdDrawIndexed(GraphicsEngine::get()->getRenderer()->getCurrentCommandBuffer(),
+                    static_cast<uint32_t>(m->m_mesh->getIndicesSize()), 1, 0, 0, 0);
+            }
+            else {
+                vkCmdDraw(GraphicsEngine::get()->getRenderer()->getCurrentCommandBuffer(), 3, 1, 0, 0);
+            }
+            });
 
-        if (m->m_mesh->m_hasIndexBuffer) {
-            vkCmdDrawIndexed(GraphicsEngine::get()->getRenderer()->getCurrentCommandBuffer(),
-                static_cast<uint32_t>(m->m_mesh->getIndicesSize()), 1, 0, 0, 0);
-        }
-        else {
-            vkCmdDraw(GraphicsEngine::get()->getRenderer()->getCurrentCommandBuffer(), 3, 1, 0, 0);
-        }
-        });
+        m_modelDraws.clear();
+    }
 
-    m_modelDraws.clear();
+    if (GraphicsEngine::get()->getScene()->m_pointLights.size()>0) {
+        m_currentGlobalDescriptorSet[0] = m_currentDescriptorSets[0];
 
-    m_currentGlobalDescriptorSet[0] = m_currentDescriptorSets[0];
-
-    vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pointLightPipeline->pipeline);
-    vkCmdBindDescriptorSets(m_commandBuffers[m_currentFrame], VK_PIPELINE_BIND_POINT_GRAPHICS, m_pointLightPipeline->layout,
-        0, 1, m_currentGlobalDescriptorSet, 0, nullptr);
-    vkCmdDraw(commandBuffer, 6, GraphicsEngine::get()->getScene()->m_pointLights.size(), 0, 0);
+        vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pointLightPipeline->pipeline);
+        vkCmdBindDescriptorSets(m_commandBuffers[m_currentFrame], VK_PIPELINE_BIND_POINT_GRAPHICS, m_pointLightPipeline->layout,
+            0, 1, m_currentGlobalDescriptorSet, 0, nullptr);
+        vkCmdDraw(commandBuffer, 6, GraphicsEngine::get()->getScene()->m_pointLights.size(), 0, 0);
+    }
 
     ImGui::Render();
     ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), m_commandBuffers[m_currentFrame], 0);

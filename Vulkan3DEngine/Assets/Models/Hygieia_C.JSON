@@ -1,7 +1,7 @@
 {
-  "texture_path": "Hygieia_C_Hygieia_O.png",
-  "mesh_path": "Hygieia_C.obj",
-  "translation": [ 0.0, 0.0, 0.0 ],
-  "rotation": [ 0, 0, 0 ],
-  "scale": 0.9
+  "texture": "Hygieia_C_Hygieia_O.png",
+  "mesh": "Hygieia_C.obj",
+  "positionOffset": [ 0.0, 0.0, 0.0 ],
+  "rotationOffset": [ 0, 0, 0 ],
+  "scaleOffset": 0.9
 }

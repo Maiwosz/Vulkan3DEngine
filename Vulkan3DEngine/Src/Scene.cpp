@@ -45,135 +45,12 @@ Scene::Scene()
 
     m_sceneObjectManager = std::make_shared<SceneObjectManager>(this);
 
-    m_camera = m_sceneObjectManager->createCamera(glm::vec3(-8.0f, 8.0f, 8.0f), -30.0f, 45.0f); 
+    m_camera = m_sceneObjectManager->createCamera(glm::vec3(0.0f, 0.0f, 0.0f), 0.0f, 0.0f);
 
-    m_light.direction = glm::vec3(0.0f, -1.0f, -1.0f);
-    m_light.color.w = 0.0f;
+    m_light.direction = glm::vec3(0.0f);
+    m_light.color = glm::vec4(0.0f);
 
-    m_pointLight1 = m_sceneObjectManager->createPointLight(0.2f, glm::vec3(1.0f, 0.0f, 0.0f), 10.0f);
-    m_pointLight2 = m_sceneObjectManager->createPointLight(0.2f, glm::vec3(0.0f, 1.0f, 0.0f), 10.0f);
-    m_pointLight3 = m_sceneObjectManager->createPointLight(0.2f, glm::vec3(0.0f, 0.0f, 1.0f), 10.0f);
-
-    std::vector<std::future<ModelPtr>> futures;
-    
-    // Dodaj zadania do puli w¹tków
-    futures.push_back(ThreadPool::get()->enqueue([this]()->ModelPtr { return m_sceneObjectManager->createModel("Floor.JSON"); }));
-    futures.push_back(ThreadPool::get()->enqueue([this]()->ModelPtr { return m_sceneObjectManager->createModel("Statue.JSON"); }));
-    futures.push_back(ThreadPool::get()->enqueue([this]()->ModelPtr { return m_sceneObjectManager->createModel("Flora_C.JSON"); }));
-    futures.push_back(ThreadPool::get()->enqueue([this]()->ModelPtr { return m_sceneObjectManager->createModel("Hygieia_C.JSON"); }));
-    futures.push_back(ThreadPool::get()->enqueue([this]()->ModelPtr { return m_sceneObjectManager->createModel("Omphale_C.JSON"); }));
-    
-    // Oczekuj na wyniki zadañ
-    m_floor = futures[0].get();
-    m_statue1 = futures[1].get();
-    m_statue2 = futures[2].get();
-    m_statue3 = futures[3].get();
-    m_statue4 = futures[4].get();
-
-    //m_floor->m_shininess = 1.0f;
-    
-    m_statue1->move(5.0f, 0.0f, 0.0f);
-    m_statue1->rotate(0.0f, 90.0f, 0.0f);
-    //m_statue1->m_shininess = 0.3f;
-    
-    m_statue2->move(-5.0f, 0.0f, 0.0f);
-    m_statue2->rotate(0.0f, -90.0f, 0.0f);
-    //m_statue2->m_shininess = 0.3f;
-    
-    m_statue3->move(0.0f, 0.0f, 5.0f);
-    m_statue3->rotate(0.0f, 90.0f, 0.0f);
-    //m_statue3->m_shininess = 0.3f;
-    
-    m_statue4->move(0.0f, 0.0f, -5.0f);
-    m_statue4->rotate(0.0f, 180.0f, 0.0f);
-    //m_statue4->m_shininess = 0.3f;
-
-    glm::vec3 centerPoint = glm::vec3(0.0f, 6.0f, 0.0f);
-    float radius = 8.0f;
-    float lightRotationSpeed = 45.0f;
-    float duration = 360.0f / lightRotationSpeed;
-
-    auto light1Sequence = AnimationBuilder()
-        .orbit(m_pointLight1.get(), glm::vec3(0.0f, 6.0f, 0.0f), 8.0f, 45.0f, duration, glm::vec3(0.0f, 1.0f, 0.0f), 0)
-        .build();
-
-    auto light2Sequence = AnimationBuilder()
-        .orbit(m_pointLight2.get(), glm::vec3(0.0f, 6.0f, 0.0f), 8.0f, 45.0f, duration, glm::vec3(0.0f, 1.0f, 0.0f), 120)
-        .build();
-
-    auto light3Sequence = AnimationBuilder()
-        .orbit(m_pointLight3.get(), glm::vec3(0.0f, 6.0f, 0.0f), 8.0f, 45.0f, duration, glm::vec3(0.0f, 1.0f, 0.0f), 240)
-        .build();
-
-    // Assign animation sequences to lights
-    m_pointLight1->setAnimationSequence(light1Sequence);
-    m_pointLight2->setAnimationSequence(light2Sequence);
-    m_pointLight3->setAnimationSequence(light3Sequence);
-
-
-
-    // Tworzenie obiektu AnimationBuilder
-    AnimationBuilder builder1;
-
-    // Definiowanie pozycji startowej i koñcowej
-    glm::vec3 startPosition1 = { 6.0f, 0.0f, -6.0f };
-    glm::vec3 endPosition1 = { 6.0f, 0.0f, 6.0f };
-
-    // Definiowanie rotacji startowej i koñcowej
-    glm::vec3 startRotation1 = { 0.0f, 0.0f, 0.0f };
-    glm::vec3 endRotation1 = { 0.0f, 180.0f, 0.0f }; // Obrót o 180 stopni
-
-    // Definiowanie czasu trwania dla przesuniêcia i rotacji
-    float moveDuration = 3.0f; // sekundy
-    float rotateDuration = 2.0f; // sekundy
-
-    // Dodawanie animacji do budowniczego
-    builder1.move(m_statue1.get(), startPosition1, endPosition1, moveDuration);
-    builder1.rotate(m_statue1.get(), startRotation1, endRotation1, rotateDuration);
-    builder1.wait(moveDuration+ rotateDuration);
-    builder1.move(m_statue1.get(), endPosition1, startPosition1, moveDuration);
-    builder1.rotate(m_statue1.get(), endRotation1, startRotation1, rotateDuration);
-    builder1.wait(moveDuration + rotateDuration);
-
-    // Budowanie sekwencji animacji
-    std::shared_ptr<AnimationSequence> sequence1 = builder1.build();
-    sequence1->setLoop(true);
-
-    m_statue1->setAnimationSequence(sequence1);
-
-    // Tworzenie obiektu AnimationBuilder
-    AnimationBuilder builder2;
-
-    // Definiowanie pozycji startowej i koñcowej
-    glm::vec3 startPosition2 = { -6.0f, 0.0f, 6.0f };
-    glm::vec3 endPosition2 = { -6.0f, 0.0f, -6.0f };
-
-    // Definiowanie rotacji startowej i koñcowej
-    glm::vec3 startRotation2 = { 0.0f, 180.0f, 0.0f };
-    glm::vec3 endRotation2 = { 0.0f, 0.0f, 0.0f }; // Obrót o 180 stopni
-
-    // Dodawanie animacji do budowniczego
-    builder2.wait(moveDuration + rotateDuration);
-    builder2.move(m_statue2.get(), startPosition2, endPosition2, moveDuration);
-    builder2.rotate(m_statue2.get(), startRotation2, endRotation2, rotateDuration);
-    builder2.wait(moveDuration + rotateDuration);
-    builder2.move(m_statue2.get(), endPosition2, startPosition2, moveDuration);
-    builder2.rotate(m_statue2.get(), endRotation2, startRotation2, rotateDuration);
-
-    // Budowanie sekwencji animacji
-    std::shared_ptr<AnimationSequence> sequence = builder2.build();
-    sequence->setLoop(true);
-
-    m_statue2->setAnimationSequence(sequence);
-
-    m_floor.reset();
-    m_statue1.reset();
-    m_statue2.reset();
-    m_statue3.reset();
-    m_statue4.reset();
-    m_pointLight1.reset();
-    m_pointLight2.reset();
-    m_pointLight3.reset();
+    //loadScene("test1");
 }
 
 Scene::~Scene()
@@ -185,7 +62,7 @@ void Scene::update()
 {
     ubo = GlobalUBO{};
 
-    ubo.ambientCoefficient = 0.005f;
+    ubo.ambientCoefficient = m_ambientCoefficient;
     
     m_sceneObjectManager->updateObjects();
 
@@ -208,6 +85,155 @@ void Scene::update()
     
     memcpy(m_uniformBuffers[GraphicsEngine::get()->getRenderer()->getCurrentFrame()]->getMappedMemory(), &ubo, sizeof(ubo));
 }
+
+void Scene::saveScene(const std::string& filename)
+{
+    nlohmann::json j;
+    nlohmann::json directionalLight = {
+        { "direction", { m_light.direction.x, m_light.direction.y, m_light.direction.z } },
+        { "color", { m_light.color.x, m_light.color.y, m_light.color.z } },
+        { "intensity", m_light.color.w }
+    };
+
+    j["directionalLight"] = directionalLight;
+    m_sceneObjectManager->to_json(j);
+
+    std::filesystem::path filePath = m_scenesDirectory / (filename + ".json");
+    std::ofstream file(filePath);
+    if (file.is_open())
+    {
+        file << j.dump(4);
+        file.close();
+        fmt::print("Scene saved successfully to file: {}\n", filePath.string());
+    }
+    else
+    {
+        fmt::print(stderr, "Error: Unable to open file for saving: {}\n", filePath.string());
+    }
+}
+
+void Scene::loadScene(const std::string& filename)
+{
+    std::filesystem::path filePath = m_scenesDirectory / filename;
+    std::ifstream file(filePath);
+    vkDeviceWaitIdle(GraphicsEngine::get()->getDevice()->get());
+    if (file.is_open())
+    {
+        nlohmann::json j;
+        try
+        {
+            file >> j;
+            file.close();
+            fmt::print("Scene loaded successfully from file: {}\n", filePath.string());
+        }
+        catch (const std::exception& e)
+        {
+            fmt::print(stderr, "Error: Failed to parse JSON from file: {}. Exception: {}\n", filePath.string(), e.what());
+            file.close();
+            return;
+        }
+
+        // Odczytanie directionalLight z pliku JSON
+        if (j.contains("directionalLight"))
+        {
+            nlohmann::json directionalLight = j["directionalLight"];
+            try
+            {
+                m_light.direction.x = directionalLight["direction"][0];
+                m_light.direction.y = directionalLight["direction"][1];
+                m_light.direction.z = directionalLight["direction"][2];
+                m_light.color.x = directionalLight["color"][0];
+                m_light.color.y = directionalLight["color"][1];
+                m_light.color.z = directionalLight["color"][2];
+                m_light.color.w = directionalLight["intensity"];
+            }
+            catch (const std::exception& e)
+            {
+                fmt::print(stderr, "Error: Failed to read directionalLight data from JSON. Exception: {}\n", e.what());
+                return;
+            }
+        }
+        else
+        {
+            fmt::print(stderr, "Warning: No directionalLight found in JSON.\n");
+        }
+        m_sceneObjectManager->removeAllObjects();
+        //m_sceneObjectManager->addObject(m_camera);
+        m_sceneObjectManager->from_json(j["sceneObjects"]);
+    }
+    else
+    {
+        fmt::print(stderr, "Error: Unable to open file for loading: {}\n", filePath.string());
+    }
+}
+
+void Scene::drawInterface() {
+    ImGui::Begin("Scene Interface");
+
+    static char saveFilename[128] = "scene";
+    ImGui::InputText("Save Filename", saveFilename, IM_ARRAYSIZE(saveFilename));
+
+    if (ImGui::Button("Save")) {
+        saveScene(saveFilename);
+    }
+
+    ImGui::Separator();
+
+    static std::string selectedLoadFilename;
+    static std::string selectedLoadFilenameWithExtension;
+    bool hasFiles = false;
+
+    // Check for files in the directory and set the first one as the default if none is selected
+    for (const auto& entry : std::filesystem::directory_iterator(m_scenesDirectory)) {
+        if (entry.is_regular_file()) {
+            const std::string filenameWithExtension = entry.path().filename().string();
+            const std::string filename = entry.path().stem().string(); // Get filename without extension
+
+            if (!hasFiles) {
+                selectedLoadFilename = filename;
+                selectedLoadFilenameWithExtension = filenameWithExtension;
+                hasFiles = true;
+            }
+        }
+    }
+
+    if (hasFiles) {
+        if (ImGui::BeginCombo("Load Scene", selectedLoadFilename.c_str())) {
+            for (const auto& entry : std::filesystem::directory_iterator(m_scenesDirectory)) {
+                if (entry.is_regular_file()) {
+                    const std::string filenameWithExtension = entry.path().filename().string();
+                    const std::string filename = entry.path().stem().string(); // Get filename without extension
+
+                    if (ImGui::Selectable(filename.c_str(), selectedLoadFilename == filename)) {
+                        selectedLoadFilename = filename;
+                        selectedLoadFilenameWithExtension = filenameWithExtension;
+                    }
+                }
+            }
+            ImGui::EndCombo();
+        }
+    }
+    else {
+        ImGui::Text("No scenes available to load.");
+    }
+
+    if (!selectedLoadFilename.empty() && ImGui::Button("Load")) {
+        loadScene(selectedLoadFilenameWithExtension); // Load using full filename with extension
+    }
+
+    ImGui::Separator();
+
+    // Modify DirectionalLight parameters
+    ImGui::Text("Directional Light");
+    ImGui::SliderFloat3("Direction", &m_light.direction[0], -1.0f, 1.0f);
+    ImGui::ColorEdit4("Color", &m_light.color[0]);
+
+    // Modify ambient coefficient
+    ImGui::SliderFloat("Ambient Coefficient", &m_ambientCoefficient, 0.0f, 1.0f);
+
+    ImGui::End();
+}
+
 
 void Scene::draw()
 {

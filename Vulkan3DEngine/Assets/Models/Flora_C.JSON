@@ -1,7 +1,7 @@
 {
-  "texture_path": "Flora_C_Flora_O_Material_u1_v1.png",
-  "mesh_path": "Flora_C.obj",
-  "translation": [ 0.0, 0.0, 0.0 ],
-  "rotation": [ 0, 0, 0 ],
-  "scale": 0.4
+  "texture": "Flora_C_Flora_O_Material_u1_v1.png",
+  "mesh": "Flora_C.obj",
+  "positionOffset": [ 0.0, 0.0, 0.0 ],
+  "rotationOffset": [ 0, 0, 0 ],
+  "scaleOffset": 0.4
 }
