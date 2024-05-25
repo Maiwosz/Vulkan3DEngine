@@ -7,25 +7,22 @@
 float Application::s_deltaTime = 0.0f;
 bool Application::s_cursor_mode = false;
 
-Application::Application()
+Application::Application() : m_stopCheckingResources(false)
 {
-    try
-    {
+    try {
         size_t numThreads = std::thread::hardware_concurrency();
         ThreadPool::create(numThreads);
     }
     catch (...) {
         throw std::exception("Failed to create ThreadPool");
     }
-    try
-    {
+    try {
         InputSystem::create();
     }
     catch (...) {
         throw std::exception("Failed to create InputSystem");
     }
-    try 
-    {
+    try {
         GraphicsEngine::create();
     }
     catch (...) {
@@ -37,13 +34,23 @@ Application::Application()
     InputSystem::get()->showCursor(false);
     s_cursor_mode = false;
     m_showExitPopup = false;
+
+    // Start resource checking thread
+    m_checkResourcesThread = std::thread(&Application::checkAndReloadResources, this);
 }
 
 Application::~Application()
 {
+    // Stop the resource checking thread
+    m_stopCheckingResources = true;
+    if (m_checkResourcesThread.joinable()) {
+        m_checkResourcesThread.join();
+    }
+
     GraphicsEngine::release();
     InputSystem::release();
 }
+
 
 void Application::run()
 {
@@ -52,10 +59,25 @@ void Application::run()
     InputSystem* inputSystem = InputSystem::get();
     ScenePtr scene = graphicsEngine->getScene();
     Camera* camera = scene->getCamera().get();
+    auto pool = ThreadPool::get();
 
-    graphicsEngine->getTextureManager()->updateResources();
-    graphicsEngine->getMeshManager()->updateResources();
-    graphicsEngine->getModelDataManager()->updateResources();
+    std::vector<std::future<void>> futures;
+
+    futures.push_back(pool->enqueue([] {
+        GraphicsEngine::get()->getTextureManager()->updateResources();
+        }));
+
+    futures.push_back(pool->enqueue([] {
+        GraphicsEngine::get()->getMeshManager()->updateResources();
+        }));
+
+    futures.push_back(pool->enqueue([] {
+        GraphicsEngine::get()->getModelDataManager()->updateResources();
+        }));
+
+    for (auto& future : futures) {
+        future.get(); // Synchronize tasks
+    }
 
     auto startTime = std::chrono::high_resolution_clock::now();
 
@@ -89,27 +111,10 @@ void Application::update()
     if (m_showExitPopup) {
         return;
     }
-    auto pool = ThreadPool::get();
-    std::vector<std::future<void>> futures;
-    
-    futures.push_back(pool->enqueue([] {
-        GraphicsEngine::get()->getTextureManager()->updateResources();
-        }));
-    
-    futures.push_back(pool->enqueue([] {
-        GraphicsEngine::get()->getMeshManager()->updateResources();
-        }));
-    
-    futures.push_back(pool->enqueue([] {
-        GraphicsEngine::get()->getModelDataManager()->updateResources();
-        }));
-    
-    for (auto& future : futures) {
-        future.get(); // Synchronize tasks
-    }
 
     GraphicsEngine::get()->getScene()->update();
 }
+
 
 void Application::draw()
 {
@@ -126,6 +131,7 @@ void Application::draw()
     drawFpsCounter();
     if (s_cursor_mode && !m_showExitPopup) {
         //ImGui::ShowDemoWindow();
+        GraphicsEngine::get()->getScene()->drawInterface();
         GraphicsEngine::get()->getScene()->getSceneObjectManager()->drawInterface();
     }
     if (m_showExitPopup) {
@@ -134,6 +140,7 @@ void Application::draw()
 
     GraphicsEngine::get()->getRenderer()->drawFrame();
 }
+
 
 void Application::drawFpsCounter()
 {
@@ -222,6 +229,32 @@ void Application::drawExitPopup()
             InputSystem::get()->showCursor(!s_cursor_mode);
         }
         ImGui::EndPopup();
+    }
+}
+
+void Application::checkAndReloadResources()
+{
+    while (!m_stopCheckingResources) {
+        auto pool = ThreadPool::get();
+        std::vector<std::future<void>> futures;
+
+        futures.push_back(pool->enqueue([] {
+            GraphicsEngine::get()->getTextureManager()->updateResources();
+            }));
+
+        futures.push_back(pool->enqueue([] {
+            GraphicsEngine::get()->getMeshManager()->updateResources();
+            }));
+
+        futures.push_back(pool->enqueue([] {
+            GraphicsEngine::get()->getModelDataManager()->updateResources();
+            }));
+
+        for (auto& future : futures) {
+            future.get(); // Synchronize tasks
+        }
+
+        std::this_thread::sleep_for(std::chrono::seconds(1)); // Wait for 1 second before checking again
     }
 }
 

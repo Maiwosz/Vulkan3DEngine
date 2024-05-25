@@ -7,13 +7,19 @@ class Camera : public SceneObject, public InputListener
 {
 public:
     Camera(glm::vec3 startPosition, float startRotY, float startRotX, Scene* scene);
+    Camera(const nlohmann::json& j, Scene* scene);
     ~Camera();
 
     const glm::mat4 getViewMatrix();
     const glm::mat4 getProjectionMatrix();
 
+    void updateCameraVectors();
+
     void update() override;
     void draw() override;
+
+    void to_json(nlohmann::json& j) override;
+    void from_json(const nlohmann::json& j) override;
 
     glm::vec3 m_up;
     glm::vec3 m_front;
@@ -30,7 +36,7 @@ private:
     virtual void onRightMouseDown(const glm::vec2& mouse_pos) override;
     virtual void onRightMouseUp(const glm::vec2& mouse_pos) override;
 
-    void updateCameraVectors();
+    
 
     float m_speed;
     float m_mouseSensitivity;

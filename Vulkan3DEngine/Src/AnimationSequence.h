@@ -11,9 +11,10 @@ public:
     void addAnimation(Animation& animation);
 
     void update();
-
     void setLoop(bool loop) { m_loop = loop; }
 
+    void to_json(nlohmann::json& j) const;
+    void from_json(const nlohmann::json& j, SceneObject* object);
 private:
     std::vector<Animation> m_animations;
     size_t m_currentAnimation = 0;

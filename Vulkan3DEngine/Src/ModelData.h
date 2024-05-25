@@ -24,9 +24,9 @@ private:
 	float m_kd = 0.8f;
 	float m_ks = 0.2f;
 
-	glm::mat4 m_initialScale;
-	glm::mat4 m_initialPosition;
-	glm::mat4 m_initialRotation;
+	glm::mat4 m_scaleOffset;
+	glm::mat4 m_positionOffset;
+	glm::mat4 m_rotationOffset;
 
 	friend class Model;
 	friend class Renderer;

@@ -11,6 +11,20 @@ Camera::Camera(glm::vec3 startPosition, float startPitch, float startYaw, Scene*
     updateCameraVectors(); 
 }
 
+Camera::Camera(const nlohmann::json& j, Scene* scene) :
+    SceneObject(j["SceneObjectData"], scene), m_up(glm::vec3(0.0f, 1.0f, 0.0f)), m_speed(3.0f), m_mouseSensitivity(20.0f),
+    m_zoom(45.0f), m_zoomSpeed(10.0f) {
+    try {
+        updateCameraVectors();
+        fmt::print("Camera initialized successfully\n");
+    }
+    catch (const std::exception& e) {
+        fmt::print(stderr, "Error: Failed to initialize Camera. Exception: {}\n", e.what());
+        throw;
+    }
+}
+
+
 Camera::~Camera()
 {
 }
@@ -48,6 +62,28 @@ void Camera::update()
 
 void Camera::draw()
 {
+}
+
+void Camera::to_json(nlohmann::json& j)
+{
+    nlohmann::json SceneObjectJson;
+    SceneObject::to_json(SceneObjectJson); // Call base class method
+
+    j = nlohmann::json{
+        {"type", "camera"},
+        {"SceneObjectData", SceneObjectJson},
+    };
+}
+
+void Camera::from_json(const nlohmann::json& j)
+{
+    try {
+
+    }
+    catch (const std::exception& e) {
+        fmt::print(stderr, "Error: Failed to deserialize Camera. Exception: {}\n", e.what());
+        throw; // Rzuæmy wyj¹tek dalej, aby ³atwiej by³o œledziæ b³¹d
+    }
 }
 
 void Camera::updateCameraVectors()

@@ -14,6 +14,10 @@ public:
 
 	SceneObjectManagerPtr getSceneObjectManager() { return m_sceneObjectManager; };
 	CameraPtr getCamera() { return m_camera; }
+
+	void saveScene(const std::string& filename);
+	void loadScene(const std::string& filename);
+	void drawInterface();
 private:
 	std::vector<UniformBufferPtr> m_uniformBuffers;
 	DescriptorAllocator m_globalDescriptorAllocator;
@@ -23,22 +27,11 @@ private:
 	GlobalUBO ubo{};
 
 	CameraPtr m_camera;
-
-	ModelPtr m_floor;
-
-	ModelPtr m_statue1;
-	ModelPtr m_statue2;
-	ModelPtr m_statue3;
-	ModelPtr m_statue4;
-
 	DirectionalLight m_light;
-	//PointLight m_pointLight1;
-	PointLightObjectPtr m_pointLight1;
-	PointLightObjectPtr m_pointLight2;
-	PointLightObjectPtr m_pointLight3;
-	std::vector<PointLightPtr> m_pointLights;
+	float m_ambientCoefficient = 0.005f;
 
-	float m_lightAngle = 0.0f;
+	std::vector<PointLightPtr> m_pointLights;
+	std::filesystem::path m_scenesDirectory = "Scenes";
 
 	friend class Renderer;
 	friend class Camera;

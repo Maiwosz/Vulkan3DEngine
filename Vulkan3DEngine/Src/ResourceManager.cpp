@@ -4,6 +4,42 @@
 #include <fmt/core.h>
 #include <fmt/ranges.h>
 #include <ranges>
+#include <thread>
+#include <chrono>
+
+bool isFileStable(const std::filesystem::path& path, const std::chrono::milliseconds& waitTime = std::chrono::milliseconds(100), int retries = 5)
+{
+    try
+    {
+        auto initialSize = std::filesystem::file_size(path);
+        fmt::print("Initial file size for '{}': {}\n", path.string(), initialSize);
+
+        for (int i = 0; i < retries; ++i)
+        {
+            std::this_thread::sleep_for(waitTime);
+
+            auto newSize = std::filesystem::file_size(path);
+            fmt::print("Retry {}: New file size for '{}': {}\n", i + 1, path.string(), newSize);
+
+            if (newSize == initialSize)
+            {
+                fmt::print("File size is stable after {} retries.\n", i + 1);
+                return true; // File size is stable
+            }
+
+            initialSize = newSize;
+        }
+    }
+    catch (const std::filesystem::filesystem_error& e)
+    {
+        fmt::print(stderr, "Error checking file stability '{}': {}\n", path.string(), e.what());
+        return false;
+    }
+
+    fmt::print("File size changed during all retries. File is still being written.\n");
+    return false; // File size changed, so it's still being written
+}
+
 
 ResourceManager::ResourceManager(const std::filesystem::path& directory)
     : m_directory(directory)
@@ -102,51 +138,66 @@ void ResourceManager::unloadResource(const std::filesystem::path& name)
 
 void ResourceManager::updateResources()
 {
-    //fmt::print("Updating resources...\n");
     std::shared_lock all_resources_lock(m_all_resources_mutex);
 
-    for (const auto& [name, _] : m_map_resources)
+    for (const auto& [name, resource] : m_map_resources)
     {
-        //fmt::print("Attempting to update resource: '{}'\n", name.string());
-        std::lock_guard resource_lock(m_individual_resource_mutexes[name]);
-        std::filesystem::path full_path = std::filesystem::absolute(m_directory / name);
+        if (resource) // Sprawdzanie tylko za³adowanych zasobów
+        {
+            std::lock_guard resource_lock(m_individual_resource_mutexes[name]);
+            std::filesystem::path full_path = std::filesystem::absolute(m_directory / name);
 
-        if (!std::filesystem::exists(full_path))
-        {
-            fmt::print("Resource '{}' has been removed\n", name.string());
-            std::unique_lock map_lock(m_map_resources_mutex);
-            m_map_resources.erase(name);
-            m_last_write_time.erase(name);
-        }
-        else
-        {
-            try
+            if (!std::filesystem::exists(full_path))
             {
-                auto last_write_time = std::filesystem::last_write_time(full_path);
-
-                if (last_write_time != m_last_write_time[name])
-                {
-                    fmt::print("Reloading resource '{}'\n", name.string());
-                    m_map_resources[name]->Reload();
-                    std::unique_lock map_lock(m_map_resources_mutex);
-                    m_last_write_time[name] = last_write_time;
-                    fmt::print("Resource has been reloaded: '{}', Path: '{}'\n", name.string(), full_path.string());
-                }
+                fmt::print("Resource '{}' has been removed\n", name.string());
+                std::unique_lock map_lock(m_map_resources_mutex);
+                m_map_resources.erase(name);
+                m_last_write_time.erase(name);
             }
-            catch (const std::filesystem::filesystem_error& e)
+            else
             {
-                fmt::print(stderr, "Error updating resource '{}': {}\n", full_path.string(), e.what());
+                try
+                {
+                    auto last_write_time = std::filesystem::last_write_time(full_path);
+
+                    if (last_write_time != m_last_write_time[name])
+                    {
+                        if (isFileStable(full_path))
+                        {
+                            std::unique_lock map_lock(m_map_resources_mutex);
+                            if (m_map_resources[name])
+                            {
+                                fmt::print("Reloading resource '{}'\n", name.string());
+                                m_map_resources[name]->Reload();
+                                m_last_write_time[name] = last_write_time;
+                                fmt::print("Resource has been reloaded: '{}', Path: '{}'\n", name.string(), full_path.string());
+                            }
+                        }
+                        else
+                        {
+                            fmt::print("Resource '{}' is still being written. Skipping reload.\n", name.string());
+                        }
+                    }
+                }
+                catch (const std::filesystem::filesystem_error& e)
+                {
+                    fmt::print(stderr, "Error updating resource '{}': {}\n", full_path.string(), e.what());
+                }
             }
         }
     }
 
-    //fmt::print("Finished Updating resources\n");
     all_resources_lock.unlock();
     updateResourceList();
 }
 
+
+
 void ResourceManager::updateResourceList()
 {
+    // Lista rozszerzeñ plików do zignorowania
+    std::set<std::string> ignoredExtensions = { ".tmp", ".bak" };
+
     //fmt::print("Updating resource list...\n");
     std::unique_lock lock(m_all_resources_mutex);
 
@@ -154,7 +205,11 @@ void ResourceManager::updateResourceList()
     {
         auto entries = std::filesystem::directory_iterator(m_directory);
         auto files = entries
-            | std::views::filter([](const auto& entry) { return entry.is_regular_file(); })
+            | std::views::filter([&](const auto& entry) {
+                // Sprawdzanie, czy rozszerzenie pliku jest na liœcie ignorowanych (z kropk¹)
+                auto extension = entry.path().extension().string(); // Pobranie pe³nej nazwy rozszerzenia
+                return entry.is_regular_file() && ignoredExtensions.find(extension) == ignoredExtensions.end();
+                })
             | std::views::transform([](const auto& entry) { return entry.path().filename(); });
 
         for (const auto& name : files)
