@@ -19,6 +19,7 @@ public:
 	UniformBufferPtr createUniformBuffer(VkDeviceSize deviceSize);
 	ImagePtr createImage(uint32_t width, uint32_t height, uint32_t mipLevels, VkSampleCountFlagBits numSamples, VkFormat format, VkImageTiling tiling,
 		VkImageUsageFlags usage, VkMemoryPropertyFlags properties);
+
 	SwapChainPtr getSwapChain() { return m_swapChain; }
 
 	void drawFrame();
@@ -28,9 +29,14 @@ public:
 	VkCommandBuffer getCurrentCommandBuffer() { return m_commandBuffers[m_currentFrame]; }
 	const uint32_t getCurrentFrame() { return m_currentFrame; }
 
+	void recreatePipelines();
+	void recreateImgui();
+
 	//Settings
+	static VkSampleCountFlagBits s_maxMsaaSamples;
 	static VkSampleCountFlagBits s_msaaSamples;
 	static const int s_maxFramesInFlight = 3;
+	static int s_framesInFlight;
 
 	VkDescriptorSetLayout m_globalDescriptorSetLayout;
 	VkDescriptorSetLayout m_textureDescriptorSetLayout;
@@ -44,6 +50,7 @@ private:
 	void createPointLightPipeline();
 
 	void initImgui();
+	
 	
 	SwapChainPtr m_swapChain;
 	PipelinePtr m_graphicsPipeline;

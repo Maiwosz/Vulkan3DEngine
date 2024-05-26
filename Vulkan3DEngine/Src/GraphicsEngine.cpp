@@ -39,11 +39,11 @@ void GraphicsEngine::release()
 
 void GraphicsEngine::init()
 {
-    try
-    {
-        m_window = std::make_shared<Window>(Window::Resolution::R_1280x720, "Vulkan3DEngine", Window::Mode::Windowed);
-    }
-    catch (...) { throw std::exception("Window not created successfully"); }
+    //try
+    //{
+    //    m_window = std::make_shared<Window>(Window::Resolution::R_1280x720, "Vulkan3DEngine", Window::Mode::Windowed);
+    //}
+    //catch (...) { throw std::exception("Window not created successfully"); }
     try
     {
         Instance::create();
@@ -53,7 +53,7 @@ void GraphicsEngine::init()
     }
     try
     {
-        m_window->createSurface();
+        Window::get()->createSurface();
     }
     catch (...) {
         throw std::exception("Failed to create Surface");

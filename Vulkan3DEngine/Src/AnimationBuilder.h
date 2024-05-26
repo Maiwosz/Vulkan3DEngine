@@ -7,8 +7,7 @@
 #include <atomic>
 #include "Animation.h"
 
-class MoveAnimationData : public AnimationData {
-public:
+struct MoveAnimationData : public AnimationData {
     glm::vec3 startPosition;
     glm::vec3 endPosition;
 
@@ -35,8 +34,7 @@ public:
     }
 };
 
-class RotateAnimationData : public AnimationData {
-public:
+struct RotateAnimationData : public AnimationData {
     glm::vec3 startRotation;
     glm::vec3 endRotation;
 
@@ -63,8 +61,7 @@ public:
     }
 };
 
-class OrbitAnimationData : public AnimationData {
-public:
+struct OrbitAnimationData : public AnimationData {
     glm::vec3 center;
     float radius;
     float angularSpeed;
@@ -100,8 +97,7 @@ public:
     }
 };
 
-class WaitAnimationData : public AnimationData {
-public:
+struct WaitAnimationData : public AnimationData {
 
     void to_json(nlohmann::json& j) const {
         j = nlohmann::json{

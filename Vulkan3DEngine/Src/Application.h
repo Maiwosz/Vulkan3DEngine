@@ -18,8 +18,15 @@ public:
 	static bool s_cursor_mode;
 	static float s_deltaTime;
 private:
+	void loadSettings();
+	void saveSettings();
+
 	void drawFpsCounter();
 	void drawExitPopup();
+	void drawInteface();
+	void createSettingsTab();
+
+
 	void checkAndReloadResources();
 
 	// Inherited via InputListener
@@ -36,4 +43,8 @@ private:
 	std::atomic<bool> m_stopCheckingResources; // Flag to stop the resource checking thread
 	std::thread m_checkResourcesThread; // Thread for resource checking
 
+	bool recreateImgui = false;
+	bool recreateSwapchain = false;
+	bool recreatePipelines = false;
+	bool reloadTextures = false;
 };

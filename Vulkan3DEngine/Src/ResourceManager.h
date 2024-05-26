@@ -21,6 +21,7 @@ public:
         std::shared_lock lock(m_all_resources_mutex);
         return m_all_resources;
     }
+    void reloadAllResources();
 protected:
     virtual Resource* createResourceFromFileConcrete(const std::filesystem::path& file_path) = 0;
 

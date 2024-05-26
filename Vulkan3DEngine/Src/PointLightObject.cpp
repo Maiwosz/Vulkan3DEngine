@@ -90,9 +90,6 @@ void PointLightObject::to_json(nlohmann::json& j) {
 }
 
 void PointLightObject::from_json(const nlohmann::json& j) {
-    // Wydrukuj zawartoœæ obiektu JSON
-    fmt::print("JSON content: {}\n", j.dump());
-
     try {
         m_light->color = glm::vec4(j["color"][0], j["color"][1], j["color"][2], j["intensity"]);
         m_light->radius = j["radius"];

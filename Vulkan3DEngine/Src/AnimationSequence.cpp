@@ -6,6 +6,13 @@ void AnimationSequence::addAnimation(Animation& animation) {
     m_animations.push_back(animation);
 }
 
+void AnimationSequence::resetAllAnimations()
+{
+    for (auto& animation : m_animations) {
+        animation.reset();
+    }
+}
+
 void AnimationSequence::update()
 {
     if (m_animations.empty()) {

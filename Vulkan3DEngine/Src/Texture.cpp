@@ -45,9 +45,15 @@ void Texture::Load(const std::filesystem::path& full_path)
 
 	stbi_image_free(pixels);
 
-	//VK_FORMAT_R8G8B8A8_SRGB przy multisamplingu sprawia, ¿e scena jest bardzo ciemna, trzeba zmieniæ na VK_FORMAT_R8G8B8A8_UNORM,
-	//ale to nie jest idealne rozwi¹zanie, do zbadania potem
-	m_image = GraphicsEngine::get()->getRenderer()->createImage(texWidth, texHeight, mipLevels, VK_SAMPLE_COUNT_1_BIT, VK_FORMAT_R8G8B8A8_UNORM,
+	VkFormat imageFormat;
+	if (Renderer::s_msaaSamples == VK_SAMPLE_COUNT_1_BIT) {
+		imageFormat = VK_FORMAT_R8G8B8A8_SRGB;
+	}
+	else {
+		imageFormat = VK_FORMAT_R8G8B8A8_UNORM;
+	}
+	
+	m_image = GraphicsEngine::get()->getRenderer()->createImage(texWidth, texHeight, mipLevels, VK_SAMPLE_COUNT_1_BIT, imageFormat,
 		VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
 		VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 
@@ -58,7 +64,7 @@ void Texture::Load(const std::filesystem::path& full_path)
 
 	m_image->generateMipmaps();
 
-	VkImageViewCreateInfo viewInfo = RendererInits::imageviewCreateInfo(m_image->get(), VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_ASPECT_COLOR_BIT, mipLevels);
+	VkImageViewCreateInfo viewInfo = RendererInits::imageviewCreateInfo(m_image->get(), imageFormat, VK_IMAGE_ASPECT_COLOR_BIT, mipLevels);
 
 	if (vkCreateImageView(GraphicsEngine::get()->getDevice()->get(), &viewInfo, nullptr, &m_imageView) != VK_SUCCESS) {
 		throw std::runtime_error("failed to create image view!");

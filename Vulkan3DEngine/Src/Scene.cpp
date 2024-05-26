@@ -158,7 +158,6 @@ void Scene::loadScene(const std::string& filename)
             fmt::print(stderr, "Warning: No directionalLight found in JSON.\n");
         }
         m_sceneObjectManager->removeAllObjects();
-        //m_sceneObjectManager->addObject(m_camera);
         m_sceneObjectManager->from_json(j["sceneObjects"]);
     }
     else
@@ -168,70 +167,83 @@ void Scene::loadScene(const std::string& filename)
 }
 
 void Scene::drawInterface() {
-    ImGui::Begin("Scene Interface");
+    //ImGui::Begin("Scene Manager");
+    if (ImGui::BeginTabItem("Scene Manager")) {
 
-    static char saveFilename[128] = "scene";
-    ImGui::InputText("Save Filename", saveFilename, IM_ARRAYSIZE(saveFilename));
+        static char saveFilename[128] = "scene";
+        ImGui::InputText("Save Filename", saveFilename, IM_ARRAYSIZE(saveFilename));
 
-    if (ImGui::Button("Save")) {
-        saveScene(saveFilename);
-    }
-
-    ImGui::Separator();
-
-    static std::string selectedLoadFilename;
-    static std::string selectedLoadFilenameWithExtension;
-    bool hasFiles = false;
-
-    // Check for files in the directory and set the first one as the default if none is selected
-    for (const auto& entry : std::filesystem::directory_iterator(m_scenesDirectory)) {
-        if (entry.is_regular_file()) {
-            const std::string filenameWithExtension = entry.path().filename().string();
-            const std::string filename = entry.path().stem().string(); // Get filename without extension
-
-            if (!hasFiles) {
-                selectedLoadFilename = filename;
-                selectedLoadFilenameWithExtension = filenameWithExtension;
-                hasFiles = true;
-            }
+        if (ImGui::Button("Save")) {
+            saveScene(saveFilename);
         }
-    }
 
-    if (hasFiles) {
-        if (ImGui::BeginCombo("Load Scene", selectedLoadFilename.c_str())) {
-            for (const auto& entry : std::filesystem::directory_iterator(m_scenesDirectory)) {
-                if (entry.is_regular_file()) {
-                    const std::string filenameWithExtension = entry.path().filename().string();
-                    const std::string filename = entry.path().stem().string(); // Get filename without extension
+        ImGui::Separator();
 
-                    if (ImGui::Selectable(filename.c_str(), selectedLoadFilename == filename)) {
-                        selectedLoadFilename = filename;
-                        selectedLoadFilenameWithExtension = filenameWithExtension;
-                    }
+        static std::string selectedLoadFilename;
+        static std::string selectedLoadFilenameWithExtension;
+        bool hasFiles = false;
+
+        // Check for files in the directory and set the first one as the default if none is selected
+        for (const auto& entry : std::filesystem::directory_iterator(m_scenesDirectory)) {
+            if (entry.is_regular_file()) {
+                const std::string filenameWithExtension = entry.path().filename().string();
+                const std::string filename = entry.path().stem().string(); // Get filename without extension
+
+                if (!hasFiles) {
+                    selectedLoadFilename = filename;
+                    selectedLoadFilenameWithExtension = filenameWithExtension;
+                    hasFiles = true;
                 }
             }
-            ImGui::EndCombo();
         }
+
+        if (hasFiles) {
+            if (ImGui::BeginCombo("Load Scene", selectedLoadFilename.c_str())) {
+                for (const auto& entry : std::filesystem::directory_iterator(m_scenesDirectory)) {
+                    if (entry.is_regular_file()) {
+                        const std::string filenameWithExtension = entry.path().filename().string();
+                        const std::string filename = entry.path().stem().string(); // Get filename without extension
+
+                        if (ImGui::Selectable(filename.c_str(), selectedLoadFilename == filename)) {
+                            selectedLoadFilename = filename;
+                            selectedLoadFilenameWithExtension = filenameWithExtension;
+                        }
+                    }
+                }
+                ImGui::EndCombo();
+            }
+        }
+        else {
+            ImGui::Text("No scenes available to load.");
+        }
+
+        if (!selectedLoadFilename.empty() && ImGui::Button("Load")) {
+            m_loadScene = true;
+            m_path = selectedLoadFilenameWithExtension;
+            //loadScene(selectedLoadFilenameWithExtension); // Load using full filename with extension
+        }
+
+        ImGui::Separator();
+
+        // Modify DirectionalLight parameters
+        ImGui::Text("Directional Light");
+        ImGui::SliderFloat3("Direction", &m_light.direction[0], -1.0f, 1.0f);
+        ImGui::ColorEdit4("Color", &m_light.color[0]);
+
+        // Modify ambient coefficient
+        ImGui::SliderFloat("Ambient Coefficient", &m_ambientCoefficient, 0.0f, 1.0f);
+
+        if (ImGui::Button("Reset All Objects")) {
+            m_sceneObjectManager->resetAllObjects();
+        }
+
+        m_sceneObjectManager->drawInterface();
+
+        ImGui::Separator();
+        ImGui::EndTabItem();
     }
-    else {
-        ImGui::Text("No scenes available to load.");
-    }
 
-    if (!selectedLoadFilename.empty() && ImGui::Button("Load")) {
-        loadScene(selectedLoadFilenameWithExtension); // Load using full filename with extension
-    }
-
-    ImGui::Separator();
-
-    // Modify DirectionalLight parameters
-    ImGui::Text("Directional Light");
-    ImGui::SliderFloat3("Direction", &m_light.direction[0], -1.0f, 1.0f);
-    ImGui::ColorEdit4("Color", &m_light.color[0]);
-
-    // Modify ambient coefficient
-    ImGui::SliderFloat("Ambient Coefficient", &m_ambientCoefficient, 0.0f, 1.0f);
-
-    ImGui::End();
+    //ImGui::End();
 }
 
 

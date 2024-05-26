@@ -21,7 +21,7 @@ public:
     static void release();
     void init();
 
-    WindowPtr getWindow() { return m_window; };
+    //WindowPtr getWindow() { return m_window; };
     DevicePtr getDevice() { return m_device; };
     RendererPtr getRenderer() { return m_renderer; };
     MeshManagerPtr getMeshManager() { return m_meshManager; };
@@ -31,9 +31,7 @@ public:
 private:
     //Resources
     static GraphicsEngine* m_engine;
-    WindowPtr m_window;
-    const uint32_t m_window_width = 1280;
-    const uint32_t m_window_height = 720;
+    //WindowPtr m_window;
     DevicePtr m_device;
     RendererPtr m_renderer;
     MeshManagerPtr m_meshManager;
