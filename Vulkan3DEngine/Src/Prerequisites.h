@@ -35,6 +35,7 @@
         }                                                                   \
     } while (0)
 
+
 class Application;
 
 class Window;

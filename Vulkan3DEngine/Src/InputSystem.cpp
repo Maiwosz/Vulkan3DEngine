@@ -1,10 +1,13 @@
 #include "InputSystem.h"
-#include <Windows.h>
 
 InputSystem* InputSystem::m_inputSystem = nullptr;
 
 InputSystem::InputSystem()
 {
+	p_window = Window::get()->getWindow();
+	glfwSetKeyCallback(p_window, key_callback);
+	glfwSetCursorPosCallback(p_window, cursor_position_callback);
+	glfwSetMouseButtonCallback(p_window, mouse_button_callback);
 }
 
 InputSystem::~InputSystem()
@@ -14,15 +17,16 @@ InputSystem::~InputSystem()
 
 void InputSystem::update()
 {
-	POINT current_mouse_pos = {};
-	::GetCursorPos(&current_mouse_pos);
+	double xpos, ypos;
+	glfwGetCursorPos(p_window, &xpos, &ypos);
+	glm::vec2 current_mouse_pos = glm::vec2(xpos, ypos);
 
 	if (m_first_time)
 	{
-		m_old_mouse_pos = glm::vec2(current_mouse_pos.x, current_mouse_pos.y);
+		m_old_mouse_pos = current_mouse_pos;
 		m_first_time = false;
 	}
-	
+
 	if (current_mouse_pos.x != m_old_mouse_pos.x || current_mouse_pos.y != m_old_mouse_pos.y)
 	{
 		//THERE IS MOUSE MOVE EVENT
@@ -30,70 +34,67 @@ void InputSystem::update()
 
 		while (it != m_set_listeners.end())
 		{
-			(*it)->onMouseMove(glm::vec2(current_mouse_pos.x, current_mouse_pos.y));
+			(*it)->onMouseMove(current_mouse_pos);
 			++it;
 		}
 	}
-	m_old_mouse_pos = glm::vec2(current_mouse_pos.x, current_mouse_pos.y);
+	m_old_mouse_pos = current_mouse_pos;
 
-	if (::GetKeyboardState(m_keys_state))
+	for (unsigned int i = GLFW_KEY_SPACE; i < GLFW_KEY_LAST; i++)
 	{
-		for (unsigned int i = 0; i < 256; i++)
+		// KEY IS DOWN
+		if (glfwGetKey(p_window, i) == GLFW_PRESS)
 		{
-			// KEY IS DOWN
-			if (m_keys_state[i] & 0x80)
+			std::unordered_set<InputListener*>::iterator it = m_set_listeners.begin();
+
+			while (it != m_set_listeners.end())
+			{
+				if (i == GLFW_MOUSE_BUTTON_LEFT)
+				{
+					if (m_keys_state[i] != m_old_keys_state[i])
+					{
+						(*it)->onLeftMouseDown(current_mouse_pos);
+					}
+				}
+				else if (i == GLFW_MOUSE_BUTTON_RIGHT)
+				{
+					if (m_keys_state[i] != m_old_keys_state[i])
+					{
+						(*it)->onRightMouseDown(current_mouse_pos);
+					}
+				}
+				else
+					(*it)->onKeyDown(i);
+
+				++it;
+			}
+		}
+		else // KEY IS UP
+		{
+			if (m_keys_state[i] != m_old_keys_state[i])
 			{
 				std::unordered_set<InputListener*>::iterator it = m_set_listeners.begin();
 
 				while (it != m_set_listeners.end())
 				{
-					if (i == VK_LBUTTON)
-					{
-						if (m_keys_state[i] != m_old_keys_state[i])
-						{
-							(*it)->onLeftMouseDown(glm::vec2(current_mouse_pos.x, current_mouse_pos.y));
-						}
+					if (i == GLFW_MOUSE_BUTTON_LEFT) {
+						(*it)->onLeftMouseUp(current_mouse_pos);
 					}
-					else if (i == VK_RBUTTON)
-					{
-						if (m_keys_state[i] != m_old_keys_state[i])
-						{
-							(*it)->onRightMouseDown(glm::vec2(current_mouse_pos.x, current_mouse_pos.y));
-						}
+					else if (i == GLFW_MOUSE_BUTTON_RIGHT) {
+						(*it)->onRightMouseUp(current_mouse_pos);
 					}
-					else
-						(*it)->onKeyDown(i);
-
+					else {
+						(*it)->onKeyUp(i);
+					}
 					++it;
 				}
 			}
-			else // KEY IS UP
-			{
-				if (m_keys_state[i] != m_old_keys_state[i])
-				{
-					std::unordered_set<InputListener*>::iterator it = m_set_listeners.begin();
-
-					while (it != m_set_listeners.end())
-					{
-						if (i == VK_LBUTTON) {
-							(*it)->onLeftMouseUp(glm::vec2(current_mouse_pos.x, current_mouse_pos.y));
-						}
-						else if (i == VK_RBUTTON) {
-							(*it)->onRightMouseUp(glm::vec2(current_mouse_pos.x, current_mouse_pos.y));
-						}
-						else {
-							(*it)->onKeyUp(i);
-						}
-						++it;
-					}
-				}
-
-			}
 
 		}
-		// store current keys state to old keys state buffer
-		::memcpy(m_old_keys_state, m_keys_state, sizeof(unsigned char) * 256);
+
 	}
+	// store current keys state to old keys state buffer
+	::memcpy(m_old_keys_state, m_keys_state, sizeof(unsigned char) * GLFW_KEY_LAST);
 }
 
 void InputSystem::addListener(InputListener* listener)
@@ -108,18 +109,18 @@ void InputSystem::removeListener(InputListener* listener)
 
 void InputSystem::setCursorPosition(const glm::vec2& pos)
 {
-	::SetCursorPos(static_cast<int>(pos.x), static_cast<int>(pos.y));
+	glfwSetCursorPos(p_window, pos.x, pos.y);
 }
 
 void InputSystem::showCursor(bool show)
 {
 	if (show)
 	{
-		while (::ShowCursor(TRUE) < 0);
+		glfwSetInputMode(p_window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
 	}
 	else
 	{
-		while (::ShowCursor(FALSE) >= 0);
+		glfwSetInputMode(p_window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
 	}
 }
 

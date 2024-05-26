@@ -7,8 +7,7 @@
 #include <condition_variable>
 #include <mutex>
 
-class AnimationData {
-public:
+struct AnimationData {
     virtual ~AnimationData() = default;
     virtual void to_json(nlohmann::json& j) const = 0;
     virtual void from_json(const nlohmann::json& j) = 0;

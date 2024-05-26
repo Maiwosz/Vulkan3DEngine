@@ -6,6 +6,7 @@
 #include <ranges>
 #include <thread>
 #include <chrono>
+#include "ThreadPool.h"
 
 bool isFileStable(const std::filesystem::path& path, const std::chrono::milliseconds& waitTime = std::chrono::milliseconds(100), int retries = 5)
 {
@@ -189,6 +190,25 @@ void ResourceManager::updateResources()
 
     all_resources_lock.unlock();
     updateResourceList();
+}
+
+void ResourceManager::reloadAllResources()
+{
+    std::vector<std::future<void>> futures;
+    {
+        std::lock_guard<std::mutex> lock(m_map_resources_mutex);
+        for (auto& [path, resource] : m_map_resources) {
+            if (resource) {
+                futures.push_back(ThreadPool::get()->enqueue([resource]() -> void {
+                    resource->Reload();
+                    }));
+            }
+        }
+    }
+
+    for (auto& future : futures) {
+        future.get();
+    }
 }
 
 

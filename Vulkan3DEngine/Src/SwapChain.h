@@ -1,6 +1,5 @@
 #pragma once
 #include "Prerequisites.h"
-
 #include <vector>
 
 class SwapChain
@@ -12,9 +11,9 @@ public:
 	VkRenderPass getRenderPass() { return m_renderPass; };
 	std::vector<VkFramebuffer> getSwapChainFramebuffers() { return m_swapChainFramebuffers; };
 	VkExtent2D getSwapChainExtent() { return m_swapChainExtent; };
+	void recreateSwapChain();
 private:
 	void createSwapChain();
-	void recreateSwapChain();
 	void cleanupSwapChain();
 	void createImageViews();
 	void createRenderPass();
@@ -29,18 +28,15 @@ private:
 	std::vector<VkImage> m_swapChainImages;
 	VkFormat m_swapChainImageFormat;
 	VkExtent2D m_swapChainExtent;
-	//std::vector<ImageViewPtr> m_swapChainImageViews;
 	std::vector<VkImageView> m_swapChainImageViews;
 
 	VkRenderPass m_renderPass;
 
 	ImagePtr m_depthImage;
-	//ImageViewPtr m_depthImageView;
 	VkImageView m_depthImageView;
 
 	ImagePtr m_colorImage;
 	VkImageView m_colorImageView;
-	//ImageViewPtr m_colorImageView;
 
 	std::vector<VkFramebuffer> m_swapChainFramebuffers;
 
@@ -48,7 +44,6 @@ private:
 	std::vector<VkSemaphore> m_renderFinishedSemaphores;
 	std::vector<VkFence> m_inFlightFences;
 
-	//friend class GraphicsPipeline;
 	friend class Renderer;
 };
 

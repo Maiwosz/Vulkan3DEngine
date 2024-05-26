@@ -10,7 +10,9 @@
 #include "Application.h"
 #include "RendererInits.h"
 
+VkSampleCountFlagBits Renderer::s_maxMsaaSamples = VK_SAMPLE_COUNT_1_BIT;
 VkSampleCountFlagBits Renderer::s_msaaSamples = VK_SAMPLE_COUNT_1_BIT;
+int Renderer::s_framesInFlight = 2;
 
 Renderer::Renderer()
 {
@@ -125,15 +127,15 @@ void Renderer::drawFrame()
 
     result = vkQueuePresentKHR(GraphicsEngine::get()->getDevice()->getPresentQueue(), &presentInfo);
 
-    if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR || GraphicsEngine::get()->getWindow()->wasWindowResized()) {
-        GraphicsEngine::get()->getWindow()->resetWindowResizedFlag();
+    if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR || Window::get()->wasWindowResized()) {
+        Window::get()->resetWindowResizedFlag();
         m_swapChain->recreateSwapChain();
     }
     else if (result != VK_SUCCESS) {
         throw std::runtime_error("failed to present swap chain image!");
     }
 
-    m_currentFrame = (m_currentFrame + 1) % Renderer::s_maxFramesInFlight;
+    m_currentFrame = (m_currentFrame + 1) % Renderer::s_framesInFlight;
 }
 
 void Renderer::drawModel(Model* model)
@@ -144,6 +146,37 @@ void Renderer::drawModel(Model* model)
 void Renderer::bindDescriptorSet(VkDescriptorSet set, int position)
 {
     m_currentDescriptorSets[position] = set;
+}
+
+void Renderer::recreatePipelines()
+{
+    vkDeviceWaitIdle(GraphicsEngine::get()->getDevice()->get());
+    m_graphicsPipeline.reset();
+    m_pointLightPipeline.reset();
+
+    vkDestroyDescriptorSetLayout(GraphicsEngine::get()->getDevice()->get(), m_globalDescriptorSetLayout, nullptr);
+    vkDestroyDescriptorSetLayout(GraphicsEngine::get()->getDevice()->get(), m_modelDescriptorSetLayout, nullptr);
+    vkDestroyDescriptorSetLayout(GraphicsEngine::get()->getDevice()->get(), m_textureDescriptorSetLayout, nullptr);
+
+    createGraphicsPipeline();
+    createPointLightPipeline();
+}
+
+void Renderer::recreateImgui()
+{
+    // Wait for device to be idle to ensure no resources are in use
+    vkDeviceWaitIdle(GraphicsEngine::get()->getDevice()->get());
+
+    // Shutdown ImGui and free its resources
+    ImGui_ImplVulkan_Shutdown();
+    ImGui_ImplGlfw_Shutdown();
+    ImGui::DestroyContext();
+
+    // Destroy ImGui's descriptor pool
+    vkDestroyDescriptorPool(GraphicsEngine::get()->getDevice()->get(), m_imguiPool, nullptr);
+
+    // Reinitialize ImGui
+    initImgui();
 }
 
 void Renderer::createCommandBuffers()
@@ -412,7 +445,7 @@ void Renderer::initImgui()
     //ImGui::StyleColorsLight();
 
     // Setup Platform/Renderer backends
-    ImGui_ImplGlfw_InitForVulkan(GraphicsEngine::get()->getWindow()->get(), true);
+    ImGui_ImplGlfw_InitForVulkan(Window::get()->getWindow(), true);
     ImGui_ImplVulkan_InitInfo info;
     info.Instance = Instance::get()->getVkInstance();
     info.PhysicalDevice = GraphicsEngine::get()->getDevice()->getPhysicalDevice();

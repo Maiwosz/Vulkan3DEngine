@@ -6,7 +6,7 @@
       <Filter>Application\GraphicsEngine</Filter>
     </ClCompile>
     <ClCompile Include="Src\Window.cpp">
-      <Filter>Application\GraphicsEngine\Window</Filter>
+      <Filter>Application\Window</Filter>
     </ClCompile>
     <ClCompile Include="Src\ThreadPool.cpp">
       <Filter>Application\ThreadPool</Filter>
@@ -138,7 +138,7 @@
       <Filter>Application\GraphicsEngine</Filter>
     </ClInclude>
     <ClInclude Include="Src\Window.h">
-      <Filter>Application\GraphicsEngine\Window</Filter>
+      <Filter>Application\Window</Filter>
     </ClInclude>
     <ClInclude Include="Src\ThreadPool.h">
       <Filter>Application\ThreadPool</Filter>
@@ -348,9 +348,6 @@
     <Filter Include="Application\GraphicsEngine\Device">
       <UniqueIdentifier>{b3ecf183-f434-42f8-a0d2-1b282c0dc814}</UniqueIdentifier>
     </Filter>
-    <Filter Include="Application\GraphicsEngine\Window">
-      <UniqueIdentifier>{71b4fcbb-7907-44e5-aad6-a43a9e685b14}</UniqueIdentifier>
-    </Filter>
     <Filter Include="Application\GraphicsEngine\Instance">
       <UniqueIdentifier>{65e632e9-2abf-4ffb-bfb8-8b06beabb7fe}</UniqueIdentifier>
     </Filter>
@@ -362,6 +359,9 @@
     </Filter>
     <Filter Include="Application\GraphicsEngine\Scene\SceneObjectManager\Animations">
       <UniqueIdentifier>{9ee47b91-907f-4944-a001-3b6ae859ee65}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Application\Window">
+      <UniqueIdentifier>{71b4fcbb-7907-44e5-aad6-a43a9e685b14}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
 </Project>

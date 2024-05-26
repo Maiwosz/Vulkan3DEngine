@@ -18,6 +18,9 @@ public:
 	void saveScene(const std::string& filename);
 	void loadScene(const std::string& filename);
 	void drawInterface();
+
+	bool m_loadScene = false;
+	std::string m_path;
 private:
 	std::vector<UniformBufferPtr> m_uniformBuffers;
 	DescriptorAllocator m_globalDescriptorAllocator;

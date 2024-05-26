@@ -36,6 +36,8 @@ public:
         m_objects.clear();
     }
 
+    void resetAllObjects();
+
     std::vector<std::shared_ptr<SceneObject>> getObjects() const {
         return m_objects;
     }
@@ -45,7 +47,24 @@ public:
     void to_json(nlohmann::json& j);
     void from_json(const nlohmann::json& j);
 private:
+    void drawManageObjectsTab();
+    void drawCreateNewObjectTab();
+    void drawObjectCommonProperties(const std::shared_ptr<SceneObject>& object);
+    void drawModelSpecificProperties(Model* model);
+    void drawLightSpecificProperties(PointLightObject* light);
+    template <typename ResourceManager>
+    void drawComboBox(const char* label, const std::string& currentItem, std::shared_ptr<ResourceManager> manager, std::function<void(const std::string&)> onSelect);
+    void drawManageAnimationsWindow();
+    void drawSaveModelDataButton(Model* model);
+    void drawCreateModelUI();
+    void drawCustomModelCreationUI(glm::vec3& position, glm::vec3& rotation, float& scale);
+    void drawModelCreationUI(const std::string& modelDataName, glm::vec3& position, glm::vec3& rotation, float& scale);
+    void drawCreatePointLightUI();
+
     SceneObject* m_selectedObject = nullptr;
+    int m_openedObjectIndex = -1;
+    bool showAnimationSequenceWindow = false;
     Scene* p_scene;
     std::vector<std::shared_ptr<SceneObject>> m_objects;
 };
+

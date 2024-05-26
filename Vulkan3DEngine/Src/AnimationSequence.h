@@ -9,6 +9,7 @@ public:
         : m_loop(loop) {}
 
     void addAnimation(Animation& animation);
+    void resetAllAnimations();
 
     void update();
     void setLoop(bool loop) { m_loop = loop; }

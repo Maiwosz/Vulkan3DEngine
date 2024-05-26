@@ -109,7 +109,7 @@ void Device::pickPhysicalDevice()
     // Check if the best candidate is suitable at all
     if (candidates.rbegin()->first > 0) {
         m_physicalDevice = candidates.rbegin()->second;
-        Renderer::s_msaaSamples = getMaxUsableSampleCount();
+        Renderer::s_maxMsaaSamples = getMaxUsableSampleCount();
     }
     else {
         fmt::print(stderr, "Error: failed to find a suitable GPU!\n");
@@ -210,7 +210,7 @@ QueueFamilyIndices Device::findQueueFamilies(VkPhysicalDevice device) {
         }
 
         VkBool32 presentSupport = false;
-        vkGetPhysicalDeviceSurfaceSupportKHR(device, i, GraphicsEngine::get()->getWindow()->getSurface(), &presentSupport);
+        vkGetPhysicalDeviceSurfaceSupportKHR(device, i, Window::get()->getSurface(), &presentSupport);
 
         if (presentSupport) {
             indices.presentFamily = i;
@@ -309,22 +309,22 @@ SwapChainSupportDetails Device::querySwapChainSupport(VkPhysicalDevice device)
 {
     SwapChainSupportDetails details;
 
-    vkGetPhysicalDeviceSurfaceCapabilitiesKHR(device, GraphicsEngine::get()->getWindow()->getSurface(), &details.capabilities);
+    vkGetPhysicalDeviceSurfaceCapabilitiesKHR(device, Window::get()->getSurface(), &details.capabilities);
 
     uint32_t formatCount;
-    vkGetPhysicalDeviceSurfaceFormatsKHR(device, GraphicsEngine::get()->getWindow()->getSurface(), &formatCount, nullptr);
+    vkGetPhysicalDeviceSurfaceFormatsKHR(device, Window::get()->getSurface(), &formatCount, nullptr);
 
     if (formatCount != 0) {
         details.formats.resize(formatCount);
-        vkGetPhysicalDeviceSurfaceFormatsKHR(device, GraphicsEngine::get()->getWindow()->getSurface(), &formatCount, details.formats.data());
+        vkGetPhysicalDeviceSurfaceFormatsKHR(device, Window::get()->getSurface(), &formatCount, details.formats.data());
     }
 
     uint32_t presentModeCount;
-    vkGetPhysicalDeviceSurfacePresentModesKHR(device, GraphicsEngine::get()->getWindow()->getSurface(), &presentModeCount, nullptr);
+    vkGetPhysicalDeviceSurfacePresentModesKHR(device, Window::get()->getSurface(), &presentModeCount, nullptr);
 
     if (presentModeCount != 0) {
         details.presentModes.resize(presentModeCount);
-        vkGetPhysicalDeviceSurfacePresentModesKHR(device, GraphicsEngine::get()->getWindow()->getSurface(), &presentModeCount, details.presentModes.data());
+        vkGetPhysicalDeviceSurfacePresentModesKHR(device, Window::get()->getSurface(), &presentModeCount, details.presentModes.data());
     }
 
     return details;
@@ -360,7 +360,7 @@ VkExtent2D Device::chooseSwapExtent(const VkSurfaceCapabilitiesKHR& capabilities
     }
     else {
         int width, height;
-        glfwGetFramebufferSize(GraphicsEngine::get()->getWindow()->get(), &width, &height);
+        glfwGetFramebufferSize(Window::get()->getWindow(), &width, &height);
 
         VkExtent2D actualExtent = {
             static_cast<uint32_t>(width),

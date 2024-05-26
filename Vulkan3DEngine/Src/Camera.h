@@ -18,12 +18,17 @@ public:
     void update() override;
     void draw() override;
 
+    void drawInterface();
+
     void to_json(nlohmann::json& j) override;
     void from_json(const nlohmann::json& j) override;
 
     glm::vec3 m_up;
     glm::vec3 m_front;
     glm::vec3 m_right;
+
+    static float s_mouseSensitivity;
+    static float s_fov;
 
 private:
     // Inherited via InputListener
@@ -36,11 +41,7 @@ private:
     virtual void onRightMouseDown(const glm::vec2& mouse_pos) override;
     virtual void onRightMouseUp(const glm::vec2& mouse_pos) override;
 
-    
-
     float m_speed;
-    float m_mouseSensitivity;
-    float m_zoom;
     float m_zoomSpeed;
 
     bool ctrlPressed = false;

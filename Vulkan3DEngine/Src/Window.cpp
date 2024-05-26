@@ -14,12 +14,16 @@ const std::map<Window::Resolution, Window::ResolutionDetails> Window::resolution
     { Window::Resolution::R_1920x1080, {1920, 1080} }
 };
 
+Window* Window::m_window = nullptr;
+Window::Mode Window::s_mode = Mode::Windowed;
+Window::Resolution Window::s_resolution = Resolution::R_1280x720;
+
 static void glfwErrorCallback(int error, const char* description) {
     std::cerr << "GLFW Error: " << error << " - " << description << std::endl;
 }
 
-Window::Window(Resolution resolution, const char* windowName, Mode mode)
-    : m_resolution(resolution), m_windowName(windowName), m_mode(mode)
+Window::Window(const char* windowName)
+    : m_windowName(windowName)
 {
     glfwSetErrorCallback(glfwErrorCallback);
 
@@ -29,70 +33,88 @@ Window::Window(Resolution resolution, const char* windowName, Mode mode)
     glfwWindowHint(GLFW_RESIZABLE, GLFW_FALSE);
 
     GLFWmonitor* monitor = nullptr;
-    if (mode == Mode::Fullscreen || mode == Mode::Borderless) {
+    if (s_mode == Mode::Fullscreen || s_mode == Mode::Borderless) {
         monitor = glfwGetPrimaryMonitor();
     }
 
-    // Pobierz wymiary dla wybranej rozdzielczoœci
-    auto resolutionDetails = resolutionMap.at(resolution);
+    auto resolutionDetails = resolutionMap.at(s_resolution);
 
-    m_window = glfwCreateWindow(resolutionDetails.width, resolutionDetails.height, windowName, monitor, nullptr);
+    m_glfwWindow = glfwCreateWindow(resolutionDetails.width, resolutionDetails.height, windowName, monitor, nullptr);
 
-    if (mode == Mode::Borderless) {
+    if (s_mode == Mode::Borderless) {
         const GLFWvidmode* mode = glfwGetVideoMode(monitor);
-        glfwSetWindowMonitor(m_window, monitor, 0, 0, mode->width, mode->height, mode->refreshRate);
+        glfwSetWindowMonitor(m_glfwWindow, monitor, 0, 0, mode->width, mode->height, mode->refreshRate);
     }
 
-    glfwSetWindowUserPointer(m_window, this);
-    glfwSetFramebufferSizeCallback(m_window, framebufferResizeCallback);
-    glfwSetWindowFocusCallback(m_window, windowFocusCallback);
+    glfwSetWindowUserPointer(m_glfwWindow, this);
+    glfwSetFramebufferSizeCallback(m_glfwWindow, framebufferResizeCallback);
+    glfwSetWindowFocusCallback(m_glfwWindow, windowFocusCallback);
+    glfwSetWindowIconifyCallback(m_glfwWindow, windowIconifyCallback);
 }
-
 
 Window::~Window()
 {
     if (m_surface) {
         vkDestroySurfaceKHR(Instance::get()->getVkInstance(), m_surface, nullptr);
     }
-    glfwDestroyWindow(m_window);
+    glfwDestroyWindow(m_glfwWindow);
     glfwTerminate();
+}
+
+Window* Window::get()
+{
+    return m_window;
+}
+
+void Window::create(const char* windowName)
+{
+    if (Window::m_window) throw std::exception("Window already created");
+    Window::m_window = new Window(windowName);
+}
+
+void Window::release()
+{
+    if (!Window::m_window)
+    {
+        return;
+    }
+    delete Window::m_window;
 }
 
 void Window::createSurface()
 {
-    if (glfwCreateWindowSurface(Instance::get()->getVkInstance(), m_window, nullptr, &m_surface) != VK_SUCCESS) {
+    if (glfwCreateWindowSurface(Instance::get()->getVkInstance(), m_glfwWindow, nullptr, &m_surface) != VK_SUCCESS) {
         throw std::runtime_error("failed to create window surface!");
     }
 }
 
-void Window::setMode(Mode mode)
-{
-    if (mode == m_mode) {
-        return;
+void Window::setMode(Mode mode) {
+    s_mode = mode;
+    // Zastosuj zmiany do okna
+    if (mode == Mode::Fullscreen) {
+        const GLFWvidmode* mode = glfwGetVideoMode(glfwGetPrimaryMonitor());
+        glfwSetWindowMonitor(m_glfwWindow, glfwGetPrimaryMonitor(), 0, 0, mode->width, mode->height, mode->refreshRate);
     }
+    else if (mode == Mode::Windowed) {
+        ResolutionDetails resolutionDetails = resolutionMap.at(s_resolution);
+        glfwSetWindowMonitor(m_glfwWindow, nullptr, 0, 0, resolutionDetails.width, resolutionDetails.height, 0);
+    }
+    else if (mode == Mode::Borderless) {
+        const GLFWvidmode* mode = glfwGetVideoMode(glfwGetPrimaryMonitor());
+        glfwSetWindowMonitor(m_glfwWindow, glfwGetPrimaryMonitor(), 0, 0, mode->width, mode->height, mode->refreshRate);
+    }
+}
 
-    m_mode = mode;
-
-    GLFWmonitor* monitor = nullptr;
-    if (mode == Mode::Fullscreen || mode == Mode::Borderless) {
-        monitor = glfwGetPrimaryMonitor();
-    }
-
-    if (mode == Mode::Borderless) {
-        const GLFWvidmode* mode = glfwGetVideoMode(monitor);
-        glfwSetWindowMonitor(m_window, monitor, 0, 0, mode->width, mode->height, mode->refreshRate);
-    }
-    else {
-        auto resolutionDetails = resolutionMap.at(m_resolution);
-        glfwSetWindowMonitor(m_window, nullptr, 0, 0, resolutionDetails.width, resolutionDetails.height, 0);
-    }
+void Window::setResolution(Resolution resolution) {
+    s_resolution = resolution;
+    // Zastosuj zmiany do okna
+    ResolutionDetails resolutionDetails = resolutionMap.at(s_resolution);
+    glfwSetWindowSize(m_glfwWindow, resolutionDetails.width, resolutionDetails.height);
 }
 
 void Window::framebufferResizeCallback(GLFWwindow* window, int width, int height) {
     auto m_window = reinterpret_cast<Window*>(glfwGetWindowUserPointer(window));
     m_window->m_framebufferResized = true;
-    //m_window->m_width = width;
-    //m_window->m_height = height;
 }
 
 void Window::windowFocusCallback(GLFWwindow* window, int focused)
