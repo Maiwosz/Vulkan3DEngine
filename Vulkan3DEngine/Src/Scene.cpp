@@ -167,9 +167,7 @@ void Scene::loadScene(const std::string& filename)
 }
 
 void Scene::drawInterface() {
-    //ImGui::Begin("Scene Manager");
     if (ImGui::BeginTabItem("Scene Manager")) {
-
         static char saveFilename[128] = "scene";
         ImGui::InputText("Save Filename", saveFilename, IM_ARRAYSIZE(saveFilename));
 
@@ -183,31 +181,41 @@ void Scene::drawInterface() {
         static std::string selectedLoadFilenameWithExtension;
         bool hasFiles = false;
 
-        // Check for files in the directory and set the first one as the default if none is selected
+        std::vector<std::string> filenames;
+        std::vector<std::string> filenamesWithExtension;
+
         for (const auto& entry : std::filesystem::directory_iterator(m_scenesDirectory)) {
             if (entry.is_regular_file()) {
                 const std::string filenameWithExtension = entry.path().filename().string();
                 const std::string filename = entry.path().stem().string(); // Get filename without extension
 
-                if (!hasFiles) {
-                    selectedLoadFilename = filename;
-                    selectedLoadFilenameWithExtension = filenameWithExtension;
-                    hasFiles = true;
-                }
+                filenames.push_back(filename);
+                filenamesWithExtension.push_back(filenameWithExtension);
+                hasFiles = true;
             }
+        }
+
+        // Initialize the selected filename if not set
+        if (hasFiles && selectedLoadFilename.empty()) {
+            selectedLoadFilename = filenames[0];
+            selectedLoadFilenameWithExtension = filenamesWithExtension[0];
         }
 
         if (hasFiles) {
             if (ImGui::BeginCombo("Load Scene", selectedLoadFilename.c_str())) {
-                for (const auto& entry : std::filesystem::directory_iterator(m_scenesDirectory)) {
-                    if (entry.is_regular_file()) {
-                        const std::string filenameWithExtension = entry.path().filename().string();
-                        const std::string filename = entry.path().stem().string(); // Get filename without extension
+                for (size_t i = 0; i < filenames.size(); ++i) {
+                    const std::string& filename = filenames[i];
+                    const std::string& filenameWithExtension = filenamesWithExtension[i];
 
-                        if (ImGui::Selectable(filename.c_str(), selectedLoadFilename == filename)) {
-                            selectedLoadFilename = filename;
-                            selectedLoadFilenameWithExtension = filenameWithExtension;
-                        }
+                    bool isSelected = (selectedLoadFilename == filename);
+                    if (ImGui::Selectable(filename.c_str(), isSelected)) {
+                        selectedLoadFilename = filename;
+                        selectedLoadFilenameWithExtension = filenameWithExtension;
+                    }
+
+                    // Ensure the selected item is highlighted
+                    if (isSelected) {
+                        ImGui::SetItemDefaultFocus();
                     }
                 }
                 ImGui::EndCombo();
@@ -220,7 +228,7 @@ void Scene::drawInterface() {
         if (!selectedLoadFilename.empty() && ImGui::Button("Load")) {
             m_loadScene = true;
             m_path = selectedLoadFilenameWithExtension;
-            //loadScene(selectedLoadFilenameWithExtension); // Load using full filename with extension
+            // loadScene(selectedLoadFilenameWithExtension); // Load using full filename with extension
         }
 
         ImGui::Separator();
@@ -242,9 +250,9 @@ void Scene::drawInterface() {
         ImGui::Separator();
         ImGui::EndTabItem();
     }
-
-    //ImGui::End();
 }
+
+
 
 
 void Scene::draw()

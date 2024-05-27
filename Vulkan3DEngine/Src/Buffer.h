@@ -1,7 +1,7 @@
 #pragma once
 #include "Prerequisites.h"
 
-class Buffer
+struct Buffer
 {
 public:
     Buffer(Renderer* renderer);

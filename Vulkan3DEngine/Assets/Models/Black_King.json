@@ -1,0 +1,19 @@
+{
+    "kd": 0.800000011920929,
+    "ks": 0.20000000298023224,
+    "mesh": "king.obj",
+    "positionOffset": [
+        0.0,
+        0.0,
+        0.0
+    ],
+    "rotationOffset": [
+        0.0,
+        -0.0,
+        0.0
+    ],
+    "scale": 1.0,
+    "scaleOffset": 1.25,
+    "shininess": 1.0,
+    "texture": "wood_table_worn_diff_4k.jpg"
+}

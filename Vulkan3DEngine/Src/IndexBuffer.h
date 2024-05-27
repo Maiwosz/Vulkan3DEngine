@@ -3,7 +3,7 @@
 #include "Buffer.h"
 #include <vector>
 
-class IndexBuffer : public Buffer
+struct IndexBuffer : public Buffer
 {
 public:
 	IndexBuffer(std::vector<uint32_t> indices, Renderer* renderer);

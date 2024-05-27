@@ -3,7 +3,7 @@
 #include "Buffer.h"
 #include <vector>
 
-class VertexBuffer: public Buffer
+struct VertexBuffer: public Buffer
 {
 public:
 	VertexBuffer(std::vector<Vertex> vertices, Renderer* renderer);

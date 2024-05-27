@@ -2,7 +2,7 @@
 #include "Prerequisites.h"
 #include "Buffer.h"
 
-class StagingBuffer : public Buffer
+struct StagingBuffer : public Buffer
 {
 public:
 	StagingBuffer(VkDeviceSize bufferSize, Renderer* renderer);
