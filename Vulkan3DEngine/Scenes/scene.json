@@ -1,0 +1,1393 @@
+{
+    "directionalLight": {
+        "color": [
+            1.0,
+            1.0,
+            1.0
+        ],
+        "direction": [
+            0.0,
+            -1.0,
+            -1.0
+        ],
+        "intensity": 0.0
+    },
+    "sceneObjects": {
+        "Black_Bishop_1": {
+            "SceneObjectData": {
+                "animationSequence": null,
+                "name": "Black_Bishop",
+                "position": [
+                    2.0,
+                    0.0,
+                    -7.0
+                ],
+                "rotation": [
+                    0.0,
+                    90.0,
+                    0.0
+                ],
+                "scale": 1.0
+            },
+            "modelData": "Black_Bishop.json",
+            "type": "model"
+        },
+        "Black_Bishop_2": {
+            "SceneObjectData": {
+                "animationSequence": null,
+                "name": "Black_Bishop",
+                "position": [
+                    5.0,
+                    0.0,
+                    -7.0
+                ],
+                "rotation": [
+                    0.0,
+                    90.0,
+                    0.0
+                ],
+                "scale": 1.0
+            },
+            "modelData": "Black_Bishop.json",
+            "type": "model"
+        },
+        "Black_King_1": {
+            "SceneObjectData": {
+                "animationSequence": null,
+                "name": "Black_King",
+                "position": [
+                    4.0,
+                    0.0,
+                    -7.0
+                ],
+                "rotation": [
+                    0.0,
+                    90.0,
+                    0.0
+                ],
+                "scale": 1.0
+            },
+            "modelData": "Black_King.json",
+            "type": "model"
+        },
+        "Black_Knight_1": {
+            "SceneObjectData": {
+                "animationSequence": null,
+                "name": "Black_Knight",
+                "position": [
+                    1.0,
+                    0.0,
+                    -7.0
+                ],
+                "rotation": [
+                    0.0,
+                    0.0,
+                    0.0
+                ],
+                "scale": 1.0
+            },
+            "modelData": "Black_Knight.json",
+            "type": "model"
+        },
+        "Black_Knight_2": {
+            "SceneObjectData": {
+                "animationSequence": {
+                    "animations": [
+						{
+                            "active": true,
+                            "data": {
+                                "endPosition": [
+                                    6.0,
+                                    0.0,
+                                    -7.0
+                                ],
+                                "startPosition": [
+                                    6.0,
+                                    0.0,
+                                    -7.0
+                                ],
+                                "type": "move"
+                            },
+                            "duration": 1.0,
+                            "elapsedTime": 0.0
+                        },
+                        {
+                            "active": true,
+                            "data": {
+                                "type": "wait"
+                            },
+                            "duration": 18.5,
+                            "elapsedTime": 0.0
+                        },
+                        {
+                            "active": true,
+                            "data": {
+                                "endPosition": [
+                                    6.0,
+                                    1.5,
+                                    -7.0
+                                ],
+                                "startPosition": [
+                                    6.0,
+                                    0.0,
+                                    -7.0
+                                ],
+                                "type": "move"
+                            },
+                            "duration": 0.5,
+                            "elapsedTime": 0.0
+                        },
+						{
+                            "active": true,
+                            "data": {
+                                "endPosition": [
+                                    5.0,
+                                    1.5,
+                                    -5.0
+                                ],
+                                "startPosition": [
+                                    6.0,
+                                    1.5,
+                                    -7.0
+                                ],
+                                "type": "move"
+                            },
+                            "duration": 1.0,
+                            "elapsedTime": 0.0
+                        },
+						{
+                            "active": true,
+                            "data": {
+                                "endPosition": [
+                                    5.0,
+                                    0.0,
+                                    -5.0
+                                ],
+                                "startPosition": [
+                                    5.0,
+                                    1.5,
+                                    -5.0
+                                ],
+                                "type": "move"
+                            },
+                            "duration": 0.5,
+                            "elapsedTime": 0.0
+                        },
+                        {
+                            "active": true,
+                            "data": {
+                                "type": "wait"
+                            },
+                            "duration": 5.5,
+                            "elapsedTime": 0.0
+                        }
+                    ],
+                    "loop": true
+                },
+                "name": "Black_Knight",
+                "position": [
+                    6.0,
+                    0.0,
+                    -7.0
+                ],
+                "rotation": [
+                    0.0,
+                    0.0,
+                    0.0
+                ],
+                "scale": 1.0
+            },
+            "modelData": "Black_Knight.json",
+            "type": "model"
+        },
+        "Black_Piece_1": {
+            "SceneObjectData": {
+                "animationSequence": null,
+                "name": "Black_Piece",
+                "position": [
+                    0.0,
+                    0.0,
+                    -6.0
+                ],
+                "rotation": [
+                    0.0,
+                    0.0,
+                    0.0
+                ],
+                "scale": 1.0
+            },
+            "modelData": "Black_Piece.json",
+            "type": "model"
+        },
+        "Black_Piece_2": {
+            "SceneObjectData": {
+                "animationSequence": null,
+                "name": "Black_Piece",
+                "position": [
+                    1.0,
+                    0.0,
+                    -6.0
+                ],
+                "rotation": [
+                    0.0,
+                    0.0,
+                    0.0
+                ],
+                "scale": 1.0
+            },
+            "modelData": "Black_Piece.json",
+            "type": "model"
+        },
+        "Black_Piece_3": {
+            "SceneObjectData": {
+                "animationSequence": null,
+                "name": "Black_Piece",
+                "position": [
+                    2.0,
+                    0.0,
+                    -6.0
+                ],
+                "rotation": [
+                    0.0,
+                    0.0,
+                    0.0
+                ],
+                "scale": 1.0
+            },
+            "modelData": "Black_Piece.json",
+            "type": "model"
+        },
+        "Black_Piece_4": {
+            "SceneObjectData": {
+                "animationSequence": {
+                    "animations": [
+						{
+                            "active": true,
+                            "data": {
+                                "endPosition": [
+                                    3.0,
+                                    0.0,
+                                    -6.0
+                                ],
+                                "startPosition": [
+                                    3.0,
+                                    0.0,
+                                    -6.0
+                                ],
+                                "type": "move"
+                            },
+                            "duration": 1.0,
+                            "elapsedTime": 0.0
+                        },
+                        {
+                            "active": true,
+                            "data": {
+                                "type": "wait"
+                            },
+                            "duration": 12.0,
+                            "elapsedTime": 0.0
+                        },
+                        {
+                            "active": true,
+                            "data": {
+                                "endPosition": [
+                                    3.0,
+                                    1.5,
+                                    -6.0
+                                ],
+                                "startPosition": [
+                                    3.0,
+                                    0.0,
+                                    -6.0
+                                ],
+                                "type": "move"
+                            },
+                            "duration": 0.5,
+                            "elapsedTime": 0.0
+                        },
+						{
+                            "active": true,
+                            "data": {
+                                "endPosition": [
+                                    3.0,
+                                    1.5,
+                                    -5.0
+                                ],
+                                "startPosition": [
+                                    3.0,
+                                    1.5,
+                                    -6.0
+                                ],
+                                "type": "move"
+                            },
+                            "duration": 0.5,
+                            "elapsedTime": 0.0
+                        },
+						{
+                            "active": true,
+                            "data": {
+                                "endPosition": [
+                                    3.0,
+                                    0.0,
+                                    -5.0
+                                ],
+                                "startPosition": [
+                                    3.0,
+                                    1.5,
+                                    -5.0
+                                ],
+                                "type": "move"
+                            },
+                            "duration": 0.5,
+                            "elapsedTime": 0.0
+                        },
+                        {
+                            "active": true,
+                            "data": {
+                                "type": "wait"
+                            },
+                            "duration": 12.5,
+                            "elapsedTime": 0.0
+                        }
+                    ],
+                    "loop": true
+                },
+                "name": "Black_Piece",
+                "position": [
+                    3.0,
+                    0.0,
+                    -6.0
+                ],
+                "rotation": [
+                    0.0,
+                    0.0,
+                    0.0
+                ],
+                "scale": 1.0
+            },
+            "modelData": "Black_Piece.json",
+            "type": "model"
+        },
+        "Black_Piece_5": {
+            "SceneObjectData": {
+                "animationSequence": {
+                    "animations": [
+						{
+                            "active": true,
+                            "data": {
+                                "endPosition": [
+                                    4.0,
+                                    0.0,
+                                    -6.0
+                                ],
+                                "startPosition": [
+                                    4.0,
+                                    0.0,
+                                    -6.0
+                                ],
+                                "type": "move"
+                            },
+                            "duration": 1.0,
+                            "elapsedTime": 0.0
+                        },
+                        {
+                            "active": true,
+                            "data": {
+                                "type": "wait"
+                            },
+                            "duration": 4.0,
+                            "elapsedTime": 0.0
+                        },
+                        {
+                            "active": true,
+                            "data": {
+                                "endPosition": [
+                                    4.0,
+                                    1.5,
+                                    -6.0
+                                ],
+                                "startPosition": [
+                                    4.0,
+                                    0.0,
+                                    -6.0
+                                ],
+                                "type": "move"
+                            },
+                            "duration": 0.5,
+                            "elapsedTime": 0.0
+                        },
+						{
+                            "active": true,
+                            "data": {
+                                "endPosition": [
+                                    4.0,
+                                    1.5,
+                                    -4.0
+                                ],
+                                "startPosition": [
+                                    4.0,
+                                    1.5,
+                                    -6.0
+                                ],
+                                "type": "move"
+                            },
+                            "duration": 1.0,
+                            "elapsedTime": 0.0
+                        },
+						{
+                            "active": true,
+                            "data": {
+                                "endPosition": [
+                                    4.0,
+                                    0.0,
+                                    -4.0
+                                ],
+                                "startPosition": [
+                                    4.0,
+                                    1.5,
+                                    -4.0
+                                ],
+                                "type": "move"
+                            },
+                            "duration": 0.5,
+                            "elapsedTime": 0.0
+                        },
+                        {
+                            "active": true,
+                            "data": {
+                                "type": "wait"
+                            },
+                            "duration": 20.0,
+                            "elapsedTime": 0.0
+                        }
+                    ],
+                    "loop": true
+                },
+                "name": "Black_Piece",
+                "position": [
+                    4.0,
+                    0.0,
+                    -6.0
+                ],
+                "rotation": [
+                    0.0,
+                    0.0,
+                    0.0
+                ],
+                "scale": 1.0
+            },
+            "modelData": "Black_Piece.json",
+            "type": "model"
+        },
+        "Black_Piece_6": {
+            "SceneObjectData": {
+                "animationSequence": {
+                    "animations": [
+						{
+                            "active": true,
+                            "data": {
+                                "endPosition": [
+                                    5.0,
+                                    0.0,
+                                    -6.0
+                                ],
+                                "startPosition": [
+                                    5.0,
+                                    0.0,
+                                    -6.0
+                                ],
+                                "type": "move"
+                            },
+                            "duration": 1.0,
+                            "elapsedTime": 0.0
+                        },
+                        {
+                            "active": true,
+                            "data": {
+                                "type": "wait"
+                            },
+                            "duration": 21.5,
+                            "elapsedTime": 0.0
+                        },
+                        {
+                            "active": true,
+                            "data": {
+                                "endPosition": [
+                                    5.0,
+                                    1.5,
+                                    -6.0
+                                ],
+                                "startPosition": [
+                                    5.0,
+                                    0.0,
+                                    -6.0
+                                ],
+                                "type": "move"
+                            },
+                            "duration": 0.5,
+                            "elapsedTime": 0.0
+                        },
+						{
+                            "active": true,
+                            "data": {
+                                "endPosition": [
+                                    8.0,
+                                    1.5,
+                                    -6.0
+                                ],
+                                "startPosition": [
+                                    5.0,
+                                    1.5,
+                                    -6.0
+                                ],
+                                "type": "move"
+                            },
+                            "duration": 1.5,
+                            "elapsedTime": 0.0
+                        },
+						{
+                            "active": true,
+                            "data": {
+                                "endPosition": [
+                                    8.0,
+                                    0.0,
+                                    -6.0
+                                ],
+                                "startPosition": [
+                                    8.0,
+                                    1.5,
+                                    -6.0
+                                ],
+                                "type": "move"
+                            },
+                            "duration": 0.5,
+                            "elapsedTime": 0.0
+                        },
+                        {
+                            "active": true,
+                            "data": {
+                                "type": "wait"
+                            },
+                            "duration": 2.0,
+                            "elapsedTime": 0.0
+                        }
+                    ],
+                    "loop": true
+                },
+                "name": "Black_Piece",
+                "position": [
+                    5.0,
+                    0.0,
+                    -6.0
+                ],
+                "rotation": [
+                    0.0,
+                    0.0,
+                    0.0
+                ],
+                "scale": 1.0
+            },
+            "modelData": "Black_Piece.json",
+            "type": "model"
+        },
+        "Black_Piece_7": {
+            "SceneObjectData": {
+                "animationSequence": null,
+                "name": "Black_Piece",
+                "position": [
+                    6.0,
+                    0.0,
+                    -6.0
+                ],
+                "rotation": [
+                    0.0,
+                    0.0,
+                    0.0
+                ],
+                "scale": 1.0
+            },
+            "modelData": "Black_Piece.json",
+            "type": "model"
+        },
+        "Black_Piece_8": {
+            "SceneObjectData": {
+                "animationSequence": null,
+                "name": "Black_Piece",
+                "position": [
+                    7.0,
+                    0.0,
+                    -6.0
+                ],
+                "rotation": [
+                    0.0,
+                    0.0,
+                    0.0
+                ],
+                "scale": 1.0
+            },
+            "modelData": "Black_Piece.json",
+            "type": "model"
+        },
+        "Black_Queen_1": {
+            "SceneObjectData": {
+                "animationSequence": null,
+                "name": "Black_Queen",
+                "position": [
+                    3.0,
+                    0.0,
+                    -7.0
+                ],
+                "rotation": [
+                    0.0,
+                    0.0,
+                    0.0
+                ],
+                "scale": 1.0
+            },
+            "modelData": "Black_Queen.json",
+            "type": "model"
+        },
+        "Black_Tower_1": {
+            "SceneObjectData": {
+                "animationSequence": null,
+                "name": "Black_Tower",
+                "position": [
+                    0.0,
+                    0.0,
+                    -7.0
+                ],
+                "rotation": [
+                    0.0,
+                    0.0,
+                    0.0
+                ],
+                "scale": 1.0
+            },
+            "modelData": "Black_Tower.json",
+            "type": "model"
+        },
+        "Black_Tower_2": {
+            "SceneObjectData": {
+                "animationSequence": null,
+                "name": "Black_Tower",
+                "position": [
+                    7.0,
+                    0.0,
+                    -7.0
+                ],
+                "rotation": [
+                    0.0,
+                    0.0,
+                    0.0
+                ],
+                "scale": 1.0
+            },
+            "modelData": "Black_Tower.json",
+            "type": "model"
+        },
+        "Camera_1": {
+            "SceneObjectData": {
+                "animationSequence": null,
+                "name": "Camera",
+                "position": [
+                    -8.0,
+                    8.0,
+                    8.0
+                ],
+                "rotation": [
+                    -30.0,
+                    45.0,
+                    0.0
+                ],
+                "scale": 1.0
+            },
+            "type": "camera"
+        },
+        "Chessboard_1": {
+            "SceneObjectData": {
+                "animationSequence": null,
+                "name": "Chessboard",
+                "position": [
+                    3.5,
+                    0.0,
+                    -3.5
+                ],
+                "rotation": [
+                    0.0,
+                    0.0,
+                    0.0
+                ],
+                "scale": 1.0
+            },
+            "modelData": "Chessboard.json",
+            "type": "model"
+        },
+        "PointLight_1": {
+            "SceneObjectData": {
+                "animationSequence": null,
+                "name": "PointLight",
+                "position": [
+                    3.5,
+                    7.0,
+                    -3.5
+                ],
+                "rotation": [
+                    0.0,
+                    0.0,
+                    0.0
+                ],
+                "scale": 1.0
+            },
+            "color": [
+                1.0,
+                1.0,
+                1.0
+            ],
+            "intensity": 15.0,
+            "radius": 0.20000000298023224,
+            "type": "pointLight"
+        },
+        "White_Bishop_1": {
+            "SceneObjectData": {
+                "animationSequence": null,
+                "name": "White_Bishop",
+                "position": [
+                    2.0,
+                    0.0,
+                    0.0
+                ],
+                "rotation": [
+                    0.0,
+                    -90.0,
+                    0.0
+                ],
+                "scale": 1.0
+            },
+            "modelData": "White_Bishop.json",
+            "type": "model"
+        },
+        "White_Bishop_2": {
+            "SceneObjectData": {
+                "animationSequence": {
+                    "animations": [
+						{
+                            "active": true,
+                            "data": {
+                                "endPosition": [
+                                    5.0,
+                                    0.0,
+                                    0.0
+                                ],
+                                "startPosition": [
+                                    5.0,
+                                    0.0,
+                                    0.0
+                                ],
+                                "type": "move"
+                            },
+                            "duration": 1.0,
+                            "elapsedTime": 0.0
+                        },
+                        {
+                            "active": true,
+                            "data": {
+                                "type": "wait"
+                            },
+                            "duration": 14.5,
+                            "elapsedTime": 0.0
+                        },
+                        {
+                            "active": true,
+                            "data": {
+                                "endPosition": [
+                                    5.0,
+                                    1.5,
+                                    0.0
+                                ],
+                                "startPosition": [
+                                    5.0,
+                                    0.0,
+                                    0.0
+                                ],
+                                "type": "move"
+                            },
+                            "duration": 0.5,
+                            "elapsedTime": 0.0
+                        },
+						{
+                            "active": true,
+                            "data": {
+                                "endPosition": [
+                                    2.0,
+                                    1.5,
+                                    -3.0
+                                ],
+                                "startPosition": [
+                                    5.0,
+                                    1.5,
+                                    0.0
+                                ],
+                                "type": "move"
+                            },
+                            "duration": 2.0,
+                            "elapsedTime": 0.0
+                        },
+						{
+                            "active": true,
+                            "data": {
+                                "endPosition": [
+                                    2.0,
+                                    0.0,
+                                    -3.0
+                                ],
+                                "startPosition": [
+                                    2.0,
+                                    1.5,
+                                    -3.0
+                                ],
+                                "type": "move"
+                            },
+                            "duration": 0.5,
+                            "elapsedTime": 0.0
+                        },
+                        {
+                            "active": true,
+                            "data": {
+                                "type": "wait"
+                            },
+                            "duration": 8.5,
+                            "elapsedTime": 0.0
+                        }
+                    ],
+                    "loop": true
+                },
+                "name": "White_Bishop",
+                "position": [
+                    5.0,
+                    0.0,
+                    0.0
+                ],
+                "rotation": [
+                    0.0,
+                    -90.0,
+                    0.0
+                ],
+                "scale": 1.0
+            },
+            "modelData": "White_Bishop.json",
+            "type": "model"
+        },
+        "White_King_1": {
+            "SceneObjectData": {
+                "animationSequence": null,
+                "name": "White_King",
+                "position": [
+                    4.0,
+                    0.0,
+                    0.0
+                ],
+                "rotation": [
+                    0.0,
+                    90.0,
+                    0.0
+                ],
+                "scale": 1.0
+            },
+            "modelData": "White_King.json",
+            "type": "model"
+        },
+        "White_Knight_1": {
+            "SceneObjectData": {
+                "animationSequence": null,
+                "name": "White_Knight",
+                "position": [
+                    1.0,
+                    0.0,
+                    0.0
+                ],
+                "rotation": [
+                    0.0,
+                    0.0,
+                    0.0
+                ],
+                "scale": 1.0
+            },
+            "modelData": "White_Knight.json",
+            "type": "model"
+        },
+        "White_Knight_2": {
+            "SceneObjectData": {
+                "animationSequence": null,
+                "name": "White_Knight",
+                "position": [
+                    6.0,
+                    0.0,
+                    0.0
+                ],
+                "rotation": [
+                    0.0,
+                    0.0,
+                    0.0
+                ],
+                "scale": 1.0
+            },
+            "modelData": "White_Knight.json",
+            "type": "model"
+        },
+        "White_Piece_1": {
+            "SceneObjectData": {
+                "animationSequence": null,
+                "name": "White_Piece",
+                "position": [
+                    0.0,
+                    0.0,
+                    -1.0
+                ],
+                "rotation": [
+                    0.0,
+                    0.0,
+                    0.0
+                ],
+                "scale": 1.0
+            },
+            "modelData": "White_Piece.json",
+            "type": "model"
+        },
+        "White_Piece_2": {
+            "SceneObjectData": {
+                "animationSequence": null,
+                "name": "White_Piece",
+                "position": [
+                    1.0,
+                    0.0,
+                    -1.0
+                ],
+                "rotation": [
+                    0.0,
+                    0.0,
+                    0.0
+                ],
+                "scale": 1.0
+            },
+            "modelData": "White_Piece.json",
+            "type": "model"
+        },
+        "White_Piece_3": {
+            "SceneObjectData": {
+                "animationSequence": null,
+                "name": "White_Piece",
+                "position": [
+                    2.0,
+                    0.0,
+                    -1.0
+                ],
+                "rotation": [
+                    0.0,
+                    0.0,
+                    0.0
+                ],
+                "scale": 1.0
+            },
+            "modelData": "White_Piece.json",
+            "type": "model"
+        },
+        "White_Piece_4": {
+            "SceneObjectData": {
+                "animationSequence": null,
+                "name": "White_Piece",
+                "position": [
+                    3.0,
+                    0.0,
+                    -1.0
+                ],
+                "rotation": [
+                    0.0,
+                    0.0,
+                    0.0
+                ],
+                "scale": 1.0
+            },
+            "modelData": "White_Piece.json",
+            "type": "model"
+        },
+        "White_Piece_5": {
+            "SceneObjectData": {
+                "animationSequence": {
+                    "animations": [
+						{
+                            "active": true,
+                            "data": {
+                                "endPosition": [
+                                    4.0,
+                                    0.0,
+                                    -1.0
+                                ],
+                                "startPosition": [
+                                    4.0,
+                                    0.0,
+                                    -1.0
+                                ],
+                                "type": "move"
+                            },
+                            "duration": 1.0,
+                            "elapsedTime": 0.0
+                        },
+                        {
+                            "active": true,
+                            "data": {
+                                "type": "wait"
+                            },
+                            "duration": 1.0,
+                            "elapsedTime": 0.0
+                        },
+                        {
+                            "active": true,
+                            "data": {
+                                "endPosition": [
+                                    4.0,
+                                    1.5,
+                                    -1.0
+                                ],
+                                "startPosition": [
+                                    4.0,
+                                    0.0,
+                                    -1.0
+                                ],
+                                "type": "move"
+                            },
+                            "duration": 0.5,
+                            "elapsedTime": 0.0
+                        },
+						{
+                            "active": true,
+                            "data": {
+                                "endPosition": [
+                                    4.0,
+                                    1.5,
+                                    -3.0
+                                ],
+                                "startPosition": [
+                                    4.0,
+                                    1.5,
+                                    -1.0
+                                ],
+                                "type": "move"
+                            },
+                            "duration": 1.0,
+                            "elapsedTime": 0.0
+                        },
+						{
+                            "active": true,
+                            "data": {
+                                "endPosition": [
+                                    4.0,
+                                    0.0,
+                                    -3.0
+                                ],
+                                "startPosition": [
+                                    4.0,
+                                    1.5,
+                                    -3.0
+                                ],
+                                "type": "move"
+                            },
+                            "duration": 0.5,
+                            "elapsedTime": 0.0
+                        },
+                        {
+                            "active": true,
+                            "data": {
+                                "type": "wait"
+                            },
+                            "duration": 23.0,
+                            "elapsedTime": 0.0
+                        }
+                    ],
+                    "loop": true
+                },
+                "name": "White_Piece",
+                "position": [
+                    4.0,
+                    0.0,
+                    -1.0
+                ],
+                "rotation": [
+                    0.0,
+                    0.0,
+                    0.0
+                ],
+                "scale": 1.0
+            },
+            "modelData": "White_Piece.json",
+            "type": "model"
+        },
+        "White_Piece_6": {
+            "SceneObjectData": {
+                "animationSequence": null,
+                "name": "White_Piece",
+                "position": [
+                    5.0,
+                    0.0,
+                    -1.0
+                ],
+                "rotation": [
+                    0.0,
+                    0.0,
+                    0.0
+                ],
+                "scale": 1.0
+            },
+            "modelData": "White_Piece.json",
+            "type": "model"
+        },
+        "White_Piece_7": {
+            "SceneObjectData": {
+                "animationSequence": null,
+                "name": "White_Piece",
+                "position": [
+                    6.0,
+                    0.0,
+                    -1.0
+                ],
+                "rotation": [
+                    0.0,
+                    0.0,
+                    0.0
+                ],
+                "scale": 1.0
+            },
+            "modelData": "White_Piece.json",
+            "type": "model"
+        },
+        "White_Piece_8": {
+            "SceneObjectData": {
+                "animationSequence": null,
+                "name": "White_Piece",
+                "position": [
+                    7.0,
+                    0.0,
+                    -1.0
+                ],
+                "rotation": [
+                    0.0,
+                    0.0,
+                    0.0
+                ],
+                "scale": 1.0
+            },
+            "modelData": "White_Piece.json",
+            "type": "model"
+        },
+        "White_Queen_1": {
+            "SceneObjectData": {
+                "animationSequence": {
+                    "animations": [
+						{
+                            "active": true,
+                            "data": {
+                                "endPosition": [
+                                    3.0,
+                                    0.0,
+                                    0.0
+                                ],
+                                "startPosition": [
+                                    3.0,
+                                    0.0,
+                                    0.0
+                                ],
+                                "type": "move"
+                            },
+                            "duration": 1.0,
+                            "elapsedTime": 0.0
+                        },
+                        {
+                            "active": true,
+                            "data": {
+                                "type": "wait"
+                            },
+                            "duration": 7.0,
+                            "elapsedTime": 0.0
+                        },
+                        {
+                            "active": true,
+                            "data": {
+                                "endPosition": [
+                                    3.0,
+                                    1.5,
+                                    0.0
+                                ],
+                                "startPosition": [
+                                    3.0,
+                                    0.0,
+                                    0.0
+                                ],
+                                "type": "move"
+                            },
+                            "duration": 0.5,
+                            "elapsedTime": 0.0
+                        },
+						{
+                            "active": true,
+                            "data": {
+                                "endPosition": [
+                                    7.0,
+                                    1.5,
+                                    -4.0
+                                ],
+                                "startPosition": [
+                                    3.0,
+                                    1.5,
+                                    0.0
+                                ],
+                                "type": "move"
+                            },
+                            "duration": 3.0,
+                            "elapsedTime": 0.0
+                        },
+						{
+                            "active": true,
+                            "data": {
+                                "endPosition": [
+                                    7.0,
+                                    0.0,
+                                    -4.0
+                                ],
+                                "startPosition": [
+                                    7.0,
+                                    1.5,
+                                    -4.0
+                                ],
+                                "type": "move"
+                            },
+                            "duration": 0.5,
+                            "elapsedTime": 0.0
+                        },
+                        {
+                            "active": true,
+                            "data": {
+                                "type": "wait"
+                            },
+                            "duration": 10.5,
+                            "elapsedTime": 0.0
+                        },
+                        {
+                            "active": true,
+                            "data": {
+                                "endPosition": [
+                                    7.0,
+                                    1.5,
+                                    -4.0
+                                ],
+                                "startPosition": [
+                                    7.0,
+                                    0.0,
+                                    -4.0
+                                ],
+                                "type": "move"
+                            },
+                            "duration": 0.5,
+                            "elapsedTime": 0.0
+                        },
+						{
+                            "active": true,
+                            "data": {
+                                "endPosition": [
+                                    5.0,
+                                    1.5,
+                                    -6.0
+                                ],
+                                "startPosition": [
+                                    7.0,
+                                    1.5,
+                                    -4.0
+                                ],
+                                "type": "move"
+                            },
+                            "duration": 1.5,
+                            "elapsedTime": 0.0
+                        },
+						{
+                            "active": true,
+                            "data": {
+                                "endPosition": [
+                                    5.0,
+                                    0.0,
+                                    -6.0
+                                ],
+                                "startPosition": [
+                                    5.0,
+                                    1.5,
+                                    -6.0
+                                ],
+                                "type": "move"
+                            },
+                            "duration": 0.5,
+                            "elapsedTime": 0.0
+                        },
+                        {
+                            "active": true,
+                            "data": {
+                                "type": "wait"
+                            },
+                            "duration": 2.0,
+                            "elapsedTime": 0.0
+                        }
+                    ],
+                    "loop": true
+                },
+                "name": "White_Queen",
+                "position": [
+                    3.0,
+                    0.0,
+                    0.0
+                ],
+                "rotation": [
+                    0.0,
+                    0.0,
+                    0.0
+                ],
+                "scale": 1.0
+            },
+            "modelData": "White_Queen.json",
+            "type": "model"
+        },
+        "White_Tower_1": {
+            "SceneObjectData": {
+                "animationSequence": null,
+                "name": "White_Tower",
+                "position": [
+                    0.0,
+                    0.0,
+                    0.0
+                ],
+                "rotation": [
+                    0.0,
+                    0.0,
+                    0.0
+                ],
+                "scale": 1.0
+            },
+            "modelData": "White_Tower.json",
+            "type": "model"
+        },
+        "White_Tower_2": {
+            "SceneObjectData": {
+                "animationSequence": null,
+                "name": "White_Tower",
+                "position": [
+                    7.0,
+                    0.0,
+                    0.0
+                ],
+                "rotation": [
+                    0.0,
+                    0.0,
+                    0.0
+                ],
+                "scale": 1.0
+            },
+            "modelData": "White_Tower.json",
+            "type": "model"
+        }
+    }
+}

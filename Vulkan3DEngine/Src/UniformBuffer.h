@@ -2,7 +2,7 @@
 #include "Prerequisites.h"
 #include "Buffer.h"
 
-class UniformBuffer : public Buffer
+struct UniformBuffer : public Buffer
 {
 public:
 	UniformBuffer(VkDeviceSize bufferSize, Renderer* renderer);

@@ -38,7 +38,7 @@ Model::Model(ModelDataPtr modelData, Scene* scene):
 	m_rotationOffset(modelData->m_rotationOffset), m_scaleOffset(modelData->m_scaleOffset)
 {
     if (m_modelCount++ == 0) {
-		m_descriptorAllocator.init(GraphicsEngine::get()->getDevice()->get(), 1000, m_sizes);
+		m_descriptorAllocator.init(GraphicsEngine::get()->getDevice()->get(), 8000, m_sizes);
 	}
 
 	DescriptorWriter writer;
@@ -74,7 +74,7 @@ Model::Model(std::string name, std::string meshName, std::string textureName, fl
     setRotationOffset(initialRotation);
 
     if (m_modelCount++ == 0) {
-        m_descriptorAllocator.init(GraphicsEngine::get()->getDevice()->get(), 1000, m_sizes);
+        m_descriptorAllocator.init(GraphicsEngine::get()->getDevice()->get(), 8000, m_sizes);
     }
 
     DescriptorWriter writer;
@@ -101,7 +101,7 @@ Model::Model(const nlohmann::json& j, Scene* scene) : SceneObject(j["SceneObject
     try {
         from_json(j);
         if (m_modelCount++ == 0) {
-            m_descriptorAllocator.init(GraphicsEngine::get()->getDevice()->get(), 1000, m_sizes);
+            m_descriptorAllocator.init(GraphicsEngine::get()->getDevice()->get(), 8000, m_sizes);
         }
 
         DescriptorWriter writer;
@@ -118,7 +118,7 @@ Model::Model(const nlohmann::json& j, Scene* scene) : SceneObject(j["SceneObject
 
             m_descriptorSets.push_back(modelDescriptorSets);
         }
-        fmt::print("Model initialized successfully\n");
+        fmt::print("Model {} initialized successfully\n", m_name);
     }
     catch (const std::exception& e) {
         fmt::print(stderr, "Error: Failed to initialize Model. Exception: {}\n", e.what());

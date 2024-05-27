@@ -73,13 +73,13 @@ private:
 	friend class SwapChain;
 	friend class GraphicsPipeline;
 	friend class PipelineBuilder;
-	friend class Buffer;
-	friend class StagingBuffer;
-	friend class VertexBuffer;
-	friend class IndexBuffer;
-	friend class UniformBuffer;
-	friend class Image;
+	friend struct Buffer;
+	friend struct StagingBuffer;
+	friend struct VertexBuffer;
+	friend struct IndexBuffer;
+	friend struct UniformBuffer;
+	friend struct Image;
 	friend class ImageView;
-	friend class DepthBuffer;
+	friend struct DepthBuffer;
 };
 

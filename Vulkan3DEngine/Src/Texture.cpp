@@ -78,7 +78,7 @@ void Texture::Load(const std::filesystem::path& full_path)
 
 	if (!m_descriptorAllocatorInitialized) {
 		{
-			m_descriptorAllocator.init(GraphicsEngine::get()->getDevice()->get(), 1000, m_sizes);
+			m_descriptorAllocator.init(GraphicsEngine::get()->getDevice()->get(), 8000, m_sizes);
 			m_descriptorAllocatorInitialized = true;
 		}
 	}

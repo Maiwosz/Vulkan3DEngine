@@ -37,8 +37,8 @@ void Animation::to_json(nlohmann::json& j) const {
 
     j = nlohmann::json{
         {"duration", m_duration},
-        {"active", m_active},
-        {"elapsedTime", m_elapsedTime},
+        {"active", true},//m_active},
+        {"elapsedTime", 0.0},//m_elapsedTime},
         {"data", data_json}
     };
 }

@@ -2,6 +2,7 @@
 #include "Animation.h"
 #include "AnimationSequence.h"
 #include "AnimationBuilder.h"
+#include <semaphore>
 #include <future>
 
 SceneObjectManager::SceneObjectManager(Scene* scene)
@@ -157,12 +158,22 @@ void SceneObjectManager::drawManageObjectsTab()
                 drawLightSpecificProperties(light);
             }
 
-            // Dodaj przycisk "Manage Animations"
+            // Add button to manage animations
             if (ImGui::Button("Manage Animations"))
             {
                 showAnimationSequenceWindow = true;
                 m_selectedObject = object.get();
             }
+
+            // Add button to remove object
+            if (ImGui::Button("Remove Object"))
+            {
+                removeObject(object);
+                //m_objects.erase(m_objects.begin() + i);  // Remove from the list
+                //--i;  // Adjust index since we removed an element
+                continue;  // Skip remaining code in this iteration
+            }
+
             ImGui::Separator();
         }
         else
@@ -181,6 +192,7 @@ void SceneObjectManager::drawManageObjectsTab()
     }
 }
 
+
 void SceneObjectManager::drawObjectCommonProperties(const std::shared_ptr<SceneObject>& object)
 {
     char name[256];
@@ -191,16 +203,30 @@ void SceneObjectManager::drawObjectCommonProperties(const std::shared_ptr<SceneO
     glm::vec3 position = object->getPosition();
     glm::vec3 rotation = object->getRotation();
     float scale = object->getScale();
+    glm::vec3 startPosition = object->getStartPosition();
+    glm::vec3 startRotation = object->getStartRotation();
+    float startScale = object->getStartScale();
 
     if (ImGui::InputText("Name", name, IM_ARRAYSIZE(name))) {
         if (ImGui::IsItemDeactivatedAfterEdit()) {
             object->setName(std::string(name));
         }
     }
+
     if (ImGui::DragFloat3("Position", &position[0])) object->setPosition(position);
+    if (ImGui::Button("Set as Start##Position")) object->setStartPosition(position);
+
     if (ImGui::DragFloat3("Rotation", &rotation[0])) object->setRotation(rotation);
+    if (ImGui::Button("Set as Start##Rotation")) object->setStartRotation(rotation);
+
     if (ImGui::DragFloat("Scale", &scale)) object->setScale(scale);
+    if (ImGui::Button("Set as Start##Scale")) object->setStartScale(scale);
+
+    if (ImGui::DragFloat3("Start Position", &startPosition[0])) object->setStartPosition(startPosition);
+    if (ImGui::DragFloat3("Start Rotation", &startRotation[0])) object->setStartRotation(startRotation);
+    if (ImGui::DragFloat("Start Scale", &startScale)) object->setStartScale(startScale);
 }
+
 
 void SceneObjectManager::drawModelSpecificProperties(Model* model)
 {
@@ -211,9 +237,9 @@ void SceneObjectManager::drawModelSpecificProperties(Model* model)
     float kd = model->m_kd;
     float ks = model->m_ks;
 
-    if (ImGui::DragFloat3("Initial Position", &positionOffset[0])) model->setPositionOffset(positionOffset);
-    if (ImGui::DragFloat3("Initial Rotation", &rotationOffset[0])) model->setRotationOffset(rotationOffset);
-    if (ImGui::DragFloat("Initial Scale", &scaleOffset)) model->setScaleOffset(scaleOffset);
+    if (ImGui::DragFloat3("Position Offset", &positionOffset[0])) model->setPositionOffset(positionOffset);
+    if (ImGui::DragFloat3("Rotation Offset", &rotationOffset[0])) model->setRotationOffset(rotationOffset);
+    if (ImGui::DragFloat("Scale Offset", &scaleOffset)) model->setScaleOffset(scaleOffset);
     if (ImGui::DragFloat("Shininess", &shininess)) model->m_shininess = shininess;
     if (ImGui::DragFloat("Kd", &kd)) model->m_kd = kd;
     if (ImGui::DragFloat("Ks", &ks)) model->m_ks = ks;
@@ -514,29 +540,29 @@ void SceneObjectManager::drawCreateModelUI()
 
 void SceneObjectManager::drawCustomModelCreationUI(glm::vec3& position, glm::vec3& rotation, float& scale)
 {
-    char customName[256] = "";
-    std::string customMeshName;
-    std::string customTextureName;
-    glm::vec3 initialPosition(0.0f);
-    glm::vec3 initialRotation(0.0f);
-    float initialScale = 1.0f;
-    float shininess = 1.0f;
-    float kd = 0.8f;
-    float ks = 0.2f;
+    static char customName[256] = "";
+    static std::string customMeshName;
+    static std::string customTextureName;
+    static glm::vec3 initialPosition(0.0f);
+    static glm::vec3 initialRotation(0.0f);
+    static float initialScale = 1.0f;
+    static float shininess = 1.0f;
+    static float kd = 0.8f;
+    static float ks = 0.2f;
 
     ImGui::InputText("Name", customName, IM_ARRAYSIZE(customName));
-    ImGui::InputFloat3("Initial Position", &initialPosition[0]);
-    ImGui::InputFloat3("Initial Rotation", &initialRotation[0]);
-    ImGui::InputFloat("Initial Scale", &initialScale);
+    ImGui::InputFloat3("Start Position", &initialPosition[0]);
+    ImGui::InputFloat3("Start Rotation", &initialRotation[0]);
+    ImGui::InputFloat("Start Scale", &initialScale);
     ImGui::InputFloat("Shininess", &shininess);
     ImGui::InputFloat("Kd", &kd);
     ImGui::InputFloat("Ks", &ks);
 
     drawComboBox("Mesh", customMeshName, GraphicsEngine::get()->getMeshManager(),
-        [&customMeshName](const std::string& meshName) { customMeshName = meshName; });
+        [](const std::string& meshName) { customMeshName = meshName; });
 
     drawComboBox("Texture", customTextureName, GraphicsEngine::get()->getTextureManager(),
-        [&customTextureName](const std::string& textureName) { customTextureName = textureName; });
+        [](const std::string& textureName) { customTextureName = textureName; });
 
     ImGui::InputFloat3("Position", &position[0]);
     ImGui::InputFloat3("Rotation", &rotation[0]);
@@ -616,8 +642,9 @@ void SceneObjectManager::to_json(nlohmann::json& j) {
 
 void SceneObjectManager::from_json(const nlohmann::json& j) {
     std::vector<std::future<SceneObjectPtr>> futures;
-
     bool cameraInitialized = false;
+    const int max_concurrent_objects = 8; // Ustalony limit liczby jednoczeœnie tworzonych obiektów
+    std::counting_semaphore<max_concurrent_objects> semaphore(max_concurrent_objects);
 
     for (const auto& objJson : j) {
         if (!objJson.contains("type")) {
@@ -625,39 +652,73 @@ void SceneObjectManager::from_json(const nlohmann::json& j) {
             continue;
         }
 
-        // Wydrukuj zawartoœæ obiektu JSON
-        //fmt::print("JSON content: {}\n", j.dump());
-
         std::string type = objJson["type"];
         std::shared_ptr<SceneObject> object;
+        bool multithreaded = true;
 
         try {
-            if (type == "model") {
-                futures.push_back(ThreadPool::get()->enqueue([this, objJson]()->SceneObjectPtr {
-                    return std::make_shared<Model>(objJson, p_scene);
-                }));
-            }
-            else if (type == "pointLight") {
-                futures.push_back(ThreadPool::get()->enqueue([this, objJson]()->SceneObjectPtr {
-                    return std::make_shared<PointLightObject>(objJson, p_scene);
-                }));
-            }
-            else if (type == "camera") {
-                if (cameraInitialized) {
-                    fmt::print(stderr, "Error: Camera has already been initialized. Only one camera can exist.\n");
+            if (multithreaded) {
+                if (type == "model") {
+                    semaphore.acquire();
+                    futures.push_back(ThreadPool::get()->enqueue([this, objJson, &semaphore]()->SceneObjectPtr {
+                        auto obj = std::make_shared<Model>(objJson, p_scene);
+                        semaphore.release();
+                        return obj;
+                        }));
+                }
+                else if (type == "pointLight") {
+                    semaphore.acquire();
+                    futures.push_back(ThreadPool::get()->enqueue([this, objJson, &semaphore]()->SceneObjectPtr {
+                        auto obj = std::make_shared<PointLightObject>(objJson, p_scene);
+                        semaphore.release();
+                        return obj;
+                        }));
+                }
+                else if (type == "camera") {
+                    if (cameraInitialized) {
+                        fmt::print(stderr, "Error: Camera has already been initialized. Only one camera can exist.\n");
+                        continue;
+                    }
+                    cameraInitialized = true;
+                    semaphore.acquire();
+                    futures.push_back(ThreadPool::get()->enqueue([this, objJson, &semaphore]()->SceneObjectPtr {
+                        p_scene->m_camera->SceneObject::from_json(objJson["SceneObjectData"]);
+                        p_scene->m_camera->updateCameraVectors();
+                        auto obj = std::static_pointer_cast<SceneObject>(p_scene->m_camera);
+                        semaphore.release();
+                        return obj;
+                        }));
+                }
+                else {
+                    fmt::print(stderr, "Error: Unknown object type: {}\n", type);
                     continue;
                 }
-                cameraInitialized = true;
-                futures.push_back(ThreadPool::get()->enqueue([this, objJson]()->SceneObjectPtr {
-                    p_scene->m_camera->SceneObject::from_json(objJson["SceneObjectData"]);
-                    p_scene->m_camera->updateCameraVectors();
-                    SceneObjectPtr object = std::static_pointer_cast<SceneObject>(p_scene->m_camera);
-                    return object;
-                }));
             }
             else {
-                fmt::print(stderr, "Error: Unknown object type: {}\n", type);
-                continue;
+                if (type == "model") {
+                    object = std::make_shared<Model>(objJson, p_scene);
+                }
+                else if (type == "pointLight") {
+                    object = std::make_shared<PointLightObject>(objJson, p_scene);
+                }
+                else if (type == "camera") {
+                    if (cameraInitialized) {
+                        fmt::print(stderr, "Error: Camera has already been initialized. Only one camera can exist.\n");
+                        continue;
+                    }
+                    cameraInitialized = true;
+                    p_scene->m_camera->SceneObject::from_json(objJson["SceneObjectData"]);
+                    p_scene->m_camera->updateCameraVectors();
+                    object = std::static_pointer_cast<SceneObject>(p_scene->m_camera);
+                }
+                else {
+                    fmt::print(stderr, "Error: Unknown object type: {}\n", type);
+                    continue;
+                }
+
+                if (object) {
+                    m_objects.push_back(object);
+                }
             }
         }
         catch (const std::exception& e) {
@@ -665,10 +726,9 @@ void SceneObjectManager::from_json(const nlohmann::json& j) {
         }
     }
 
-    // Poczekaj na zakoñczenie wszystkich operacji
     for (auto& future : futures) {
         try {
-            auto object = future.get(); // Poczekaj na zakoñczenie
+            auto object = future.get();
             if (object) {
                 m_objects.push_back(object);
             }

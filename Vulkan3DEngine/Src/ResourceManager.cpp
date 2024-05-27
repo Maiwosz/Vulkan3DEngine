@@ -59,6 +59,7 @@ ResourceManager::~ResourceManager() {}
 
 ResourcePtr ResourceManager::loadResource(const std::filesystem::path& name)
 {
+    fmt::print("Attempting to load resource: '{}'\n", name.string());
     //fmt::print("Attempting to acquire lock for resource: '{}'\n", name.string());
     std::lock_guard lock(m_individual_resource_mutexes[name]);
     //fmt::print("Lock acquired for resource: '{}'\n", name.string());
