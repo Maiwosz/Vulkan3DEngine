@@ -21,17 +21,20 @@ layout(set = 0, binding = 0) uniform GlobalUniformBufferObject {
     DirectionalLight directionalLight;
     PointLight pointLights[64];
     int activePointLights;
-    float ka; // Ambient coefficient
 } global;
 
 layout(set = 1, binding = 0) uniform ObjectUniformBufferObject {
     mat4 model;
+} object;
+
+layout(set = 2, binding = 0) uniform MaterialUniformBufferObject {
     float shininess;
+	float ka; // Ambient coefficient
     float kd; // Diffuse coefficient
     float ks; // Specular coefficient
-} model;
+} material;
 
-layout(set = 2, binding = 0) uniform sampler2D texSampler;
+layout(set = 3, binding = 0) uniform sampler2D texSampler;
 
 #pragma stage vertex
 layout(location = 0) in vec3 inPosition;
@@ -46,11 +49,11 @@ layout(location = 3) out vec3 fragPos;
 layout(location = 4) out vec3 directionToCamera;
 
 void main() {
-    vec4 posWorld = model.model * vec4(inPosition, 1.0);
+    vec4 posWorld = object.model * vec4(inPosition, 1.0);
     gl_Position = global.proj * global.view * posWorld;
     fragColor = inColor;
     fragTexCoord = inTexCoord;
-    fragNormal = normalize(mat3(transpose(inverse(model.model))) * inNormal);
+    fragNormal = normalize(mat3(transpose(inverse(object.model))) * inNormal);
     fragPos = posWorld.xyz;
     directionToCamera = global.cameraPosition - fragPos;
 }
@@ -73,8 +76,8 @@ void main() {
     vec3 lightDir = normalize(-global.directionalLight.direction);
     float diff = max(dot(normal, lightDir), 0.0);
     vec3 halfwayDir = normalize(lightDir + viewDir);
-    float spec = pow(max(dot(normal, halfwayDir), 0.0), model.shininess);
-    directional += global.directionalLight.color.w * (model.kd * diff + model.ks * spec) * global.directionalLight.color.xyz;
+    float spec = pow(max(dot(normal, halfwayDir), 0.0), material.shininess);
+    directional += global.directionalLight.color.w * (material.kd * diff + material.ks * spec) * global.directionalLight.color.xyz;
 
     // Point light calculations
     vec3 point = vec3(0.0);
@@ -85,14 +88,14 @@ void main() {
         float diff = max(dot(normal, lightDir), 0.0);
 
         vec3 halfwayDir = normalize(lightDir + viewDir);
-        float spec = pow(max(dot(normal, halfwayDir), 0.0), model.shininess);
+        float spec = pow(max(dot(normal, halfwayDir), 0.0), material.shininess);
 
         float d = max(distance - global.pointLights[i].radius, 0.0) / global.pointLights[i].color.w;
         float denom = d/global.pointLights[i].radius + 1;
         float attenuation = 1 / (denom*denom);
         attenuation = max((attenuation - 0.0001) / (1 - 0.0001), 0.0);
 
-        point += global.pointLights[i].color.xyz * (model.kd * diff + model.ks * spec) * global.pointLights[i].color.w * attenuation;
+        point += global.pointLights[i].color.xyz * (material.kd * diff + material.ks * spec) * global.pointLights[i].color.w * attenuation;
     }
 
     vec4 texColor = texture(texSampler, fragTexCoord);

@@ -362,3 +362,10 @@ MigrationBackup/
 
 # Fody - auto-generated XML schema
 FodyWeavers.xsd
+
+*.atex
+*.amsh
+*.amat
+*.asha
+Libs/VulkanSDK/Lib/shaderc_combinedd.lib
+Libs/VulkanSDK/Lib/SPIRV-Tools-optd.lib 
