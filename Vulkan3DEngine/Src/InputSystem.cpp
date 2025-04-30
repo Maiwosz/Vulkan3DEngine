@@ -1,10 +1,8 @@
 #include "InputSystem.h"
 
-InputSystem* InputSystem::m_inputSystem = nullptr;
-
-InputSystem::InputSystem()
+InputSystem::InputSystem(Window& window)
+	: p_window(window.get())
 {
-	p_window = Window::get()->getWindow();
 	glfwSetKeyCallback(p_window, key_callback);
 	glfwSetCursorPosCallback(p_window, cursor_position_callback);
 	glfwSetMouseButtonCallback(p_window, mouse_button_callback);
@@ -12,7 +10,6 @@ InputSystem::InputSystem()
 
 InputSystem::~InputSystem()
 {
-	InputSystem::m_inputSystem = nullptr;
 }
 
 void InputSystem::update()
@@ -54,6 +51,7 @@ void InputSystem::update()
 					if (m_keys_state[i] != m_old_keys_state[i])
 					{
 						(*it)->onLeftMouseDown(current_mouse_pos);
+						
 					}
 				}
 				else if (i == GLFW_MOUSE_BUTTON_RIGHT)
@@ -122,24 +120,4 @@ void InputSystem::showCursor(bool show)
 	{
 		glfwSetInputMode(p_window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
 	}
-}
-
-InputSystem* InputSystem::get()
-{
-	return m_inputSystem;
-}
-
-void InputSystem::create()
-{
-	if (InputSystem::m_inputSystem) throw std::exception("InputSystem already created");
-	InputSystem::m_inputSystem = new InputSystem();
-}
-
-void InputSystem::release()
-{
-	if (!InputSystem::m_inputSystem)
-	{
-		return;
-	}
-	delete InputSystem::m_inputSystem;
 }

@@ -1,0 +1,14 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <ClInclude Include="AssetLib.h" />
+    <ClInclude Include="framework.h" />
+    <ClInclude Include="pch.h" />
+    <ClInclude Include="lz4\lz4.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="AssetLib.cpp" />
+    <ClCompile Include="pch.cpp" />
+    <ClCompile Include="lz4\lz4.c" />
+  </ItemGroup>
+</Project>

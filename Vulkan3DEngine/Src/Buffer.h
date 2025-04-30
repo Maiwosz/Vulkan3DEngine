@@ -1,28 +1,34 @@
 #pragma once
-#include "Prerequisites.h"
+#include "AllocatedResource.h"
 
-struct Buffer
-{
+class Buffer : public AllocatedResource {
 public:
-    Buffer(Renderer* renderer);
-    ~Buffer();
+    Buffer();
+    Buffer(Buffer&& other) noexcept;
+    Buffer& operator=(Buffer&& other) noexcept;
+    ~Buffer() = default;
 
-    VkBuffer& get() { return m_buffer; }
-    VkDeviceMemory& getMemory() { return m_bufferMemory; }
-    void* getMappedMemory() { return m_mapped; }
+    Buffer(const Buffer&) = delete;
+    Buffer& operator=(const Buffer&) = delete;
 
-    void createBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties,
-        VkBuffer& buffer, VkDeviceMemory& bufferMemory);
-    void copyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size);
-    void copyBufferToImage(ImagePtr image);
-    VkResult map(VkDeviceSize size = VK_WHOLE_SIZE, VkDeviceSize offset = 0);
-    void unmap();
+    static Buffer create(VmaAllocator allocator,
+        VkDeviceSize size,
+        VkBufferUsageFlags usage,
+        VmaMemoryUsage memoryUsage,
+        VkMemoryPropertyFlags requiredFlags = 0);
 
-    virtual void bind() = 0; // Pure virtual function
+    static Buffer createStaging(VmaAllocator allocator, VkDeviceSize size);
+    static Buffer createVertex(VmaAllocator allocator, VkDeviceSize size);
+    static Buffer createIndex(VmaAllocator allocator, VkDeviceSize size);
+    static Buffer createUniform(VmaAllocator allocator, VkDeviceSize size);
+
+    VkBuffer get() const { return m_buffer; }
+    VkDeviceSize getSize() const { return m_size; }
+
 protected:
-    Renderer* m_renderer = nullptr;
-    VkBuffer m_buffer;
-    VkDeviceMemory m_bufferMemory;
-    void* m_mapped = nullptr;
-};
+    void destroyResourceImpl() override;
 
+private:
+    VkBuffer m_buffer = VK_NULL_HANDLE;
+    VkDeviceSize m_size = 0;
+};

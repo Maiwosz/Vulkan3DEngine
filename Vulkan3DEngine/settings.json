@@ -1,1 +1,9 @@
-{"fov":45.0,"framesInFlight":3,"mouseSensitivity":30.0,"msaaSamples":8,"resolution":"1920x1080","windowMode":"Fullscreen"}
+{
+    "framesInFlight": 3,
+    "logLevel": 0,
+    "msaaSamples": 4,
+    "resolution": 3,
+    "textureFiltering": 2,
+    "vsyncEnabled": true,
+    "windowMode": 0
+}

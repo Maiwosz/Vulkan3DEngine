@@ -31,24 +31,4 @@ ThreadPool::~ThreadPool()
     for (std::thread& worker : m_workers) worker.join();
 }
 
-ThreadPool* ThreadPool::get()
-{
-    return m_pool;
-}
-
-void ThreadPool::create(size_t threads)
-{
-    if (ThreadPool::m_pool) throw std::exception("ThreadPool already created");
-    ThreadPool::m_pool = new ThreadPool(threads);
-}
-
-void ThreadPool::release()
-{
-    if (!ThreadPool::m_pool)
-    {
-        return;
-    }
-    delete ThreadPool::m_pool;
-}
-
 

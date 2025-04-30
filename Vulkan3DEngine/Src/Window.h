@@ -1,83 +1,52 @@
 #pragma once
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
-
-#include "Prerequisites.h"
+#include "Event.h"
+#include "Settings.h"
 #include <string>
-#include <map>
+#include <memory>
 
 class Window
 {
 public:
-    enum class Mode {
-        Windowed,
-        Fullscreen,
-        Borderless
-    };
-
-    enum class Resolution {
-        // Format 4:3
-        R_640x480,
-        R_800x600,
-        R_1024x768,
-
-        // Format 16:9
-        R_1280x720,
-        R_1366x768,
-        R_1600x900,
-        R_1920x1080
-    };
-
-    struct ResolutionDetails {
-        int width;
-        int height;
-    };
-
-    static const std::map<Resolution, ResolutionDetails> resolutionMap;
-private:
-    Window(const char* windowName);
+    explicit Window(const char* title, Settings::WindowMode initialMode, Settings::Resolution initialResolution);
     ~Window();
 
-public:
-    static Window* get();
-    static void create(const char* windowName);
-    static void release();
+    Window(const Window&) = delete;
+    Window& operator=(const Window&) = delete;
 
-    GLFWwindow* getWindow() const { return m_glfwWindow; }
-    VkSurfaceKHR& getSurface() { return m_surface; }
-    void createSurface();
+    GLFWwindow* get() const { return m_window; }
+    VkExtent2D extent() const;
+    void pollEvents() const { glfwPollEvents(); }
 
-    bool shouldClose() { return glfwWindowShouldClose(m_glfwWindow); }
-    VkExtent2D getExtent() {
-        ResolutionDetails resolutionDetails = resolutionMap.at(s_resolution);
-        return { static_cast<uint32_t>(resolutionDetails.width), static_cast<uint32_t>(resolutionDetails.height) };
-    }
+    bool shouldClose() const { return glfwWindowShouldClose(m_window); }
 
-    static Resolution s_resolution;
-    static Mode s_mode;
+    auto onResize(typename Event<int, int>::Callback callback) { return m_resizeEvent->subscribe(callback); }
+    auto onFocus(typename Event<bool>::Callback callback) { return m_focusEvent->subscribe(callback); }
+    auto onMinimize(typename Event<bool>::Callback callback) { return m_minimizeEvent->subscribe(callback); }
+    auto onClose(typename Event<>::Callback callback) { return m_closeEvent->subscribe(callback); }
 
-    bool isFocused() { return glfwGetWindowAttrib(m_glfwWindow, GLFW_FOCUSED); }
-    void resetWindowFocusedFlag() { m_focused = true; }
-
-    bool isMinimized() { return glfwGetWindowAttrib(m_glfwWindow, GLFW_ICONIFIED); }
-    void resetWindowMinimizedFlag() { m_minimized = false; }
-
-    bool wasWindowResized() { return m_framebufferResized; }
-    void resetWindowResizedFlag() { m_framebufferResized = false; }
-
-    void setMode(Mode mode);
-    void setResolution(Resolution resolution);
 private:
-    static void framebufferResizeCallback(GLFWwindow* window, int width, int height);
-    static void windowFocusCallback(GLFWwindow* window, int focused);
-    static void windowIconifyCallback(GLFWwindow* window, int iconified);
+    void initGLFW();
+    void createWindow();
+    void setupCallbacks();
+    static void handleGLFWError(int error, const char* description);
 
-    static Window* m_window;
-    GLFWwindow* m_glfwWindow;
-    VkSurfaceKHR m_surface;
+    void onWindowModeChanged(Settings::WindowMode newMode);
+    void onResolutionChanged(Settings::Resolution newRes);
+    void applyWindowMode(Settings::WindowMode newMode);
+    void applyResolution(Settings::Resolution newRes);
 
-    std::string m_windowName;
-    bool m_framebufferResized = false;
-    bool m_focused = true;
-    bool m_minimized = false;
+    GLFWwindow* m_window = nullptr;
+    std::string m_title;
+    Settings::WindowMode m_currentMode;
+    Settings::Resolution m_currentResolution;
+
+    std::shared_ptr<Event<int, int>> m_resizeEvent;
+    std::shared_ptr<Event<bool>> m_focusEvent;
+    std::shared_ptr<Event<bool>> m_minimizeEvent;
+    std::shared_ptr<Event<>> m_closeEvent;
+
+    std::unique_ptr<Event<Settings::WindowMode>::Subscription> m_windowModeSubscription;
+    std::unique_ptr<Event<Settings::Resolution>::Subscription> m_resolutionSubscription;
 };

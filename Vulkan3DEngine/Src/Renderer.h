@@ -1,85 +1,65 @@
 #pragma once
 #include "Prerequisites.h"
 #include "Window.h"
-#include "Device.h"
 #include "SwapChain.h"
-#include "PipelineBuilder.h"
-#include "Descriptors.h"
+#include "ImGuiWrapper.h"
+#include "CommandBuffer.h"
+#include "FrameManager.h"
+#include "RenderPassManager.h"
+#include "VulkanContext.h"
+#include "AttachmentManager.h"
+#include "FrameBufferManager.h"
+#include "Event.h"
+#include "ShaderModuleManager.h"
+#include "PipelineManager.h"
+#include "MaterialManager.h"
+#include "UniformBufferManager.h"
+#include "PipelineLayoutManager.h"
+#include "DescriptorLayoutManager.h"
 
 class Renderer
 {
 public:
-	Renderer();
-	~Renderer();
+    Renderer(Window& window);
+    ~Renderer();
 
-	//Tworzenie zasobów przenieœæ do osobnej klasy
-	StagingBufferPtr createStagingBuffer(VkDeviceSize bufferSize);
-	VertexBufferPtr createVertexBuffer(std::vector<Vertex> vertices);
-	IndexBufferPtr createIndexBuffer(std::vector<uint32_t> indices);
-	UniformBufferPtr createUniformBuffer(VkDeviceSize deviceSize);
-	ImagePtr createImage(uint32_t width, uint32_t height, uint32_t mipLevels, VkSampleCountFlagBits numSamples, VkFormat format, VkImageTiling tiling,
-		VkImageUsageFlags usage, VkMemoryPropertyFlags properties);
+    void waitIdle() { vkDeviceWaitIdle(m_vulkanContext->logical().get()); }
+    VramManager& getVramManager() { return *m_vramManager; }
+    ShaderModuleManager& getShaderModuleManager() { return *m_shaderModuleManager; }
+    MaterialManager& getMaterialManager() { return *m_materialManager; }
 
-	SwapChainPtr getSwapChain() { return m_swapChain; }
+    // New render frame function
+    void drawFrame();
 
-	void drawFrame();
-	void drawModel(Model* model);
-	void bindDescriptorSet(VkDescriptorSet set, int position);
-
-	VkCommandBuffer getCurrentCommandBuffer() { return m_commandBuffers[m_currentFrame]; }
-	const uint32_t getCurrentFrame() { return m_currentFrame; }
-
-	void recreatePipelines();
-	void recreateImgui();
-
-	//Settings
-	static VkSampleCountFlagBits s_maxMsaaSamples;
-	static VkSampleCountFlagBits s_msaaSamples;
-	static const int s_maxFramesInFlight = 3;
-	static int s_framesInFlight;
-
-	VkDescriptorSetLayout m_globalDescriptorSetLayout;
-	VkDescriptorSetLayout m_textureDescriptorSetLayout;
-	VkDescriptorSetLayout m_modelDescriptorSetLayout;
 private:
-	//Command Buffer // To separate class later?
-	void createCommandBuffers();
-	void recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex);
+    Window& m_window;
+    std::unique_ptr<VulkanContext> m_vulkanContext;
+    std::unique_ptr<CommandBufferManager> m_commandBufferManager;
+    std::unique_ptr<SynchronizationResourceManager> m_syncResourceManager;
+    std::unique_ptr<FrameManager> m_frameManager;
+    std::unique_ptr<VramManager> m_vramManager;
+    std::unique_ptr<UniformBufferManager> m_uniformBufferManager;
+    std::unique_ptr<DescriptorLayoutManager> m_descriptorLayoutManager;
+    std::unique_ptr<PipelineLayoutManager> m_pipelineLayoutManager;
+    std::unique_ptr<SwapChain> m_swapChain;
+    std::unique_ptr<ImageSamplerManager> m_samplerManager;
+    std::unique_ptr<AttachmentManager> m_attachmentManager;
+    std::unique_ptr<RenderPassManager> m_renderPassManager;
+    std::unique_ptr<FrameBufferManager> m_framebufferManager;
+    std::unique_ptr<ShaderModuleManager> m_shaderModuleManager;
+    std::unique_ptr<PipelineManager> m_pipelineManager;
+    std::unique_ptr<MaterialManager> m_materialManager;
 
-	void createGraphicsPipeline();
-	void createPointLightPipeline();
+    // Main render pass and resources
+    RenderPassHandle m_mainRenderPassHandle;
+    AttachmentHandle m_depthAttachmentHandle;
 
-	void initImgui();
-	
-	
-	SwapChainPtr m_swapChain;
-	PipelinePtr m_graphicsPipeline;
-	PipelinePtr m_pointLightPipeline;
-	DescriptorAllocatorGrowablePtr m_descriptorAllocator;
+    // Event subscriptions
+    std::unique_ptr<Event<int, int>::Subscription> m_windowResizeSubscription;
+    std::unique_ptr<Event<>::Subscription> m_swapChainRecreationSubscription;
 
-	//Command Buffer // To separate class later?
-	std::vector<VkCommandBuffer> m_commandBuffers;
-
-	std::vector<Model*> m_modelDraws;
-
-	VkDescriptorPool m_imguiPool;
-
-	VkDescriptorSet m_currentDescriptorSets[3];
-	VkDescriptorSet m_currentGlobalDescriptorSet[1];
-
-	uint32_t m_currentFrame = 0;
-	uint32_t m_currentImageIndex;
-
-	friend class SwapChain;
-	friend class GraphicsPipeline;
-	friend class PipelineBuilder;
-	friend struct Buffer;
-	friend struct StagingBuffer;
-	friend struct VertexBuffer;
-	friend struct IndexBuffer;
-	friend struct UniformBuffer;
-	friend struct Image;
-	friend class ImageView;
-	friend struct DepthBuffer;
+    // Helper methods
+    void createMainRenderPass();
+    void recreateRenderResources();
+    void handleWindowResize(int width, int height);
 };
-

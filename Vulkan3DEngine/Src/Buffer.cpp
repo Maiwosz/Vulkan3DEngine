@@ -1,87 +1,109 @@
 #include "Buffer.h"
-#include "Renderer.h"
-#include "Image.h"
-#include "GraphicsEngine.h"
+#include <stdexcept>
+#include <cstring>
+#include <utility>
 
-Buffer::Buffer(Renderer* renderer) : m_renderer(renderer)
-{
+Buffer::Buffer() = default;
+
+Buffer::Buffer(Buffer&& other) noexcept :
+    AllocatedResource(std::move(other)),
+    m_buffer(std::exchange(other.m_buffer, VK_NULL_HANDLE)),
+    m_size(std::exchange(other.m_size, 0)) {
 }
 
-Buffer::~Buffer()
-{
-    unmap();
-    vkDestroyBuffer(GraphicsEngine::get()->getDevice()->get(), m_buffer, nullptr);
-    vkFreeMemory(GraphicsEngine::get()->getDevice()->get(), m_bufferMemory, nullptr);
+Buffer& Buffer::operator=(Buffer&& other) noexcept {
+    if (this != &other) {
+        AllocatedResource::operator=(std::move(other));
+        m_buffer = std::exchange(other.m_buffer, VK_NULL_HANDLE);
+        m_size = std::exchange(other.m_size, 0);
+    }
+    return *this;
 }
 
-void Buffer::createBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties, VkBuffer& buffer, VkDeviceMemory& bufferMemory)
+void Buffer::destroyResourceImpl() {
+    if (m_buffer != VK_NULL_HANDLE) {
+        vmaDestroyBuffer(m_allocator, m_buffer, m_allocation);
+        m_buffer = VK_NULL_HANDLE;
+        m_allocation = nullptr;
+    }
+}
+
+Buffer Buffer::create(
+    VmaAllocator allocator,
+    VkDeviceSize size,
+    VkBufferUsageFlags usage,
+    VmaMemoryUsage memoryUsage,
+    VkMemoryPropertyFlags requiredFlags)
 {
+    Buffer buffer;
+    buffer.m_allocator = allocator;
+    buffer.m_size = size;
+
     VkBufferCreateInfo bufferInfo{};
     bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
     bufferInfo.size = size;
     bufferInfo.usage = usage;
     bufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 
-    if (vkCreateBuffer(GraphicsEngine::get()->getDevice()->get(), &bufferInfo, nullptr, &buffer) != VK_SUCCESS) {
-        throw std::runtime_error("failed to create buffer!");
+    VmaAllocationCreateInfo allocInfo{};
+    allocInfo.usage = memoryUsage;
+    allocInfo.requiredFlags = requiredFlags;
+
+    VkResult result = vmaCreateBuffer(
+        allocator,
+        &bufferInfo,
+        &allocInfo,
+        &buffer.m_buffer,
+        &buffer.m_allocation,
+        nullptr
+    );
+
+    if (result != VK_SUCCESS) {
+        throw std::runtime_error("Failed to create buffer with VMA");
     }
 
-    VkMemoryRequirements memRequirements;
-    vkGetBufferMemoryRequirements(GraphicsEngine::get()->getDevice()->get(), buffer, &memRequirements);
+    // Pobierz rzeczywisty rozmiar alokacji
+    VmaAllocationInfo vmaAllocInfo;
+    vmaGetAllocationInfo(allocator, buffer.m_allocation, &vmaAllocInfo);
+    buffer.m_allocatedSize = vmaAllocInfo.size;
 
-    VkMemoryAllocateInfo allocInfo{};
-    allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-    allocInfo.allocationSize = memRequirements.size;
-    allocInfo.memoryTypeIndex = GraphicsEngine::get()->getDevice()->findMemoryType(memRequirements.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
-
-    if (vkAllocateMemory(GraphicsEngine::get()->getDevice()->get(), &allocInfo, nullptr, &bufferMemory) != VK_SUCCESS) {
-        throw std::runtime_error("failed to allocate buffer memory!");
-    }
-
-    vkBindBufferMemory(GraphicsEngine::get()->getDevice()->get(), buffer, bufferMemory, 0);
+    return buffer;
 }
 
-void Buffer::copyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size)
-{
-    VkCommandBuffer commandBuffer = GraphicsEngine::get()->getDevice()->beginSingleTimeCommands();
-    
-    VkBufferCopy copyRegion{};
-    copyRegion.size = size;
-    vkCmdCopyBuffer(commandBuffer, srcBuffer, dstBuffer, 1, &copyRegion);
-    
-    GraphicsEngine::get()->getDevice()->endSingleTimeCommands(commandBuffer);
+Buffer Buffer::createStaging(VmaAllocator allocator, VkDeviceSize size) {
+    return create(
+        allocator,
+        size,
+        VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+        VMA_MEMORY_USAGE_CPU_TO_GPU,
+        VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT
+    );
 }
 
-void Buffer::copyBufferToImage(ImagePtr image)
-{
-    VkCommandBuffer commandBuffer = GraphicsEngine::get()->getDevice()->beginSingleTimeCommands();
-
-    VkBufferImageCopy region{};
-    region.bufferOffset = 0;
-    region.bufferRowLength = 0;
-    region.bufferImageHeight = 0;
-    region.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-    region.imageSubresource.mipLevel = 0;
-    region.imageSubresource.baseArrayLayer = 0;
-    region.imageSubresource.layerCount = 1;
-    region.imageOffset = { 0, 0, 0 };
-    region.imageExtent = { image->getWidth(),image->getHeight(),1};
-
-    vkCmdCopyBufferToImage(commandBuffer, m_buffer, image->get(), VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
-    image->updateLayout(VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
-
-    GraphicsEngine::get()->getDevice()->endSingleTimeCommands(commandBuffer);
+Buffer Buffer::createVertex(VmaAllocator allocator, VkDeviceSize size) {
+    return create(
+        allocator,
+        size,
+        VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+        VMA_MEMORY_USAGE_GPU_ONLY
+    );
 }
 
-VkResult Buffer::map(VkDeviceSize size, VkDeviceSize offset)
-{
-    return vkMapMemory(GraphicsEngine::get()->getDevice()->get(), m_bufferMemory, offset, size, 0, &m_mapped);
+Buffer Buffer::createIndex(VmaAllocator allocator, VkDeviceSize size) {
+    return create(
+        allocator,
+        size,
+        VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+        VMA_MEMORY_USAGE_GPU_ONLY
+    );
 }
 
-void Buffer::unmap()
-{
-    if (m_mapped) {
-        vkUnmapMemory(GraphicsEngine::get()->getDevice()->get(), m_bufferMemory);
-        m_mapped = nullptr;
-    }
+Buffer Buffer::createUniform(VmaAllocator allocator, VkDeviceSize size) {
+    return create(
+        allocator,
+        size,
+        VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
+        VMA_MEMORY_USAGE_CPU_TO_GPU,
+        VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT
+    );
 }

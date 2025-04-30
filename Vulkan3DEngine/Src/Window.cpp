@@ -1,130 +1,160 @@
 #include "Window.h"
 #include "Instance.h"
+#include <iostream>
+#include "Engine.h"
+#include "Settings.h"
 
-const std::map<Window::Resolution, Window::ResolutionDetails> Window::resolutionMap = {
-    // Format 4:3
-    { Window::Resolution::R_640x480, {640, 480} },
-    { Window::Resolution::R_800x600, {800, 600} },
-    { Window::Resolution::R_1024x768, {1024, 768} },
+Window::Window(const char* title, Settings::WindowMode initialMode, Settings::Resolution initialResolution)
+    : m_title(title),
+    m_currentMode(initialMode),
+    m_currentResolution(initialResolution),
+    m_resizeEvent(Event<int, int>::create()),
+    m_focusEvent(Event<bool>::create()),
+    m_minimizeEvent(Event<bool>::create()),
+    m_closeEvent(Event<>::create())
+{
+    initGLFW();
+    createWindow();
+    setupCallbacks();
 
-    // Format 16:9
-    { Window::Resolution::R_1280x720, {1280, 720} },
-    { Window::Resolution::R_1366x768, {1366, 768} },
-    { Window::Resolution::R_1600x900, {1600, 900} },
-    { Window::Resolution::R_1920x1080, {1920, 1080} }
-};
+    Settings& settings = Engine::get().settings();
 
-Window* Window::m_window = nullptr;
-Window::Mode Window::s_mode = Mode::Windowed;
-Window::Resolution Window::s_resolution = Resolution::R_1280x720;
+	m_resolutionSubscription = std::make_unique<Event<Settings::Resolution>::Subscription>(
+        settings.onResolutionChanged()->subscribe([this](Settings::Resolution newRes) {
+            this->onResolutionChanged(newRes);
+            })
+	);
 
-static void glfwErrorCallback(int error, const char* description) {
+	m_windowModeSubscription = std::make_unique<Event<Settings::WindowMode>::Subscription>(
+        settings.onWindowModeChanged()->subscribe([this](Settings::WindowMode newMode) {
+            this->onWindowModeChanged(newMode);
+            })
+    );
+}
+
+Window::~Window() {
+    if (m_window) {
+        glfwDestroyWindow(m_window);
+        glfwTerminate();
+    }
+}
+
+void Window::initGLFW() {
+    glfwSetErrorCallback(handleGLFWError);
+    if (!glfwInit()) {
+        throw std::runtime_error("GLFW initialization failed");
+    }
+    glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
+}
+
+void Window::createWindow() {
+    const auto& res = Settings::RESOLUTION_MAP.at(m_currentResolution);
+    GLFWmonitor* monitor = nullptr;
+    int width = res.width;
+    int height = res.height;
+
+    if (m_currentMode != Settings::WindowMode::Windowed) {
+        monitor = glfwGetPrimaryMonitor();
+        if (m_currentMode == Settings::WindowMode::Borderless) {
+            const GLFWvidmode* vidmode = glfwGetVideoMode(monitor);
+            width = vidmode->width;
+            height = vidmode->height;
+        }
+    }
+
+    m_window = glfwCreateWindow(width, height, m_title.c_str(), monitor, nullptr);
+    if (!m_window) {
+        throw std::runtime_error("Failed to create GLFW window");
+    }
+
+    if (m_currentMode == Settings::WindowMode::Borderless) {
+        glfwSetWindowAttrib(m_window, GLFW_DECORATED, GLFW_FALSE);
+    }
+
+    glfwSetWindowUserPointer(m_window, this);
+}
+
+void Window::setupCallbacks() {
+    glfwSetFramebufferSizeCallback(m_window, [](GLFWwindow* window, int w, int h) {
+        auto self = static_cast<Window*>(glfwGetWindowUserPointer(window));
+        self->m_resizeEvent->invoke(w, h);
+        });
+
+    glfwSetWindowFocusCallback(m_window, [](GLFWwindow* window, int focused) {
+        auto self = static_cast<Window*>(glfwGetWindowUserPointer(window));
+        self->m_focusEvent->invoke(focused);
+        });
+
+    glfwSetWindowIconifyCallback(m_window, [](GLFWwindow* window, int iconified) {
+        auto self = static_cast<Window*>(glfwGetWindowUserPointer(window));
+        self->m_minimizeEvent->invoke(iconified);
+        });
+
+    glfwSetWindowCloseCallback(m_window, [](GLFWwindow* window) {
+        auto self = static_cast<Window*>(glfwGetWindowUserPointer(window));
+        self->m_closeEvent->invoke();
+        });
+}
+
+void Window::handleGLFWError(int error, const char* description) {
     std::cerr << "GLFW Error: " << error << " - " << description << std::endl;
 }
 
-Window::Window(const char* windowName)
-    : m_windowName(windowName)
-{
-    glfwSetErrorCallback(glfwErrorCallback);
-
-    glfwInit();
-
-    glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
-    glfwWindowHint(GLFW_RESIZABLE, GLFW_FALSE);
-
-    GLFWmonitor* monitor = nullptr;
-    if (s_mode == Mode::Fullscreen || s_mode == Mode::Borderless) {
-        monitor = glfwGetPrimaryMonitor();
-    }
-
-    auto resolutionDetails = resolutionMap.at(s_resolution);
-
-    m_glfwWindow = glfwCreateWindow(resolutionDetails.width, resolutionDetails.height, windowName, monitor, nullptr);
-
-    if (s_mode == Mode::Borderless) {
-        const GLFWvidmode* mode = glfwGetVideoMode(monitor);
-        glfwSetWindowMonitor(m_glfwWindow, monitor, 0, 0, mode->width, mode->height, mode->refreshRate);
-    }
-
-    glfwSetWindowUserPointer(m_glfwWindow, this);
-    glfwSetFramebufferSizeCallback(m_glfwWindow, framebufferResizeCallback);
-    glfwSetWindowFocusCallback(m_glfwWindow, windowFocusCallback);
-    glfwSetWindowIconifyCallback(m_glfwWindow, windowIconifyCallback);
+VkExtent2D Window::extent() const {
+    int width, height;
+    glfwGetFramebufferSize(m_window, &width, &height);
+    return { static_cast<uint32_t>(width), static_cast<uint32_t>(height) };
 }
 
-Window::~Window()
-{
-    if (m_surface) {
-        vkDestroySurfaceKHR(Instance::get()->getVkInstance(), m_surface, nullptr);
-    }
-    glfwDestroyWindow(m_glfwWindow);
-    glfwTerminate();
-}
-
-Window* Window::get()
-{
-    return m_window;
-}
-
-void Window::create(const char* windowName)
-{
-    if (Window::m_window) throw std::exception("Window already created");
-    Window::m_window = new Window(windowName);
-}
-
-void Window::release()
-{
-    if (!Window::m_window)
-    {
-        return;
-    }
-    delete Window::m_window;
-}
-
-void Window::createSurface()
-{
-    if (glfwCreateWindowSurface(Instance::get()->getVkInstance(), m_glfwWindow, nullptr, &m_surface) != VK_SUCCESS) {
-        throw std::runtime_error("failed to create window surface!");
+void Window::onWindowModeChanged(Settings::WindowMode newMode) {
+    if (m_currentMode != newMode) {
+        m_currentMode = newMode;
+        applyWindowMode(newMode);
     }
 }
 
-void Window::setMode(Mode mode) {
-    s_mode = mode;
-    // Zastosuj zmiany do okna
-    if (mode == Mode::Fullscreen) {
-        const GLFWvidmode* mode = glfwGetVideoMode(glfwGetPrimaryMonitor());
-        glfwSetWindowMonitor(m_glfwWindow, glfwGetPrimaryMonitor(), 0, 0, mode->width, mode->height, mode->refreshRate);
-    }
-    else if (mode == Mode::Windowed) {
-        ResolutionDetails resolutionDetails = resolutionMap.at(s_resolution);
-        glfwSetWindowMonitor(m_glfwWindow, nullptr, 0, 0, resolutionDetails.width, resolutionDetails.height, 0);
-    }
-    else if (mode == Mode::Borderless) {
-        const GLFWvidmode* mode = glfwGetVideoMode(glfwGetPrimaryMonitor());
-        glfwSetWindowMonitor(m_glfwWindow, glfwGetPrimaryMonitor(), 0, 0, mode->width, mode->height, mode->refreshRate);
+void Window::onResolutionChanged(Settings::Resolution newRes) {
+    if (m_currentResolution != newRes) {
+        m_currentResolution = newRes;
+        applyResolution(newRes);
     }
 }
 
-void Window::setResolution(Resolution resolution) {
-    s_resolution = resolution;
-    // Zastosuj zmiany do okna
-    ResolutionDetails resolutionDetails = resolutionMap.at(s_resolution);
-    glfwSetWindowSize(m_glfwWindow, resolutionDetails.width, resolutionDetails.height);
+void Window::applyWindowMode(Settings::WindowMode newMode) {
+    GLFWmonitor* monitor = glfwGetPrimaryMonitor();
+    const GLFWvidmode* vidmode = glfwGetVideoMode(monitor);
+    int xpos, ypos;
+    glfwGetWindowPos(m_window, &xpos, &ypos);
+
+    switch (newMode) {
+    case Settings::WindowMode::Windowed: {
+        const auto& res = Settings::RESOLUTION_MAP.at(m_currentResolution);
+        glfwSetWindowMonitor(m_window, nullptr, xpos, ypos, res.width, res.height, vidmode->refreshRate);
+        glfwSetWindowAttrib(m_window, GLFW_DECORATED, GLFW_TRUE);
+        break;
+    }
+    case Settings::WindowMode::Fullscreen: {
+        const auto& res = Settings::RESOLUTION_MAP.at(m_currentResolution);
+        glfwSetWindowMonitor(m_window, monitor, 0, 0, res.width, res.height, vidmode->refreshRate);
+        glfwSetWindowAttrib(m_window, GLFW_DECORATED, GLFW_TRUE);
+        break;
+    }
+    case Settings::WindowMode::Borderless: {
+        glfwSetWindowMonitor(m_window, monitor, 0, 0, vidmode->width, vidmode->height, vidmode->refreshRate);
+        glfwSetWindowAttrib(m_window, GLFW_DECORATED, GLFW_FALSE);
+        break;
+    }
+    }
 }
 
-void Window::framebufferResizeCallback(GLFWwindow* window, int width, int height) {
-    auto m_window = reinterpret_cast<Window*>(glfwGetWindowUserPointer(window));
-    m_window->m_framebufferResized = true;
-}
-
-void Window::windowFocusCallback(GLFWwindow* window, int focused)
-{
-    auto m_window = reinterpret_cast<Window*>(glfwGetWindowUserPointer(window));
-    m_window->m_focused = focused;
-}
-
-void Window::windowIconifyCallback(GLFWwindow* window, int iconified)
-{
-    auto m_window = reinterpret_cast<Window*>(glfwGetWindowUserPointer(window));
-    m_window->m_minimized = iconified;
+void Window::applyResolution(Settings::Resolution newRes) {
+    const auto& res = Settings::RESOLUTION_MAP.at(newRes);
+    if (m_currentMode == Settings::WindowMode::Windowed) {
+        glfwSetWindowSize(m_window, res.width, res.height);
+    }
+    else if (m_currentMode == Settings::WindowMode::Fullscreen) {
+        GLFWmonitor* monitor = glfwGetPrimaryMonitor();
+        const GLFWvidmode* vidmode = glfwGetVideoMode(monitor);
+        glfwSetWindowMonitor(m_window, monitor, 0, 0, res.width, res.height, vidmode->refreshRate);
+    }
 }

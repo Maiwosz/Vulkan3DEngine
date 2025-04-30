@@ -1,3 +1,4 @@
+#pragma once
 #include <deque>
 #include <vector>
 #include <thread>
@@ -7,25 +8,22 @@
 #include <functional>
 #include <atomic>
 
+// Only define the concept if it hasn't been defined elsewhere
+#ifndef CALLABLE_CONCEPT_DEFINED
+#define CALLABLE_CONCEPT_DEFINED
 template<typename F, typename... Args>
 concept Callable = requires(F f, Args... args) {
     { std::invoke(f, args...) } -> std::same_as<typename std::invoke_result<F, Args...>::type>;
 };
+#endif
 
 class ThreadPool {
-private:
-    ThreadPool(size_t threads);
-
-    ~ThreadPool();
-
 public:
-    static ThreadPool* get();
-    static void create(size_t threads);
-    static void release();
-
+    explicit ThreadPool(size_t threads);
+    ~ThreadPool();
     size_t getThreadCount() { return m_threadCount; }
 
-    template<Callable F, class ...Args>
+    template<class F, class ...Args>
     auto enqueue(F&& f, Args && ...args) -> std::future<typename std::invoke_result<F, Args...>::type>
     {
         using return_type = typename std::invoke_result<F, Args...>::type;
@@ -41,8 +39,8 @@ public:
     }
 private:
     static ThreadPool* m_pool;
-    std::vector< std::thread > m_workers;
-    std::deque< std::function<void()> > m_tasks;
+    std::vector<std::thread> m_workers;
+    std::deque<std::function<void()>> m_tasks;
     std::mutex m_queue_mutex;
     std::condition_variable m_condition;
     bool m_stop;

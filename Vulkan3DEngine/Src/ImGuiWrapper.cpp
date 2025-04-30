@@ -1,0 +1,114 @@
+#include "ImGuiWrapper.h"
+#include "imgui.h"
+#include "imgui_impl_glfw.h"
+#include "imgui_impl_vulkan.h"
+
+ImGuiWrapper::ImGuiWrapper(
+    Window& window,
+    VulkanContext& context,
+    VkRenderPass renderPass,
+    uint32_t minImageCount,
+    uint32_t imageCount,
+    VkSampleCountFlagBits msaaSamples
+) 
+    : r_window(window),
+    r_context(context),
+    m_renderPass(renderPass),
+    m_minImageCount(minImageCount),
+    m_imageCount(imageCount),
+    m_msaaSamples(msaaSamples)
+{
+    init();
+}
+
+ImGuiWrapper::~ImGuiWrapper() {
+    shutdown();
+}
+
+void ImGuiWrapper::init() {
+    if (m_initialized) return;
+
+    createDescriptorPool();
+
+    IMGUI_CHECKVERSION();
+    ImGui::CreateContext();
+    
+    // Konfiguracja IO
+    ImGuiIO& io = ImGui::GetIO();
+    io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
+    io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;
+    ImGui::StyleColorsDark();
+
+    // Inicjalizacja backendów
+    ImGui_ImplGlfw_InitForVulkan(r_window.get(), true);
+
+    ImGui_ImplVulkan_InitInfo initInfo = {};
+    initInfo.Instance = r_context.instance().get();
+    initInfo.PhysicalDevice = r_context.physical().get();
+    initInfo.Device = r_context.logical().get();
+    
+    // Pobieranie indeksu rodziny kolejek z LogicalDevice
+    initInfo.QueueFamily = r_context.logical().getQueueFamilyIndex(LogicalDevice::QueueType::Graphics);
+    initInfo.Queue = r_context.logical().getQueue(LogicalDevice::QueueType::Graphics);
+    
+    initInfo.DescriptorPool = m_imguiPool;
+    initInfo.MinImageCount = m_minImageCount;
+    initInfo.ImageCount = m_imageCount;
+    initInfo.MSAASamples = m_msaaSamples;
+    initInfo.RenderPass = m_renderPass;
+
+    ImGui_ImplVulkan_Init(&initInfo);
+    ImGui_ImplVulkan_CreateFontsTexture();
+
+    m_initialized = true;
+}
+
+void ImGuiWrapper::recreate() {
+    vkDeviceWaitIdle(r_context.logical().get());
+    shutdown();
+    init();
+}
+
+void ImGuiWrapper::render(VkCommandBuffer commandBuffer) {
+    ImGui::Render();
+    ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), commandBuffer, 0);
+}
+
+void ImGuiWrapper::createDescriptorPool() {
+    VkDescriptorPoolSize pool_sizes[] = {
+        { VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1 },
+    };
+
+    VkDescriptorPoolCreateInfo pool_info = {};
+    pool_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+    pool_info.flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT;
+    pool_info.maxSets = 1;
+    pool_info.poolSizeCount = static_cast<uint32_t>(std::size(pool_sizes));
+    pool_info.pPoolSizes = pool_sizes;
+
+    VK_CHECK(vkCreateDescriptorPool(
+        r_context.logical().get(),
+        &pool_info,
+        nullptr,
+        &m_imguiPool
+    ));
+}
+
+void ImGuiWrapper::shutdown() {
+    if (!m_initialized) return;
+
+    ImGui_ImplVulkan_Shutdown();
+    ImGui_ImplGlfw_Shutdown();
+    ImGui::DestroyContext();
+
+    if (m_imguiPool) {
+        vkDestroyDescriptorPool(
+            r_context.logical().get(),
+            m_imguiPool,
+            nullptr
+        );
+        m_imguiPool = VK_NULL_HANDLE;
+    }
+
+    m_initialized = false;
+}

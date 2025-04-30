@@ -1,35 +1,71 @@
 #pragma once
-#include "Prerequisites.h"
+#include "AllocatedResource.h"
+#include <vulkan/vulkan.h>
 
-struct Image
-{
+class CommandBuffer;
+
+class Image : public AllocatedResource {
 public:
-	Image(uint32_t width, uint32_t height, uint32_t mipLevels, VkSampleCountFlagBits numSamples, VkFormat format, VkImageTiling tiling, VkImageUsageFlags usage,
-		VkMemoryPropertyFlags properties, Renderer* renderer);
-	~Image();
+    Image();
+    Image(Image&& other) noexcept;
+    Image& operator=(Image&& other) noexcept;
+    ~Image() = default;
 
-	VkImage& get() { return m_image; }
-	const uint32_t getWidth() { return m_width; }
-	const uint32_t getHeight() { return m_height; }
+    Image(const Image&) = delete;
+    Image& operator=(const Image&) = delete;
 
-	void transitionImageLayout(VkImageLayout newLayout);
-	void updateLayout(VkImageLayout newLayout);
-	const VkImageLayout& getLayout() { return m_layout; }
+    static Image create(
+        VmaAllocator allocator,
+        const VkImageCreateInfo& imageInfo,
+        VmaMemoryUsage memoryUsage,
+        VkMemoryPropertyFlags requiredFlags = 0);
 
-	void generateMipmaps();
+    static Image createExternal(
+        VmaAllocator allocator,
+        VkImage image,
+        VkFormat format,
+        VkExtent2D extent,
+        VkImageLayout initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
+        VkSampleCountFlagBits samples = VK_SAMPLE_COUNT_1_BIT);
+
+    VkImage get() const { return m_image; }
+    VkFormat getFormat() const { return m_format; }
+    VkExtent2D getExtent() const { return m_extent; }
+    VkImageLayout getCurrentLayout() const { return m_currentLayout; }
+    VkSampleCountFlagBits getSamples() const { return m_samples; }
+    bool isExternalResource() const { return m_isExternal; }
+
+    VkImageView createView(
+        VkDevice device,
+        VkImageViewType viewType,
+        VkFormat format,
+        VkImageAspectFlags aspectMask,
+        uint32_t baseMipLevel = 0,
+        uint32_t mipLevels = VK_REMAINING_MIP_LEVELS,
+        uint32_t baseArrayLayer = 0,
+        uint32_t arrayLayers = VK_REMAINING_ARRAY_LAYERS) const;
+
+    void recordLayoutTransition(
+        CommandBuffer& commandBuffer,
+        VkImageLayout newLayout,
+        VkPipelineStageFlags srcStage = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+        VkPipelineStageFlags dstStage = VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT,
+        VkImageAspectFlags aspectMask = VK_IMAGE_ASPECT_COLOR_BIT
+    );
+
+    // Helper functions
+    static VkImageAspectFlags getImageAspect(VkFormat format);
+    static VkAccessFlags inferAccessMask(VkImageLayout layout);
+
+protected:
+    void destroyResourceImpl() override;
+
 private:
-	Renderer* m_renderer = nullptr;
+    VkImage m_image = VK_NULL_HANDLE;
+    VkFormat m_format = VK_FORMAT_UNDEFINED;
+    VkExtent2D m_extent = { 0, 0 };
+    VkImageLayout m_currentLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    VkSampleCountFlagBits m_samples = VK_SAMPLE_COUNT_1_BIT;
 
-	VkImage m_image;
-	VkDeviceMemory m_imageMemory;
-	uint32_t m_width;
-	uint32_t m_height;
-	uint32_t m_mipLevels;
-	VkSampleCountFlagBits m_numSamples;
-	VkFormat m_format;
-	VkImageTiling m_tiling;
-	VkImageUsageFlags m_usage;
-	VkMemoryPropertyFlags m_properties;
-	VkImageLayout m_layout = VK_IMAGE_LAYOUT_UNDEFINED;
+    bool m_isExternal = false;
 };
-

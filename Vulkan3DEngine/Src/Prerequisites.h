@@ -6,140 +6,30 @@
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
 #include <vulkan/vk_enum_string_helper.h>
-#include <vma/vk_mem_alloc.h>
 
+#define GLM_FORCE_SILENT_WBERS
+#define GLM_FORCE_CXX17
 #define GLM_FORCE_RADIANS
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE
-#define GLM_ENABLE_EXPERIMENTAL
 #include <glm/glm.hpp>
 #include <glm/mat4x4.hpp>
 #include <glm/vec4.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtx/hash.hpp>
 
-#define FMT_HEADER_ONLY
-#include <fmt/core.h>
-#include <fmt/format.h>
-
 #include <json.hpp>
 
-#include <memory>
-#include <array>
+#include <spdlog/spdlog.h>
+
 
 #define VK_CHECK(x)                                                         \
     do {                                                                    \
         VkResult err = x;                                                   \
         if (err) {                                                          \
-             fmt::print("Detected Vulkan error: {}", string_VkResult(err)); \
+             SPDLOG_ERROR("Detected Vulkan error: {}", string_VkResult(err)); \
             abort();                                                        \
         }                                                                   \
     } while (0)
-
-
-class Application;
-
-class Window;
-class GraphicsEngine;
-class ThreadPool;
-class Device;
-class Renderer;
-class SwapChain;
-class PipelineBuilder;
-class Resource;
-class ResourceManager;
-class Texture;
-class TextureManager;
-class Mesh;
-class MeshManager;
-class ModelData;
-class ModelDataManager;
-struct Buffer;
-struct StagingBuffer;
-struct VertexBuffer;
-struct IndexBuffer;
-class UniformBuffer;
-class DescriptorAllocatorGrowable;
-class DescriptorSet;
-class GlobalDescriptorSet;
-class TextureDescriptorSet;
-class ModelDescriptorSet;
-struct Image;
-struct DepthBuffer;
-class Scene;
-class SceneObject;
-class Model;
-class Camera;
-class PointLightObject;
-class SceneObjectManager;
-class Animation;
-class AnimationSequence;
-class AnimationBuilder;
-
-
-typedef std::shared_ptr<Window> WindowPtr;
-typedef std::shared_ptr<Device> DevicePtr;
-typedef std::shared_ptr<Renderer> RendererPtr;
-typedef std::shared_ptr<SwapChain> SwapChainPtr;
-typedef std::shared_ptr<PipelineBuilder> PipelineBuilderePtr;
-typedef std::shared_ptr<Resource> ResourcePtr;
-typedef std::shared_ptr<ResourceManager> ResourceManagerPtr;
-typedef std::shared_ptr<Texture> TexturePtr;
-typedef std::shared_ptr<TextureManager> TextureManagerPtr;
-typedef std::shared_ptr<Mesh> MeshPtr;
-typedef std::shared_ptr<MeshManager> MeshManagerPtr;
-typedef std::shared_ptr<ModelData> ModelDataPtr;
-typedef std::shared_ptr<ModelDataManager> ModelDataManagerPtr;
-typedef std::shared_ptr<Buffer> BufferPtr;
-typedef std::shared_ptr<StagingBuffer> StagingBufferPtr;
-typedef std::shared_ptr<VertexBuffer> VertexBufferPtr;
-typedef std::shared_ptr<IndexBuffer> IndexBufferPtr;
-typedef std::shared_ptr<UniformBuffer> UniformBufferPtr;
-typedef std::shared_ptr<DescriptorAllocatorGrowable> DescriptorAllocatorGrowablePtr;
-typedef std::shared_ptr<DescriptorSet> DescriptorSetPtr;
-typedef std::shared_ptr<GlobalDescriptorSet> GlobalDescriptorSetPtr;
-typedef std::shared_ptr<TextureDescriptorSet> TextureDescriptorSetPtr;
-typedef std::shared_ptr<ModelDescriptorSet> ModelDescriptorSetPtr;
-typedef std::shared_ptr<Image> ImagePtr;
-typedef std::shared_ptr<DepthBuffer> DepthBufferPtr;
-typedef std::shared_ptr<SceneObject> SceneObjectPtr;
-typedef std::shared_ptr<Scene> ScenePtr;
-typedef std::shared_ptr<Model> ModelPtr;
-typedef std::shared_ptr<Camera> CameraPtr;
-typedef std::shared_ptr<PointLightObject> PointLightObjectPtr;
-typedef std::shared_ptr<SceneObjectManager> SceneObjectManagerPtr;
-typedef std::shared_ptr<Animation> AnimationPtr;
-typedef std::shared_ptr<AnimationSequence> AnimationSequencePtr;
-typedef std::shared_ptr<AnimationBuilder> AnimationBuilderPtr;
-
-struct DirectionalLight {
-    alignas(16) glm::vec3 direction = glm::vec3(0.0f, 1.0f, 0.0f); // Light coming from above
-    alignas(16) glm::vec4 color = glm::vec4(1.0f, 1.0f, 1.0f, 1.0f); // w is for intensity
-};
-
-struct PointLight {
-    glm::vec3 position = glm::vec3(0.0f, 0.0f, 0.0f); // At the origin
-    alignas(4) float radius = 10.0f; // Light radius
-    alignas(16) glm::vec4 color = glm::vec4(1.0f, 1.0f, 1.0f, 1.0f); // w is for intensity
-};
-
-typedef std::shared_ptr<PointLight> PointLightPtr;
-
-struct GlobalUBO {
-    alignas(16) glm::mat4 view;
-    alignas(16) glm::mat4 proj;
-    alignas(16) glm::vec3 cameraPosition;
-    DirectionalLight directionalLight;
-    alignas(16) PointLight pointLights[64];
-    alignas(4) int activePointLightCount;
-    alignas(4) float ambientCoefficient = 0.05f;
-};
-
-struct ModelUBO {
-    glm::mat4 model;
-    alignas(4) float shininess = 1.0f;
-    alignas(4) float kd = 0.8f; // Large diffuse coefficient
-    alignas(4) float ks = 0.2f; // Small specular coefficient
-};
 
 struct Vertex {
     glm::vec3 pos;
@@ -196,15 +86,15 @@ namespace std {
     };
 }
 
-struct Pipeline {
-    Pipeline(VkDevice* device) : p_device(device) {}
-    ~Pipeline() {
-        vkDestroyPipeline(*p_device, pipeline, nullptr);
-        vkDestroyPipelineLayout(*p_device, layout, nullptr);
-    }
-    VkDevice* p_device;
-    VkPipeline pipeline;
-    VkPipelineLayout layout;
-};
+//struct Pipeline {
+//    Pipeline(VkDevice device) : p_device(device) {}
+//    ~Pipeline() {
+//        vkDestroyPipeline(p_device, pipeline, nullptr);
+//        vkDestroyPipelineLayout(p_device, layout, nullptr);
+//    }
+//    VkDevice p_device;
+//    VkPipeline pipeline;
+//    VkPipelineLayout layout;
+//};
 
-typedef std::unique_ptr<Pipeline> PipelinePtr;
+//typedef std::unique_ptr<Pipeline> PipelinePtr;
