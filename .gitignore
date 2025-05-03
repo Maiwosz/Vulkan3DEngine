@@ -369,3 +369,4 @@ FodyWeavers.xsd
 *.asha
 Libs/VulkanSDK/Lib/shaderc_combinedd.lib
 Libs/VulkanSDK/Lib/SPIRV-Tools-optd.lib 
+Assets/Compiled/

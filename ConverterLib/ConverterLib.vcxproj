@@ -112,7 +112,7 @@
       <ConformanceMode>true</ConformanceMode>
       <PrecompiledHeader>Use</PrecompiledHeader>
       <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
-      <AdditionalIncludeDirectories>$(SolutionDir)Libs\stb;$(SolutionDir)Libs\tinyobjloader;$(SolutionDir)AssetLib;$(SolutionDir)Libs\nlohmann;$(SolutionDir)Libs\lz4\include;$(SolutionDir)Libs\bc7enc;$(SolutionDir)Libs\VulkanSDK\Include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(SolutionDir)Libs\stb;$(SolutionDir)Libs\tinyobjloader;$(SolutionDir)AssetLib;$(SolutionDir)Libs\nlohmann;$(SolutionDir)Libs\lz4\include;$(SolutionDir)Libs\bc7enc;$(SolutionDir)Libs\VulkanSDK\Include;$(SolutionDir)ShaderLib;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <LanguageStandard>stdcpp20</LanguageStandard>
     </ClCompile>
     <Link>
@@ -131,7 +131,7 @@
       <ConformanceMode>true</ConformanceMode>
       <PrecompiledHeader>Use</PrecompiledHeader>
       <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
-      <AdditionalIncludeDirectories>$(SolutionDir)Libs\stb;$(SolutionDir)Libs\tinyobjloader;$(SolutionDir)AssetLib;$(SolutionDir)Libs\nlohmann;$(SolutionDir)Libs\lz4\include;$(SolutionDir)Libs\bc7enc;$(SolutionDir)Libs\VulkanSDK\Include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(SolutionDir)Libs\stb;$(SolutionDir)Libs\tinyobjloader;$(SolutionDir)AssetLib;$(SolutionDir)Libs\nlohmann;$(SolutionDir)Libs\lz4\include;$(SolutionDir)Libs\bc7enc;$(SolutionDir)Libs\VulkanSDK\Include;$(SolutionDir)ShaderLib;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <LanguageStandard>stdcpp20</LanguageStandard>
     </ClCompile>
     <Link>
@@ -144,16 +144,16 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClInclude Include="bc7enc\bc7enc.h" />
-    <ClInclude Include="Converter.h" />
+    <ClInclude Include="ConverterLib.h" />
     <ClInclude Include="framework.h" />
     <ClInclude Include="pch.h" />
+    <ClInclude Include="Shader.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="bc7enc\bc7enc.c">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|x64'">NotUsing</PrecompiledHeader>
     </ClCompile>
-    <ClCompile Include="Converter.cpp" />
     <ClCompile Include="ConverterLib.cpp" />
     <ClCompile Include="pch.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Create</PrecompiledHeader>
@@ -161,6 +161,7 @@
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Create</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">Create</PrecompiledHeader>
     </ClCompile>
+    <ClCompile Include="Shader.cpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

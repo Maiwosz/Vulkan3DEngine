@@ -105,7 +105,7 @@
       <PreprocessorDefinitions>_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <LanguageStandard>stdcpp20</LanguageStandard>
-      <AdditionalIncludeDirectories>$(SolutionDir)ConverterLib\;$(SolutionDir)AssetLib\;$(SolutionDir)Libs\nlohmann</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(SolutionDir)ConverterLib\;$(SolutionDir)AssetLib\;$(SolutionDir)Libs\nlohmann;$(SolutionDir)ShaderLib\;$(SolutionDir)Libs\VulkanSDK\Include</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -122,7 +122,7 @@
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
-      <AdditionalIncludeDirectories>$(SolutionDir)ConverterLib\;$(SolutionDir)AssetLib\;$(SolutionDir)Libs\nlohmann</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(SolutionDir)ConverterLib\;$(SolutionDir)AssetLib\;$(SolutionDir)Libs\nlohmann;$(SolutionDir)ShaderLib\;$(SolutionDir)Libs\VulkanSDK\Include</AdditionalIncludeDirectories>
       <LanguageStandard>stdcpp20</LanguageStandard>
     </ClCompile>
     <Link>

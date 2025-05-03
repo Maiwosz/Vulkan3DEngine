@@ -4,12 +4,12 @@
 #include <json.hpp>
 #include <iostream>
 #include "AssetLoader.h"
-#include "Converter.h"
+#include "ConverterLib.h"
 
 using json = nlohmann::json;
 
 AssetWatcher::AssetWatcher(const std::string& sourceDir, const std::string& destDir, Editor& editor)
-    : m_editor(editor) // <-- Inicjalizacja referencji
+    : m_editor(editor) 
     , sourceDirectory(fs::absolute(sourceDir))
     , destinationDirectory(fs::absolute(destDir))
 {
@@ -144,9 +144,9 @@ bool AssetWatcher::NeedsConversion(const fs::path& sourcePath, const fs::path& d
     }
 
     std::string storedSource = GetSourceFromMetadata(destPath);
-    std::string currentSourceName = sourcePath.filename().string(); // <-- Pobierz tylko nazwę pliku
+    std::string currentSourceName = sourcePath.filename().string();
 
-    if (storedSource != currentSourceName) { // <-- Porównaj same nazwy plików
+    if (storedSource != currentSourceName) { 
         m_editor.getLogger()->debug("Source name mismatch for {} (stored: '{}', current: '{}')",
             destPath.string(), storedSource, currentSourceName);
         return true;

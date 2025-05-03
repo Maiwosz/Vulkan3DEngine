@@ -75,7 +75,8 @@ Renderer::Renderer(Window& window) : m_window(window) {
             *m_pipelineLayoutManager 
         );
         m_materialManager = std::make_unique<MaterialManager>(
-        *m_samplerManager
+            *m_shaderModuleManager,
+            *m_samplerManager
         );
 
         // Create main render pass

@@ -3,13 +3,14 @@
   <ItemGroup>
     <ClInclude Include="pch.h" />
     <ClInclude Include="framework.h" />
-    <ClInclude Include="Converter.h" />
+    <ClInclude Include="ConverterLib.h" />
     <ClInclude Include="bc7enc\bc7enc.h" />
+    <ClInclude Include="Shader.h" />
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="ConverterLib.cpp" />
     <ClCompile Include="pch.cpp" />
-    <ClCompile Include="Converter.cpp" />
+    <ClCompile Include="ConverterLib.cpp" />
     <ClCompile Include="bc7enc\bc7enc.c" />
+    <ClCompile Include="Shader.cpp" />
   </ItemGroup>
 </Project>

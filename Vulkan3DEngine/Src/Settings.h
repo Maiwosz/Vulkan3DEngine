@@ -42,6 +42,20 @@ public:
         Anisotropic
     };
 
+    enum class MipmapMode {
+        Nearest,
+        Linear
+    };
+
+    enum class AnisotropyLevel {
+        X1 = 1,
+        X2 = 2,
+        X4 = 4,
+        X8 = 8,
+        X16 = 16
+    };
+
+
     enum class MsaaSampleCount {
         Samples1 = 1,
         Samples2 = 2,
@@ -69,6 +83,8 @@ public:
     static constexpr TextureFiltering DEFAULT_TEXTURE_FILTER_MODE = TextureFiltering::Anisotropic;
     static constexpr MsaaSampleCount DEFAULT_MSAA_SAMPLES = MsaaSampleCount::Samples4;
     static constexpr uint32_t DEFAULT_FRAMES_IN_FLIGHT = 3;
+    static constexpr MipmapMode DEFAULT_MIPMAP_MODE = MipmapMode::Linear;
+    static constexpr AnisotropyLevel DEFAULT_ANISOTROPY_LEVEL = AnisotropyLevel::X8;
 
     // Mapowania (pozostały static)
     static constexpr LogLevel DEFAULT_LOG_LEVEL = LogLevel::Info;
@@ -77,6 +93,8 @@ public:
     static const std::map<MsaaSampleCount, uint32_t> MSAA_SAMPLE_MAP;
     static const std::map<WindowMode, std::string> WINDOW_MODE_MAP;
     static const std::map<TextureFiltering, std::string> TEXTURE_FILTERING_MAP;
+    static const std::map<MipmapMode, std::string> MIPMAP_MODE_MAP;
+    static const std::map<AnisotropyLevel, uint32_t> ANISOTROPY_LEVEL_MAP;
 
     // Gettery i settery
     LogLevel getLogLevel() const { return m_logLevel; }
@@ -86,6 +104,9 @@ public:
     TextureFiltering getTextureFiltering() const { return m_textureFiltering; }
     MsaaSampleCount getMsaaSamples() const { return m_msaaSamples; }
     uint32_t getFramesInFlight() const { return m_framesInFlight; }
+    MipmapMode getMipmapMode() const { return m_mipmapMode; }
+    AnisotropyLevel getAnisotropyLevel() const { return m_anisotropyLevel; }
+    float getCurrentAnisotropyLevel() const;
 
     MsaaSampleCount getMaxMsaaSamples() const { return m_maxMsaaSamples; }
     float getMaxAnisotropy() const { return m_maxAnisotropy; }
@@ -98,6 +119,8 @@ public:
     void setTextureFiltering(TextureFiltering filtering);
     void setMsaaSamples(MsaaSampleCount samples);
     void setFramesInFlight(uint32_t count);
+    void setMipmapMode(MipmapMode mode);
+    void setAnisotropyLevel(AnisotropyLevel level);
 
     ResolutionDetails getCurrentResolutionDetails() const;
     uint32_t getCurrentMsaaSampleCount() const;
@@ -112,6 +135,8 @@ public:
     std::shared_ptr<Event<TextureFiltering>> onTextureFilteringChanged() { return m_textureFilteringChangedEvent; }
     std::shared_ptr<Event<MsaaSampleCount>> onMsaaChanged() { return m_msaaChangedEvent; }
     std::shared_ptr<Event<uint32_t>> onFramesInFlightChanged() { return m_framesInFlightChangedEvent; }
+    std::shared_ptr<Event<MipmapMode>> onMipmapModeChanged() { return m_mipmapModeChangedEvent; }
+    std::shared_ptr<Event<AnisotropyLevel>> onAnisotropyLevelChanged() { return m_anisotropyLevelChangedEvent; }
 
     bool saveToFile(const std::string& filename);
     bool loadFromFile(const std::string& filename);
@@ -128,6 +153,8 @@ private:
     TextureFiltering m_textureFiltering;
     MsaaSampleCount m_msaaSamples;
     uint32_t m_framesInFlight;
+    MipmapMode m_mipmapMode;
+    AnisotropyLevel m_anisotropyLevel;
 
     bool m_hardwareLimitsSet = false;
 
@@ -142,4 +169,6 @@ private:
     std::shared_ptr<Event<TextureFiltering>> m_textureFilteringChangedEvent;
     std::shared_ptr<Event<MsaaSampleCount>> m_msaaChangedEvent;
     std::shared_ptr<Event<uint32_t>> m_framesInFlightChangedEvent;
+    std::shared_ptr<Event<MipmapMode>> m_mipmapModeChangedEvent;
+    std::shared_ptr<Event<AnisotropyLevel>> m_anisotropyLevelChangedEvent;
 };

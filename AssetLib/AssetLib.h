@@ -4,6 +4,7 @@
 #include <array>
 #include <string_view>
 #include <json.hpp>
+#include "ShaderLib.h"
 
 namespace AssetLib {
 
@@ -73,115 +74,55 @@ namespace AssetLib {
     };
 
     // =============================================
-    // Shaders
+    // Materials - Updated to match ShaderLib
     // =============================================
-    enum class ShaderStage : uint8_t {
-        Vertex = 0,
-        Fragment = 1,
-        Compute = 2,
-        Geometry = 3,
-        TessellationControl = 4,
-        TessellationEvaluation = 5
-    };
 
-    enum class ShaderStageFlags : uint8_t {
-        Vertex = 0x01,
-        Fragment = 0x02,
-        Compute = 0x04,
-        Geometry = 0x08,
-        TessellationControl = 0x10,
-        TessellationEvaluation = 0x20
-    };
+    // Using ShaderLib's descriptor types for consistency
+    using DescriptorType = ShaderLib::DescriptorType;
+    using UniformType = ShaderLib::UniformType;
 
-    enum class DescriptorType : uint8_t {
-        UniformBuffer = 0,
-        CombinedImageSampler = 1,
-        StorageBuffer = 2,
-        StorageImage = 3,
-        InputAttachment = 4
-    };
-
-    struct DescriptorBinding {
-        uint32_t set;
-        uint32_t binding;
-        DescriptorType type;
-        ShaderStageFlags stageFlags;
-        uint32_t size; // Dla buforów
-        std::array<char, 32> name;
-    };
-
-    struct PushConstantRange {
-        ShaderStageFlags stageFlags;
-        uint32_t offset;
-        uint32_t size;
-    };
-
-    struct ShaderReflection {
-        uint32_t descriptorSetCount;
-        uint32_t pushConstantRangeCount;
-        uint32_t descriptorBindingsCount;
-        // Po tej strukturze następują:
-        // DescriptorBinding[descriptorBindingsCount]
-        // PushConstantRange[pushConstantRangeCount]
-    };
-
-    struct ShaderStageInfo {
-        ShaderStage stage;
-        uint32_t spirvVersion;
-        std::vector<uint8_t> spirvCode;
-        std::vector<uint8_t> reflectionData;
-    };
-
-    // =============================================
-    // Materials
-    // =============================================
-    enum class SamplerFilter : uint8_t {
-        Nearest = 0,
-        Linear = 1
-    };
-
-    enum class SamplerAddressMode : uint8_t {
-        Repeat = 0,
-        MirroredRepeat = 1,
-        ClampToEdge = 2,
-        ClampToBorder = 3
-    };
-
+    // Sampler settings for texture parameters
     struct SamplerDescription {
-        SamplerFilter magFilter;
-        SamplerFilter minFilter;
-        SamplerAddressMode addressModeU;
-        SamplerAddressMode addressModeV;
-        SamplerAddressMode addressModeW;
+        enum class Filter : uint8_t {
+            Nearest = 0,
+            Linear = 1
+        };
+
+        enum class AddressMode : uint8_t {
+            Repeat = 0,
+            MirroredRepeat = 1,
+            ClampToEdge = 2,
+            ClampToBorder = 3
+        };
+
+        Filter magFilter;
+        Filter minFilter;
+        AddressMode addressModeU;
+        AddressMode addressModeV;
+        AddressMode addressModeW;
         float anisotropy;
         float minLod;
         float maxLod;
     };
 
+    // Parameter for material (corresponds to CustomDescriptorSet bindings in shader)
     struct MaterialParameter {
-        std::array<char, 32> name;
-        enum class Type : uint8_t {
-            Float,
-            Float2,
-            Float3,
-            Float4,
-            Int,
-            UInt,
-            Bool,
-            Texture
-        } type;
-        uint32_t arraySize;
-        SamplerDescription samplerDesc;
-        uint32_t dataOffset;
+        std::array<char, 32> name;       // Name of the parameter
+        DescriptorType descriptorType;   // Type of descriptor (UniformBuffer, CombinedImageSampler, etc.)
+        UniformType uniformType;         // For UBO variables - the uniform type
+        uint32_t arraySize;              // Size if it's an array, 0 otherwise
+        SamplerDescription samplerDesc;  // Sampler settings for textures
+        uint32_t dataOffset;             // Offset into the parameter data
+        uint32_t dataSize;               // Size of this parameter's data
     };
 
     struct MaterialInfo {
-        std::array<char, 32> shaderName;
-        uint32_t parameterCount;
-        uint32_t dataSize;
-        // Po tej strukturze następują:
+        std::array<char, 32> shaderName; // Name of the shader asset this material uses
+        uint32_t parameterCount;         // Number of parameters
+        uint32_t dataSize;               // Total size of parameter data
+        // Following this structure:
         // MaterialParameter[parameterCount]
-        // uint8_t[dataSize] (dane parametrów)
+        // uint8_t[dataSize] (parameter data)
     };
 
     // =============================================
@@ -220,14 +161,28 @@ namespace AssetLib {
     // =============================================
     // Funkcje dla materiałów
     // =============================================
-    AssetData WriteMaterial(const std::string& source, const MaterialInfo& info, const std::vector<MaterialParameter>& parameters, const std::vector<uint8_t>& parameterData, CompressionType compression = CompressionType::LZ4, int compressionLevel = 1);
-    std::tuple<MaterialInfo, std::vector<MaterialParameter>, std::vector<uint8_t>> ReadMaterial(const AssetData asset);
+    AssetData WriteMaterial(
+        const std::string& source,
+        const MaterialInfo& info,
+        const std::vector<MaterialParameter>& parameters,
+        const std::vector<uint8_t>& parameterData,
+        CompressionType compression = CompressionType::LZ4,
+        int compressionLevel = 1
+    );
+
+    std::tuple<MaterialInfo, std::vector<MaterialParameter>, std::vector<uint8_t>> ReadMaterial(const AssetData& asset);
+
+    // Helper functions to convert between ShaderLib and AssetLib types
+    SamplerDescription::Filter ConvertSamplerFilter(const std::string& filter);
+    SamplerDescription::AddressMode ConvertAddressMode(const std::string& mode);
+    DescriptorType ConvertDescriptorType(const std::string& type);
+    UniformType ConvertUniformType(const std::string& type);
 
     // =============================================
     // Funkcje dla shaderów
     // =============================================
-    AssetData WriteShader(const std::string& source, const std::vector<ShaderStageInfo>& stages, uint32_t flags, CompressionType compression = CompressionType::LZ4, int compressionLevel = 1);
-    std::tuple<std::vector<ShaderStageInfo>, std::string, uint32_t> ReadShader(const AssetData& asset);
+    AssetData WriteShader(const std::string& source, const ShaderLib::ShaderData shaderData, CompressionType compression = CompressionType::LZ4, int compressionLevel = 1);
+    std::tuple<ShaderLib::ShaderMetadata, std::vector<ShaderLib::CompiledStage>> ReadShader(const AssetData& asset);
 
     // =============================================
     // Funkcje

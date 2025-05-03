@@ -124,7 +124,7 @@
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>GLM_ENABLE_EXPERIMENTAL;NOMINMAX;WIN32_LEAN_AND_MEAN;_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
-      <AdditionalIncludeDirectories>$(SolutionDir)Libs\VulkanSDK\Include;$(SolutionDir)Libs\glfw\include;$(SolutionDir)Libs\glm;$(SolutionDir)Libs\nlohmann;$(SolutionDir)Libs\imgui;$(SolutionDir)Libs\spdlog;$(SolutionDir)AssetLib\;$(SolutionDir)ConverterLib\</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(SolutionDir)Libs\VulkanSDK\Include;$(SolutionDir)Libs\glfw\include;$(SolutionDir)Libs\nlohmann;$(SolutionDir)Libs\imgui;$(SolutionDir)Libs\spdlog;$(SolutionDir)AssetLib\;$(SolutionDir)ConverterLib\;$(SolutionDir)ShaderLib\</AdditionalIncludeDirectories>
       <LanguageStandard>stdcpp20</LanguageStandard>
       <AdditionalOptions>/utf-8 %(AdditionalOptions)</AdditionalOptions>
     </ClCompile>
@@ -146,7 +146,7 @@
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>GLM_ENABLE_EXPERIMENTAL;NOMINMAX;WIN32_LEAN_AND_MEAN;NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
-      <AdditionalIncludeDirectories>$(SolutionDir)Libs\VulkanSDK\Include;$(SolutionDir)Libs\glfw\include;$(SolutionDir)Libs\glm;$(SolutionDir)Libs\nlohmann;$(SolutionDir)Libs\imgui;$(SolutionDir)Libs\spdlog;$(SolutionDir)AssetLib\;$(SolutionDir)ConverterLib\</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(SolutionDir)Libs\VulkanSDK\Include;$(SolutionDir)Libs\glfw\include;$(SolutionDir)Libs\nlohmann;$(SolutionDir)Libs\imgui;$(SolutionDir)Libs\spdlog;$(SolutionDir)AssetLib\;$(SolutionDir)ConverterLib\;$(SolutionDir)ShaderLib\</AdditionalIncludeDirectories>
       <LanguageStandard>stdcpp20</LanguageStandard>
       <AdditionalOptions>/utf-8 %(AdditionalOptions)</AdditionalOptions>
     </ClCompile>
@@ -170,6 +170,7 @@
     <ClCompile Include="..\Libs\imgui\imgui_impl_vulkan.cpp" />
     <ClCompile Include="..\Libs\imgui\imgui_tables.cpp" />
     <ClCompile Include="..\Libs\imgui\imgui_widgets.cpp" />
+    <ClCompile Include="Src\RenderSystem.cpp" />
     <ClCompile Include="Src\PipelineLayoutManager.cpp" />
     <ClCompile Include="Src\PipelineConfig.cpp" />
     <ClCompile Include="Src\Material.cpp" />
@@ -202,7 +203,7 @@
     <ClCompile Include="Src\CameraSystem.cpp" />
     <ClCompile Include="Src\LightSystem.cpp" />
     <ClCompile Include="Src\RenderPassManager.cpp" />
-    <ClCompile Include="Src\RenderSystem.cpp" />
+    <ClCompile Include="Src\MeshRenderSystem.cpp" />
     <ClCompile Include="Src\Registry.cpp" />
     <ClCompile Include="Src\Instance.cpp" />
     <ClCompile Include="Src\Buffer.cpp" />
@@ -236,8 +237,15 @@
     <ClInclude Include="..\Libs\imgui\imstb_rectpack.h" />
     <ClInclude Include="..\Libs\imgui\imstb_textedit.h" />
     <ClInclude Include="..\Libs\imgui\imstb_truetype.h" />
+    <ClInclude Include="Src\ImageSamplerUtils.h" />
+    <ClInclude Include="Src\ShaderModuleHandle.h" />
+    <ClInclude Include="Src\RenderSystem.h" />
+    <ClInclude Include="Src\AssetResolutionStage.h" />
+    <ClInclude Include="Src\OrderCollectionStage.h" />
+    <ClInclude Include="Src\ProcessingStage.h" />
+    <ClInclude Include="Src\MaterialHandle.h" />
+    <ClInclude Include="Src\RenderOrder.h" />
     <ClInclude Include="Src\Paths.h" />
-    <ClInclude Include="Src\ShderModuleHandle.h" />
     <ClInclude Include="Src\PipelineLayoutHandle.h" />
     <ClInclude Include="Src\PipelineLayoutManager.h" />
     <ClInclude Include="Src\Material.h" />
@@ -245,7 +253,6 @@
     <ClInclude Include="Src\PipelineConfig.h" />
     <ClInclude Include="Src\Editor.h" />
     <ClInclude Include="Src\Settings.h" />
-    <ClInclude Include="Src\ShaderReflection.h" />
     <ClInclude Include="Src\CommandBufferManager.h" />
     <ClInclude Include="Src\ImageSampler.h" />
     <ClInclude Include="Src\ImageSamplerManager.h" />
@@ -276,11 +283,10 @@
     <ClInclude Include="Src\CameraSystem.h" />
     <ClInclude Include="Src\LightSystem.h" />
     <ClInclude Include="Src\CameraComponent.h" />
-    <ClInclude Include="Src\DirectionalLightComponent.h" />
-    <ClInclude Include="Src\RenderSystem.h" />
+    <ClInclude Include="Src\LightComponent.h" />
+    <ClInclude Include="Src\MeshRenderSystem.h" />
     <ClInclude Include="Src\Registry.h" />
     <ClInclude Include="Src\Event.h" />
-    <ClInclude Include="Src\PointLightComponent.h" />
     <ClInclude Include="Src\Component.h" />
     <ClInclude Include="Src\MaterialComponent.h" />
     <ClInclude Include="Src\MeshComponent.h" />
@@ -306,7 +312,7 @@
     <ClInclude Include="Src\VulkanUtilities.h" />
     <ClInclude Include="Src\VulkanContext.h" />
     <ClInclude Include="Src\Surface.h" />
-    <ClInclude Include="Src\VramAssetTypes.h" />
+    <ClInclude Include="Src\VramMesh.h" />
     <ClInclude Include="Src\AllocatedResource.h" />
     <ClInclude Include="Src\SynchronizationResourceManager.h" />
     <ClInclude Include="Src\StagingBufferManager.h" />
@@ -315,10 +321,6 @@
   <ItemGroup>
     <None Include="..\Libs\imgui\.gitattributes" />
     <None Include="..\Libs\imgui\.gitignore" />
-    <None Include="Shaders\pointLight.frag" />
-    <None Include="Shaders\pointLight.vert" />
-    <None Include="Shaders\Shader.frag" />
-    <None Include="Shaders\Shader.vert" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

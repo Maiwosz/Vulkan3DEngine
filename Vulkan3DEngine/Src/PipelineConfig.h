@@ -4,7 +4,7 @@
 #include <vector>
 #include <functional>
 #include "PipelineLayoutHandle.h"
-#include "ShderModuleHandle.h"
+#include "ShaderModuleHandle.h"
 
 namespace std {
     // Helper function for combining hash values

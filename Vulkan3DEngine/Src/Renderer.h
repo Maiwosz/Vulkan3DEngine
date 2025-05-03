@@ -16,6 +16,7 @@
 #include "UniformBufferManager.h"
 #include "PipelineLayoutManager.h"
 #include "DescriptorLayoutManager.h"
+#include "ImageSamplerManager.h"
 
 class Renderer
 {

@@ -70,6 +70,12 @@ void Engine::initialize(const char* title) {
     SPDLOG_INFO("Preparing scene");
     m_scene = std::make_unique<Scene>();
 
+    SPDLOG_INFO("Initializing Render System");
+    m_renderSystem = std::make_unique<RenderSystem>(
+        m_scene->registry(),
+        *m_assetManager 
+    );
+
     SPDLOG_INFO("=== Engine ready ===");
 }
 

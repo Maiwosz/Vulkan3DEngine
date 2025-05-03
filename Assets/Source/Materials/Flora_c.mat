@@ -1,0 +1,19 @@
+{
+    "shader": "Phong",
+    "parameters": {
+        "shininess": 32.0,
+        "ka": 0.1,
+        "kd": 0.8,
+        "ks": 0.5,
+        "albedoSampler": {
+            "path": "Flora_C_Flora_O_Material_u1_v1",
+            "sampler": {
+                "magFilter": "Linear",
+                "minFilter": "Linear",
+                "addressModeU": "Repeat",
+                "addressModeV": "Repeat",
+                "anisotropy": 16.0
+            }
+        }
+    }
+}

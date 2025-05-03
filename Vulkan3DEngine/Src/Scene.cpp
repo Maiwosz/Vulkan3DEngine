@@ -3,15 +3,17 @@
 #include "TransformComponent.h"
 #include "MeshComponent.h"
 #include "MaterialComponent.h"
+#include "LightComponent.h"
+#include "CameraComponent.h"
 
 Scene::Scene()
 {
 
 	m_registry = std::make_unique<Registry>();
 	m_registry->getSystemManager().registerSystem<AssetCollectionSystem>();
-    //m_registry->getSystemManager().registerSystem<RenderSystem>();
-    //m_registry->getSystemManager().registerSystem<LightSystem>();
-    //m_registry->getSystemManager().registerSystem<CameraSystem>();
+    m_registry->getSystemManager().registerSystem<MeshRenderSystem>();
+    m_registry->getSystemManager().registerSystem<LightSystem>();
+    m_registry->getSystemManager().registerSystem<CameraSystem>();
 
     testEntity = m_registry->create();
 
@@ -38,12 +40,12 @@ Scene::Scene()
     testDirectionalLight = m_registry->create();
 
 	// Dodawanie komponentu DireactionalLight
-    m_registry->addComponent<DirectionalLightComponent>(testDirectionalLight);
+    m_registry->addComponent<LightComponent>(testDirectionalLight, LightComponent::Type::Directional);
 
     testPointLight = m_registry->create();
 
 	// Dodawanie komponentu pointLight
-    m_registry->addComponent<PointLightComponent>(testPointLight);
+    m_registry->addComponent<LightComponent>(testPointLight, LightComponent::Type::Point);
 }
 
 Scene::~Scene()

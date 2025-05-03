@@ -58,7 +58,7 @@ void Editor::configureLogger() {
         std::vector<spdlog::sink_ptr> sinks{ file_sink, console_sink };
         m_logger = std::make_shared<spdlog::logger>("EDITOR", sinks.begin(), sinks.end());
 
-        m_logger->set_level(spdlog::level::trace);
+        m_logger->set_level(spdlog::level::info);
         m_logger->flush_on(spdlog::level::err);  // Dopasowujemy do zachowania silnika
     }
     catch (const spdlog::spdlog_ex& ex) {

@@ -32,8 +32,8 @@
     <ClCompile Include="Src\Instance.cpp">
       <Filter>Engine\Renderer\VulkanContext\Instance</Filter>
     </ClCompile>
-    <ClCompile Include="Src\RenderSystem.cpp">
-      <Filter>Engine\Scene\EntityComponentSystem\SystemManager\Systems\RenderSystem</Filter>
+    <ClCompile Include="Src\MeshRenderSystem.cpp">
+      <Filter>Engine\Scene\EntityComponentSystem\SystemManager\Systems\MeshRenderSystem</Filter>
     </ClCompile>
     <ClCompile Include="Src\CameraSystem.cpp">
       <Filter>Engine\Scene\EntityComponentSystem\SystemManager\Systems\CameraSystem</Filter>
@@ -188,6 +188,9 @@
     <ClCompile Include="Src\PipelineLayoutManager.cpp">
       <Filter>Engine\Renderer\PipelineManager\PipelineLayoutManager</Filter>
     </ClCompile>
+    <ClCompile Include="Src\RenderSystem.cpp">
+      <Filter>Engine\RenderSystem</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Src\Prerequisites.h" />
@@ -239,19 +242,16 @@
     <ClInclude Include="Src\Component.h">
       <Filter>Engine\Scene\EntityComponentSystem</Filter>
     </ClInclude>
-    <ClInclude Include="Src\PointLightComponent.h">
-      <Filter>Engine\Scene\EntityComponentSystem\Components</Filter>
-    </ClInclude>
     <ClInclude Include="Src\Event.h">
       <Filter>Engine\Event</Filter>
     </ClInclude>
     <ClInclude Include="Src\System.h">
       <Filter>Engine\Scene\EntityComponentSystem</Filter>
     </ClInclude>
-    <ClInclude Include="Src\RenderSystem.h">
-      <Filter>Engine\Scene\EntityComponentSystem\SystemManager\Systems\RenderSystem</Filter>
+    <ClInclude Include="Src\MeshRenderSystem.h">
+      <Filter>Engine\Scene\EntityComponentSystem\SystemManager\Systems\MeshRenderSystem</Filter>
     </ClInclude>
-    <ClInclude Include="Src\DirectionalLightComponent.h">
+    <ClInclude Include="Src\LightComponent.h">
       <Filter>Engine\Scene\EntityComponentSystem\Components</Filter>
     </ClInclude>
     <ClInclude Include="Src\CameraComponent.h">
@@ -326,7 +326,7 @@
     <ClInclude Include="Src\AssetHandle.h">
       <Filter>Engine\AssetSystem\AssetManager</Filter>
     </ClInclude>
-    <ClInclude Include="Src\VramAssetTypes.h">
+    <ClInclude Include="Src\VramMesh.h">
       <Filter>Engine\AssetSystem</Filter>
     </ClInclude>
     <ClInclude Include="Src\GraphicsTypes.h">
@@ -380,9 +380,6 @@
     <ClInclude Include="Src\StagingBufferManager.h">
       <Filter>Engine\Renderer\VramManager\StagingBufferManager</Filter>
     </ClInclude>
-    <ClInclude Include="Src\ShaderReflection.h">
-      <Filter>Engine\Renderer\ShaderModuleManager\ShaderModule</Filter>
-    </ClInclude>
     <ClInclude Include="Src\Settings.h">
       <Filter>Engine\Settings</Filter>
     </ClInclude>
@@ -431,24 +428,33 @@
     <ClInclude Include="Src\PipelineLayoutHandle.h">
       <Filter>Engine\Renderer\PipelineManager\PipelineLayoutManager</Filter>
     </ClInclude>
-    <ClInclude Include="Src\ShderModuleHandle.h">
+    <ClInclude Include="Src\Paths.h" />
+    <ClInclude Include="Src\RenderOrder.h">
+      <Filter>Engine\RenderSystem</Filter>
+    </ClInclude>
+    <ClInclude Include="Src\MaterialHandle.h">
+      <Filter>Engine\Renderer\MaterialManager</Filter>
+    </ClInclude>
+    <ClInclude Include="Src\ProcessingStage.h">
+      <Filter>Engine\RenderSystem</Filter>
+    </ClInclude>
+    <ClInclude Include="Src\OrderCollectionStage.h">
+      <Filter>Engine\RenderSystem\ProcessingStages</Filter>
+    </ClInclude>
+    <ClInclude Include="Src\AssetResolutionStage.h">
+      <Filter>Engine\RenderSystem\ProcessingStages</Filter>
+    </ClInclude>
+    <ClInclude Include="Src\RenderSystem.h">
+      <Filter>Engine\RenderSystem</Filter>
+    </ClInclude>
+    <ClInclude Include="Src\ShaderModuleHandle.h">
       <Filter>Engine\Renderer\ShaderModuleManager</Filter>
     </ClInclude>
-    <ClInclude Include="Src\Paths.h" />
+    <ClInclude Include="Src\ImageSamplerUtils.h">
+      <Filter>Engine\Renderer\ImageSamplerManager</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
-    <None Include="Shaders\Shader.vert">
-      <Filter>Engine\Renderer\ShaderModuleManager\Shaders</Filter>
-    </None>
-    <None Include="Shaders\Shader.frag">
-      <Filter>Engine\Renderer\ShaderModuleManager\Shaders</Filter>
-    </None>
-    <None Include="Shaders\pointLight.vert">
-      <Filter>Engine\Renderer\ShaderModuleManager\Shaders</Filter>
-    </None>
-    <None Include="Shaders\pointLight.frag">
-      <Filter>Engine\Renderer\ShaderModuleManager\Shaders</Filter>
-    </None>
     <None Include="..\Libs\imgui\.gitattributes">
       <Filter>ImGui</Filter>
     </None>
@@ -486,9 +492,6 @@
     </Filter>
     <Filter Include="Engine\Scene\EntityComponentSystem\SystemManager\Systems">
       <UniqueIdentifier>{bf9bdb94-bee9-489f-836a-17eff07da601}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Engine\Scene\EntityComponentSystem\SystemManager\Systems\RenderSystem">
-      <UniqueIdentifier>{7dee0d0c-ee75-4b87-83e2-e063d2ac82f5}</UniqueIdentifier>
     </Filter>
     <Filter Include="Engine\Scene\EntityComponentSystem\SystemManager\Systems\CameraSystem">
       <UniqueIdentifier>{615ce892-5cd4-4643-8bc5-ad3ec6fc3d5c}</UniqueIdentifier>
@@ -583,9 +586,6 @@
     <Filter Include="Engine\Renderer\ShaderModuleManager\ShaderModule">
       <UniqueIdentifier>{73f3a81a-7cd0-4e0c-82b8-9b6ac6429520}</UniqueIdentifier>
     </Filter>
-    <Filter Include="Engine\Renderer\ShaderModuleManager\Shaders">
-      <UniqueIdentifier>{97b1b8b9-c10b-4501-a242-370c9f5bcc4b}</UniqueIdentifier>
-    </Filter>
     <Filter Include="Engine\Renderer\SwapChain">
       <UniqueIdentifier>{f89a2610-55c3-4650-90b7-cb8a53396734}</UniqueIdentifier>
     </Filter>
@@ -642,6 +642,15 @@
     </Filter>
     <Filter Include="Engine\Renderer\PipelineManager\PipelineLayoutManager">
       <UniqueIdentifier>{54e58653-20b1-4091-88df-3a5f72b98035}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Engine\RenderSystem">
+      <UniqueIdentifier>{37c1d1a0-17bc-4ca7-8018-e94d912ebafa}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Engine\RenderSystem\ProcessingStages">
+      <UniqueIdentifier>{df8d2959-8698-4574-b49d-84d78957da88}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Engine\Scene\EntityComponentSystem\SystemManager\Systems\MeshRenderSystem">
+      <UniqueIdentifier>{7dee0d0c-ee75-4b87-83e2-e063d2ac82f5}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
 </Project>

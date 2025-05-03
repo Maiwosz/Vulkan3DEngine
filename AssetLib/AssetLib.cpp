@@ -4,6 +4,7 @@
 #include <stdexcept>
 #include <string>
 #include <fstream>
+#include <Serialization.h>
 
 using json = nlohmann::json;
 
@@ -64,6 +65,34 @@ namespace AssetLib {
             };
         }
 
+        json SerializeParameter(const MaterialParameter& param) {
+            json j = {
+                {"name", std::string(param.name.data())},
+                {"descriptorType", static_cast<int>(param.descriptorType)},
+                {"uniformType", static_cast<int>(param.uniformType)},
+                {"arraySize", param.arraySize},
+                {"dataOffset", param.dataOffset},
+                {"dataSize", param.dataSize}
+            };
+
+            // Serialize sampler description for texture parameters
+            if (param.descriptorType == DescriptorType::CombinedImageSampler ||
+                param.descriptorType == DescriptorType::SeparateImage) {
+                j["sampler"] = {
+                    {"magFilter", static_cast<int>(param.samplerDesc.magFilter)},
+                    {"minFilter", static_cast<int>(param.samplerDesc.minFilter)},
+                    {"addressModeU", static_cast<int>(param.samplerDesc.addressModeU)},
+                    {"addressModeV", static_cast<int>(param.samplerDesc.addressModeV)},
+                    {"addressModeW", static_cast<int>(param.samplerDesc.addressModeW)},
+                    {"anisotropy", param.samplerDesc.anisotropy},
+                    {"minLod", param.samplerDesc.minLod},
+                    {"maxLod", param.samplerDesc.maxLod}
+                };
+            }
+
+            return j;
+        }
+
         MaterialInfo DeserializeMaterialInfo(const json& j) {
             MaterialInfo info;
             std::string name = j["shaderName"];
@@ -73,21 +102,34 @@ namespace AssetLib {
             return info;
         }
 
-        json SerializeShaderStageInfo(const ShaderStageInfo& stage) {
-            return {
-                {"stage", static_cast<uint8_t>(stage.stage)},
-                {"spirvVersion", stage.spirvVersion},
-                {"spirvSize", stage.spirvCode.size()},
-                {"reflectionDataSize", stage.reflectionData.size()}
-            };
-        }
+        MaterialParameter DeserializeParameter(const json& j) {
+            MaterialParameter param;
 
-        // Deserializacja pojedynczego etapu shadera z JSON
-        ShaderStageInfo DeserializeShaderStageInfo(const json& j) {
-            ShaderStageInfo stage;
-            stage.stage = static_cast<ShaderStage>(j["stage"].get<uint8_t>());
-            stage.spirvVersion = j["spirvVersion"].get<uint32_t>();
-            return stage;
+            // Copy name
+            std::string name = j["name"];
+            std::copy_n(name.c_str(), std::min(name.size(), param.name.size()), param.name.data());
+
+            // Get basic properties
+            param.descriptorType = static_cast<DescriptorType>(j["descriptorType"].get<int>());
+            param.uniformType = static_cast<UniformType>(j["uniformType"].get<int>());
+            param.arraySize = j["arraySize"].get<uint32_t>();
+            param.dataOffset = j["dataOffset"].get<uint32_t>();
+            param.dataSize = j["dataSize"].get<uint32_t>();
+
+            // Get sampler description if present
+            if (j.contains("sampler")) {
+                const auto& s = j["sampler"];
+                param.samplerDesc.magFilter = static_cast<SamplerDescription::Filter>(s["magFilter"].get<int>());
+                param.samplerDesc.minFilter = static_cast<SamplerDescription::Filter>(s["minFilter"].get<int>());
+                param.samplerDesc.addressModeU = static_cast<SamplerDescription::AddressMode>(s["addressModeU"].get<int>());
+                param.samplerDesc.addressModeV = static_cast<SamplerDescription::AddressMode>(s["addressModeV"].get<int>());
+                param.samplerDesc.addressModeW = static_cast<SamplerDescription::AddressMode>(s["addressModeW"].get<int>());
+                param.samplerDesc.anisotropy = s["anisotropy"].get<float>();
+                param.samplerDesc.minLod = s["minLod"].get<float>();
+                param.samplerDesc.maxLod = s["maxLod"].get<float>();
+            }
+
+            return param;
         }
     }
 
@@ -305,109 +347,142 @@ namespace AssetLib {
             throw std::invalid_argument("Parameter data size mismatch");
         }
 
-        // Serializacja parametrów
-        std::vector<uint8_t> paramBytes;
-        paramBytes.reserve(parameters.size() * sizeof(MaterialParameter));
+        // Serialize parameters to JSON metadata
+        json paramsJson = json::array();
         for (const auto& param : parameters) {
-            const uint8_t* ptr = reinterpret_cast<const uint8_t*>(&param);
-            paramBytes.insert(paramBytes.end(), ptr, ptr + sizeof(MaterialParameter));
+            paramsJson.push_back(SerializeParameter(param));
         }
 
-        // Łączenie danych
-        std::vector<uint8_t> combined;
-        combined.reserve(paramBytes.size() + parameterData.size());
-        combined.insert(combined.end(), paramBytes.begin(), paramBytes.end());
-        combined.insert(combined.end(), parameterData.begin(), parameterData.end());
-
+        // Create asset data
         AssetData asset;
         asset.header.assetType = AssetType::Material;
         asset.header.compression = compression;
-        asset.header.decompressedSize = combined.size();
-        asset.metadata["source"] = source;
-        asset.metadata.update(SerializeMaterialInfo(info));
-        asset.compressedData = Compress(combined.data(), combined.size(), compression, compressionLevel);
+        asset.header.decompressedSize = parameterData.size(); // Store only the binary data
 
-		return asset;
+        // Prepare metadata
+        asset.metadata["source"] = source;
+        asset.metadata["material"] = SerializeMaterialInfo(info);
+        asset.metadata["parameters"] = paramsJson;
+
+        // Compress parameter data
+        asset.compressedData = Compress(parameterData.data(), parameterData.size(), compression, compressionLevel);
+
+        return asset;
     }
 
-    std::tuple<MaterialInfo, std::vector<MaterialParameter>, std::vector<uint8_t>> ReadMaterial(const AssetData asset) {
+    std::tuple<MaterialInfo, std::vector<MaterialParameter>, std::vector<uint8_t>> ReadMaterial(const AssetData& asset) {
         if (asset.header.assetType != AssetType::Material) {
             throw std::runtime_error("Not a material asset");
         }
 
+        // Deserialize material info from metadata
         MaterialInfo info = DeserializeMaterialInfo(asset.metadata["material"]);
-        std::vector<uint8_t> data = Decompress(asset.compressedData.data(), asset.compressedData.size(), asset.header.decompressedSize);
 
-        // Deserializacja parametrów
-        const size_t paramSize = info.parameterCount * sizeof(MaterialParameter);
-        if (data.size() < paramSize) {
-            throw std::runtime_error("Invalid material data size");
+        // Deserialize parameters
+        std::vector<MaterialParameter> parameters;
+        for (const auto& paramJson : asset.metadata["parameters"]) {
+            parameters.push_back(DeserializeParameter(paramJson));
         }
 
-        std::vector<MaterialParameter> parameters(info.parameterCount);
-        memcpy(parameters.data(), data.data(), paramSize);
-
-        // Pozostałe dane
-        std::vector<uint8_t> paramData(data.begin() + paramSize, data.end());
+        // Decompress parameter data
+        std::vector<uint8_t> paramData = Decompress(
+            asset.compressedData.data(),
+            asset.compressedData.size(),
+            asset.header.decompressedSize
+        );
 
         return { info, parameters, paramData };
     }
 
-    AssetData WriteShader(const std::string& source, const std::vector<ShaderStageInfo>& stages, uint32_t flags, CompressionType compression, int compressionLevel) {
-        std::vector<uint8_t> combined;
-        for (const auto& stage : stages) {
-            combined.insert(combined.end(), stage.spirvCode.begin(), stage.spirvCode.end());
-            combined.insert(combined.end(), stage.reflectionData.begin(), stage.reflectionData.end());
-        }
+    AssetData WriteShader(const std::string& source, const ShaderLib::ShaderData shaderData, CompressionType compression, int compressionLevel) {
+     
+        std::vector<uint8_t> shaderDataBinary = ShaderLib::SerializeStages(shaderData.stages);
 
         AssetData asset;
         asset.header.assetType = AssetType::Shader;
         asset.header.compression = compression;
-        asset.header.decompressedSize = combined.size();
+        asset.header.decompressedSize = shaderDataBinary.size();
         asset.metadata["source"] = source;
-        asset.metadata["flags"] = flags;
+        asset.metadata["shaderData"] = shaderData.metadata;
 
-        // Serializacja wszystkich etapów przy użyciu funkcji pomocniczej
-        json stagesJson = json::array();
-        for (const auto& stage : stages) {
-            stagesJson.push_back(SerializeShaderStageInfo(stage));
-        }
-        asset.metadata["stages"] = stagesJson;
-
-        asset.compressedData = Compress(combined.data(), combined.size(), compression, compressionLevel);
+        asset.compressedData = Compress(shaderDataBinary.data(), shaderDataBinary.size(), compression, compressionLevel);
         return asset;
     }
 
-    std::tuple<std::vector<ShaderStageInfo>, std::string, uint32_t> ReadShader(const AssetData& asset) {
+    std::tuple<ShaderLib::ShaderMetadata, std::vector<ShaderLib::CompiledStage>> ReadShader(const AssetData& asset) {
         if (asset.header.assetType != AssetType::Shader) {
             throw std::runtime_error("Not a shader asset");
         }
 
         std::string source = asset.metadata["source"];
-        uint32_t flags = asset.metadata["flags"].get<uint32_t>();
-        const json& stagesJson = asset.metadata["stages"];
+        ShaderLib::ShaderMetadata metadata = ShaderLib::DeserializeMetadata(asset.metadata["shaderData"]) ;
 
-        std::vector<ShaderStageInfo> stages;
+
         std::vector<uint8_t> data = Decompress(asset.compressedData.data(), asset.compressedData.size(), asset.header.decompressedSize);
 
+        std::vector<ShaderLib::CompiledStage> stages = ShaderLib::DeserializeStages(data);
+
         size_t dataOffset = 0;
-        for (const auto& stageJson : stagesJson) {
-            ShaderStageInfo stage = DeserializeShaderStageInfo(stageJson);
 
-            // Wczytaj SPIR-V i reflection data na podstawie rozmiarów z JSON
-            uint32_t spirvSize = stageJson["spirvSize"].get<uint32_t>();
-            uint32_t reflectionSize = stageJson["reflectionDataSize"].get<uint32_t>();
-
-            stage.spirvCode.assign(data.begin() + dataOffset, data.begin() + dataOffset + spirvSize);
-            dataOffset += spirvSize;
-
-            stage.reflectionData.assign(data.begin() + dataOffset, data.begin() + dataOffset + reflectionSize);
-            dataOffset += reflectionSize;
-
-            stages.push_back(stage);
-        }
-
-        return { stages, source, flags };
+        return { metadata, stages };
     }
 
+
+    // Helper type conversion functions
+    SamplerDescription::Filter ConvertSamplerFilter(const std::string& filter) {
+        if (filter == "Nearest") return SamplerDescription::Filter::Nearest;
+        if (filter == "Linear") return SamplerDescription::Filter::Linear;
+        throw std::runtime_error("Invalid sampler filter: " + filter);
+    }
+
+    SamplerDescription::AddressMode ConvertAddressMode(const std::string& mode) {
+        if (mode == "Repeat") return SamplerDescription::AddressMode::Repeat;
+        if (mode == "MirroredRepeat") return SamplerDescription::AddressMode::MirroredRepeat;
+        if (mode == "ClampToEdge") return SamplerDescription::AddressMode::ClampToEdge;
+        if (mode == "ClampToBorder") return SamplerDescription::AddressMode::ClampToBorder;
+        throw std::runtime_error("Invalid address mode: " + mode);
+    }
+
+    DescriptorType ConvertDescriptorType(const std::string& type) {
+        if (type == "UniformBuffer") return DescriptorType::UniformBuffer;
+        if (type == "StorageBuffer") return DescriptorType::StorageBuffer;
+        if (type == "CombinedImageSampler") return DescriptorType::CombinedImageSampler;
+        if (type == "SeparateImage") return DescriptorType::SeparateImage;
+        if (type == "SeparateSampler") return DescriptorType::SeparateSampler;
+        throw std::runtime_error("Invalid descriptor type: " + type);
+    }
+
+    UniformType ConvertUniformType(const std::string& type) {
+        static const std::unordered_map<std::string, UniformType> typeMap = {
+            {"Bool", UniformType::Bool},
+            {"Float", UniformType::Float},
+            {"Vec2", UniformType::Vec2},
+            {"Vec3", UniformType::Vec3},
+            {"Vec4", UniformType::Vec4},
+            {"Mat2", UniformType::Mat2},
+            {"Mat3", UniformType::Mat3},
+            {"Mat4", UniformType::Mat4},
+            {"Int", UniformType::Int},
+            {"IVec2", UniformType::IVec2},
+            {"IVec3", UniformType::IVec3},
+            {"IVec4", UniformType::IVec4},
+            {"UInt", UniformType::UInt},
+            {"UVec2", UniformType::UVec2},
+            {"UVec3", UniformType::UVec3},
+            {"UVec4", UniformType::UVec4},
+            {"Double", UniformType::Double},
+            {"DVec2", UniformType::DVec2},
+            {"DVec3", UniformType::DVec3},
+            {"DVec4", UniformType::DVec4},
+            {"Struct", UniformType::Struct},
+            {"Array", UniformType::Array}
+        };
+
+        auto it = typeMap.find(type);
+        if (it != typeMap.end()) {
+            return it->second;
+        }
+
+        return UniformType::Unknown;
+    }
 }

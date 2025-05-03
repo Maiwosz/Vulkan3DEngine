@@ -113,7 +113,7 @@
       <PrecompiledHeader>Use</PrecompiledHeader>
       <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
       <LanguageStandard>stdcpp20</LanguageStandard>
-      <AdditionalIncludeDirectories>$(SolutionDir)Libs\lz4\include;$(SolutionDir)Libs\nlohmann;$(SolutionDir)Libs\lz4;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(SolutionDir)Libs\lz4\include;$(SolutionDir)Libs\nlohmann;$(SolutionDir)Libs\lz4;$(SolutionDir)ShaderLib\;$(SolutionDir)Libs\VulkanSDK\Include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>
@@ -132,7 +132,7 @@
       <PrecompiledHeader>Use</PrecompiledHeader>
       <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
       <LanguageStandard>stdcpp20</LanguageStandard>
-      <AdditionalIncludeDirectories>$(SolutionDir)Libs\lz4\include;$(SolutionDir)Libs\nlohmann;$(SolutionDir)Libs\lz4;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(SolutionDir)Libs\lz4\include;$(SolutionDir)Libs\nlohmann;$(SolutionDir)Libs\lz4;$(SolutionDir)ShaderLib\;$(SolutionDir)Libs\VulkanSDK\Include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>

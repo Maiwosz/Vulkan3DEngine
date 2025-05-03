@@ -1,105 +1,280 @@
 #include "MaterialManager.h"
+#include <stdexcept>
+#include <cassert>
+#include "ImageSamplerUtils.h"
 
-MaterialManager::MaterialManager(ImageSamplerManager& samplerManager)
-    : m_samplerManager(samplerManager)
-{
+MaterialManager::MaterialManager(ShaderModuleManager& shaderModuleManager, ImageSamplerManager& samplerManager)
+    : m_shaderModuleManager(shaderModuleManager), m_samplerManager(samplerManager) {
 }
 
-MaterialHandle MaterialManager::cacheMaterial(const std::string& filename, std::unique_ptr<Material> material)
-{
-    // Check if the material already exists
-    auto it = m_filenameToHandle.find(filename);
-    if (it != m_filenameToHandle.end()) {
-        // Replace the existing material
-        m_materials[it->second] = std::move(material);
-        return it->second;
+MaterialManager::~MaterialManager() {
+    // Clean up all materials
+    m_materials.clear();
+}
+
+MaterialHandle MaterialManager::createMaterial(
+    const std::string& name,
+    const AssetLib::AssetData& assetData,
+    ShaderHandle shaderHandle
+) {
+    // Parse material data
+    auto [materialInfo, parameters, parameterData] = AssetLib::ReadMaterial(assetData);
+
+    // Create material parameters
+    std::vector<Material::Parameter> materialParams;
+    materialParams.reserve(parameters.size());
+
+    for (const auto& param : parameters) {
+        materialParams.push_back(createMaterialParameter(param, parameterData));
     }
 
-    // Create a new material handle
-    MaterialHandle handle(m_nextId++);
+    // Create a custom uniform buffer for this material
+    std::string shaderName(materialInfo.shaderName.data());
+    UniformBufferHandle uniformBuffer = m_shaderModuleManager.createCustomUniformBuffer(
+        shaderHandle,
+        "Material_" + name
+    );
 
-    // Configure texture samplers for this material before caching it
-    configureTextureSamplers(material.get());
+    // Create the material
+    MaterialHandle handle(m_nextHandle++);
+    auto material = std::make_unique<Material>(name, shaderHandle, materialParams, uniformBuffer);
 
-    // Cache the material
+    // Update the uniform buffer with initial data
+    material->updateUniformBuffer(m_shaderModuleManager);
+
+    // Store the material
     m_materials[handle] = std::move(material);
-    m_filenameToHandle[filename] = handle;
 
     return handle;
 }
 
-Material* MaterialManager::get(MaterialHandle handle) const {
+void MaterialManager::destroyMaterial(MaterialHandle handle) {
     auto it = m_materials.find(handle);
-    return (it != m_materials.end()) ? it->second.get() : nullptr;
-}
+    if (it != m_materials.end()) {
+        // Release the uniform buffer
+        if (it->second->uniformBuffer()) {
+            m_shaderModuleManager.releaseUniformBuffer(it->second->uniformBuffer());
+        }
 
-void MaterialManager::freeResource(MaterialHandle handle) {
-    if (auto it = m_materials.find(handle); it != m_materials.end()) {
+        // Remove the material
         m_materials.erase(it);
+    }
+}
 
-        // Remove from filename mapping
-        for (auto& [name, h] : m_filenameToHandle) {
-            if (h == handle) {
-                m_filenameToHandle.erase(name);
-                break;
+Material* MaterialManager::get(MaterialHandle handle) {
+    auto it = m_materials.find(handle);
+    return it != m_materials.end() ? it->second.get() : nullptr;
+}
+
+const Material* MaterialManager::get(MaterialHandle handle) const {
+    auto it = m_materials.find(handle);
+    return it != m_materials.end() ? it->second.get() : nullptr;
+}
+
+bool MaterialManager::isValid(MaterialHandle handle) const {
+    return m_materials.find(handle) != m_materials.end();
+}
+
+bool MaterialManager::setParameter(MaterialHandle handle, const std::string& paramName, const Material::ParamValue& value) {
+    auto material = get(handle);
+    if (!material) {
+        return false;
+    }
+
+    bool result = material->setParameter(paramName, value);
+    if (result) {
+        // Update the uniform buffer if parameter was set successfully
+        material->updateUniformBuffer(m_shaderModuleManager);
+    }
+
+    return result;
+}
+
+void MaterialManager::updateMaterialParameters(MaterialHandle handle) {
+    auto material = get(handle);
+    if (material) {
+        material->updateUniformBuffer(m_shaderModuleManager);
+    }
+}
+
+Material::Parameter MaterialManager::createMaterialParameter(
+    const AssetLib::MaterialParameter& assetParam,
+    const std::vector<uint8_t>& parameterData
+) {
+    Material::Parameter param;
+    param.name = assetParam.name.data();
+    param.descriptorType = assetParam.descriptorType;
+    param.binding = 0;  // This will be set based on shader metadata
+    param.arrayIndex = assetParam.arraySize > 0 ? 0 : 0;  // Default to first element for arrays
+
+    // Convert the parameter data
+    param.value = convertParameter(assetParam, parameterData, assetParam.dataOffset);
+
+    return param;
+}
+
+Material::ParamValue MaterialManager::convertParameter(
+    const AssetLib::MaterialParameter& assetParam,
+    const std::vector<uint8_t>& parameterData,
+    uint32_t dataOffset
+) {
+    // Make sure we don't go out of bounds
+    if (dataOffset + assetParam.dataSize > parameterData.size()) {
+        throw std::runtime_error("Parameter data out of bounds");
+    }
+
+    const void* data = parameterData.data() + dataOffset;
+
+    // For texture parameters
+    if (assetParam.descriptorType == AssetLib::DescriptorType::CombinedImageSampler) {
+        Material::Parameter param;
+        convertTextureParameter(param, assetParam, parameterData);
+        return param.value;
+    }
+
+    // For uniform buffer parameters
+    if (assetParam.descriptorType == AssetLib::DescriptorType::UniformBuffer) {
+        // Use the uniform type to determine which variant to use
+        switch (assetParam.uniformType) {
+        case AssetLib::UniformType::Float:
+            return Material::FloatParam{ *reinterpret_cast<const float*>(data) };
+
+        case AssetLib::UniformType::Vec2:
+        {
+            const float* floatData = reinterpret_cast<const float*>(data);
+            return Material::Vec2Param{ floatData[0], floatData[1] };
+        }
+
+        case AssetLib::UniformType::Vec3:
+        {
+            const float* floatData = reinterpret_cast<const float*>(data);
+            return Material::Vec3Param{ floatData[0], floatData[1], floatData[2] };
+        }
+
+        case AssetLib::UniformType::Vec4:
+        {
+            const float* floatData = reinterpret_cast<const float*>(data);
+            return Material::Vec4Param{ floatData[0], floatData[1], floatData[2], floatData[3] };
+        }
+
+        case AssetLib::UniformType::Int:
+            return Material::IntParam{ *reinterpret_cast<const int32_t*>(data) };
+
+        case AssetLib::UniformType::IVec2:
+        {
+            const int32_t* intData = reinterpret_cast<const int32_t*>(data);
+            return Material::IVec2Param{ intData[0], intData[1] };
+        }
+
+        case AssetLib::UniformType::IVec3:
+        {
+            const int32_t* intData = reinterpret_cast<const int32_t*>(data);
+            return Material::IVec3Param{ intData[0], intData[1], intData[2] };
+        }
+
+        case AssetLib::UniformType::IVec4:
+        {
+            const int32_t* intData = reinterpret_cast<const int32_t*>(data);
+            return Material::IVec4Param{ intData[0], intData[1], intData[2], intData[3] };
+        }
+
+        case AssetLib::UniformType::UInt:
+            return Material::UintParam{ *reinterpret_cast<const uint32_t*>(data) };
+
+        case AssetLib::UniformType::UVec2:
+        {
+            const uint32_t* uintData = reinterpret_cast<const uint32_t*>(data);
+            return Material::UVec2Param{ uintData[0], uintData[1] };
+        }
+
+        case AssetLib::UniformType::UVec3:
+        {
+            const uint32_t* uintData = reinterpret_cast<const uint32_t*>(data);
+            return Material::UVec3Param{ uintData[0], uintData[1], uintData[2] };
+        }
+
+        case AssetLib::UniformType::UVec4:
+        {
+            const uint32_t* uintData = reinterpret_cast<const uint32_t*>(data);
+            return Material::UVec4Param{ uintData[0], uintData[1], uintData[2], uintData[3] };
+        }
+
+        case AssetLib::UniformType::Bool:
+            return Material::BoolParam{ *reinterpret_cast<const uint32_t*>(data) != 0 };
+
+        case AssetLib::UniformType::Mat2:
+        {
+            Material::Mat2Param mat;
+            const float* floatData = reinterpret_cast<const float*>(data);
+            for (int i = 0; i < 2; ++i) {
+                for (int j = 0; j < 2; ++j) {
+                    mat.data[i][j] = floatData[i * 2 + j];
+                }
             }
+            return mat;
+        }
+
+        case AssetLib::UniformType::Mat3:
+        {
+            Material::Mat3Param mat;
+            const float* floatData = reinterpret_cast<const float*>(data);
+            for (int i = 0; i < 3; ++i) {
+                for (int j = 0; j < 3; ++j) {
+                    mat.data[i][j] = floatData[i * 3 + j];
+                }
+            }
+            return mat;
+        }
+
+        case AssetLib::UniformType::Mat4:
+        {
+            Material::Mat4Param mat;
+            const float* floatData = reinterpret_cast<const float*>(data);
+            for (int i = 0; i < 4; ++i) {
+                for (int j = 0; j < 4; ++j) {
+                    mat.data[i][j] = floatData[i * 4 + j];
+                }
+            }
+            return mat;
+        }
+
+        default:
+            throw std::runtime_error("Unsupported uniform type");
         }
     }
+
+    // Default case
+    throw std::runtime_error("Unsupported parameter type");
 }
 
-void MaterialManager::configureTextureSamplers(Material* material)
-{
-    if (!material) return;
+void MaterialManager::convertTextureParameter(
+    Material::Parameter& param,
+    const AssetLib::MaterialParameter& assetParam,
+    const std::vector<uint8_t>& parameterData
+) {
+    // Extract the texture handle from parameter data
+    if (assetParam.dataSize >= sizeof(AssetHandle) && assetParam.dataOffset < parameterData.size()) {
+        // Read the asset handle from the parameter data
+        AssetHandle textureHandle;
+        std::memcpy(&textureHandle, parameterData.data() + assetParam.dataOffset, sizeof(AssetHandle));
 
-    // Process each texture parameter
-    for (auto& param : material->parameters()) {
-        // Check if this parameter is a texture
-        if (auto* textureParam = std::get_if<Material::TextureParam>(&param.value)) {
-            // Convert AssetLib sampler description to Vulkan SamplerConfig
-            SamplerConfig samplerConfig = convertSamplerDescription(textureParam->sampler);
+        // Create a TextureParam with the handle and empty VramHandle (will be populated later)
+        Material::TextureParam textureParam;
+        textureParam.handle = textureHandle;
+        textureParam.vramHandle = VramHandle(); // Will be populated when ensuring the texture is ready
 
-            // Get or create the sampler from the ImageSamplerManager
-            VkSampler sampler = m_samplerManager.getSampler(samplerConfig);
+        // Create sampler configuration based on the material's sampler description
+        SamplerConfig samplerConfig = ImageSamplerUtils::createSamplerConfig(assetParam.samplerDesc);
 
-            // Store the sampler handle in the texture parameter
-            textureParam->samplerHandle = sampler;
-        }
+        // Get the sampler from the sampler manager
+        textureParam.sampler = m_samplerManager.getSampler(samplerConfig);
+
+        // Set the parameter value
+        param.value = textureParam;
+    }
+    else {
+        // Invalid texture parameter data - create an empty texture param
+        Material::TextureParam emptyTextureParam;
+        param.value = emptyTextureParam;
     }
 }
-
-SamplerConfig MaterialManager::convertSamplerDescription(const AssetLib::SamplerDescription& desc)
-{
-    SamplerConfig config;
-
-    // Convert filter settings
-    config.magFilter = desc.magFilter == AssetLib::SamplerFilter::Linear ? VK_FILTER_LINEAR : VK_FILTER_NEAREST;
-    config.minFilter = desc.minFilter == AssetLib::SamplerFilter::Linear ? VK_FILTER_LINEAR : VK_FILTER_NEAREST;
-
-    // Convert address modes
-    auto convertAddressMode = [](AssetLib::SamplerAddressMode mode) -> VkSamplerAddressMode {
-        switch (mode) {
-        case AssetLib::SamplerAddressMode::Repeat: return VK_SAMPLER_ADDRESS_MODE_REPEAT;
-        case AssetLib::SamplerAddressMode::MirroredRepeat: return VK_SAMPLER_ADDRESS_MODE_MIRRORED_REPEAT;
-        case AssetLib::SamplerAddressMode::ClampToEdge: return VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
-        case AssetLib::SamplerAddressMode::ClampToBorder: return VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER;
-        default: return VK_SAMPLER_ADDRESS_MODE_REPEAT;
-        }
-        };
-
-    config.addressModeU = convertAddressMode(desc.addressModeU);
-    config.addressModeV = convertAddressMode(desc.addressModeV);
-    config.addressModeW = convertAddressMode(desc.addressModeW);
-
-    // Set anisotropy if it's greater than 1.0
-    if (desc.anisotropy > 1.0f) {
-        config.anisotropyEnable = VK_TRUE;
-        config.maxAnisotropy = desc.anisotropy;
-    }
-
-    // Set LOD values
-    config.minLod = desc.minLod;
-    config.maxLod = desc.maxLod;
-
-    return config;
-}
-

@@ -1,7 +1,7 @@
 #pragma once
 #include "Prerequisites.h"
 #include <string>
-#include "RenderSystem.h"
+#include "MeshRenderSystem.h"
 #include "Entity.h"
 #include "Registry.h"
 #include "CameraSystem.h"
@@ -15,7 +15,7 @@ public:
     ~Scene();
 
     void update();
-
+	Registry& registry() { return *m_registry; }
 private:
 	Entity testEntity;
 	Entity testDirectionalLight;

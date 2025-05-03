@@ -1,25 +1,44 @@
 #pragma once
-#include "System.h"
-#include "TransformComponent.h"
-#include "MeshComponent.h"
-#include "MaterialComponent.h"
-#include <glm/glm.hpp>
-#include <glm/gtc/matrix_transform.hpp>
-#include <unordered_map>
+#include <memory>
+#include <vector>
+#include "ProcessingStage.h"
+#include "Registry.h"
+#include "AssetManager.h"
+#include "OrderCollectionStage.h"
+#include "AssetResolutionStage.h"
 
-class TextureManagementSystem;
+// Forward declarations
+class OrderCollectionStage;
+class AssetResolutionStage;
 
-class RenderSystem : public System<TextureManagementSystem> {
+class RenderSystem {
 public:
-    void update(ContextType& context) override;
-    
-};
+    RenderSystem(Registry& registry, AssetManager& assetManager);
+    ~RenderSystem() = default;
 
-//namespace std {
-//    template <>
-//    struct hash<std::pair<MeshPtr, unsigned int>> {
-//        size_t operator()(const std::pair<MeshPtr, unsigned int>& key) const {
-//            return hash<MeshPtr>()(key.first) ^ (hash<unsigned int>()(key.second) << 16);
-//        }
-//    };
-//}
+    // Submit a render order to the pipeline
+    void submitRenderOrder(std::shared_ptr<RenderOrder> order);
+
+    // Submit a batch of render orders
+    void submitRenderOrders(const std::vector<std::shared_ptr<RenderOrder>>& orders);
+
+    // Process all pending render orders
+    void processOrders();
+
+    // Reset the system for the next frame
+    void prepareForNextFrame();
+
+private:
+    Registry& m_registry;
+    AssetManager& m_assetManager;
+
+    // Pipeline stages
+    std::shared_ptr<OrderCollectionStage> m_collectionStage;
+    std::shared_ptr<AssetResolutionStage> m_assetResolutionStage;
+
+    // Initialize the pipeline stages and their connections
+    void initializePipeline();
+
+    // Pending orders to be processed
+    std::vector<std::shared_ptr<RenderOrder>> m_pendingOrders;
+};

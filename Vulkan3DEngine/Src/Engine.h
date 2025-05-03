@@ -6,6 +6,7 @@
 #include "ThreadPool.h"
 #include "AssetManager.h"
 #include "InputSystem.h"
+#include "RenderSystem.h"
 
 class Engine
 {
@@ -35,6 +36,7 @@ public:
     Renderer& renderer() const { return *m_renderer; }
     Scene& scene() const { return *m_scene; }
     AssetManager& assetManager() const { return *m_assetManager; }
+    RenderSystem& renderSystem() const { return *m_renderSystem; }
 
 private:
     Engine() = default;
@@ -47,6 +49,7 @@ private:
     std::unique_ptr<Renderer> m_renderer;
     std::unique_ptr<Scene> m_scene;
     std::unique_ptr<AssetManager> m_assetManager;
+    std::unique_ptr<RenderSystem> m_renderSystem;
 
     bool m_running = false;
     float m_lastFrameTime = 0.0f;

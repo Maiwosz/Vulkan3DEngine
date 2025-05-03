@@ -47,12 +47,27 @@ const std::map<Settings::TextureFiltering, std::string> Settings::TEXTURE_FILTER
     {TextureFiltering::Anisotropic, "Anisotropic"}
 };
 
+const std::map<Settings::MipmapMode, std::string> Settings::MIPMAP_MODE_MAP = {
+    {MipmapMode::Nearest, "Nearest"},
+    {MipmapMode::Linear, "Linear"}
+};
+
+const std::map<Settings::AnisotropyLevel, uint32_t> Settings::ANISOTROPY_LEVEL_MAP = {
+    {AnisotropyLevel::X1, 1},
+    {AnisotropyLevel::X2, 2},
+    {AnisotropyLevel::X4, 4},
+    {AnisotropyLevel::X8, 8},
+    {AnisotropyLevel::X16, 16}
+};
+
 Settings::Settings()
     : m_logLevel(DEFAULT_LOG_LEVEL),
     m_windowMode(DEFAULT_WINDOW_MODE),
     m_resolution(DEFAULT_RESOLUTION),
     m_vsyncEnabled(DEFAULT_VSYNC_ENABLED),
     m_textureFiltering(DEFAULT_TEXTURE_FILTER_MODE),
+    m_mipmapMode(DEFAULT_MIPMAP_MODE),
+    m_anisotropyLevel(DEFAULT_ANISOTROPY_LEVEL),
     m_msaaSamples(DEFAULT_MSAA_SAMPLES),
     m_framesInFlight(DEFAULT_FRAMES_IN_FLIGHT),
     m_maxMsaaSamples(MsaaSampleCount::Samples1),
@@ -71,6 +86,8 @@ void Settings::initializeEvents() {
     m_textureFilteringChangedEvent = Event<TextureFiltering>::create();
     m_msaaChangedEvent = Event<MsaaSampleCount>::create();
     m_framesInFlightChangedEvent = Event<uint32_t>::create();
+    m_mipmapModeChangedEvent = Event<MipmapMode>::create();
+    m_anisotropyLevelChangedEvent = Event<AnisotropyLevel>::create();
 
     // Dodanie obsługi wyjątków dla wszystkich eventów
     auto exceptionHandler = [](std::exception_ptr eptr) {
@@ -89,6 +106,8 @@ void Settings::initializeEvents() {
     m_textureFilteringChangedEvent->set_exception_handler(exceptionHandler);
     m_msaaChangedEvent->set_exception_handler(exceptionHandler);
     m_framesInFlightChangedEvent->set_exception_handler(exceptionHandler);
+    m_mipmapModeChangedEvent->set_exception_handler(exceptionHandler);
+    m_anisotropyLevelChangedEvent->set_exception_handler(exceptionHandler);
 }
 
 void Settings::setLogLevel(LogLevel level) {
@@ -104,13 +123,14 @@ void Settings::setHardwareLimits(MsaaSampleCount maxMsaa, float maxAnisotropy, b
     m_maxMsaaSamples = maxMsaa;
     m_maxAnisotropy = maxAnisotropy;
     m_anisotropySupported = anisotropySupported;
-    m_hardwareLimitsSet = true; // Nowa flaga
+    m_hardwareLimitsSet = true;
 
     SPDLOG_INFO("Hardware limits: Max MSAA samples = {}x, Max Anisotropy = {}, Anisotropy Supported = {}",
         MSAA_SAMPLE_MAP.at(maxMsaa), maxAnisotropy, anisotropySupported ? "Yes" : "No");
 
     setMsaaSamples(m_msaaSamples);
     setTextureFiltering(m_textureFiltering);
+    setAnisotropyLevel(m_anisotropyLevel); // Validate current anisotropy level
 }
 
 void Settings::setWindowMode(WindowMode mode) {
@@ -193,6 +213,48 @@ void Settings::setFramesInFlight(uint32_t count) {
     }
 }
 
+void Settings::setMipmapMode(MipmapMode mode) {
+    if (m_mipmapMode != mode) {
+        SPDLOG_INFO("Changing mipmap mode from {} to {}",
+            MIPMAP_MODE_MAP.at(m_mipmapMode), MIPMAP_MODE_MAP.at(mode));
+        m_mipmapMode = mode;
+        m_mipmapModeChangedEvent->invoke(mode);
+    }
+}
+
+void Settings::setAnisotropyLevel(AnisotropyLevel level) {
+    // Clamp to hardware max if anisotropy is supported
+    AnisotropyLevel original = level;
+    float levelValue = static_cast<float>(ANISOTROPY_LEVEL_MAP.at(level));
+
+    if (m_anisotropySupported && levelValue > m_maxAnisotropy) {
+        // Find the highest supported level
+        if (m_maxAnisotropy >= 16.0f) level = AnisotropyLevel::X16;
+        else if (m_maxAnisotropy >= 8.0f) level = AnisotropyLevel::X8;
+        else if (m_maxAnisotropy >= 4.0f) level = AnisotropyLevel::X4;
+        else if (m_maxAnisotropy >= 2.0f) level = AnisotropyLevel::X2;
+        else level = AnisotropyLevel::X1;
+
+        SPDLOG_WARN("Warning: Requested anisotropy level ({}x) exceeds maximum supported ({}), clamping to {}x",
+            ANISOTROPY_LEVEL_MAP.at(original), m_maxAnisotropy, ANISOTROPY_LEVEL_MAP.at(level));
+    }
+
+    if (m_anisotropyLevel != level) {
+        SPDLOG_INFO("Changing anisotropy level from {}x to {}x",
+            ANISOTROPY_LEVEL_MAP.at(m_anisotropyLevel), ANISOTROPY_LEVEL_MAP.at(level));
+        m_anisotropyLevel = level;
+        m_anisotropyLevelChangedEvent->invoke(level);
+    }
+}
+
+// Add the implementation of getCurrentAnisotropyLevel
+float Settings::getCurrentAnisotropyLevel() const {
+    if (m_textureFiltering == TextureFiltering::Anisotropic && m_anisotropySupported) {
+        return static_cast<float>(ANISOTROPY_LEVEL_MAP.at(m_anisotropyLevel));
+    }
+    return 1.0f; // No anisotropy
+}
+
 Settings::ResolutionDetails Settings::getCurrentResolutionDetails() const {
     return RESOLUTION_MAP.at(m_resolution);
 }
@@ -209,6 +271,8 @@ bool Settings::saveToFile(const std::string& filename) {
         j["resolution"] = static_cast<int>(m_resolution);
         j["vsyncEnabled"] = m_vsyncEnabled;
         j["textureFiltering"] = static_cast<int>(m_textureFiltering);
+        j["mipmapMode"] = static_cast<int>(m_mipmapMode);          // Add new setting
+        j["anisotropyLevel"] = static_cast<int>(m_anisotropyLevel); // Add new setting
         j["msaaSamples"] = static_cast<int>(m_msaaSamples);
         j["framesInFlight"] = m_framesInFlight;
 
@@ -235,28 +299,43 @@ bool Settings::loadFromFile(const std::string& filename) {
         nlohmann::json j;
         i >> j;
 
-        // Wczytaj wartości bez bezpośredniego wywoływania setterów
+        // Load values without directly invoking setters
         auto logLevel = static_cast<LogLevel>(j["logLevel"].get<int>());
         auto windowMode = static_cast<WindowMode>(j["windowMode"].get<int>());
         auto resolution = static_cast<Resolution>(j["resolution"].get<int>());
         auto vsyncEnabled = j["vsyncEnabled"].get<bool>();
         auto textureFiltering = static_cast<TextureFiltering>(j["textureFiltering"].get<int>());
+
+        // Load new settings with backwards compatibility check
+        MipmapMode mipmapMode = DEFAULT_MIPMAP_MODE;
+        if (j.contains("mipmapMode")) {
+            mipmapMode = static_cast<MipmapMode>(j["mipmapMode"].get<int>());
+        }
+
+        AnisotropyLevel anisotropyLevel = DEFAULT_ANISOTROPY_LEVEL;
+        if (j.contains("anisotropyLevel")) {
+            anisotropyLevel = static_cast<AnisotropyLevel>(j["anisotropyLevel"].get<int>());
+        }
+
         auto msaaSamples = static_cast<MsaaSampleCount>(j["msaaSamples"].get<int>());
         auto framesInFlight = j["framesInFlight"].get<uint32_t>();
 
-        // Ustaw wartości bezpośrednio w polach (bez clampowania)
+        // Set values directly to fields (without clamping)
         m_logLevel = logLevel;
         m_windowMode = windowMode;
         m_resolution = resolution;
         m_vsyncEnabled = vsyncEnabled;
         m_textureFiltering = textureFiltering;
+        m_mipmapMode = mipmapMode;           // Set new field
+        m_anisotropyLevel = anisotropyLevel; // Set new field
         m_msaaSamples = msaaSamples;
         m_framesInFlight = framesInFlight;
 
-        // Jeśli limity sprzętowe są już znane - zastosuj clampowanie
+        // Apply hardware limits if already set
         if (m_hardwareLimitsSet) {
             setMsaaSamples(msaaSamples);
             setTextureFiltering(textureFiltering);
+            setAnisotropyLevel(anisotropyLevel); // Validate anisotropy level
         }
 
         return true;

@@ -1,42 +1,20 @@
-// Shader.glsl
 #version 450
 
-// Common structures
-struct DirectionalLight {
-    vec3 direction;
-    vec4 color; // w is for intensity
-};
+#use global_ubo
+#use object_ubo
 
-struct PointLight {
-    vec3 position;
-    float radius;
-    vec4 color;  // w is for intensity
-};
-
-// Common uniform blocks
-layout(set = 0, binding = 0) uniform GlobalUniformBufferObject {
-    mat4 view;
-    mat4 proj;
-    vec3 cameraPosition;
-    DirectionalLight directionalLight;
-    PointLight pointLights[64];
-    int activePointLights;
-} global;
-
-layout(set = 1, binding = 0) uniform ObjectUniformBufferObject {
-    mat4 model;
-} object;
-
+// Material uniform buffer
 layout(set = 2, binding = 0) uniform MaterialUniformBufferObject {
     float shininess;
-	float ka; // Ambient coefficient
+    float ka; // Ambient coefficient
     float kd; // Diffuse coefficient
     float ks; // Specular coefficient
 } material;
 
-layout(set = 3, binding = 0) uniform sampler2D texSampler;
+// Texture sampler
+layout(set = 2, binding = 1) uniform sampler2D albedoSampler;
 
-#pragma stage vertex
+#stage vertex
 layout(location = 0) in vec3 inPosition;
 layout(location = 1) in vec3 inColor;
 layout(location = 2) in vec2 inTexCoord;
@@ -49,16 +27,16 @@ layout(location = 3) out vec3 fragPos;
 layout(location = 4) out vec3 directionToCamera;
 
 void main() {
-    vec4 posWorld = object.model * vec4(inPosition, 1.0);
-    gl_Position = global.proj * global.view * posWorld;
+    vec4 posWorld = model * vec4(inPosition, 1.0);
+    gl_Position = proj * view * posWorld;
     fragColor = inColor;
     fragTexCoord = inTexCoord;
-    fragNormal = normalize(mat3(transpose(inverse(object.model))) * inNormal);
+    fragNormal = normalize(mat3(transpose(inverse(model))) * inNormal);
     fragPos = posWorld.xyz;
-    directionToCamera = global.cameraPosition - fragPos;
+    directionToCamera = cameraPosition - fragPos;
 }
 
-#pragma stage fragment
+#stage fragment
 layout(location = 0) in vec3 fragColor;
 layout(location = 1) in vec2 fragTexCoord;
 layout(location = 2) in vec3 fragNormal;
@@ -73,16 +51,16 @@ void main() {
 
     // Directional light calculations
     vec3 directional = vec3(0.0);
-    vec3 lightDir = normalize(-global.directionalLight.direction);
+    vec3 lightDir = normalize(-directionalLight.direction);
     float diff = max(dot(normal, lightDir), 0.0);
     vec3 halfwayDir = normalize(lightDir + viewDir);
     float spec = pow(max(dot(normal, halfwayDir), 0.0), material.shininess);
-    directional += global.directionalLight.color.w * (material.kd * diff + material.ks * spec) * global.directionalLight.color.xyz;
+    directional += directionalLight.color.w * (material.kd * diff + material.ks * spec) * directionalLight.color.xyz;
 
     // Point light calculations
     vec3 point = vec3(0.0);
-    for(int i = 0; i < global.activePointLights; ++i) {
-        vec3 L = global.pointLights[i].position - fragPos;
+    for(int i = 0; i < activePointLights; ++i) {
+        vec3 L = pointLights[i].position - fragPos;
         float distance = length(L);
         vec3 lightDir = normalize(L);
         float diff = max(dot(normal, lightDir), 0.0);
@@ -90,15 +68,15 @@ void main() {
         vec3 halfwayDir = normalize(lightDir + viewDir);
         float spec = pow(max(dot(normal, halfwayDir), 0.0), material.shininess);
 
-        float d = max(distance - global.pointLights[i].radius, 0.0) / global.pointLights[i].color.w;
-        float denom = d/global.pointLights[i].radius + 1;
+        float d = max(distance - pointLights[i].radius, 0.0) / pointLights[i].color.w;
+        float denom = d/pointLights[i].radius + 1;
         float attenuation = 1 / (denom*denom);
         attenuation = max((attenuation - 0.0001) / (1 - 0.0001), 0.0);
 
-        point += global.pointLights[i].color.xyz * (material.kd * diff + material.ks * spec) * global.pointLights[i].color.w * attenuation;
+        point += pointLights[i].color.xyz * (material.kd * diff + material.ks * spec) * pointLights[i].color.w * attenuation;
     }
 
-    vec4 texColor = texture(texSampler, fragTexCoord);
-    vec3 result = (global.ka + directional + point) * fragColor * texColor.rgb;
+    vec4 texColor = texture(albedoSampler, fragTexCoord);
+    vec3 result = (material.ka + directional + point) * fragColor * texColor.rgb;
     outColor = vec4(result, 1.0);
 }
