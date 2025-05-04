@@ -74,7 +74,7 @@ namespace AssetLib {
     };
 
     // =============================================
-    // Materials - Updated to match ShaderLib
+    // Materials
     // =============================================
 
     // Using ShaderLib's descriptor types for consistency

@@ -3,16 +3,13 @@
 #use global_ubo
 #use object_ubo
 
-// Material uniform buffer
-layout(set = 2, binding = 0) uniform MaterialUniformBufferObject {
+InputData {
     float shininess;
-    float ka; // Ambient coefficient
-    float kd; // Diffuse coefficient
-    float ks; // Specular coefficient
-} material;
-
-// Texture sampler
-layout(set = 2, binding = 1) uniform sampler2D albedoSampler;
+    float ka;
+    float kd;
+    float ks;
+	sampler albedo;
+};
 
 #stage vertex
 layout(location = 0) in vec3 inPosition;
@@ -49,15 +46,13 @@ void main() {
     vec3 normal = normalize(fragNormal);
     vec3 viewDir = normalize(directionToCamera);
 
-    // Directional light calculations
     vec3 directional = vec3(0.0);
     vec3 lightDir = normalize(-directionalLight.direction);
     float diff = max(dot(normal, lightDir), 0.0);
     vec3 halfwayDir = normalize(lightDir + viewDir);
-    float spec = pow(max(dot(normal, halfwayDir), 0.0), material.shininess);
-    directional += directionalLight.color.w * (material.kd * diff + material.ks * spec) * directionalLight.color.xyz;
+    float spec = pow(max(dot(normal, halfwayDir), 0.0), inputData.shininess);
+    directional += directionalLight.color.w * (inputData.kd * diff + inputData.ks * spec) * directionalLight.color.xyz;
 
-    // Point light calculations
     vec3 point = vec3(0.0);
     for(int i = 0; i < activePointLights; ++i) {
         vec3 L = pointLights[i].position - fragPos;
@@ -66,17 +61,17 @@ void main() {
         float diff = max(dot(normal, lightDir), 0.0);
 
         vec3 halfwayDir = normalize(lightDir + viewDir);
-        float spec = pow(max(dot(normal, halfwayDir), 0.0), material.shininess);
+        float spec = pow(max(dot(normal, halfwayDir), 0.0), inputData.shininess);
 
         float d = max(distance - pointLights[i].radius, 0.0) / pointLights[i].color.w;
         float denom = d/pointLights[i].radius + 1;
         float attenuation = 1 / (denom*denom);
         attenuation = max((attenuation - 0.0001) / (1 - 0.0001), 0.0);
 
-        point += pointLights[i].color.xyz * (material.kd * diff + material.ks * spec) * pointLights[i].color.w * attenuation;
+        point += pointLights[i].color.xyz * (inputData.kd * diff + inputData.ks * spec) * pointLights[i].color.w * attenuation;
     }
 
-    vec4 texColor = texture(albedoSampler, fragTexCoord);
-    vec3 result = (material.ka + directional + point) * fragColor * texColor.rgb;
+    vec4 texColor = texture(albedo, fragTexCoord);
+    vec3 result = (inputData.ka + directional + point) * fragColor * texColor.rgb;
     outColor = vec4(result, 1.0);
 }

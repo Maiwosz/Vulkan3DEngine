@@ -6,22 +6,18 @@ using namespace ShaderLib;
 
 namespace Shader {
 
-    AssetData ProcessShader(const std::string& inputPath, const Converter::Settings& settings);
+    // Structure to store InputData definition information
+    struct InputDataDefinition {
+        struct Field {
+            std::string type;
+            std::string name;
+            bool isTexture;
+        };
+        std::vector<Field> fields;
+    };
 
-    // Pre-defined UBO schemas
-    UniformBufferObject CreateGlobalUBO();
-    UniformBufferObject CreateObjectUBO();
+    AssetData ProcessShader(const std::string& inputPath, const Converter::Settings& settings);
 
     // Core processing functions
     ShaderData CompileShader(const std::string& source);
-
-    std::pair<std::vector<uint32_t>, ShaderMetadata> CompileStage(
-        Stage stage,
-        std::string source,
-        shaderc::Compiler& compiler,
-        const shaderc::CompileOptions& options
-    );
-
-    std::string GenerateUBODefinition(const UniformBufferObject& ubo);
-    std::string PreprocessShaderSource(const std::string& source, const ShaderMetadata& existingMetadata);
 }

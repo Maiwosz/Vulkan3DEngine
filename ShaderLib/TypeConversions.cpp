@@ -21,6 +21,16 @@ namespace ShaderLib {
             return it->second;
         }
 
+        std::string StageToString(Stage stage) {
+            switch (stage) {
+            case Stage::Vertex: return "vertex";
+            case Stage::Fragment: return "fragment";
+            case Stage::Compute: return "compute";
+            case Stage::Geometry: return "geometry";
+            default: return "unknown";
+            }
+        }
+
         shaderc_shader_kind StageToShadercKind(Stage stage) {
             switch (stage) {
             case Stage::Vertex: return shaderc_glsl_vertex_shader;

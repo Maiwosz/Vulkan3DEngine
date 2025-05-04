@@ -7,11 +7,13 @@
     <ClInclude Include="Serialization.h" />
     <ClInclude Include="TypeConversions.h" />
     <ClInclude Include="VulkanHelper.h" />
+    <ClInclude Include="UBODefinitions.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="pch.cpp" />
     <ClCompile Include="Serialization.cpp" />
     <ClCompile Include="TypeConversions.cpp" />
     <ClCompile Include="VulkanHelper.cpp" />
+    <ClCompile Include="UBODefinitions.cpp" />
   </ItemGroup>
 </Project>

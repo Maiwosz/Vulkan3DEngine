@@ -1,19 +1,39 @@
 {
-    "shader": "Phong",
-    "parameters": {
-        "shininess": 32.0,
-        "ka": 0.1,
-        "kd": 0.8,
-        "ks": 0.5,
-        "albedoSampler": {
-            "path": "Flora_C_Flora_O_Material_u1_v1",
-            "sampler": {
-                "magFilter": "Linear",
-                "minFilter": "Linear",
-                "addressModeU": "Repeat",
-                "addressModeV": "Repeat",
-                "anisotropy": 16.0
-            }
-        }
+  "shader": "phong",
+  "parameters": {
+    "shininess": {
+      "descriptorType": "UniformBuffer",
+      "uniformType": "Float",
+      "data": 32.0
+    },
+    "ka": {
+      "descriptorType": "UniformBuffer",
+      "uniformType": "Float",
+      "data": 0.1
+    },
+    "kd": {
+      "descriptorType": "UniformBuffer",
+      "uniformType": "Float",
+      "data": 0.7
+    },
+    "ks": {
+      "descriptorType": "UniformBuffer",
+      "uniformType": "Float",
+      "data": 1.0
+    },
+    "albedo": {
+      "descriptorType": "CombinedImageSampler",
+      "path": "textures/default_albedo.png",
+      "sampler": {
+        "magFilter": "Linear",
+        "minFilter": "Linear",
+        "addressModeU": "Repeat",
+        "addressModeV": "Repeat",
+        "addressModeW": "Repeat",
+        "anisotropy": 8.0,
+        "minLod": 0.0,
+        "maxLod": 16.0
+      }
     }
+  }
 }

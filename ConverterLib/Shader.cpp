@@ -10,155 +10,359 @@
 #include <TypeConversions.h>
 #include <Serialization.h>
 #include <fstream>
+#include <UBODefinitions.h>
 
 using namespace ShaderLib;
 using namespace ShaderLib::TypeConversion;
 
 namespace Shader {
 
-    AssetData ProcessShader(const std::string& inputPath, const Converter::Settings& settings) {
-        std::ifstream file(inputPath);
-        if (!file.is_open()) {
-            throw std::runtime_error("Failed to open shader file: " + inputPath);
+    struct ShaderStage {
+        std::string code;
+        Stage stage;
+    };
+
+    struct InputVariable {
+        std::string type;
+        std::string name;
+        bool isSampler;
+    };
+
+    struct ShaderSourceData {
+        std::string versionLine;
+        std::vector<InputVariable> inputVariables;
+        bool usesGlobalUBO;
+        bool usesObjectUBO;
+        std::vector<ShaderStage> stages;
+    };
+
+
+    // Extract version line from shader source
+    std::string ExtractVersionLine(const std::string& source) {
+        std::regex versionRegex(R"(^\s*#version\s+\d+[^\n]*)");
+        std::smatch match;
+        if (std::regex_search(source, match, versionRegex)) {
+            return match[0].str();
         }
-        std::string source((std::istreambuf_iterator<char>(file)),
-            std::istreambuf_iterator<char>());
-
-        shaderc::Compiler compiler;
-        shaderc::CompileOptions options;
-        options.SetTargetEnvironment(shaderc_target_env_vulkan, shaderc_env_version_vulkan_1_2);
-        options.SetOptimizationLevel(shaderc_optimization_level_performance);
-
-        ShaderData shadarData = CompileShader(inputPath);
-
-        std::string filename = std::filesystem::path(inputPath).filename().string();
-
-        return AssetLib::WriteShader(
-            filename,
-            shadarData,
-            AssetLib::CompressionType::LZ4,
-            settings.compressionLevel
-        );
+        return "#version 450"; // Domyślna wersja
     }
 
-    // Define pre-defined UBO schemas
-    UniformBufferObject CreateGlobalUBO() {
-        UniformBufferObject globalUBO;
-        globalUBO.name = "GlobalUBO";
-        globalUBO.set = GLOBAL_DESCRIPTOR_SET;
-        globalUBO.binding = 0;
+    // Extract InputData block from source
+    std::string ExtractInputDataBlock(const std::string& source) {
+        std::regex inputDataRegex(R"(InputData\s*\{([\s\S]*?)\};)");
+        std::smatch match;
 
-        // Define DirectionalLight structure
-        UniformVariable dirLightDir;
-        dirLightDir.name = "direction";
-        dirLightDir.type = UniformType::Vec3;
-        dirLightDir.size = 12;
-        dirLightDir.offset = 0;
+        if (std::regex_search(source, match, inputDataRegex)) {
+            return match[1].str();
+        }
 
-        UniformVariable dirLightColor;
-        dirLightColor.name = "color";
-        dirLightColor.type = UniformType::Vec4;
-        dirLightColor.size = 16;
-        dirLightColor.offset = 16; // Aligned to 16 bytes
-
-        // DirectionalLight structure
-        UniformVariable dirLight;
-        dirLight.name = "directionalLight";
-        dirLight.type = UniformType::Struct;
-        dirLight.typeName = "DirectionalLight";
-        dirLight.size = 32; // Size of DirectionalLight structure
-        dirLight.offset = 48; // Aligned after view and proj matrices
-
-        // PointLight structure vars
-        UniformVariable pointLightPos;
-        pointLightPos.name = "position";
-        pointLightPos.type = UniformType::Vec3;
-        pointLightPos.size = 12;
-        pointLightPos.offset = 0;
-
-        UniformVariable pointLightRadius;
-        pointLightRadius.name = "radius";
-        pointLightRadius.type = UniformType::Float;
-        pointLightRadius.size = 4;
-        pointLightRadius.offset = 12;
-
-        UniformVariable pointLightColor;
-        pointLightColor.name = "color";
-        pointLightColor.type = UniformType::Vec4;
-        pointLightColor.size = 16;
-        pointLightColor.offset = 16; // Aligned to 16 bytes
-
-        // PointLight array
-        UniformVariable pointLights;
-        pointLights.name = "pointLights";
-        pointLights.type = UniformType::Array;
-        pointLights.typeName = "PointLight";
-        pointLights.arraySize = 64;
-        pointLights.size = 64 * 32; // 64 PointLight structures
-        pointLights.offset = 80; // After directionalLight
-
-        // Define main GlobalUBO variables
-        UniformVariable viewMatrix;
-        viewMatrix.name = "view";
-        viewMatrix.type = UniformType::Mat4;
-        viewMatrix.size = 16 * 4;
-        viewMatrix.offset = 0;
-
-        UniformVariable projMatrix;
-        projMatrix.name = "proj";
-        projMatrix.type = UniformType::Mat4;
-        projMatrix.size = 16 * 4;
-        projMatrix.offset = 16 * 4; // After view matrix
-
-        UniformVariable cameraPos;
-        cameraPos.name = "cameraPosition";
-        cameraPos.type = UniformType::Vec3;
-        cameraPos.size = 12;
-        cameraPos.offset = 32 * 4; // After proj matrix
-
-        UniformVariable activePointLights;
-        activePointLights.name = "activePointLights";
-        activePointLights.type = UniformType::Int;
-        activePointLights.size = 4;
-        activePointLights.offset = 80 + (64 * 32); // After pointLights array
-
-        // Add variables to UBO
-        globalUBO.variables.push_back(viewMatrix);
-        globalUBO.variables.push_back(projMatrix);
-        globalUBO.variables.push_back(cameraPos);
-        globalUBO.variables.push_back(dirLight);
-        globalUBO.variables.push_back(pointLights);
-        globalUBO.variables.push_back(activePointLights);
-
-        // Calculate total size
-        globalUBO.size = 80 + (64 * 32) + 4;
-
-        return globalUBO;
+        return "";
     }
 
-    UniformBufferObject CreateObjectUBO() {
-        UniformBufferObject objectUBO;
-        objectUBO.name = "ObjectUBO";
-        objectUBO.set = OBJECT_DESCRIPTOR_SET;
-        objectUBO.binding = 0;
+    // Check if a UBO directive is present
+    bool CheckUseUBO(const std::string& source, const std::string& uboType) {
+        std::string directive = "#use " + uboType;
+        return source.find(directive) != std::string::npos;
+    }
 
-        // Define ObjectUBO variables
-        UniformVariable modelMatrix;
-        modelMatrix.name = "model";
-        modelMatrix.type = UniformType::Mat4;
-        modelMatrix.size = 16 * 4;
-        modelMatrix.offset = 0;
+    // Split shader into stages
+    // Improved version of the SplitShaderStages function
+    std::vector<ShaderStage> SplitShaderStages(const std::string& source) {
+        std::vector<ShaderStage> stages;
 
-        // Add variables to UBO
-        objectUBO.variables.push_back(modelMatrix);
+        // Find all #stage directives
+        std::vector<std::pair<size_t, std::string>> stagePositions;
 
-        // Calculate total size
-        objectUBO.size = 16 * 4;
+        std::regex stageDirectiveRegex(R"(#stage\s+(\w+))");
+        auto beginDir = std::sregex_iterator(source.begin(), source.end(), stageDirectiveRegex);
+        auto endDir = std::sregex_iterator();
 
-        return objectUBO;
+        for (std::sregex_iterator i = beginDir; i != endDir; ++i) {
+            std::smatch match = *i;
+            stagePositions.push_back({ match.position(), match[1].str() });
+        }
+
+        // If no stages found, return empty vector
+        if (stagePositions.empty()) {
+            return stages;
+        }
+
+        // Extract each stage's code
+        for (size_t i = 0; i < stagePositions.size(); ++i) {
+            size_t startPos = stagePositions[i].first;
+            size_t endPos;
+
+            // Find where the directive ends (after the stage name)
+            size_t directiveEnd = source.find_first_of("\r\n", startPos);
+            if (directiveEnd == std::string::npos) {
+                directiveEnd = source.length();
+            }
+
+            // Find content start (after the line break)
+            size_t contentStart = source.find_first_not_of("\r\n", directiveEnd);
+            if (contentStart == std::string::npos) {
+                contentStart = directiveEnd;
+            }
+
+            // Find content end (either at next #stage or end of file)
+            if (i < stagePositions.size() - 1) {
+                endPos = stagePositions[i + 1].first;
+            }
+            else {
+                endPos = source.length();
+            }
+
+            // Extract code
+            std::string stageName = stagePositions[i].second;
+            std::string code = source.substr(contentStart, endPos - contentStart);
+
+            // Create stage
+            Stage stageEnum = StringToStage(stageName);
+            stages.push_back({ code, stageEnum });
+        }
+
+        return stages;
+    }
+
+    // Parse input data block to extract variables
+    std::vector<InputVariable> ParseInputData(const std::string& inputBlock) {
+        std::vector<InputVariable> variables;
+
+        // Regular expression to match variable declarations
+        std::regex varRegex(R"((?:^|\n)\s*(\w+(?:\s+\w+)*)\s+(\w+);)", std::regex::ECMAScript);
+
+        auto begin = std::sregex_iterator(inputBlock.begin(), inputBlock.end(), varRegex);
+        auto end = std::sregex_iterator();
+
+        for (std::sregex_iterator i = begin; i != end; ++i) {
+            std::smatch match = *i;
+            std::string type = match[1].str();
+            std::string name = match[2].str();
+
+            bool isSampler = type.find("sampler") != std::string::npos;
+
+            variables.push_back({ type, name, isSampler });
+        }
+
+        return variables;
+    }
+
+    // Create descriptor bindings for input variables
+    std::vector<DescriptorBinding> CreateDescriptorBindings(const std::vector<InputVariable>& variables) {
+        std::vector<DescriptorBinding> bindings;
+        uint32_t bindingIndex = 0;
+
+        // First, create binding for the InputData UBO
+        bool hasNonTextureVars = false;
+        for (const auto& var : variables) {
+            if (!var.isSampler) {
+                hasNonTextureVars = true;
+                break;
+            }
+        }
+
+        if (hasNonTextureVars) {
+            bindings.push_back({
+                CUSTOM_DESCRIPTOR_SET,
+                bindingIndex++,
+                DescriptorType::UniformBuffer,
+                static_cast<StageFlags>(Stage::Vertex) | static_cast<StageFlags>(Stage::Fragment),
+                "inputData"
+                });
+        }
+
+        // Create bindings for textures and samplers
+        for (const auto& var : variables) {
+            if (var.isSampler) {
+                DescriptorType type;
+
+                if (var.type == "sampler") {
+                    type = DescriptorType::CombinedImageSampler;
+                }
+
+                bindings.push_back({
+                    CUSTOM_DESCRIPTOR_SET,
+                    bindingIndex++,
+                    type,
+                    static_cast<StageFlags>(Stage::Vertex) | static_cast<StageFlags>(Stage::Fragment),
+                    var.name
+                    });
+            }
+        }
+
+        return bindings;
+    }
+
+    // Build custom UBO from input variables
+    UniformBufferObject BuildInputDataUBO(const std::vector<InputVariable>& variables) {
+        UBOBuilder builder("InputData", CUSTOM_DESCRIPTOR_SET, 0);
+
+        for (const auto& var : variables) {
+            // Skip textures and samplers
+            if (var.isSampler) continue;
+
+            // Parse variable type and add to builder
+            if (var.type == "float") {
+                builder.AddField<float>(var.name);
+            }
+            else if (var.type == "vec2") {
+                builder.AddField<glm::vec2>(var.name);
+            }
+            else if (var.type == "vec3") {
+                builder.AddField<glm::vec3>(var.name);
+            }
+            else if (var.type == "vec4") {
+                builder.AddField<glm::vec4>(var.name);
+            }
+            else if (var.type == "int") {
+                builder.AddField<int>(var.name);
+            }
+            else if (var.type == "bool") {
+                builder.AddField<bool>(var.name);
+            }
+            else if (var.type == "mat4") {
+                builder.AddField<glm::mat4>(var.name);
+            }
+            // Add more types as needed
+        }
+
+        return builder.Build();
+    }
+
+    // Extract all necessary data from shader source
+    ShaderSourceData ExtractShaderData(const std::string& source) {
+        ShaderSourceData data;
+
+        // Extract version line
+        data.versionLine = ExtractVersionLine(source);
+
+        // Check for UBO usage
+        data.usesGlobalUBO = CheckUseUBO(source, "global_ubo");
+        data.usesObjectUBO = CheckUseUBO(source, "object_ubo");
+
+        // Extract InputData block and parse variables
+        std::string inputDataBlock = ExtractInputDataBlock(source);
+        data.inputVariables = ParseInputData(inputDataBlock);
+
+        // Split into stages
+        data.stages = SplitShaderStages(source);
+
+        return data;
+    }
+
+    // Generate texture and sampler declarations
+    std::string GenerateTextureBindings(const std::vector<InputVariable>& variables, uint32_t startBinding) {
+        std::stringstream ss;
+        uint32_t binding = startBinding;
+
+        for (const auto& var : variables) {
+            if (var.isSampler) {
+                std::string typeStr = "sampler2D"; // Default to sampler2D for texture samplers
+                ss << "layout(set = " << CUSTOM_DESCRIPTOR_SET << ", binding = " << binding++ << ") "
+                    << "uniform " << typeStr << " " << var.name << ";\n";
+            }
+        }
+
+        return ss.str();
+    }
+
+    // Generate custom UBO GLSL
+    std::string GenerateCustomUBO(const UniformBufferObject& ubo) {
+        std::stringstream ss;
+
+        ss << "layout(set = " << CUSTOM_DESCRIPTOR_SET << ", binding = 0) uniform InputDataUBO {\n";
+        for (const auto& var : ubo.variables) {
+            ss << "    " << UniformTypeToString(var.type) << " " << var.name << ";\n";
+        }
+        ss << "} inputData;\n";
+
+        return ss.str();
+    }
+
+    // Generate shader source from scratch
+    std::string GenerateShaderSource(const ShaderSourceData& data, const ShaderStage& stage,
+        const UniformBufferObject* customUBO = nullptr) {
+        std::stringstream ss;
+
+        // 1. Version line must be first
+        ss << data.versionLine << "\n\n";
+
+        // 2. Add global UBO if needed
+        if (data.usesGlobalUBO) {
+            ss << UBORegistry::Get().GenerateGLSL("GlobalUBO") << "\n\n";
+        }
+
+        // 3. Add object UBO if needed
+        if (data.usesObjectUBO) {
+            ss << UBORegistry::Get().GenerateGLSL("ObjectUBO") << "\n\n";
+        }
+
+        // 4. Add custom UBO if needed
+        bool hasNonTextureVars = false;
+        for (const auto& var : data.inputVariables) {
+            if (!var.isSampler) {
+                hasNonTextureVars = true;
+                break;
+            }
+        }
+
+        if (hasNonTextureVars && customUBO) {
+            ss << GenerateCustomUBO(*customUBO) << "\n";
+        }
+
+        // 5. Add texture bindings
+        uint32_t startBinding = hasNonTextureVars ? 1 : 0;
+        std::string textureBindings = GenerateTextureBindings(data.inputVariables, startBinding);
+        if (!textureBindings.empty()) {
+            ss << textureBindings << "\n";
+        }
+
+        // 6. Add stage-specific code
+        ss << stage.code;
+
+        return ss.str();
+    }
+
+    // Process reflection data from SPIR-V
+    void ProcessReflectionData(const std::vector<uint32_t>& spirv, Stage stage, ShaderMetadata& metadata) {
+        spirv_cross::Compiler spirvCompiler(spirv);
+        spirv_cross::ShaderResources resources = spirvCompiler.get_shader_resources();
+
+        // Extract push constants if any
+        for (const auto& resource : resources.push_constant_buffers) {
+            const auto& ranges = spirvCompiler.get_active_buffer_ranges(resource.id);
+            uint32_t size = 0;
+
+            for (const auto& range : ranges) {
+                size = std::max<uint32_t>(size, range.offset + range.range);
+            }
+
+            PushConstantRange pcRange = {
+                static_cast<StageFlags>(stage),
+                0, // offset
+                size
+            };
+
+            // Check if we already have this push constant range
+            bool found = false;
+            for (auto& existing : metadata.pushConstants) {
+                if (existing.offset == pcRange.offset && existing.size == pcRange.size) {
+                    existing.stages |= pcRange.stages;
+                    found = true;
+                    break;
+                }
+            }
+
+            if (!found) {
+                metadata.pushConstants.push_back(pcRange);
+            }
+        }
+
+        // Add more reflection data processing as needed
     }
 
     ShaderData CompileShader(const std::string& source) {
+        // Initialize shader compiler
         shaderc::Compiler compiler;
         shaderc::CompileOptions options;
         options.SetTargetEnvironment(shaderc_target_env_vulkan, shaderc_env_version_vulkan_1_2);
@@ -166,328 +370,142 @@ namespace Shader {
 
         ShaderData result;
         ShaderMetadata metadata;
+        StageFlags stageFlags = 0;
 
-        // Initialize pre-defined UBOs
-        metadata.globalUBO = CreateGlobalUBO();
-        metadata.objectUBO = CreateObjectUBO();
+        // Extract all needed data from the source
+        ShaderSourceData sourceData = ExtractShaderData(source);
 
-        // Extract shader directives and stage declarations
-        std::regex stage_re(R"(#\s*stage\s+(\w+)\s*([\s\S]*?)(?=#\s*stage|\s*$))");
-        std::regex use_global_ubo_re(R"(#\s*use\s+global_ubo\s*)");
-        std::regex use_object_ubo_re(R"(#\s*use\s+object_ubo\s*)");
+        // Set UBO usage in metadata
+        metadata.usesGlobalUBO = sourceData.usesGlobalUBO;
+        metadata.usesObjectUBO = sourceData.usesObjectUBO;
 
-        // Check for global directives first
-        if (std::regex_search(source, use_global_ubo_re)) {
-            metadata.usesGlobalUBO = true;
+        // Create descriptor bindings
+        std::vector<DescriptorBinding> customDescriptors = CreateDescriptorBindings(sourceData.inputVariables);
+
+        // Create custom UBO if needed
+        UniformBufferObject customUBO;
+        bool hasCustomUbo = false;
+
+        for (const auto& var : sourceData.inputVariables) {
+            if (!var.isSampler) {
+                hasCustomUbo = true;
+                break;
+            }
         }
 
-        if (std::regex_search(source, use_object_ubo_re)) {
-            metadata.usesObjectUBO = true;
+        if (hasCustomUbo) {
+            customUBO = BuildInputDataUBO(sourceData.inputVariables);
+            metadata.customUBOs.push_back(customUBO);
         }
 
-        // Process each stage
-        std::sregex_iterator it(source.begin(), source.end(), stage_re);
-        std::sregex_iterator end;
+        // Add standard UBOs to metadata
+        if (sourceData.usesGlobalUBO) {
+            metadata.globalUBO = UBORegistry::CreateGlobalUBO();
+        }
 
-        while (it != end) {
-            const auto& match = *it;
-            const Stage stage = StringToStage(match[1].str());
-            std::string stage_source = match[2].str();
+        if (sourceData.usesObjectUBO) {
+            metadata.objectUBO = UBORegistry::CreateObjectUBO();
+        }
 
-            // Preprocess the stage source to inject UBO definitions if needed
-            std::string preprocessed_source = PreprocessShaderSource(stage_source, metadata);
+        // Build descriptor list
+        if (sourceData.usesGlobalUBO) {
+            metadata.descriptors.push_back({
+                GLOBAL_DESCRIPTOR_SET,
+                0, // binding
+                DescriptorType::UniformBuffer,
+                0, // will be updated with stages
+                "GlobalUBO"
+                });
+        }
 
-            // Process individual stage
-            auto stage_data = CompileStage(stage, preprocessed_source, compiler, options);
+        if (sourceData.usesObjectUBO) {
+            metadata.descriptors.push_back({
+                OBJECT_DESCRIPTOR_SET,
+                0, // binding
+                DescriptorType::UniformBuffer,
+                0, // will be updated with stages
+                "ObjectUBO"
+                });
+        }
 
-            // Merge metadata
-            metadata.availableStages |= static_cast<StageFlags>(stage);
-            metadata.usesGlobalUBO |= stage_data.second.usesGlobalUBO;
-            metadata.usesObjectUBO |= stage_data.second.usesObjectUBO;
+        // Add custom descriptors
+        for (const auto& desc : customDescriptors) {
+            metadata.descriptors.push_back(desc);
+        }
 
-            metadata.pushConstants.insert(
-                metadata.pushConstants.end(),
-                stage_data.second.pushConstants.begin(),
-                stage_data.second.pushConstants.end()
+        // Compile each stage
+        for (const auto& stage : sourceData.stages) {
+            // Update stage flags
+            stageFlags |= static_cast<StageFlags>(stage.stage);
+
+            // Update descriptor stages
+            for (auto& desc : metadata.descriptors) {
+                desc.stages |= static_cast<StageFlags>(stage.stage);
+            }
+
+            // Generate shader source for this stage from scratch
+            std::string finalSource = GenerateShaderSource(
+                sourceData,
+                stage,
+                hasCustomUbo ? &customUBO : nullptr
             );
 
-            // Merge descriptor bindings for non-standard UBOs
-            for (const auto& desc : stage_data.second.descriptors) {
-                // Skip standard UBOs that are already handled
-                if ((desc.name == "GlobalUBO" && desc.set == GLOBAL_DESCRIPTOR_SET) ||
-                    (desc.name == "ObjectUBO" && desc.set == OBJECT_DESCRIPTOR_SET)) {
-                    continue;
-                }
+            // Debug output
+            std::string stageName = StageToString(stage.stage);
+            std::string debug_filename = "debug_complete_" + stageName + ".glsl";
+            std::ofstream debugFile(debug_filename);
+            debugFile << finalSource;
+            debugFile.close();
 
-                metadata.descriptors.push_back(desc);
+            // Compile shader
+            shaderc_shader_kind kind = StageToShadercKind(stage.stage);
+            shaderc::SpvCompilationResult module =
+                compiler.CompileGlslToSpv(finalSource, kind, "shader", options);
+
+            if (module.GetCompilationStatus() != shaderc_compilation_status_success) {
+                throw std::runtime_error("Shader compilation failed: " + module.GetErrorMessage());
             }
 
-            // Merge custom UBOs
-            for (const auto& ubo : stage_data.second.customUBOs) {
-                // Skip standard UBOs that are already handled
-                if ((ubo.name == "GlobalUBO" && ubo.set == GLOBAL_DESCRIPTOR_SET) ||
-                    (ubo.name == "ObjectUBO" && ubo.set == OBJECT_DESCRIPTOR_SET)) {
-                    continue;
-                }
+            // Extract SPIR-V
+            std::vector<uint32_t> spirv(module.cbegin(), module.cend());
+            result.stages.push_back({ spirv, stage.stage });
 
-                metadata.customUBOs.push_back(ubo);
-            }
-
-            result.stages.push_back({ std::move(stage_data.first), stage });
-            ++it;
+            // Extract reflection data
+            ProcessReflectionData(spirv, stage.stage, metadata);
         }
 
+        metadata.availableStages = stageFlags;
+
+        // Serialize metadata
         nlohmann::json jsonMetadata = SerializeMetadata(metadata);
         result.metadata = jsonMetadata;
 
         return result;
     }
 
-    std::pair<std::vector<uint32_t>, ShaderMetadata> CompileStage(
-        Stage stage,
-        std::string source,
-        shaderc::Compiler& compiler,
-        const shaderc::CompileOptions& options)
-    {
-        ShaderMetadata metadata;
-        metadata.availableStages = static_cast<StageFlags>(stage);
-        metadata.globalUBO = CreateGlobalUBO();
-        metadata.objectUBO = CreateObjectUBO();
-
-        // Check for UBO usage in this specific stage
-        std::regex use_global_ubo_re(R"(#\s*use\s+global_ubo\s*)");
-        std::regex use_object_ubo_re(R"(#\s*use\s+object_ubo\s*)");
-
-        if (std::regex_search(source, use_global_ubo_re)) {
-            metadata.usesGlobalUBO = true;
+    AssetData ProcessShader(const std::string& inputPath, const Converter::Settings& settings) {
+        // Initialize standard UBOs if not already done
+        if (ShaderLib::UBORegistry::Get().GetUBO("GlobalUBO") == nullptr) {
+            ShaderLib::UBORegistry::Get().InitializeStandardUBOs();
         }
 
-        if (std::regex_search(source, use_object_ubo_re)) {
-            metadata.usesObjectUBO = true;
+        std::ifstream file(inputPath);
+        if (!file.is_open()) {
+            throw std::runtime_error("Failed to open shader file: " + inputPath);
         }
+        std::string source((std::istreambuf_iterator<char>(file)),
+            std::istreambuf_iterator<char>());
 
-        const auto kind = StageToShadercKind(stage);
-        const auto preprocessed = compiler.PreprocessGlsl(source, kind, "shader_src", options);
+        ShaderData shaderData = CompileShader(source);
 
-        if (preprocessed.GetCompilationStatus() != shaderc_compilation_status_success) {
-            throw std::runtime_error(preprocessed.GetErrorMessage());
-        }
+        std::string filename = std::filesystem::path(inputPath).filename().string();
 
-        const auto result = compiler.CompileGlslToSpv(
-            preprocessed.cbegin(),
-            static_cast<size_t>(std::strlen(preprocessed.cbegin())),
-            kind,
-            "shader_src",
-            "main",
-            options
+        return AssetLib::WriteShader(
+            filename,
+            shaderData,
+            AssetLib::CompressionType::LZ4,
+            settings.compressionLevel
         );
-
-        if (result.GetCompilationStatus() != shaderc_compilation_status_success)
-            throw std::runtime_error(result.GetErrorMessage());
-
-        std::vector<uint32_t> spirv(result.cbegin(), result.cend());
-
-        spirv_cross::CompilerGLSL spirv_compiler(spirv.data(), spirv.size());
-        spirv_cross::ShaderResources resources = spirv_compiler.get_shader_resources();
-
-        std::map<uint32_t, std::map<ShaderLib::DescriptorType, uint32_t>> bindingCounters;
-
-        auto assign_binding = [&](uint32_t set, ShaderLib::DescriptorType type) {
-            return bindingCounters[set][type]++;
-            };
-
-        auto process_resource = [&](const auto& resource, ShaderLib::DescriptorType type) {
-            const std::string name = spirv_compiler.get_name(resource.id);
-            uint32_t set = CUSTOM_DESCRIPTOR_SET;
-
-            // Check if this is a built-in UBO
-            if (name == "GlobalUBO") {
-                metadata.usesGlobalUBO = true;
-                set = GLOBAL_DESCRIPTOR_SET;
-            }
-            else if (name == "ObjectUBO") {
-                metadata.usesObjectUBO = true;
-                set = OBJECT_DESCRIPTOR_SET;
-            }
-
-            // Create descriptor binding info
-            ShaderLib::DescriptorBinding binding{};
-            binding.set = set;
-            binding.binding = (set == GLOBAL_DESCRIPTOR_SET || set == OBJECT_DESCRIPTOR_SET) ? 0 : assign_binding(set, type);
-            binding.type = type;
-            binding.stages = static_cast<StageFlags>(stage);
-            binding.name = name;
-
-            metadata.descriptors.push_back(binding);
-
-            // For UBOs, extract structure information
-            if (type == ShaderLib::DescriptorType::UniformBuffer) {
-                UniformBufferObject ubo{};
-                ubo.name = name;
-                ubo.set = set;
-                ubo.binding = binding.binding;
-
-                const auto& type = spirv_compiler.get_type(resource.base_type_id);
-                ubo.size = static_cast<uint32_t>(spirv_compiler.get_declared_struct_size(type));
-
-                const auto member_count = type.member_types.size();
-                for (uint32_t i = 0; i < member_count; i++) {
-                    UniformVariable var{};
-                    var.name = spirv_compiler.get_member_name(resource.base_type_id, i);
-
-                    const auto& member_type = spirv_compiler.get_type(type.member_types[i]);
-                    var.type = SPIRTypeToUniformType(member_type);
-                    var.typeName = (var.type == UniformType::Struct) ?
-                        spirv_compiler.get_name(type.member_types[i]) :
-                        UniformTypeToString(var.type);
-
-                    // Handle arrays
-                    if (!member_type.array.empty()) {
-                        var.arraySize = member_type.array[0];
-                        var.size = ComputeArraySize(member_type, spirv_compiler);
-                    }
-                    else {
-                        var.arraySize = 0;
-                        var.size = spirv_compiler.get_declared_struct_member_size(type, i);
-                    }
-
-                    var.offset = spirv_compiler.type_struct_member_offset(type, i);
-                    ubo.variables.push_back(var);
-                }
-
-                // Store UBO in the appropriate place
-                if (name == "GlobalUBO") {
-                    metadata.globalUBO = ubo;
-                }
-                else if (name == "ObjectUBO") {
-                    metadata.objectUBO = ubo;
-                }
-                else {
-                    metadata.customUBOs.push_back(ubo);
-                }
-            }
-            };
-
-        // Process resources
-        for (const auto& res : resources.uniform_buffers)
-            process_resource(res, ShaderLib::DescriptorType::UniformBuffer);
-
-        for (const auto& res : resources.sampled_images)
-            process_resource(res, ShaderLib::DescriptorType::CombinedImageSampler);
-
-        for (const auto& res : resources.separate_images)
-            process_resource(res, ShaderLib::DescriptorType::SeparateImage);
-
-        for (const auto& res : resources.separate_samplers)
-            process_resource(res, ShaderLib::DescriptorType::SeparateSampler);
-
-        // Process push constants
-        for (const auto& pc : resources.push_constant_buffers) {
-            const auto& ranges = spirv_compiler.get_active_buffer_ranges(pc.id);
-            uint32_t total_size = 0;
-
-            for (const auto& range : ranges) {
-                total_size = std::max(total_size, static_cast<uint32_t>(range.offset + range.range));
-            }
-
-            metadata.pushConstants.push_back({
-                static_cast<StageFlags>(stage),
-                0,
-                total_size
-                });
-        }
-
-        return { std::move(spirv), metadata };
     }
 
-    std::string GenerateUBODefinition(const UniformBufferObject& ubo) {
-        std::stringstream ss;
-
-        // Handle standard UBO types with special struct definitions
-        if (ubo.name == "GlobalUBO") {
-            // First define the DirectionalLight and PointLight structures
-            ss << "struct DirectionalLight {\n";
-            ss << "    vec3 direction;\n";
-            ss << "    vec4 color; // w is for intensity\n";
-            ss << "};\n\n";
-
-            ss << "struct PointLight {\n";
-            ss << "    vec3 position;\n";
-            ss << "    float radius;\n";
-            ss << "    vec4 color; // w is for intensity\n";
-            ss << "};\n\n";
-        }
-
-        // Generate the UBO layout
-        ss << "layout(std140, set = " << ubo.set << ", binding = " << ubo.binding << ") uniform " << ubo.name << " {\n";
-
-        for (const auto& var : ubo.variables) {
-            ss << "    ";
-
-            if (var.type == UniformType::Array) {
-                ss << var.typeName << " " << var.name << "[" << var.arraySize << "]";
-            }
-            else if (var.type == UniformType::Struct) {
-                ss << var.typeName << " " << var.name;
-            }
-            else {
-                ss << UniformTypeToString(var.type) << " " << var.name;
-            }
-
-            ss << ";\n";
-        }
-
-        ss << "};\n\n";
-
-        return ss.str();
-    }
-
-    std::string PreprocessShaderSource(const std::string& source, const ShaderMetadata& metadata) {
-        std::stringstream result;
-        std::string processed = source;
-
-        // Remove any '#use global_ubo' or '#use object_ubo' directives
-        std::regex use_global_ubo_re(R"(#\s*use\s+global_ubo\s*)");
-        std::regex use_object_ubo_re(R"(#\s*use\s+object_ubo\s*)");
-
-        processed = std::regex_replace(processed, use_global_ubo_re, "");
-        processed = std::regex_replace(processed, use_object_ubo_re, "");
-
-        // Find version declaration to insert definitions after it
-        std::regex version_re(R"(#\s*version\s+\d+(\s+\w+)?\s*)");
-        std::smatch version_match;
-
-        if (std::regex_search(processed, version_match, version_re)) {
-            // Put the version declaration first
-            result << version_match[0].str() << "\n\n";
-
-            // Insert global UBO if needed
-            if (metadata.usesGlobalUBO) {
-                result << GenerateUBODefinition(metadata.globalUBO);
-            }
-
-            // Insert object UBO if needed
-            if (metadata.usesObjectUBO) {
-                result << GenerateUBODefinition(metadata.objectUBO);
-            }
-
-            // Insert the rest of the shader code (without the version declaration)
-            result << processed.substr(version_match[0].length());
-        }
-        else {
-            // No version declaration found, just add UBOs at the beginning
-            if (metadata.usesGlobalUBO) {
-                result << GenerateUBODefinition(metadata.globalUBO);
-            }
-
-            if (metadata.usesObjectUBO) {
-                result << GenerateUBODefinition(metadata.objectUBO);
-            }
-
-            result << processed;
-        }
-
-        return result.str();
-    }
-
-} // namespace ShaderLib
+} // namespace Shader
