@@ -17,19 +17,6 @@ Window::Window(const char* title, Settings::WindowMode initialMode, Settings::Re
     createWindow();
     setupCallbacks();
 
-    Settings& settings = Engine::get().settings();
-
-	m_resolutionSubscription = std::make_unique<Event<Settings::Resolution>::Subscription>(
-        settings.onResolutionChanged()->subscribe([this](Settings::Resolution newRes) {
-            this->onResolutionChanged(newRes);
-            })
-	);
-
-	m_windowModeSubscription = std::make_unique<Event<Settings::WindowMode>::Subscription>(
-        settings.onWindowModeChanged()->subscribe([this](Settings::WindowMode newMode) {
-            this->onWindowModeChanged(newMode);
-            })
-    );
 }
 
 Window::~Window() {

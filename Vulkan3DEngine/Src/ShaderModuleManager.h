@@ -52,6 +52,8 @@ public:
     // Tworzenie modułu shadera z kodu SPIRV
     ShaderModuleHandle createModuleFromSPIRV(const std::vector<uint32_t>& spirvCode);
 
+    ShaderModuleHandle createModuleFromSPIRVFile(const std::string& filePath);
+
     // Tworzenie pełnego shadera z metadanych i skompilowanych etapów
     ShaderHandle createShader(
         const ShaderLib::ShaderMetadata& metadata,

@@ -27,9 +27,6 @@ public:
 	VkResult presentImage(uint32_t imageIndex, VkSemaphore renderFinishedSemaphore);
 	void recreateSwapChain();
 
-	// Event subscription for swap chain recreation
-	auto onSwapChainRecreated(typename Event<>::Callback callback) { return m_swapChainRecreatedEvent->subscribe(callback); }
-
 private:
 	void init();
 	void createSwapChain();
@@ -37,11 +34,6 @@ private:
 	void createImageViews();
 	void registerImagesWithVramManager();
 	VkPresentModeKHR getVulkanPresentMode(const std::vector<VkPresentModeKHR>& availablePresentModes) const;
-
-	// Settings event handlers
-	void onVsyncChanged(bool enabled);
-	void onFramesInFlightChanged(uint32_t count);
-	void onMsaaChanged(Settings::MsaaSampleCount sampleCount);
 
 	const PhysicalDevice& r_physicalDevice;
 	const LogicalDevice& r_logicalDevice;
@@ -54,12 +46,4 @@ private:
 	VkExtent2D m_swapChainExtent;
 	std::vector<VkImageView> m_swapChainImageViews;
 	std::vector<VramHandle> m_imageHandles;
-
-	// Event subscriptions
-	std::unique_ptr<Event<bool>::Subscription> m_vsyncChangedSubscription;
-	std::unique_ptr<Event<uint32_t>::Subscription> m_framesInFlightChangedSubscription;
-	std::unique_ptr<Event<Settings::MsaaSampleCount>::Subscription> m_msaaChangedSubscription;
-
-	// SwapChain recreated event
-	std::shared_ptr<Event<>> m_swapChainRecreatedEvent;
 };

@@ -12,6 +12,7 @@ Image::Image(Image&& other) noexcept :
     m_extent(std::exchange(other.m_extent, { 0, 0 })),
     m_samples(std::exchange(other.m_samples, VK_SAMPLE_COUNT_1_BIT)),
     m_currentLayout(std::exchange(other.m_currentLayout, VK_IMAGE_LAYOUT_UNDEFINED)),
+    m_mipLevels(std::exchange(other.m_mipLevels, 1)),
     m_isExternal(std::exchange(other.m_isExternal, false))
 {
 }
@@ -24,6 +25,7 @@ Image& Image::operator=(Image&& other) noexcept {
         m_extent = other.m_extent;
         m_currentLayout = other.m_currentLayout;
         m_samples = other.m_samples;
+        m_mipLevels = other.m_mipLevels;
         m_isExternal = other.m_isExternal;
 
         // Reset the source object's state
@@ -32,6 +34,7 @@ Image& Image::operator=(Image&& other) noexcept {
         other.m_extent = { 0, 0 };
         other.m_currentLayout = VK_IMAGE_LAYOUT_UNDEFINED;
         other.m_samples = VK_SAMPLE_COUNT_1_BIT;
+        other.m_mipLevels = 1;
         other.m_isExternal = false;
     }
     return *this;
@@ -109,12 +112,19 @@ Image Image::create(
     VmaMemoryUsage memoryUsage,
     VkMemoryPropertyFlags requiredFlags)
 {
+    // Sprawdź, czy wszystkie wymagane pola są zainicjalizowane
+    if (imageInfo.mipLevels == 0 || imageInfo.arrayLayers == 0 ||
+        imageInfo.extent.width == 0 || imageInfo.extent.height == 0) {
+        throw std::runtime_error("Invalid image dimensions in VkImageCreateInfo");
+    }
+
     Image image;
     image.m_allocator = allocator;
     image.m_format = imageInfo.format;
     image.m_extent = { imageInfo.extent.width, imageInfo.extent.height };
     image.m_samples = imageInfo.samples;
     image.m_currentLayout = imageInfo.initialLayout;
+    image.m_mipLevels = imageInfo.mipLevels;
 
     VmaAllocationCreateInfo allocCreateInfo = {};
     allocCreateInfo.usage = memoryUsage;
@@ -130,7 +140,14 @@ Image Image::create(
     );
 
     if (result != VK_SUCCESS) {
-        throw std::runtime_error("Failed to create image with VMA");
+        const char* errorMsg;
+        switch (result) {
+        case VK_ERROR_OUT_OF_HOST_MEMORY: errorMsg = "VK_ERROR_OUT_OF_HOST_MEMORY"; break;
+        case VK_ERROR_OUT_OF_DEVICE_MEMORY: errorMsg = "VK_ERROR_OUT_OF_DEVICE_MEMORY"; break;
+        case VK_ERROR_FORMAT_NOT_SUPPORTED: errorMsg = "VK_ERROR_FORMAT_NOT_SUPPORTED"; break;
+        default: errorMsg = "Unknown error";
+        }
+        throw std::runtime_error(std::string("Failed to create image with VMA: ") + errorMsg);
     }
 
     // Pobierz rozmiar alokacji
@@ -147,7 +164,8 @@ Image Image::createExternal(
     VkFormat format,
     VkExtent2D extent,
     VkImageLayout initialLayout,
-    VkSampleCountFlagBits samples)
+    VkSampleCountFlagBits samples,
+    uint32_t mipLevels)
 {
     Image externalImage;
     externalImage.m_allocator = allocator;
@@ -157,11 +175,11 @@ Image Image::createExternal(
     externalImage.m_currentLayout = initialLayout;
     externalImage.m_samples = samples;
     externalImage.m_allocation = nullptr;
+    externalImage.m_mipLevels = mipLevels;
     externalImage.m_isExternal = true;
 
     return externalImage;
 }
-
 
 VkImageView Image::createView(
     VkDevice device,
@@ -173,12 +191,21 @@ VkImageView Image::createView(
     uint32_t baseArrayLayer,
     uint32_t arrayLayers) const
 {
+    // Use image's format if not specified
+    VkFormat viewFormat = (format == VK_FORMAT_UNDEFINED) ? m_format : format;
+
+    // Derive aspect mask from format if not specified
+    VkImageAspectFlags viewAspectMask = aspectMask;
+    if (viewAspectMask == 0) {
+        viewAspectMask = getImageAspect(viewFormat);
+    }
+
     VkImageViewCreateInfo viewInfo = { VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO };
     viewInfo.image = m_image;
     viewInfo.viewType = viewType;
-    viewInfo.format = format;
+    viewInfo.format = viewFormat;
     viewInfo.subresourceRange = {
-        .aspectMask = aspectMask,
+        .aspectMask = viewAspectMask,
         .baseMipLevel = baseMipLevel,
         .levelCount = mipLevels,
         .baseArrayLayer = baseArrayLayer,
@@ -219,7 +246,6 @@ void Image::recordLayoutTransition(
 
     m_currentLayout = newLayout;
 }
-
 
 VkImageAspectFlags Image::getImageAspect(VkFormat format)
 {

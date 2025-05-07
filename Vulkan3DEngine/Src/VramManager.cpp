@@ -1,6 +1,7 @@
 #include "VramManager.h"
 #include <stdexcept>
 #include "GraphicsTypes.h"
+#include <cassert>
 
 VramManager::VramManager(
     VulkanContext& context,
@@ -11,11 +12,18 @@ VramManager::VramManager(
     : m_context(context),
     m_frameManager(frameManager),
     m_cmdBufferManager(cmdBufferManager),
-	m_syncResourceManager(syncResourceManager),
+    m_syncResourceManager(syncResourceManager),
     m_allocator(createVmaAllocator(context)),
-    m_stagingManager(m_allocator, context.logical())
+    m_stagingManager(m_allocator, context.logical()),
+    m_transferManager(context, frameManager, syncResourceManager, m_stagingManager)
 {
+    // Verify allocator was created successfully
+    assert(m_allocator != VK_NULL_HANDLE && "VMA allocator creation failed");
 
+    // Add logging or debug check here
+    if (m_allocator == VK_NULL_HANDLE) {
+        throw std::runtime_error("VMA allocator initialization failed");
+    }
 }
 
 VramManager::~VramManager() {
@@ -23,6 +31,7 @@ VramManager::~VramManager() {
 
     if (m_allocator) {
         vmaDestroyAllocator(m_allocator);
+        m_allocator = VK_NULL_HANDLE;
     }
 }
 
@@ -33,20 +42,45 @@ VmaAllocator VramManager::createVmaAllocator(VulkanContext& context) {
     allocatorInfo.instance = context.instance().get();
     allocatorInfo.vulkanApiVersion = VK_API_VERSION_1_2;
 
-    VmaAllocator allocator;
-    if (vmaCreateAllocator(&allocatorInfo, &allocator) != VK_SUCCESS) {
-        throw std::runtime_error("Failed to create VMA allocator");
+    // Add additional validation
+    if (allocatorInfo.physicalDevice == VK_NULL_HANDLE) {
+        throw std::runtime_error("Physical device is null in VMA allocator creation");
     }
+
+    if (allocatorInfo.device == VK_NULL_HANDLE) {
+        throw std::runtime_error("Logical device is null in VMA allocator creation");
+    }
+
+    if (allocatorInfo.instance == VK_NULL_HANDLE) {
+        throw std::runtime_error("Vulkan instance is null in VMA allocator creation");
+    }
+
+    VmaAllocator allocator = VK_NULL_HANDLE;
+    VkResult result = vmaCreateAllocator(&allocatorInfo, &allocator);
+
+    if (result != VK_SUCCESS || allocator == VK_NULL_HANDLE) {
+        throw std::runtime_error("Failed to create VMA allocator (VkResult: " +
+            std::to_string(result) + ")");
+    }
+
     return allocator;
 }
 
 VramHandle VramManager::createBuffer(const Graphics::BufferCreateInfo& info, const void* initialData) {
+    // Validate inputs
+    if (info.size == 0) {
+        throw std::runtime_error("Buffer size cannot be zero");
+    }
+
+    if (m_allocator == VK_NULL_HANDLE) {
+        throw std::runtime_error("Cannot create buffer with null VMA allocator");
+    }
+
     const auto vkUsage = convertBufferUsage(info.usage);
     Buffer buffer = Buffer::create(m_allocator, info.size, vkUsage, VMA_MEMORY_USAGE_AUTO);
 
     if (initialData) {
-        auto& frame = m_frameManager.getCurrentFrame();
-        recordBufferUpload(*frame.transferCommandBuffer.get(), buffer, initialData, info.size);
+        m_transferManager.queueBufferTransfer(&buffer, initialData, info.size);
     }
 
     VramHandle handle{ m_nextId++ };
@@ -55,24 +89,50 @@ VramHandle VramManager::createBuffer(const Graphics::BufferCreateInfo& info, con
 }
 
 VramHandle VramManager::createImage(const Graphics::ImageCreateInfo& info, const void* initialData) {
+    // Validate inputs
+    if (info.width == 0 || info.height == 0) {
+        throw std::runtime_error("Image dimensions cannot be zero");
+    }
+
+    if (m_allocator == VK_NULL_HANDLE) {
+        throw std::runtime_error("Cannot create image with null VMA allocator");
+    }
+
     VkImageCreateInfo vkImageInfo = { VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO };
     vkImageInfo.imageType = VK_IMAGE_TYPE_2D;
     vkImageInfo.format = convertImageFormat(info.format);
     vkImageInfo.extent = { info.width, info.height, 1 };
     vkImageInfo.mipLevels = info.mipLevels;
+    vkImageInfo.arrayLayers = 1;
     vkImageInfo.usage = convertImageUsage(info.usage);
     vkImageInfo.samples = Graphics::convertSampleCount(info.samples);
+    vkImageInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
+    vkImageInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    vkImageInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 
-    Image image = Image::create(m_allocator, vkImageInfo, VMA_MEMORY_USAGE_AUTO);
-
-    if (initialData) {
-        auto& frame = m_frameManager.getCurrentFrame();
-        recordImageUpload(*frame.transferCommandBuffer.get(), image, initialData, vkImageInfo);
+    // Sprawdź wymiary obrazu dla formatów skompresowanych
+    if (info.format == Graphics::ImageFormat::BC7_UNORM ||
+        info.format == Graphics::ImageFormat::BC7_SRGB) {
+        if (info.width % 4 != 0 || info.height % 4 != 0) {
+            throw std::runtime_error("Compressed texture dimensions must be multiple of 4: " +
+                std::to_string(info.width) + "x" + std::to_string(info.height));
+        }
     }
 
-    VramHandle handle{ m_nextId++ };
-    m_resources.emplace(handle.id, std::move(image));
-    return handle;
+    try {
+        Image image = Image::create(m_allocator, vkImageInfo, VMA_MEMORY_USAGE_AUTO);
+
+        if (initialData) {
+            m_transferManager.queueImageTransfer(&image, initialData, vkImageInfo);
+        }
+
+        VramHandle handle{ m_nextId++ };
+        m_resources.emplace(handle.id, std::move(image));
+        return handle;
+    }
+    catch (const std::exception& e) {
+        throw std::runtime_error(std::string("Failed to create image: ") + e.what());
+    }
 }
 
 VramHandle VramManager::createBuffer(
@@ -83,55 +143,81 @@ VramHandle VramManager::createBuffer(
 {
     // Tworzenie głównego bufora
     VmaAllocationCreateInfo allocInfo = {};
-    allocInfo.usage = VMA_MEMORY_USAGE_AUTO;
+
+    // For host-visible memory, use CPU_ONLY or CPU_TO_GPU
+    if (memoryProperties & VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT) {
+        allocInfo.usage = VMA_MEMORY_USAGE_CPU_TO_GPU;
+    }
+    else {
+        allocInfo.usage = VMA_MEMORY_USAGE_GPU_ONLY;
+    }
+
+    // Still set required flags to ensure we get exactly what we need
     allocInfo.requiredFlags = memoryProperties;
 
-    Buffer buffer = Buffer::create(m_allocator, size, usage, allocInfo.usage);
+    // Pass the required memory properties to Buffer::create
+    Buffer buffer = Buffer::create(m_allocator, size, usage, allocInfo.usage, allocInfo.requiredFlags);
 
     if (initialData) {
-        // 1. Pobierz zasoby synchronizacji
-        VkFence fence = m_syncResourceManager.acquireFence(false);
-        auto staging = m_stagingManager.requestBuffer(size, fence);
+        if (!(memoryProperties & VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT)) {
+            // 1. Pobierz zasoby synchronizacji
+            VkFence fence = m_syncResourceManager.acquireFence(false);
 
-        // 2. Skopiuj dane do staging buffer
-        staging.copyData(initialData, size);
+            // 2. Pobierz wskaźnik do bufora staging - zmiana zgodnie z nowym API
+            Buffer* staging = m_stagingManager.requestBuffer(size, fence);
 
-        // 3. Pobierz bufor poleceń
-        CommandBufferManager::Configuration cmdConfig{
-            .queueType = LogicalDevice::QueueType::Transfer,
-            .level = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
-            .usageFlags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT
-        };
-        auto cmdBuffer = m_cmdBufferManager.acquireBuffer(cmdConfig);
+            // 3. Skopiuj dane do staging buffer
+            staging->copyData(initialData, size);
 
-        // 4. Nagrywanie komend
-        cmdBuffer->begin(VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
+            // 4. Pobierz bufor poleceń
+            CommandBufferManager::Configuration cmdConfig{
+                .queueType = LogicalDevice::QueueType::Transfer,
+                .level = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
+                .usageFlags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT
+            };
+            auto cmdBuffer = m_cmdBufferManager.acquireBuffer(cmdConfig);
 
-        VkBufferCopy copyRegion{ 0, 0, size };
-        vkCmdCopyBuffer(
-            cmdBuffer->get(),
-            staging.get(),
-            buffer.get(),
-            1,
-            &copyRegion
-        );
+            // 5. Nagrywanie komend
+            cmdBuffer->begin(VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
 
-        cmdBuffer->end();
+            VkBufferCopy copyRegion{ 0, 0, size };
+            vkCmdCopyBuffer(
+                cmdBuffer->get(),
+                staging->get(),  // Używamy operatora -> zamiast . ponieważ mamy wskaźnik
+                buffer.get(),
+                1,
+                &copyRegion
+            );
 
-        // 5. Submisja
-        VkCommandBuffer commandBufferHandle = cmdBuffer->get();
-        VkSubmitInfo submitInfo{};
-        submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-        submitInfo.commandBufferCount = 1;
-        submitInfo.pCommandBuffers = &commandBufferHandle;
+            cmdBuffer->end();
 
-        vkQueueSubmit(m_context.logical().getQueue(LogicalDevice::QueueType::Transfer), 1, &submitInfo, fence);
-        vkWaitForFences(m_context.logical().get(), 1, &fence, VK_TRUE, UINT64_MAX);
+            // 6. Submisja
+            VkCommandBuffer commandBufferHandle = cmdBuffer->get();
+            VkSubmitInfo submitInfo{};
+            submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+            submitInfo.commandBufferCount = 1;
+            submitInfo.pCommandBuffers = &commandBufferHandle;
 
-        // 6. Zwrot zasobów
-        m_cmdBufferManager.releaseBuffer(std::move(cmdBuffer));
-        m_syncResourceManager.releaseFence(fence);
-        m_stagingManager.returnBuffer(std::move(staging));
+            vkQueueSubmit(m_context.logical().getQueue(LogicalDevice::QueueType::Transfer), 1, &submitInfo, fence);
+
+            // 7. Czekanie na zakończenie operacji
+            vkWaitForFences(m_context.logical().get(), 1, &fence, VK_TRUE, UINT64_MAX);
+
+            // 8. Zwrot zasobów
+            m_cmdBufferManager.releaseBuffer(std::move(cmdBuffer));
+            m_syncResourceManager.releaseFence(fence);
+
+            // 9. Zwolnij bufory dla zakończonych płotków
+            m_stagingManager.reclaimBuffers();
+        }
+        else {
+            // For host-visible memory, we can directly map and copy
+            void* mappedData = buffer.map();
+            if (mappedData) {
+                memcpy(mappedData, initialData, size);
+                buffer.unmap();
+            }
+        }
     }
 
     VramHandle handle{ m_nextId++ };
@@ -160,10 +246,14 @@ VramHandle VramManager::createImage(
     if (initialData) {
         // 1. Pobierz zasoby synchronizacji
         VkFence fence = m_syncResourceManager.acquireFence(false);
-        auto staging = m_stagingManager.requestBuffer(imageSize, fence);
-        staging.copyData(initialData, imageSize);
 
-        // 2. Pobierz bufor poleceń
+        // 2. Pobierz wskaźnik do bufora staging - zmiana zgodnie z nowym API
+        Buffer* staging = m_stagingManager.requestBuffer(imageSize, fence);
+
+        // 3. Skopiuj dane do bufora staging
+        staging->copyData(initialData, imageSize);
+
+        // 4. Pobierz bufor poleceń
         CommandBufferManager::Configuration cmdConfig{
             .queueType = LogicalDevice::QueueType::Transfer,
             .level = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
@@ -171,7 +261,7 @@ VramHandle VramManager::createImage(
         };
         auto cmdBuffer = m_cmdBufferManager.acquireBuffer(cmdConfig);
 
-        // 3. Nagrywanie komend
+        // 5. Nagrywanie komend
         cmdBuffer->begin(VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
 
         // Przejście layoutu
@@ -190,7 +280,7 @@ VramHandle VramManager::createImage(
 
         vkCmdCopyBufferToImage(
             cmdBuffer->get(),
-            staging.get(),
+            staging->get(),  // Używamy operatora -> zamiast . ponieważ mamy wskaźnik
             image.get(),
             VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
             1,
@@ -208,7 +298,7 @@ VramHandle VramManager::createImage(
 
         cmdBuffer->end();
 
-        // 4. Submisja
+        // 6. Submisja
         VkCommandBuffer commandBufferHandle = cmdBuffer->get();
         VkSubmitInfo submitInfo{};
         submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
@@ -216,12 +306,17 @@ VramHandle VramManager::createImage(
         submitInfo.pCommandBuffers = &commandBufferHandle;
 
         vkQueueSubmit(m_context.logical().getQueue(LogicalDevice::QueueType::Transfer), 1, &submitInfo, fence);
+
+        // 7. Czekanie na zakończenie operacji
         vkWaitForFences(m_context.logical().get(), 1, &fence, VK_TRUE, UINT64_MAX);
 
-        // 5. Zwrot zasobów
+        // 8. Zwrot zasobów
         m_cmdBufferManager.releaseBuffer(std::move(cmdBuffer));
         m_syncResourceManager.releaseFence(fence);
-        m_stagingManager.returnBuffer(std::move(staging));
+
+        // 9. Zwolnij bufory dla zakończonych płotków
+        m_stagingManager.reclaimBuffers();
+
     }
 
     VramHandle handle{ m_nextId++ };
@@ -359,56 +454,4 @@ VramHandle VramManager::registerExternalImage(
     }
 
     return handle;
-}
-
-void VramManager::recordBufferUpload(CommandBuffer& cmdBuffer, Buffer& dst, const void* data, VkDeviceSize size) {
-    Buffer staging = m_stagingManager.requestBuffer(size, m_frameManager.getCurrentFrame().inFlightFence); 
-    staging.copyData(data, size);
-
-    VkBufferCopy copyRegion{ 0, 0, size };
-    vkCmdCopyBuffer(cmdBuffer.get(), staging.get(), dst.get(), 1, &copyRegion);
-}
-
-
-void VramManager::recordImageUpload(CommandBuffer& commandBuffer, Image& dst, const void* data, const VkImageCreateInfo& imageInfo) {
-    const VkImageAspectFlags aspectMask = Image::getImageAspect(imageInfo.format);
-    const VkDeviceSize imageSize = Graphics::calculateImageSize(imageInfo.format, imageInfo.extent.width, imageInfo.extent.height);
-
-    // 1. Staging buffer
-    Buffer staging = m_stagingManager.requestBuffer(imageSize, m_frameManager.getCurrentFrame().inFlightFence);
-    staging.copyData(data, imageSize);
-
-    // 2. Przejście: UNDEFINED → TRANSFER_DST_OPTIMAL
-    dst.recordLayoutTransition(
-        commandBuffer,
-        VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-        VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
-        VK_PIPELINE_STAGE_TRANSFER_BIT,
-        aspectMask
-    );
-
-    // 3. Kopiuj dane z bufora do obrazu
-    VkBufferImageCopy region{};
-    region.imageSubresource = { aspectMask, 0, 0, 1 };
-    region.imageExtent = imageInfo.extent;
-
-    vkCmdCopyBufferToImage(
-        commandBuffer.get(),
-        staging.get(),
-        dst.get(),
-        VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-        1, &region
-    );
-
-    // 4. Przejście: TRANSFER_DST_OPTIMAL → SHADER_READ_ONLY_OPTIMAL
-    dst.recordLayoutTransition(
-        commandBuffer,
-        VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-        VK_PIPELINE_STAGE_TRANSFER_BIT,
-        VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
-        aspectMask
-    );
-
-    // 5. Przechowaj staging buffer
-    m_frameManager.getCurrentFrame().stagingBuffers.push_back(std::move(staging));
 }

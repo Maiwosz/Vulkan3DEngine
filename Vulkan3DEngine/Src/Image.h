@@ -26,20 +26,24 @@ public:
         VkFormat format,
         VkExtent2D extent,
         VkImageLayout initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
-        VkSampleCountFlagBits samples = VK_SAMPLE_COUNT_1_BIT);
+        VkSampleCountFlagBits samples = VK_SAMPLE_COUNT_1_BIT,
+        uint32_t mipLevels = 1);
 
     VkImage get() const { return m_image; }
     VkFormat getFormat() const { return m_format; }
     VkExtent2D getExtent() const { return m_extent; }
     VkImageLayout getCurrentLayout() const { return m_currentLayout; }
     VkSampleCountFlagBits getSamples() const { return m_samples; }
+    uint32_t getMipLevels() const { return m_mipLevels; }
     bool isExternalResource() const { return m_isExternal; }
+
+    void setLayout(VkImageLayout layout) { m_currentLayout = layout; }
 
     VkImageView createView(
         VkDevice device,
         VkImageViewType viewType,
-        VkFormat format,
-        VkImageAspectFlags aspectMask,
+        VkFormat format = VK_FORMAT_UNDEFINED,
+        VkImageAspectFlags aspectMask = 0,
         uint32_t baseMipLevel = 0,
         uint32_t mipLevels = VK_REMAINING_MIP_LEVELS,
         uint32_t baseArrayLayer = 0,
@@ -55,6 +59,7 @@ public:
 
     // Helper functions
     static VkImageAspectFlags getImageAspect(VkFormat format);
+    
     static VkAccessFlags inferAccessMask(VkImageLayout layout);
 
 protected:
@@ -66,6 +71,7 @@ private:
     VkExtent2D m_extent = { 0, 0 };
     VkImageLayout m_currentLayout = VK_IMAGE_LAYOUT_UNDEFINED;
     VkSampleCountFlagBits m_samples = VK_SAMPLE_COUNT_1_BIT;
+    uint32_t m_mipLevels = 1;
 
     bool m_isExternal = false;
 };

@@ -298,7 +298,7 @@ AssetData Converter::ProcessMesh(const std::string& inputPath, const Settings& s
             filename,
             meshInfo,
             vertexData,
-			indexBuffer,
+            indexBuffer,
             AssetLib::CompressionType::LZ4,
             settings.compressionLevel
         );
@@ -327,18 +327,23 @@ AssetData Converter::ProcessMaterial(const std::string& inputPath, const Setting
     }
 
     // Przygotuj struktury danych
-    AssetLib::MaterialInfo matInfo{};
+    AssetLib::MaterialInfo matInfo{};  // Zero-initialize
     std::vector<AssetLib::MaterialParameter> params;
     std::vector<uint8_t> paramData;
 
-    // Wczytaj nazwę shadera
+    // Wczytaj nazwę shadera - ensure proper null termination
     const std::string shaderName = materialJson["shader"].get<std::string>();
-    strncpy_s(matInfo.shaderName.data(), matInfo.shaderName.size(), shaderName.c_str(), _TRUNCATE);
+    std::fill(matInfo.shaderName.begin(), matInfo.shaderName.end(), '\0'); // Zero the entire array first
+    std::copy_n(shaderName.c_str(), std::min(shaderName.size(), matInfo.shaderName.size() - 1), matInfo.shaderName.data());
 
     // Przetwarzaj parametry
     for (auto& [key, value] : materialJson["parameters"].items()) {
-        AssetLib::MaterialParameter param{};
-        strncpy_s(param.name.data(), param.name.size(), key.c_str(), _TRUNCATE);
+        AssetLib::MaterialParameter param{};  // Zero-initialize
+
+        // Properly handle parameter name
+        std::fill(param.name.begin(), param.name.end(), '\0'); // Zero the array first
+        std::copy_n(key.c_str(), std::min(key.size(), param.name.size() - 1), param.name.data());
+
         param.arraySize = value.value("arraySize", 1);
         param.dataOffset = static_cast<uint32_t>(paramData.size());
 

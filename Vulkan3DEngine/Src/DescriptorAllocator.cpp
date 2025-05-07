@@ -1,7 +1,7 @@
 #include "DescriptorAllocator.h"
 #include "Prerequisites.h"
 
-DescriptorAllocator::DescriptorAllocator(LogicalDevice& device, const PoolConfig& config):
+DescriptorAllocator::DescriptorAllocator(const LogicalDevice& device, const PoolConfig& config):
 	m_device(device), m_config(config), m_nextSetCount(config.initialSets) 
 {
     m_readyPools.push_back(getPool());

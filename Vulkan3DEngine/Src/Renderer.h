@@ -17,6 +17,8 @@
 #include "PipelineLayoutManager.h"
 #include "DescriptorLayoutManager.h"
 #include "ImageSamplerManager.h"
+#include "DescriptorAllocator.h"
+#include "MeshManager.h"
 
 class Renderer
 {
@@ -25,12 +27,28 @@ public:
     ~Renderer();
 
     void waitIdle() { vkDeviceWaitIdle(m_vulkanContext->logical().get()); }
-    VramManager& getVramManager() { return *m_vramManager; }
-    ShaderModuleManager& getShaderModuleManager() { return *m_shaderModuleManager; }
-    MaterialManager& getMaterialManager() { return *m_materialManager; }
+    
+    VulkanContext& vulkanContext() { return *m_vulkanContext; }
+    CommandBufferManager& commandBufferManager() { return *m_commandBufferManager; }
+    SynchronizationResourceManager& synchronizationResourceManager() { return *m_syncResourceManager; }
+    FrameManager& frameManager() { return *m_frameManager; }
+    VramManager& vramManager() { return *m_vramManager; }
+    UniformBufferManager& uniformBufferManager() { return *m_uniformBufferManager; }
+    DescriptorLayoutManager& descriptorLayoutManager() { return *m_descriptorLayoutManager; }
+    PipelineLayoutManager& pipelineLayoutManager() { return *m_pipelineLayoutManager; }
+    SwapChain& swapChain() { return *m_swapChain; }
+    ImageSamplerManager& imageSamplerManager() { return *m_samplerManager; }
+    AttachmentManager& attachmentManager() { return *m_attachmentManager; }
+    RenderPassManager& renderPassManager() { return *m_renderPassManager; }
+    FrameBufferManager& framebufferManager() { return *m_framebufferManager; }
+    ShaderModuleManager& shaderModuleManager() { return *m_shaderModuleManager; }
+    PipelineManager& pipelineManager() { return *m_pipelineManager; }
+    MaterialManager& materialManager() { return *m_materialManager; }
+    DescriptorAllocator& descriptorAllocator() { return *m_descriptorAllocator; }
+    MeshManager& meshManager() { return *m_meshManager; }
 
-    // New render frame function
-    void drawFrame();
+    RenderPassHandle renderPass() { return m_mainRenderPassHandle; }
+    AttachmentHandle depthAttachmentHandle() { return m_depthAttachmentHandle; }
 
 private:
     Window& m_window;
@@ -50,14 +68,12 @@ private:
     std::unique_ptr<ShaderModuleManager> m_shaderModuleManager;
     std::unique_ptr<PipelineManager> m_pipelineManager;
     std::unique_ptr<MaterialManager> m_materialManager;
+    std::unique_ptr<DescriptorAllocator> m_descriptorAllocator;
+    std::unique_ptr<MeshManager> m_meshManager;
 
     // Main render pass and resources
     RenderPassHandle m_mainRenderPassHandle;
     AttachmentHandle m_depthAttachmentHandle;
-
-    // Event subscriptions
-    std::unique_ptr<Event<int, int>::Subscription> m_windowResizeSubscription;
-    std::unique_ptr<Event<>::Subscription> m_swapChainRecreationSubscription;
 
     // Helper methods
     void createMainRenderPass();

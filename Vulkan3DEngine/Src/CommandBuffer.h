@@ -17,6 +17,8 @@ public:
 
 	VkCommandBuffer get() const { return m_commandBuffer; }
 
+    bool isRecording() const { return m_isRecording; }
+
     void begin(VkCommandBufferUsageFlags flags = 0);
     void end();
     void submit(
@@ -34,4 +36,6 @@ public:
 private:
     VkCommandBuffer m_commandBuffer = VK_NULL_HANDLE;
     CommandPool* p_pool;
+
+    bool m_isRecording = false;
 };

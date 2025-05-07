@@ -77,14 +77,25 @@ VkDeviceSize AllocatedResource::getAllocatedSize() const {
 
 void AllocatedResource::copyData(const void* data, VkDeviceSize size)
 {
-    if (!isMapped()) {
-        void* mapped = map();
-        memcpy(mapped, data, size);
-        unmap();
+    if (!m_allocator || !m_allocation) {
+        throw std::runtime_error("Cannot copy data: resource is not properly initialized");
     }
-    else {
+
+    if (size > m_allocatedSize) {
+        throw std::runtime_error("Cannot copy data: size exceeds allocated memory");
+    }
+
+    if (isMapped()) {
         throw std::runtime_error("Cannot copy data: resource is already mapped");
     }
+
+    void* mapped = map();
+    if (!mapped) {
+        throw std::runtime_error("Failed to map memory for data copy");
+    }
+
+    memcpy(mapped, data, size);
+    unmap();
 }
 
 void AllocatedResource::destroy() {

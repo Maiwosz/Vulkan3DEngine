@@ -1,10 +1,15 @@
 #include "FrameManager.h"
 
 FrameManager::FrameManager(
+    VulkanContext& vulkancontext,
     SynchronizationResourceManager& syncManager,
     CommandBufferManager& cmdBufferManager,
     uint32_t maxFrames
-) : m_syncManager(syncManager), m_cmdBufferManager(cmdBufferManager), m_maxFrames(maxFrames) {
+) : m_vulkanContext(vulkancontext),
+    m_syncManager(syncManager),
+    m_cmdBufferManager(cmdBufferManager),
+    m_maxFrames(maxFrames)
+{
     m_frames.resize(m_maxFrames);
 
     CommandBufferManager::Configuration graphicsConfig{
@@ -25,11 +30,17 @@ FrameManager::FrameManager(
         // Acquire synchronization resources
         frame.imageAvailable = m_syncManager.acquireSemaphore();
         frame.renderFinished = m_syncManager.acquireSemaphore();
+        frame.transferFinished = m_syncManager.acquireSemaphore();
         frame.inFlightFence = m_syncManager.acquireFence(true); // Fence starts signaled
 
         // Acquire command buffers
         frame.graphicsCommandBuffer = m_cmdBufferManager.acquireBuffer(graphicsConfig);
         frame.transferCommandBuffer = m_cmdBufferManager.acquireBuffer(transferConfig);
+
+        // Begin command buffers
+        frame.graphicsCommandBuffer->begin(VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
+        frame.transferCommandBuffer->begin(VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
+        frame.hasTransferCommands = false;
     }
 }
 
@@ -48,4 +59,10 @@ FrameManager::~FrameManager() {
         m_syncManager.releaseSemaphore(frame.renderFinished);
         m_syncManager.releaseFence(frame.inFlightFence);
     }
+}
+
+void FrameManager::clearCurrentFrameOrders()
+{
+    m_frames[m_currentFrame].renderOrders.clear();
+    m_frames[m_currentFrame].hasTransferCommands = false;
 }

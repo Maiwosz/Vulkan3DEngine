@@ -23,6 +23,7 @@ Renderer::Renderer(Window& window) : m_window(window) {
         m_commandBufferManager = std::make_unique<CommandBufferManager>(*m_vulkanContext);
         m_syncResourceManager = std::make_unique<SynchronizationResourceManager>(m_vulkanContext->logical());
         m_frameManager = std::make_unique<FrameManager>(
+            *m_vulkanContext,
             *m_syncResourceManager,
             *m_commandBufferManager,
             Engine::get().settings().getFramesInFlight()
@@ -77,6 +78,22 @@ Renderer::Renderer(Window& window) : m_window(window) {
         m_materialManager = std::make_unique<MaterialManager>(
             *m_shaderModuleManager,
             *m_samplerManager
+        );
+
+        DescriptorAllocator::PoolConfig allocConfig;
+        allocConfig.initialSets = 512;
+        allocConfig.ratios = {
+            { VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1.0f },
+            { VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 4.0f }
+        };
+        allocConfig.growthFactor = 1.5f;
+
+        m_descriptorAllocator = std::make_unique<DescriptorAllocator>(
+            m_vulkanContext->logical(),
+            allocConfig
+        );
+        m_meshManager = std::make_unique<MeshManager>(
+            *m_vramManager
         );
 
         // Create main render pass
@@ -194,126 +211,6 @@ void Renderer::recreateRenderResources() {
     m_framebufferManager->onResize(m_swapChain->getSwapChainExtent());
 
     // Main framebuffers will be recreated on-demand in drawFrame
-}
-
-void Renderer::drawFrame() {
-    // Wait for previous frame to finish
-	auto inFlightFence = m_frameManager->getInFlightFence();
-
-    vkWaitForFences(
-        m_vulkanContext->logical().get(),
-        1,
-        &inFlightFence,
-        VK_TRUE,
-        UINT64_MAX
-    );
-
-    // Acquire the next image from the swap chain
-    uint32_t imageIndex;
-    VkResult result = m_swapChain->acquireNextImage(
-        m_frameManager->getImageAvailableSemaphore(),
-        &imageIndex
-    );
-
-    // Handle swapchain recreation
-    if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR) {
-        m_swapChain->recreateSwapChain();
-        return;
-    }
-    else if (result != VK_SUCCESS) {
-        throw std::runtime_error("Failed to acquire swap chain image!");
-    }
-
-    // Reset command buffer and fence
-    vkResetFences(m_vulkanContext->logical().get(), 1, &inFlightFence);
-    m_frameManager->getCurrentFrame().graphicsCommandBuffer->reset();
-
-    // Begin command buffer recording
-    m_frameManager->getCurrentFrame().graphicsCommandBuffer->begin(
-        VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT
-    );
-
-    VramHandle swapchainImageHandle = m_swapChain->getImageHandles()[imageIndex];
-
-    // Get or create framebuffer for this swapchain image
-    AttachmentHandle swapchainAttachmentHandle = m_attachmentManager->registerExternalImage(
-        swapchainImageHandle,
-        m_swapChain->getImageFormat(),
-        m_swapChain->getSwapChainExtent(),
-        VK_IMAGE_LAYOUT_UNDEFINED,
-        VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
-        AttachmentType::Color,
-        "SwapchainImage_" + std::to_string(imageIndex)
-    );
-
-    std::vector<AttachmentHandle> framebufferAttachments = {
-        swapchainAttachmentHandle,
-        m_depthAttachmentHandle
-    };
-
-    FrameBufferHandle framebufferHandle = m_framebufferManager->getOrCreate(
-        m_mainRenderPassHandle,
-        framebufferAttachments,
-        m_swapChain->getSwapChainExtent()
-    );
-
-    // Begin render pass
-    VkRenderPassBeginInfo renderPassInfo{};
-    renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
-    renderPassInfo.renderPass = m_renderPassManager->get(m_mainRenderPassHandle);
-    renderPassInfo.framebuffer = m_framebufferManager->get(framebufferHandle);
-    renderPassInfo.renderArea.offset = { 0, 0 };
-    renderPassInfo.renderArea.extent = m_swapChain->getSwapChainExtent();
-
-    // Clear values for attachments
-    std::array<VkClearValue, 2> clearValues{};
-    clearValues[0].color = { {0.0f, 0.0f, 0.2f, 1.0f} }; // Dark blue background
-    clearValues[1].depthStencil = { 1.0f, 0 }; // Depth clear value
-
-    renderPassInfo.clearValueCount = static_cast<uint32_t>(clearValues.size());
-    renderPassInfo.pClearValues = clearValues.data();
-
-    // Begin render pass
-    vkCmdBeginRenderPass(
-        m_frameManager->getCurrentFrame().graphicsCommandBuffer->get(),
-        &renderPassInfo,
-        VK_SUBPASS_CONTENTS_INLINE
-    );
-
-    // TODO: Bind pipeline, vertex buffers, index buffers, descriptor sets
-    // TODO: Draw calls
-
-    // End render pass
-    vkCmdEndRenderPass(m_frameManager->getCurrentFrame().graphicsCommandBuffer->get());
-
-    // End command buffer recording
-    m_frameManager->getCurrentFrame().graphicsCommandBuffer->end();
-
-    // Submit command buffer
-    std::vector<VkSemaphore> waitSemaphores = { m_frameManager->getImageAvailableSemaphore() };
-    std::vector<VkPipelineStageFlags> waitStages = { VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT };
-    std::vector<VkSemaphore> signalSemaphores = { m_frameManager->getRenderFinishedSemaphore() };
-
-    m_frameManager->getCurrentFrame().graphicsCommandBuffer->submit(
-        m_vulkanContext->logical().getQueue(LogicalDevice::QueueType::Graphics),
-        waitSemaphores,
-        waitStages,
-        signalSemaphores,
-        m_frameManager->getInFlightFence()
-    );
-
-    // Present the image to the swapchain
-    result = m_swapChain->presentImage(imageIndex, m_frameManager->getRenderFinishedSemaphore());
-
-    if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR) {
-        m_swapChain->recreateSwapChain();
-    }
-    else if (result != VK_SUCCESS) {
-        throw std::runtime_error("Failed to present swap chain image!");
-    }
-
-    // Advance to the next frame
-    m_frameManager->advanceFrame();
 }
 
 void Renderer::handleWindowResize(int width, int height) {

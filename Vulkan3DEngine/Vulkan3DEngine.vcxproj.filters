@@ -191,6 +191,24 @@
     <ClCompile Include="Src\RenderSystem.cpp">
       <Filter>Engine\RenderSystem</Filter>
     </ClCompile>
+    <ClCompile Include="Src\UniformBufferStage.cpp">
+      <Filter>Engine\RenderSystem\ProcessingStages\UniformBufferStage</Filter>
+    </ClCompile>
+    <ClCompile Include="Src\DescriptorSetStage.cpp">
+      <Filter>Engine\RenderSystem\ProcessingStages\DescriptorSetStage</Filter>
+    </ClCompile>
+    <ClCompile Include="Src\PipelineAssignmentStage.cpp">
+      <Filter>Engine\RenderSystem\ProcessingStages\PipelineAssignmentStage</Filter>
+    </ClCompile>
+    <ClCompile Include="Src\MeshManager.cpp">
+      <Filter>Engine\Renderer\MeshManager</Filter>
+    </ClCompile>
+    <ClCompile Include="Src\RenderStage.cpp">
+      <Filter>Engine\RenderSystem\ProcessingStages\RenderStage</Filter>
+    </ClCompile>
+    <ClCompile Include="Src\TransferManager.cpp">
+      <Filter>Engine\Renderer\VramManager\TransferManager</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Src\Prerequisites.h" />
@@ -204,9 +222,6 @@
       <Filter>Engine\ThreadPool</Filter>
     </ClInclude>
     <ClInclude Include="Src\InputSystem.h">
-      <Filter>Engine\InputSystem</Filter>
-    </ClInclude>
-    <ClInclude Include="Src\InputListener.h">
       <Filter>Engine\InputSystem</Filter>
     </ClInclude>
     <ClInclude Include="Src\Buffer.h">
@@ -320,14 +335,8 @@
     <ClInclude Include="Src\Surface.h">
       <Filter>Engine\Renderer\VulkanContext\Surface</Filter>
     </ClInclude>
-    <ClInclude Include="Src\SceneData.h">
-      <Filter>Engine\Renderer</Filter>
-    </ClInclude>
     <ClInclude Include="Src\AssetHandle.h">
       <Filter>Engine\AssetSystem\AssetManager</Filter>
-    </ClInclude>
-    <ClInclude Include="Src\VramMesh.h">
-      <Filter>Engine\AssetSystem</Filter>
     </ClInclude>
     <ClInclude Include="Src\GraphicsTypes.h">
       <Filter>Engine\Renderer\VramManager</Filter>
@@ -452,6 +461,36 @@
     </ClInclude>
     <ClInclude Include="Src\ImageSamplerUtils.h">
       <Filter>Engine\Renderer\ImageSamplerManager</Filter>
+    </ClInclude>
+    <ClInclude Include="Src\UniformBufferStage.h">
+      <Filter>Engine\RenderSystem\ProcessingStages\UniformBufferStage</Filter>
+    </ClInclude>
+    <ClInclude Include="Src\DescriptorSetStage.h">
+      <Filter>Engine\RenderSystem\ProcessingStages\DescriptorSetStage</Filter>
+    </ClInclude>
+    <ClInclude Include="Src\PipelineAssignmentStage.h">
+      <Filter>Engine\RenderSystem\ProcessingStages\PipelineAssignmentStage</Filter>
+    </ClInclude>
+    <ClInclude Include="Src\MeshManager.h">
+      <Filter>Engine\Renderer\MeshManager</Filter>
+    </ClInclude>
+    <ClInclude Include="Src\MeshHandle.h">
+      <Filter>Engine\Renderer\MeshManager</Filter>
+    </ClInclude>
+    <ClInclude Include="Src\Mesh.h">
+      <Filter>Engine\Renderer\MeshManager</Filter>
+    </ClInclude>
+    <ClInclude Include="Src\RenderStage.h">
+      <Filter>Engine\RenderSystem\ProcessingStages\RenderStage</Filter>
+    </ClInclude>
+    <ClInclude Include="Src\UniformBufferHandle.h">
+      <Filter>Engine\Renderer\UniformBufferManager</Filter>
+    </ClInclude>
+    <ClInclude Include="Src\PipelineHandle.h">
+      <Filter>Engine\Renderer\PipelineManager</Filter>
+    </ClInclude>
+    <ClInclude Include="Src\TransferManager.h">
+      <Filter>Engine\Renderer\VramManager\TransferManager</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
@@ -651,6 +690,24 @@
     </Filter>
     <Filter Include="Engine\Scene\EntityComponentSystem\SystemManager\Systems\MeshRenderSystem">
       <UniqueIdentifier>{7dee0d0c-ee75-4b87-83e2-e063d2ac82f5}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Engine\RenderSystem\ProcessingStages\UniformBufferStage">
+      <UniqueIdentifier>{c32b13b8-ee30-4ce9-85e1-b193a41c7d58}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Engine\RenderSystem\ProcessingStages\DescriptorSetStage">
+      <UniqueIdentifier>{714cd07e-72fc-47ec-a370-f9fab97fc34c}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Engine\RenderSystem\ProcessingStages\PipelineAssignmentStage">
+      <UniqueIdentifier>{e1bd4975-38e0-4411-81ce-725805ea8af8}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Engine\Renderer\MeshManager">
+      <UniqueIdentifier>{5fb181cf-8c87-4674-a810-939b4b38ad82}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Engine\RenderSystem\ProcessingStages\RenderStage">
+      <UniqueIdentifier>{99aaa877-e779-48c1-a547-ee837d07b171}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Engine\Renderer\VramManager\TransferManager">
+      <UniqueIdentifier>{6423c72c-d74d-44a4-884e-81e849d45c75}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
 </Project>

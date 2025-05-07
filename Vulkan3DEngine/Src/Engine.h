@@ -57,5 +57,4 @@ private:
     float m_totalTime = 0.0f;
     uint32_t m_frameCount = 0;
 
-    std::unique_ptr<Event<Settings::LogLevel>::Subscription> m_logLevelChangedSubscription;
 };

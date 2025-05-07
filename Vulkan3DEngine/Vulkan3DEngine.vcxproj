@@ -122,7 +122,7 @@
     <ClCompile>
       <WarningLevel>Level3</WarningLevel>
       <SDLCheck>true</SDLCheck>
-      <PreprocessorDefinitions>GLM_ENABLE_EXPERIMENTAL;NOMINMAX;WIN32_LEAN_AND_MEAN;_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>SPDLOG_ACTIVE_LEVEL=TRACE;GLM_ENABLE_EXPERIMENTAL;NOMINMAX;WIN32_LEAN_AND_MEAN;_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <AdditionalIncludeDirectories>$(SolutionDir)Libs\VulkanSDK\Include;$(SolutionDir)Libs\glfw\include;$(SolutionDir)Libs\nlohmann;$(SolutionDir)Libs\imgui;$(SolutionDir)Libs\spdlog;$(SolutionDir)AssetLib\;$(SolutionDir)ConverterLib\;$(SolutionDir)ShaderLib\</AdditionalIncludeDirectories>
       <LanguageStandard>stdcpp20</LanguageStandard>
@@ -144,7 +144,7 @@
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <SDLCheck>true</SDLCheck>
-      <PreprocessorDefinitions>GLM_ENABLE_EXPERIMENTAL;NOMINMAX;WIN32_LEAN_AND_MEAN;NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>SPDLOG_ACTIVE_LEVEL=TRACE;GLM_ENABLE_EXPERIMENTAL;NOMINMAX;WIN32_LEAN_AND_MEAN;NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <AdditionalIncludeDirectories>$(SolutionDir)Libs\VulkanSDK\Include;$(SolutionDir)Libs\glfw\include;$(SolutionDir)Libs\nlohmann;$(SolutionDir)Libs\imgui;$(SolutionDir)Libs\spdlog;$(SolutionDir)AssetLib\;$(SolutionDir)ConverterLib\;$(SolutionDir)ShaderLib\</AdditionalIncludeDirectories>
       <LanguageStandard>stdcpp20</LanguageStandard>
@@ -170,6 +170,10 @@
     <ClCompile Include="..\Libs\imgui\imgui_impl_vulkan.cpp" />
     <ClCompile Include="..\Libs\imgui\imgui_tables.cpp" />
     <ClCompile Include="..\Libs\imgui\imgui_widgets.cpp" />
+    <ClCompile Include="Src\RenderStage.cpp" />
+    <ClCompile Include="Src\MeshManager.cpp" />
+    <ClCompile Include="Src\PipelineAssignmentStage.cpp" />
+    <ClCompile Include="Src\DescriptorSetStage.cpp" />
     <ClCompile Include="Src\RenderSystem.cpp" />
     <ClCompile Include="Src\PipelineLayoutManager.cpp" />
     <ClCompile Include="Src\PipelineConfig.cpp" />
@@ -227,6 +231,8 @@
     <ClCompile Include="Src\StagingBufferManager.cpp" />
     <ClCompile Include="Src\Inits.cpp" />
     <ClCompile Include="Src\UniformBufferManager.cpp" />
+    <ClCompile Include="Src\UniformBufferStage.cpp" />
+    <ClCompile Include="Src\TransferManager.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\Libs\imgui\imconfig.h" />
@@ -237,6 +243,12 @@
     <ClInclude Include="..\Libs\imgui\imstb_rectpack.h" />
     <ClInclude Include="..\Libs\imgui\imstb_textedit.h" />
     <ClInclude Include="..\Libs\imgui\imstb_truetype.h" />
+    <ClInclude Include="Src\PipelineHandle.h" />
+    <ClInclude Include="Src\RenderStage.h" />
+    <ClInclude Include="Src\Mesh.h" />
+    <ClInclude Include="Src\MeshManager.h" />
+    <ClInclude Include="Src\PipelineAssignmentStage.h" />
+    <ClInclude Include="Src\DescriptorSetStage.h" />
     <ClInclude Include="Src\ImageSamplerUtils.h" />
     <ClInclude Include="Src\ShaderModuleHandle.h" />
     <ClInclude Include="Src\RenderSystem.h" />
@@ -267,7 +279,6 @@
     <ClInclude Include="Src\FrameBufferManager.h" />
     <ClInclude Include="Src\AttachmentManager.h" />
     <ClInclude Include="Src\GraphicsTypes.h" />
-    <ClInclude Include="Src\SceneData.h" />
     <ClInclude Include="Src\CommandPool.h" />
     <ClInclude Include="Src\LogicalDevice.h" />
     <ClInclude Include="Src\PhysicalDevice.h" />
@@ -295,7 +306,6 @@
     <ClInclude Include="Src\Buffer.h" />
     <ClInclude Include="Src\Engine.h" />
     <ClInclude Include="Src\Image.h" />
-    <ClInclude Include="Src\InputListener.h" />
     <ClInclude Include="Src\InputSystem.h" />
     <ClInclude Include="Src\Prerequisites.h" />
     <ClInclude Include="Src\Renderer.h" />
@@ -312,11 +322,14 @@
     <ClInclude Include="Src\VulkanUtilities.h" />
     <ClInclude Include="Src\VulkanContext.h" />
     <ClInclude Include="Src\Surface.h" />
-    <ClInclude Include="Src\VramMesh.h" />
+    <ClInclude Include="Src\MeshHandle.h" />
     <ClInclude Include="Src\AllocatedResource.h" />
     <ClInclude Include="Src\SynchronizationResourceManager.h" />
     <ClInclude Include="Src\StagingBufferManager.h" />
     <ClInclude Include="Src\UniformBufferManager.h" />
+    <ClInclude Include="Src\UniformBufferStage.h" />
+    <ClInclude Include="Src\UniformBufferHandle.h" />
+    <ClInclude Include="Src\TransferManager.h" />
   </ItemGroup>
   <ItemGroup>
     <None Include="..\Libs\imgui\.gitattributes" />

@@ -18,7 +18,7 @@ public:
         float growthFactor = 1.5f;
     };
 
-    DescriptorAllocator(LogicalDevice& device, const PoolConfig& config);
+    DescriptorAllocator(const LogicalDevice& device, const PoolConfig& config);
     void reset();
     void destroy();
 
@@ -33,5 +33,5 @@ private:
     std::vector<VkDescriptorPool> m_readyPools;
     PoolConfig m_config;
     uint32_t m_nextSetCount;
-    LogicalDevice& m_device;
+    const LogicalDevice& m_device;
 };

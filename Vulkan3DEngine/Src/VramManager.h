@@ -11,6 +11,7 @@
 #include <unordered_map>
 #include "GraphicsTypes.h"
 #include "StagingBufferManager.h"
+#include "TransferManager.h"
 
 class VramManager {
 public:
@@ -65,6 +66,8 @@ public:
     float getVramUsagePercentage() const;
 
     void reclaimStagingBuffers() { m_stagingManager.reclaimBuffers(); }
+    TransferManager& transferManager() { return m_transferManager; }
+
     VramHandle registerExternalImage(
         VkImage image,
         VkFormat format,
@@ -73,16 +76,15 @@ public:
         VkSampleCountFlagBits samples = VK_SAMPLE_COUNT_1_BIT);
 
 private:
-    void recordBufferUpload(CommandBuffer& commandBuffer, Buffer& dst, const void* data, VkDeviceSize size);
-    void recordImageUpload(CommandBuffer& commandBuffer, Image& dst, const void* data, const VkImageCreateInfo& imageInfo);
-
     VmaAllocator m_allocator = VK_NULL_HANDLE;
+    StagingBufferManager m_stagingManager;
+    TransferManager m_transferManager;
     
     VulkanContext& m_context;
     FrameManager& m_frameManager;
     CommandBufferManager& m_cmdBufferManager;
     SynchronizationResourceManager& m_syncResourceManager;
     std::unordered_map<uint64_t, Resource> m_resources;
+    
     uint64_t m_nextId = 1;
-    StagingBufferManager m_stagingManager;
 };

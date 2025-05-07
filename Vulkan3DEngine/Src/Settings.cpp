@@ -74,48 +74,15 @@ Settings::Settings()
     m_maxAnisotropy(1.0f),
     m_anisotropySupported(false)
 {
-    initializeEvents();
+
 }
 
-void Settings::initializeEvents() {
-    // Inicjalizacja wszystkich eventów
-    m_logLevelChangedEvent = Event<LogLevel>::create();
-    m_windowModeChangedEvent = Event<WindowMode>::create();
-    m_resolutionChangedEvent = Event<Resolution>::create();
-    m_vsyncChangedEvent = Event<bool>::create();
-    m_textureFilteringChangedEvent = Event<TextureFiltering>::create();
-    m_msaaChangedEvent = Event<MsaaSampleCount>::create();
-    m_framesInFlightChangedEvent = Event<uint32_t>::create();
-    m_mipmapModeChangedEvent = Event<MipmapMode>::create();
-    m_anisotropyLevelChangedEvent = Event<AnisotropyLevel>::create();
-
-    // Dodanie obsługi wyjątków dla wszystkich eventów
-    auto exceptionHandler = [](std::exception_ptr eptr) {
-        try {
-            if (eptr) std::rethrow_exception(eptr);
-        }
-        catch (const std::exception& e) {
-            SPDLOG_ERROR("Exception in settings event callback: {}", e.what());
-        }
-    };
-
-    m_logLevelChangedEvent->set_exception_handler(exceptionHandler);
-    m_windowModeChangedEvent->set_exception_handler(exceptionHandler);
-    m_resolutionChangedEvent->set_exception_handler(exceptionHandler);
-    m_vsyncChangedEvent->set_exception_handler(exceptionHandler);
-    m_textureFilteringChangedEvent->set_exception_handler(exceptionHandler);
-    m_msaaChangedEvent->set_exception_handler(exceptionHandler);
-    m_framesInFlightChangedEvent->set_exception_handler(exceptionHandler);
-    m_mipmapModeChangedEvent->set_exception_handler(exceptionHandler);
-    m_anisotropyLevelChangedEvent->set_exception_handler(exceptionHandler);
-}
 
 void Settings::setLogLevel(LogLevel level) {
     if (m_logLevel != level) {
         SPDLOG_INFO("Changing log level from {} to {}",
             LOG_LEVEL_MAP.at(m_logLevel), LOG_LEVEL_MAP.at(level));
         m_logLevel = level;
-        m_logLevelChangedEvent->invoke(level);
     }
 }
 
@@ -138,7 +105,6 @@ void Settings::setWindowMode(WindowMode mode) {
         SPDLOG_INFO("Window mode changed: {} → {}",
             WINDOW_MODE_MAP.at(m_windowMode), WINDOW_MODE_MAP.at(mode));
         m_windowMode = mode;
-        m_windowModeChangedEvent->invoke(mode);
     }
 }
 
@@ -149,7 +115,6 @@ void Settings::setResolution(Resolution resolution) {
         SPDLOG_INFO("Changing resolution from {}x{} to {}x{}",
             oldRes.width, oldRes.height, newRes.width, newRes.height);
         m_resolution = resolution;
-        m_resolutionChangedEvent->invoke(resolution);
     }
 }
 
@@ -158,7 +123,6 @@ void Settings::setVsyncEnabled(bool enabled) {
         SPDLOG_INFO("Changing VSync from {} to {}",
             m_vsyncEnabled ? "enabled" : "disabled", enabled ? "enabled" : "disabled");
         m_vsyncEnabled = enabled;
-        m_vsyncChangedEvent->invoke(enabled);
     }
 }
 
@@ -173,7 +137,6 @@ void Settings::setTextureFiltering(TextureFiltering filtering) {
         SPDLOG_INFO("Changing texture filtering from {} to {}",
             TEXTURE_FILTERING_MAP.at(m_textureFiltering), TEXTURE_FILTERING_MAP.at(filtering));
         m_textureFiltering = filtering;
-        m_textureFilteringChangedEvent->invoke(filtering);
     }
 }
 
@@ -190,7 +153,6 @@ void Settings::setMsaaSamples(MsaaSampleCount samples) {
         SPDLOG_INFO("Changing MSAA samples from {}x to {}x",
             MSAA_SAMPLE_MAP.at(m_msaaSamples), MSAA_SAMPLE_MAP.at(samples));
         m_msaaSamples = samples;
-        m_msaaChangedEvent->invoke(samples);
     }
 }
 
@@ -209,7 +171,6 @@ void Settings::setFramesInFlight(uint32_t count) {
     if (m_framesInFlight != count) {
         SPDLOG_INFO("Changing frames in flight from {} to {}", m_framesInFlight, count);
         m_framesInFlight = count;
-        m_framesInFlightChangedEvent->invoke(count);
     }
 }
 
@@ -218,7 +179,6 @@ void Settings::setMipmapMode(MipmapMode mode) {
         SPDLOG_INFO("Changing mipmap mode from {} to {}",
             MIPMAP_MODE_MAP.at(m_mipmapMode), MIPMAP_MODE_MAP.at(mode));
         m_mipmapMode = mode;
-        m_mipmapModeChangedEvent->invoke(mode);
     }
 }
 
@@ -243,7 +203,6 @@ void Settings::setAnisotropyLevel(AnisotropyLevel level) {
         SPDLOG_INFO("Changing anisotropy level from {}x to {}x",
             ANISOTROPY_LEVEL_MAP.at(m_anisotropyLevel), ANISOTROPY_LEVEL_MAP.at(level));
         m_anisotropyLevel = level;
-        m_anisotropyLevelChangedEvent->invoke(level);
     }
 }
 

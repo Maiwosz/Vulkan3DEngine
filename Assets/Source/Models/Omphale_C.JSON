@@ -1,7 +1,0 @@
-{
-  "texture": "Omphale_C_Omphale_O_Material_u1_v1.png",
-  "mesh": "Omphale_C.obj",
-  "positionOffset": [ 0.0, 0.0, 0.0 ],
-  "rotationOffset": [ 0, 0, 0 ],
-  "scaleOffset": 0.3
-}

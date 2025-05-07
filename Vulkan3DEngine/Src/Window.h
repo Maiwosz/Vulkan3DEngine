@@ -6,7 +6,7 @@
 #include <string>
 #include <memory>
 
-class Window
+class Window : public std::enable_shared_from_this<Window>
 {
 public:
     explicit Window(const char* title, Settings::WindowMode initialMode, Settings::Resolution initialResolution);
@@ -15,16 +15,30 @@ public:
     Window(const Window&) = delete;
     Window& operator=(const Window&) = delete;
 
+    // Add new initialization method to safely use shared_from_this()
+    void initializeSubscriptions();
+
     GLFWwindow* get() const { return m_window; }
     VkExtent2D extent() const;
     void pollEvents() const { glfwPollEvents(); }
 
     bool shouldClose() const { return glfwWindowShouldClose(m_window); }
 
-    auto onResize(typename Event<int, int>::Callback callback) { return m_resizeEvent->subscribe(callback); }
-    auto onFocus(typename Event<bool>::Callback callback) { return m_focusEvent->subscribe(callback); }
-    auto onMinimize(typename Event<bool>::Callback callback) { return m_minimizeEvent->subscribe(callback); }
-    auto onClose(typename Event<>::Callback callback) { return m_closeEvent->subscribe(callback); }
+    typename Event<int, int>::Subscription onResize(typename Event<int, int>::Callback callback) {
+        return m_resizeEvent->subscribe(std::move(callback));
+    }
+
+    typename Event<bool>::Subscription onFocus(typename Event<bool>::Callback callback) {
+        return m_focusEvent->subscribe(std::move(callback));
+    }
+
+    typename Event<bool>::Subscription onMinimize(typename Event<bool>::Callback callback) {
+        return m_minimizeEvent->subscribe(std::move(callback));
+    }
+
+    typename Event<>::Subscription onClose(typename Event<>::Callback callback) {
+        return m_closeEvent->subscribe(std::move(callback));
+    }
 
 private:
     void initGLFW();
@@ -46,7 +60,4 @@ private:
     std::shared_ptr<Event<bool>> m_focusEvent;
     std::shared_ptr<Event<bool>> m_minimizeEvent;
     std::shared_ptr<Event<>> m_closeEvent;
-
-    std::unique_ptr<Event<Settings::WindowMode>::Subscription> m_windowModeSubscription;
-    std::unique_ptr<Event<Settings::Resolution>::Subscription> m_resolutionSubscription;
 };

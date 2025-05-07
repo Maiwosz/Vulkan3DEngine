@@ -1,5 +1,5 @@
 {
-  "shader": "phong",
+  "shader": "Phong",
   "parameters": {
     "shininess": {
       "descriptorType": "UniformBuffer",
@@ -23,7 +23,7 @@
     },
     "albedo": {
       "descriptorType": "CombinedImageSampler",
-      "path": "textures/default_albedo.png",
+      "path": "Flora_C_Flora_O_Material_u1_v1",
       "sampler": {
         "magFilter": "Linear",
         "minFilter": "Linear",

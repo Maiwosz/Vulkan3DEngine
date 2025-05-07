@@ -1,193 +1,169 @@
 #pragma once
-/**
- * @file Event.h
- * @brief Thread-safe implementacja wzorca obserwatora (observer pattern) w C++.
- *
- * Klasa Event umoøliwia rejestrowanie, powiadamianie i zarzπdzanie funkcjami zwrotnymi (callbacks),
- * ktÛre sπ wywo≥ywane przy wystπpieniu okreúlonego zdarzenia. Wspiera parametry dowolnego typu
- * poprzez szablon variadic.
- *
- * Podstawowe funkcjonalnoúci:
- * - Tworzenie zdarzeÒ z dowolnymi parametrami za pomocπ szablonu
- * - Bezpieczne subskrybowanie i anulowanie subskrypcji
- * - Subskrypcje z powiπzanym w≥aúcicielem (automatyczne czyszczenie po zniszczeniu w≥aúciciela)
- * - Obs≥uga wyjπtkÛw w funkcjach zwrotnych
- * - Thread-safety dziÍki mechanizmom synchronizacji
- *
- * Przyk≥ad uøycia:
- *
- *   // Utworzenie zdarzenia z parametrami int i string
- *   auto event = Event<int, std::string>::create();
- *
- *   // Przypisanie funkcji obs≥ugi wyjπtkÛw
- *   event->set_exception_handler([](std::exception_ptr ex) {
- *       try {
- *           if (ex) std::rethrow_exception(ex);
- *       } catch (const std::exception& e) {
- *           std::cerr << "Caught exception: " << e.what() << std::endl;
- *       }
- *   });
- *
- *   // Subskrypcja 1: Z rÍcznym zarzπdzaniem czasem øycia
- *   auto subscription = event->subscribe([](int id, const std::string& msg) {
- *       std::cout << "ID: " << id << ", Message: " << msg << std::endl;
- *   });
- *
- *   // Subskrypcja 2: Z automatycznym zarzπdzaniem przez powiπzanego w≥aúciciela
- *   auto owner = std::make_shared<int>(42);
- *   event->subscribeWithOwner([](int id, const std::string& msg) {
- *       std::cout << "Owner subscription: " << id << ", " << msg << std::endl;
- *   }, owner);
- *
- *   // Wywo≥anie wszystkich zarejestrowanych funkcji
- *   event->invoke(1, "Hello Event");
- *
- *   // Anulowanie subskrypcji
- *   subscription.unsubscribe();
- *   // lub automatycznie przy zniszczeniu obiektu subscription
- */
+
 #include <functional>
-#include <list>
-#include <map>
 #include <memory>
 #include <mutex>
-#include <exception>
+#include <vector>
+#include <algorithm>
+#include <atomic>
+#include <unordered_map>
 
 template <typename... Args>
 class Event : public std::enable_shared_from_this<Event<Args...>> {
 public:
     using Callback = std::function<void(Args...)>;
+    using CallbackId = uint64_t;
 
     class Subscription {
     public:
         Subscription() = default;
 
-        Subscription(std::weak_ptr<Event> event,
-            typename std::list<std::pair<uint64_t, Callback>>::iterator iter,
-            uint64_t id)
-            : event_(std::move(event)), iter_(iter), id_(id), valid_(true) {
+        Subscription(std::shared_ptr<Event<Args...>> event, CallbackId id)
+            : m_event(std::move(event)), m_id(id), m_valid(true) {
         }
 
         ~Subscription() {
             unsubscribe();
         }
 
-        // Copying is disabled
+        // Kopiowanie zabronione
         Subscription(const Subscription&) = delete;
         Subscription& operator=(const Subscription&) = delete;
 
-        // Move operations
+        // Przenoszenie dozwolone
         Subscription(Subscription&& other) noexcept
-            : event_(std::move(other.event_)), iter_(other.iter_),
-            id_(other.id_), valid_(other.valid_) {
-            other.valid_ = false;
+            : m_event(std::move(other.m_event)), m_id(other.m_id), m_valid(other.m_valid) {
+            other.m_valid = false;
         }
 
         Subscription& operator=(Subscription&& other) noexcept {
             if (this != &other) {
                 unsubscribe();
-                event_ = std::move(other.event_);
-                iter_ = other.iter_;
-                id_ = other.id_;
-                valid_ = other.valid_;
-                other.valid_ = false;
+                m_event = std::move(other.m_event);
+                m_id = other.m_id;
+                m_valid = other.m_valid;
+                other.m_valid = false;
             }
             return *this;
         }
 
         void unsubscribe() {
-            if (valid_) {
-                if (auto e = event_.lock()) {
-                    std::lock_guard<std::mutex> lock(e->m_mutex);
-                    e->remove(id_);
-                }
-                valid_ = false;
+            if (m_valid && m_event) {
+                m_event->unsubscribe(m_id);
+                m_valid = false;
             }
         }
 
-        bool isValid() const { return valid_; }
+        bool isValid() const { return m_valid; }
 
     private:
-        std::weak_ptr<Event> event_;
-        typename std::list<std::pair<uint64_t, Callback>>::iterator iter_;
-        uint64_t id_;
-        bool valid_ = false;
+        std::shared_ptr<Event<Args...>> m_event;
+        CallbackId m_id = 0;
+        bool m_valid = false;
     };
 
-    static std::shared_ptr<Event> create() {
-        return std::shared_ptr<Event>(new Event());
+    Event() = default;
+    ~Event() = default;
+
+    static std::shared_ptr<Event<Args...>> create() {
+        return std::make_shared<Event<Args...>>();
     }
 
     [[nodiscard]] Subscription subscribe(Callback callback) {
         std::lock_guard<std::mutex> lock(m_mutex);
-        uint64_t id = next_id_++;
-        m_callbacks.emplace_back(id, std::move(callback));
-        return Subscription(this->weak_from_this(), --m_callbacks.end(), id);
+        CallbackId id = m_nextId++;
+        m_callbacks.push_back({ id, std::move(callback) });
+        return Subscription(this->shared_from_this(), id);
     }
 
     void subscribeWithOwner(Callback callback, std::shared_ptr<void> owner) {
         std::lock_guard<std::mutex> lock(m_mutex);
-        uint64_t id = next_id_++;
-        m_callbacks.emplace_back(id, std::move(callback));
-        m_owners[id] = std::weak_ptr<void>(owner);
+        CallbackId id = m_nextId++;
+        m_callbacks.push_back({ id, std::move(callback) });
+        m_owners[id] = std::move(owner);
     }
 
-    void invoke(Args... args) {
-        std::vector<std::pair<uint64_t, Callback>> local_copy;
-        {
-            std::lock_guard<std::mutex> lock(m_mutex);
-
-            // Remove expired owners
-            auto ownerIt = m_owners.begin();
-            while (ownerIt != m_owners.end()) {
-                if (ownerIt->second.expired()) {
-                    remove(ownerIt->first);
-                    ownerIt = m_owners.erase(ownerIt);
-                }
-                else {
-                    ++ownerIt;
-                }
-            }
-
-            // Copy callbacks to avoid holding the lock during invocation
-            local_copy.reserve(m_callbacks.size());
-            for (const auto& cb_pair : m_callbacks) {
-                local_copy.push_back(cb_pair);
-            }
-        }
-
-        // Invoke callbacks
-        for (const auto& [id, cb] : local_copy) {
-            try {
-                cb(args...);
-            }
-            catch (...) {
-                if (m_exception_handler) {
-                    m_exception_handler(std::current_exception());
-                }
-            }
-        }
-    }
-
-    void set_exception_handler(std::function<void(std::exception_ptr)> handler) {
+    void unsubscribe(CallbackId id) {
         std::lock_guard<std::mutex> lock(m_mutex);
-        m_exception_handler = std::move(handler);
-    }
-
-private:
-    Event() = default;
-
-    void remove(uint64_t id) {
         auto it = std::find_if(m_callbacks.begin(), m_callbacks.end(),
             [id](const auto& pair) { return pair.first == id; });
         if (it != m_callbacks.end()) {
             m_callbacks.erase(it);
         }
+
+        // Usu≈Ñ tak≈ºe z mapy w≈Ça≈õcicieli, je≈õli istnieje
+        m_owners.erase(id);
     }
 
-    std::list<std::pair<uint64_t, Callback>> m_callbacks;
-    std::map<uint64_t, std::weak_ptr<void>> m_owners; // Requires #include <map>
-    std::mutex m_mutex;
-    std::function<void(std::exception_ptr)> m_exception_handler;
-    uint64_t next_id_ = 1;
+    void invoke(Args... args) {
+        // Kopia callback√≥w, aby uniknƒÖƒá blokowania mutexu podczas wywo≈Ça≈Ñ
+        std::vector<std::pair<CallbackId, Callback>> callbacksCopy;
+
+        {
+            std::lock_guard<std::mutex> lock(m_mutex);
+
+            // Usu≈Ñ callbacki, kt√≥rych w≈Ça≈õciciele zostali zniszczeni
+            for (auto it = m_owners.begin(); it != m_owners.end();) {
+                if (it->second.expired()) {
+                    // Znajd≈∫ i usu≈Ñ odpowiedni callback
+                    auto cbIt = std::find_if(m_callbacks.begin(), m_callbacks.end(),
+                        [id = it->first](const auto& pair) { return pair.first == id; });
+                    if (cbIt != m_callbacks.end()) {
+                        m_callbacks.erase(cbIt);
+                    }
+                    it = m_owners.erase(it);
+                }
+                else {
+                    ++it;
+                }
+            }
+
+            // Kopiuj aktualne callbacki
+            callbacksCopy = m_callbacks;
+        }
+
+        // Wywo≈Çuj callbacki bez blokowania mutexu
+        for (const auto& [id, callback] : callbacksCopy) {
+            try {
+                callback(args...);
+            }
+            catch (const std::exception& e) {
+                if (m_exceptionHandler) {
+                    m_exceptionHandler(std::current_exception());
+                }
+            }
+        }
+    }
+
+    void setExceptionHandler(std::function<void(std::exception_ptr)> handler) {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        m_exceptionHandler = std::move(handler);
+    }
+
+    void clear() {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        m_callbacks.clear();
+        m_owners.clear();
+    }
+
+    size_t subscriberCount() const {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        return m_callbacks.size();
+    }
+
+private:
+    // Wektor par (id, callback) - u≈ºycie wektora zamiast listy dla lepszej wydajno≈õci cache
+    std::vector<std::pair<CallbackId, Callback>> m_callbacks;
+
+    // Mapa id -> w≈Ça≈õciciel
+    std::unordered_map<CallbackId, std::weak_ptr<void>> m_owners;
+
+    // Handler wyjƒÖtk√≥w
+    std::function<void(std::exception_ptr)> m_exceptionHandler;
+
+    // Mutex chroniƒÖcy wewnƒôtrzne struktury danych
+    mutable std::mutex m_mutex;
+
+    // Licznik dla przydzielania unikalnych identyfikator√≥w
+    std::atomic<CallbackId> m_nextId{ 1 };
 };

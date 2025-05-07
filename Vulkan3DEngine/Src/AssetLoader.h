@@ -16,6 +16,6 @@ public:
 private:
     std::string m_basePath;
 
-    std::vector<uint8_t> loadFile(const std::string& baseName, AssetType type) const;
+    std::vector<uint8_t> loadFile(const std::string& path) const;
     std::string findFile(const std::string& baseName, AssetType type) const;
 };

@@ -11,29 +11,10 @@ SwapChain::SwapChain(
     r_surface(surface),
     r_physicalDevice(physicalDevice),
     r_logicalDevice(logicalDevice),
-    r_vramManager(vramManager),
-    m_swapChainRecreatedEvent(Event<>::create())
+    r_vramManager(vramManager)
 {
     try {
         Settings& settings = Engine::get().settings();
-
-        m_vsyncChangedSubscription = std::make_unique<Event<bool>::Subscription>(
-            settings.onVsyncChanged()->subscribe([this](bool enabled) {
-                this->onVsyncChanged(enabled);
-                })
-        );
-
-        m_framesInFlightChangedSubscription = std::make_unique<Event<uint32_t>::Subscription>(
-            settings.onFramesInFlightChanged()->subscribe([this](uint32_t count) {
-                this->onFramesInFlightChanged(count);
-                })
-        );
-
-        m_msaaChangedSubscription = std::make_unique<Event<Settings::MsaaSampleCount>::Subscription>(
-            settings.onMsaaChanged()->subscribe([this](Settings::MsaaSampleCount sampleCount) {
-                this->onMsaaChanged(sampleCount);
-                })
-        );
 
         init();
         fmt::print("SwapChain created successfully\n");
@@ -202,9 +183,6 @@ void SwapChain::recreateSwapChain()
     try {
         init();
         fmt::print("Swap chain recreated successfully\n");
-
-        // Notify listeners that the swap chain has been recreated
-        m_swapChainRecreatedEvent->invoke();
     }
     catch (const std::exception& e) {
         fmt::print("Error during SwapChain recreation: {}\n", e.what());
@@ -270,21 +248,4 @@ void SwapChain::registerImagesWithVramManager() {
             VK_SAMPLE_COUNT_1_BIT           // samples
         );
     }
-}
-
-// Settings event handlers
-
-void SwapChain::onVsyncChanged(bool enabled) {
-    fmt::print("VSync setting changed to: {}\n", enabled ? "enabled" : "disabled");
-    recreateSwapChain();
-}
-
-void SwapChain::onFramesInFlightChanged(uint32_t count) {
-    fmt::print("Frames in flight changed to: {}\n", count);
-    recreateSwapChain();
-}
-
-void SwapChain::onMsaaChanged(Settings::MsaaSampleCount sampleCount) {
-    fmt::print("MSAA sample count changed to: {}\n", Engine::get().settings().getCurrentMsaaSampleCount());
-    recreateSwapChain();
 }

@@ -1,7 +1,0 @@
-{
-	"texture": "floor.png",
-    "mesh": "sphere.obj",
-	"positionOffset": [ 0.0, 0.0, 0.8 ],
-	"rotationOffset": [ 0, 0, 0 ],
-    "scaleOffset": 1.0
-}

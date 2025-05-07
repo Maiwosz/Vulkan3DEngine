@@ -6,14 +6,23 @@
 #include "AssetManager.h"
 #include "OrderCollectionStage.h"
 #include "AssetResolutionStage.h"
+#include "UniformBufferStage.h"
+#include "RenderStage.h"
+#include "Renderer.h"
+#include "DescriptorSetStage.h"
+#include "PipelineAssignmentStage.h"
 
 // Forward declarations
 class OrderCollectionStage;
 class AssetResolutionStage;
+class UniformBufferStage;
+class DescriptorSetStage;
+class PipelineAssignmentStage;
+class RenderStage;
 
 class RenderSystem {
 public:
-    RenderSystem(Registry& registry, AssetManager& assetManager);
+    RenderSystem(Registry& registry, AssetManager& assetManager, Renderer& renderer);
     ~RenderSystem() = default;
 
     // Submit a render order to the pipeline
@@ -25,16 +34,25 @@ public:
     // Process all pending render orders
     void processOrders();
 
+    // Execute rendering commands for the current frame
+    void renderFrame();
+
     // Reset the system for the next frame
     void prepareForNextFrame();
 
+    void resetForNextFrame();
 private:
     Registry& m_registry;
     AssetManager& m_assetManager;
+    Renderer& m_renderer;
 
     // Pipeline stages
     std::shared_ptr<OrderCollectionStage> m_collectionStage;
     std::shared_ptr<AssetResolutionStage> m_assetResolutionStage;
+    std::shared_ptr<UniformBufferStage> m_uniformBufferStage;
+    std::shared_ptr<DescriptorSetStage> m_descriptorSetStage;
+    std::shared_ptr<PipelineAssignmentStage> m_pipelineAssignmentStage;
+    std::shared_ptr<RenderStage> m_renderStage;
 
     // Initialize the pipeline stages and their connections
     void initializePipeline();

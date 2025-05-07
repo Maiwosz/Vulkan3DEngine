@@ -34,13 +34,6 @@ void Engine::initialize(const char* title) {
         spdlog::set_default_logger(engine_logger);
         SPDLOG_INFO("Logger configured (level: {})", spdlog::level::to_string_view(Settings::convertLogLevel(m_settings->getLogLevel())));
 
-        // Subskrypcja zmiany poziomu logów
-        m_logLevelChangedSubscription = std::make_unique<Event<Settings::LogLevel>::Subscription>(
-            m_settings->onLogLevelChanged()->subscribe([](Settings::LogLevel level) {
-                SPDLOG_INFO("Log level changed to: {}", Settings::LOG_LEVEL_MAP.at(level));
-                spdlog::set_level(Settings::convertLogLevel(level));
-                })
-        );
     }
     catch (const spdlog::spdlog_ex& ex) {
         SPDLOG_ERROR("Logger configuration failed: {}", ex.what());
@@ -48,7 +41,9 @@ void Engine::initialize(const char* title) {
     }
 
     // Initialize components
-    SPDLOG_DEBUG("Creating window: {}x{}", m_settings->getResolution().width, m_settings->getResolution().height);
+    SPDLOG_DEBUG("Creating window: {}x{}",
+        m_settings->getCurrentResolutionDetails().width, 
+        m_settings->getCurrentResolutionDetails().height);
     m_window = std::make_unique<Window>(title, m_settings->getWindowMode(), m_settings->getResolution());
 
     SPDLOG_INFO("Initializing thread pool ({} workers)", std::thread::hardware_concurrency());
@@ -62,9 +57,10 @@ void Engine::initialize(const char* title) {
 
     SPDLOG_DEBUG("Initializing asset manager");
     m_assetManager = std::make_unique<AssetManager>(
-        m_renderer->getVramManager(),
-        m_renderer->getShaderModuleManager(),
-		m_renderer->getMaterialManager()
+        m_renderer->vramManager(),
+        m_renderer->shaderModuleManager(),
+		m_renderer->materialManager(),
+        m_renderer->meshManager()
     );
 
     SPDLOG_INFO("Preparing scene");
@@ -73,7 +69,8 @@ void Engine::initialize(const char* title) {
     SPDLOG_INFO("Initializing Render System");
     m_renderSystem = std::make_unique<RenderSystem>(
         m_scene->registry(),
-        *m_assetManager 
+        *m_assetManager, 
+        *m_renderer 
     );
 
     SPDLOG_INFO("=== Engine ready ===");
@@ -109,8 +106,16 @@ void Engine::update() {
     m_window->pollEvents();
     m_inputSystem->update();
     m_scene->update();
-    m_renderer->drawFrame();
-    m_assetManager->advanceFrame();
+
+    try {
+        m_renderSystem->processOrders();
+        m_renderSystem->renderFrame();
+    }
+    catch (const std::exception& e) {
+        SPDLOG_ERROR("Render error: {}", e.what());
+    }
+
+    //m_assetManager->advanceFrame(); //tymczasowe wyłącznie przez problemy
 }
 
 void Engine::run() {
@@ -120,14 +125,22 @@ void Engine::run() {
     SPDLOG_INFO("Starting main loop");
     try {
         while (m_running && !m_window->shouldClose()) {
-            const float currentTime = static_cast<float>(glfwGetTime());
-            m_deltaTime = currentTime - m_lastFrameTime;
-            m_lastFrameTime = currentTime;
-            m_totalTime += m_deltaTime;
-            m_frameCount++;
+            try {
+                const float currentTime = static_cast<float>(glfwGetTime());
+                m_deltaTime = currentTime - m_lastFrameTime;
+                m_lastFrameTime = currentTime;
+                m_totalTime += m_deltaTime;
+                m_frameCount++;
 
-            SPDLOG_TRACE("Frame {} (Delta: {:.3f}ms)", m_frameCount, m_deltaTime * 1000.0f);
-            update();
+                SPDLOG_TRACE("Frame {} (Delta: {:.3f}ms)", m_frameCount, m_deltaTime * 1000.0f);
+                update();
+            }
+            catch (const std::exception& e) {
+                // Log the error but continue with next frame
+                SPDLOG_ERROR("Error in frame {}: {}", m_frameCount, e.what());
+                m_renderer->waitIdle();
+
+            }
         }
     }
     catch (const std::exception& e) {

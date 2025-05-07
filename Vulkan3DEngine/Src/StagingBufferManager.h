@@ -14,18 +14,16 @@ public:
     StagingBufferManager(const StagingBufferManager&) = delete;
     StagingBufferManager& operator=(const StagingBufferManager&) = delete;
 
-    // ¯¹danie bufora o minimalnym rozmiarze, powi¹zanego z p³otkiem
-    Buffer requestBuffer(VkDeviceSize size, VkFence fence);
+    // Å»Ä…danie bufora o minimalnym rozmiarze, powiÄ…zanego z pÅ‚otkiem
+    Buffer* requestBuffer(VkDeviceSize size, VkFence fence);
 
-    // Zwolnienie buforów powi¹zanych z sygnalizowanymi p³otkami
+    // Zwolnienie buforÃ³w powiÄ…zanych z sygnalizowanymi pÅ‚otkami
     void reclaimBuffers();
-
-    void returnBuffer(Buffer buffer);
 
 private:
     VmaAllocator m_allocator;
     const LogicalDevice& m_device;
     std::mutex m_mutex;
-    std::vector<Buffer> m_availableBuffers;       // Buffery gotowe do u¿ycia
-    std::unordered_map<VkFence, std::vector<Buffer>> m_inUseBuffers; // Buffery w u¿yciu
+    std::vector<Buffer> m_availableBuffers;       // Buffery gotowe do uÅ¼ycia
+    std::unordered_map<VkFence, std::vector<Buffer>> m_inUseBuffers; // Buffery w uÅ¼yciu
 };

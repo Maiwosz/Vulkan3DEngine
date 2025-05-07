@@ -57,17 +57,35 @@ namespace AssetLib {
             return info;
         }
 
+        // Fix for SerializeMaterialInfo and DeserializeMaterialInfo
         json SerializeMaterialInfo(const MaterialInfo& info) {
+            // Use string constructor with data() and explicit length to avoid issues with null termination
             return {
-                {"shaderName", std::string(info.shaderName.data())},
+                {"shaderName", std::string(info.shaderName.data(), strnlen(info.shaderName.data(), info.shaderName.size()))},
                 {"parameterCount", info.parameterCount},
                 {"dataSize", info.dataSize}
             };
         }
 
+        MaterialInfo DeserializeMaterialInfo(const json& j) {
+            MaterialInfo info{};  // Zero-initialize struct
+
+            // First, ensure the entire array is zeroed (including null termination)
+            std::fill(info.shaderName.begin(), info.shaderName.end(), '\0');
+
+            std::string name = j["shaderName"];
+            // Copy up to name.size() characters, but not more than shaderName.size()-1 to leave room for null terminator
+            std::copy_n(name.c_str(), std::min(name.size(), info.shaderName.size() - 1), info.shaderName.data());
+
+            info.parameterCount = j["parameterCount"].get<uint32_t>();
+            info.dataSize = j["dataSize"].get<uint32_t>();
+            return info;
+        }
+
+        // Fix for SerializeParameter and DeserializeParameter
         json SerializeParameter(const MaterialParameter& param) {
             json j = {
-                {"name", std::string(param.name.data())},
+                {"name", std::string(param.name.data(), strnlen(param.name.data(), param.name.size()))},
                 {"descriptorType", static_cast<int>(param.descriptorType)},
                 {"uniformType", static_cast<int>(param.uniformType)},
                 {"arraySize", param.arraySize},
@@ -77,7 +95,8 @@ namespace AssetLib {
 
             // Serialize sampler description for texture parameters
             if (param.descriptorType == DescriptorType::CombinedImageSampler ||
-                param.descriptorType == DescriptorType::SeparateImage) {
+                param.descriptorType == DescriptorType::SeparateImage ||
+                param.descriptorType == DescriptorType::SeparateSampler) {
                 j["sampler"] = {
                     {"magFilter", static_cast<int>(param.samplerDesc.magFilter)},
                     {"minFilter", static_cast<int>(param.samplerDesc.minFilter)},
@@ -93,21 +112,16 @@ namespace AssetLib {
             return j;
         }
 
-        MaterialInfo DeserializeMaterialInfo(const json& j) {
-            MaterialInfo info;
-            std::string name = j["shaderName"];
-            std::copy_n(name.c_str(), std::min(name.size(), info.shaderName.size()), info.shaderName.data());
-            info.parameterCount = j["parameterCount"].get<uint32_t>();
-            info.dataSize = j["dataSize"].get<uint32_t>();
-            return info;
-        }
-
         MaterialParameter DeserializeParameter(const json& j) {
-            MaterialParameter param;
+            MaterialParameter param{};  // Zero-initialize struct
+
+            // First, ensure the entire array is zeroed (including null termination)
+            std::fill(param.name.begin(), param.name.end(), '\0');
 
             // Copy name
             std::string name = j["name"];
-            std::copy_n(name.c_str(), std::min(name.size(), param.name.size()), param.name.data());
+            // Copy up to name.size() characters, but not more than name.size()-1 to leave room for null terminator
+            std::copy_n(name.c_str(), std::min(name.size(), param.name.size() - 1), param.name.data());
 
             // Get basic properties
             param.descriptorType = static_cast<DescriptorType>(j["descriptorType"].get<int>());
@@ -323,7 +337,7 @@ namespace AssetLib {
             throw std::runtime_error("Not a mesh asset");
         }
 
-        MeshInfo info = DeserializeMeshInfo(asset.metadata["mesh"]);
+        MeshInfo info = DeserializeMeshInfo(asset.metadata);
         std::vector<uint8_t> data = Decompress(asset.compressedData.data(), asset.compressedData.size(), asset.header.decompressedSize);
 
         // Rozdzielenie danych

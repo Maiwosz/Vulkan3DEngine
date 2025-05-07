@@ -6,13 +6,13 @@
 #include <string>
 #include <memory>
 #include <vector>
-#include "VramMesh.h"
+#include "MeshManager.h" 
 #include <type_traits>
 #include "ShaderModuleManager.h"
 #include <unordered_set>
 #include "MaterialManager.h"
 #include "Paths.h"
-
+#include <spdlog/spdlog.h>
 
 class AssetManager {
 public:
@@ -20,8 +20,10 @@ public:
         VramManager& vramManager,
         ShaderModuleManager& shaderManager,
         MaterialManager& materialManager,
+        MeshManager& meshManager,
         const std::string& basePath = ASSETS_COMP
     );
+    //~AssetManager();
 
     bool ensureLoaded(const AssetHandle handle);
     bool ensureReady(const AssetHandle handle);
@@ -33,41 +35,84 @@ public:
 
     template<typename T>
     auto getResource(const AssetHandle& handle) const {
-        static_assert(std::is_same_v<T, VramMesh> ||
+        static_assert(std::is_same_v<T, MeshHandle> ||
             std::is_same_v<T, VramHandle> ||
             std::is_same_v<T, ShaderHandle> ||
             std::is_same_v<T, Material>,
-            "Unsupported resource type. Valid types: VramMesh, VramHandle, ShaderHandle, Material");
+            "Unsupported resource type. Valid types: MeshHandle, VramHandle, ShaderHandle, Material");
 
-        if constexpr (std::is_same_v<T, VramMesh>) {
-            if (handle.type != AssetType::Mesh) return static_cast<const VramMesh*>(nullptr);
-            auto it = m_vramMeshes.find(handle.filename);
-            return it != m_vramMeshes.end() ? &it->second : nullptr;
+        // Add detailed debugging for resource retrieval attempts
+        SPDLOG_DEBUG("Attempting to get resource of type {} for asset '{}'",
+            typeid(T).name(), handle.filename);
+
+        if constexpr (std::is_same_v<T, MeshHandle>) {
+            if (handle.type != AssetType::Mesh) {
+                SPDLOG_WARN("Type mismatch: Asset '{}' is not a mesh (type {})",
+                    handle.filename, static_cast<int>(handle.type));
+                return MeshHandle{ 0 };
+            }
+            auto it = m_meshHandles.find(handle.filename);
+            if (it == m_meshHandles.end()) {
+                SPDLOG_WARN("Resource not found: Mesh '{}' not in cache", handle.filename);
+                return MeshHandle{ 0 };
+            }
+            SPDLOG_DEBUG("Retrieved mesh handle for '{}'", handle.filename);
+            return it->second;
         }
-        else if constexpr (std::is_same_v<T, VramHandle>) { 
-            if (handle.type != AssetType::Texture) return static_cast<const VramHandle*>(nullptr);
+        else if constexpr (std::is_same_v<T, VramHandle>) {
+            if (handle.type != AssetType::Texture) {
+                SPDLOG_WARN("Type mismatch: Asset '{}' is not a texture (type {})",
+                    handle.filename, static_cast<int>(handle.type));
+                return static_cast<const VramHandle*>(nullptr);
+            }
             auto it = m_vramTextures.find(handle.filename);
-            return it != m_vramTextures.end() ? &it->second : nullptr;
+            if (it == m_vramTextures.end()) {
+                SPDLOG_WARN("Resource not found: Texture '{}' not in cache", handle.filename);
+                return static_cast<const VramHandle*>(nullptr);
+            }
+            SPDLOG_DEBUG("Retrieved texture handle for '{}'", handle.filename);
+            return &it->second;
         }
         else if constexpr (std::is_same_v<T, ShaderHandle>) {
-            if (handle.type != AssetType::Shader) return static_cast<const ShaderHandle*>(nullptr);
+            if (handle.type != AssetType::Shader) {
+                SPDLOG_WARN("Type mismatch: Asset '{}' is not a shader (type {})",
+                    handle.filename, static_cast<int>(handle.type));
+                return static_cast<const ShaderHandle*>(nullptr);
+            }
             auto it = m_shaders.find(handle.filename);
-            return it != m_shaders.end() ? &it->second : nullptr;
+            if (it == m_shaders.end()) {
+                SPDLOG_WARN("Resource not found: Shader '{}' not in cache", handle.filename);
+                return static_cast<const ShaderHandle*>(nullptr);
+            }
+            SPDLOG_DEBUG("Retrieved shader handle for '{}'", handle.filename);
+            return &it->second;
         }
         else if constexpr (std::is_same_v<T, Material>) {
-            if (handle.type != AssetType::Material) return MaterialHandle{ 0 };
+            if (handle.type != AssetType::Material) {
+                SPDLOG_WARN("Type mismatch: Asset '{}' is not a material (type {})",
+                    handle.filename, static_cast<int>(handle.type));
+                return MaterialHandle{ 0 };
+            }
             auto it = m_cachedMaterials.find(handle.filename);
-            return it != m_cachedMaterials.end() ? it->second : MaterialHandle{ 0 };
+            if (it == m_cachedMaterials.end()) {
+                SPDLOG_WARN("Resource not found: Material '{}' not in cache", handle.filename);
+                return MaterialHandle{ 0 };
+            }
+            SPDLOG_DEBUG("Retrieved material handle for '{}'", handle.filename);
+            return it->second;
         }
     }
+
 private:
     VramManager& m_vramManager;
     ShaderModuleManager& m_shaderManager;
     MaterialManager& m_materialManager;
+    MeshManager& m_meshManager;
     AssetLoader m_assetLoader;
 
+    // Using composite keys for asset caching to distinguish between assets with same name but different types
     std::unordered_map<std::string, AssetLib::AssetData> m_assetCache;
-    std::unordered_map<std::string, VramMesh> m_vramMeshes;
+    std::unordered_map<std::string, MeshHandle> m_meshHandles;
     std::unordered_map<std::string, VramHandle> m_vramTextures;
     std::unordered_map<std::string, ShaderHandle> m_shaders;
     std::unordered_map<std::string, MaterialHandle> m_cachedMaterials;
@@ -88,6 +133,8 @@ private:
     bool cacheMaterial(const AssetLib::AssetData& data, const AssetHandle& handle);
 
     void unloadAssetInternal(const AssetHandle& handle);
-
     void updateLastUsed(const AssetHandle& handle);
+
+    // New helper method to create a unique cache key from an AssetHandle
+    std::string createCacheKey(const AssetHandle& handle);
 };

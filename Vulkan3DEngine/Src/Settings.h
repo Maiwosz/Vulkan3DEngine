@@ -127,24 +127,12 @@ public:
 
     void setHardwareLimits(MsaaSampleCount maxMsaa, float maxAnisotropy, bool anisotropySupported);
 
-    // Eventy
-    std::shared_ptr<Event<LogLevel>> onLogLevelChanged() { return m_logLevelChangedEvent; }
-    std::shared_ptr<Event<WindowMode>> onWindowModeChanged() { return m_windowModeChangedEvent; }
-    std::shared_ptr<Event<Resolution>> onResolutionChanged() { return m_resolutionChangedEvent; }
-    std::shared_ptr<Event<bool>> onVsyncChanged() { return m_vsyncChangedEvent; }
-    std::shared_ptr<Event<TextureFiltering>> onTextureFilteringChanged() { return m_textureFilteringChangedEvent; }
-    std::shared_ptr<Event<MsaaSampleCount>> onMsaaChanged() { return m_msaaChangedEvent; }
-    std::shared_ptr<Event<uint32_t>> onFramesInFlightChanged() { return m_framesInFlightChangedEvent; }
-    std::shared_ptr<Event<MipmapMode>> onMipmapModeChanged() { return m_mipmapModeChangedEvent; }
-    std::shared_ptr<Event<AnisotropyLevel>> onAnisotropyLevelChanged() { return m_anisotropyLevelChangedEvent; }
-
     bool saveToFile(const std::string& filename);
     bool loadFromFile(const std::string& filename);
 
     static spdlog::level::level_enum convertLogLevel(Settings::LogLevel level);
 
 private:
-    void initializeEvents();
 
     LogLevel m_logLevel;
     WindowMode m_windowMode;
@@ -161,14 +149,4 @@ private:
     MsaaSampleCount m_maxMsaaSamples;
     float m_maxAnisotropy;
     bool m_anisotropySupported;
-
-    std::shared_ptr<Event<LogLevel>> m_logLevelChangedEvent;
-    std::shared_ptr<Event<WindowMode>> m_windowModeChangedEvent;
-    std::shared_ptr<Event<Resolution>> m_resolutionChangedEvent;
-    std::shared_ptr<Event<bool>> m_vsyncChangedEvent;
-    std::shared_ptr<Event<TextureFiltering>> m_textureFilteringChangedEvent;
-    std::shared_ptr<Event<MsaaSampleCount>> m_msaaChangedEvent;
-    std::shared_ptr<Event<uint32_t>> m_framesInFlightChangedEvent;
-    std::shared_ptr<Event<MipmapMode>> m_mipmapModeChangedEvent;
-    std::shared_ptr<Event<AnisotropyLevel>> m_anisotropyLevelChangedEvent;
 };

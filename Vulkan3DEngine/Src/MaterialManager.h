@@ -53,13 +53,21 @@ private:
     // Helper method to create a material parameter from AssetLib data
     Material::Parameter createMaterialParameter(
         const AssetLib::MaterialParameter& assetParam,
-        const std::vector<uint8_t>& parameterData
+        const std::vector<uint8_t>& parameterData,
+        ShaderHandle shaderHandle
     );
 
     void convertTextureParameter(
         Material::Parameter& param,
         const AssetLib::MaterialParameter& assetParam,
         const std::vector<uint8_t>& parameterData
+    );
+
+    // Find the appropriate binding for a parameter based on shader metadata
+    uint32_t findBindingForParameter(
+        ShaderHandle shaderHandle,
+        const std::string& paramName,
+        AssetLib::DescriptorType descriptorType
     );
 
     // Handle counter for uniquely identifying materials

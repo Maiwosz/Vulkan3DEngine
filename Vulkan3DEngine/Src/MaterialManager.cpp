@@ -25,14 +25,15 @@ MaterialHandle MaterialManager::createMaterial(
     materialParams.reserve(parameters.size());
 
     for (const auto& param : parameters) {
-        materialParams.push_back(createMaterialParameter(param, parameterData));
+        // Pass shaderHandle to find proper bindings
+        materialParams.push_back(createMaterialParameter(param, parameterData, shaderHandle));
     }
 
     // Create a custom uniform buffer for this material
     std::string shaderName(materialInfo.shaderName.data());
     UniformBufferHandle uniformBuffer = m_shaderModuleManager.createCustomUniformBuffer(
         shaderHandle,
-        "Material_" + name
+        "InputData" //nazwa zakodowana na twardo w shaderach
     );
 
     // Create the material
@@ -99,12 +100,20 @@ void MaterialManager::updateMaterialParameters(MaterialHandle handle) {
 
 Material::Parameter MaterialManager::createMaterialParameter(
     const AssetLib::MaterialParameter& assetParam,
-    const std::vector<uint8_t>& parameterData
+    const std::vector<uint8_t>& parameterData,
+    ShaderHandle shaderHandle
 ) {
     Material::Parameter param;
     param.name = assetParam.name.data();
     param.descriptorType = assetParam.descriptorType;
-    param.binding = 0;  // This will be set based on shader metadata
+
+    // Find the appropriate binding for this parameter based on shader metadata
+    param.binding = findBindingForParameter(
+        shaderHandle,
+        param.name,
+        assetParam.descriptorType
+    );
+
     param.arrayIndex = assetParam.arraySize > 0 ? 0 : 0;  // Default to first element for arrays
 
     // Convert the parameter data
@@ -252,15 +261,17 @@ void MaterialManager::convertTextureParameter(
     const AssetLib::MaterialParameter& assetParam,
     const std::vector<uint8_t>& parameterData
 ) {
-    // Extract the texture handle from parameter data
-    if (assetParam.dataSize >= sizeof(AssetHandle) && assetParam.dataOffset < parameterData.size()) {
-        // Read the asset handle from the parameter data
-        AssetHandle textureHandle;
-        std::memcpy(&textureHandle, parameterData.data() + assetParam.dataOffset, sizeof(AssetHandle));
+    // Extract the texture path from parameter data
+    if (assetParam.dataSize > 0 && assetParam.dataOffset < parameterData.size()) {
+        // Get the texture path as a null-terminated string
+        const char* texturePath = reinterpret_cast<const char*>(parameterData.data() + assetParam.dataOffset);
 
         // Create a TextureParam with the handle and empty VramHandle (will be populated later)
         Material::TextureParam textureParam;
-        textureParam.handle = textureHandle;
+
+        // Create proper AssetHandle with the texture path
+        // Assuming textures should be of AssetType::Texture
+        textureParam.handle = AssetHandle(AssetType::Texture, std::string(texturePath));
         textureParam.vramHandle = VramHandle(); // Will be populated when ensuring the texture is ready
 
         // Create sampler configuration based on the material's sampler description
@@ -277,4 +288,50 @@ void MaterialManager::convertTextureParameter(
         Material::TextureParam emptyTextureParam;
         param.value = emptyTextureParam;
     }
+}
+
+uint32_t MaterialManager::findBindingForParameter(
+    ShaderHandle shaderHandle,
+    const std::string& paramName,
+    AssetLib::DescriptorType descriptorType
+) {
+    // Get shader metadata from shader module manager
+    const auto& metadata = m_shaderModuleManager.getShaderMetadata(shaderHandle);
+
+    // Convert AssetLib descriptor type to ShaderLib descriptor type
+    ShaderLib::DescriptorType shaderLibType;
+    switch (descriptorType) {
+    case AssetLib::DescriptorType::UniformBuffer:
+        shaderLibType = ShaderLib::DescriptorType::UniformBuffer;
+        break;
+    case AssetLib::DescriptorType::CombinedImageSampler:
+        shaderLibType = ShaderLib::DescriptorType::CombinedImageSampler;
+        break;
+        // Add other cases as needed...
+    default:
+        return 0; // Default binding
+    }
+
+    // For UniformBuffer, we know our buffer will use InputData as name
+    if (descriptorType == AssetLib::DescriptorType::UniformBuffer) {
+        // Look for custom UBO with name "InputData"
+        for (const auto& ubo : metadata.customUBOs) {
+            if (ubo.name == "InputData") {
+                return ubo.binding;
+            }
+        }
+    }
+
+    // For textures, search for matching descriptor name
+    if (descriptorType == AssetLib::DescriptorType::CombinedImageSampler) {
+        for (const auto& descriptor : metadata.descriptors) {
+            if (descriptor.type == shaderLibType && descriptor.name == paramName) {
+                return descriptor.binding;
+            }
+        }
+    }
+
+    // If not found, log warning and return default binding
+    SPDLOG_WARN("Could not find binding for parameter '{}', using default binding 0", paramName);
+    return 0;
 }

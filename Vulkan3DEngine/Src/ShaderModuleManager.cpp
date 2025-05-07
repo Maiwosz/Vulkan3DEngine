@@ -1,6 +1,9 @@
 #include "ShaderModuleManager.h"
 #include <stdexcept>
 #include <VulkanHelper.h>
+#include <spdlog/spdlog.h>
+#include <TypeConversions.h>
+#include <fstream>
 
 ShaderModuleManager::ShaderModuleManager(
     const LogicalDevice& device,
@@ -35,43 +38,155 @@ ShaderModuleHandle ShaderModuleManager::createModuleFromSPIRV(const std::vector<
     return handle;
 }
 
+ShaderModuleHandle ShaderModuleManager::createModuleFromSPIRVFile(const std::string& filePath) {
+    SPDLOG_INFO("Loading SPIRV shader from file: {}", filePath);
+
+    // Open the file and read as binary
+    std::ifstream file(filePath, std::ios::ate | std::ios::binary);
+    if (!file.is_open()) {
+        SPDLOG_ERROR("Failed to open SPIRV file: {}", filePath);
+        throw std::runtime_error("Failed to open SPIRV file: " + filePath);
+    }
+
+    // Get file size and allocate buffer
+    size_t fileSize = static_cast<size_t>(file.tellg());
+    if (fileSize % sizeof(uint32_t) != 0) {
+        SPDLOG_ERROR("SPIRV file size is not a multiple of 4 bytes: {}", filePath);
+        throw std::runtime_error("Invalid SPIRV file format: " + filePath);
+    }
+
+    // Calculate how many uint32_t elements we need
+    size_t codeSize = fileSize / sizeof(uint32_t);
+    std::vector<uint32_t> spirvCode(codeSize);
+
+    // Read the file from the beginning
+    file.seekg(0);
+    file.read(reinterpret_cast<char*>(spirvCode.data()), fileSize);
+    file.close();
+
+    // Validate SPIRV magic number (SPIR-V binaries start with magic number 0x07230203)
+    if (spirvCode.empty() || spirvCode[0] != 0x07230203) {
+        SPDLOG_ERROR("Invalid SPIRV file format (missing magic number): {}", filePath);
+        throw std::runtime_error("Invalid SPIRV file format: " + filePath);
+    }
+
+    SPDLOG_INFO("Successfully loaded SPIRV file: {}, size: {} bytes", filePath, fileSize);
+
+    // Create shader module using existing function
+    return createModuleFromSPIRV(spirvCode);
+}
+
 ShaderHandle ShaderModuleManager::createShader(
     const ShaderLib::ShaderMetadata& metadata,
     const std::vector<ShaderLib::CompiledStage>& stages
 ) {
-    // Generowanie unikalnego uchwytu
-    ShaderHandle handle(m_nextShaderHandle++);
+    SPDLOG_INFO("Creating new shader with {} available stages", metadata.availableStages);
 
-    // Tworzenie modułów dla każdego etapu
-    CombinedShader combinedShader;
-    for (const auto& stage : stages) {
-        // Utworzenie modułu shadera dla tego etapu
-        ShaderModuleHandle moduleHandle = createModuleFromSPIRV(stage.spirv);
+    // Detailed logging of shader metadata
+    SPDLOG_INFO("Shader metadata:");
+    SPDLOG_INFO("  - Uses GlobalUBO: {}", metadata.usesGlobalUBO ? "yes" : "no");
+    SPDLOG_INFO("  - Uses ObjectUBO: {}", metadata.usesObjectUBO ? "yes" : "no");
 
-        // Zapisanie modułu w połączonym shaderze
-        combinedShader.stages[stage.stage] = moduleHandle;
+    // Logging push constant information
+    if (!metadata.pushConstants.empty()) {
+        SPDLOG_INFO("  - Push constants ({}): ", metadata.pushConstants.size());
+        for (const auto& pc : metadata.pushConstants) {
+            SPDLOG_INFO("    * Offset: {}, Size: {}, Stages: {}",
+                pc.offset, pc.size, pc.stages);
+        }
+    }
+    else {
+        SPDLOG_INFO("  - No push constants");
     }
 
-    // Zapisanie połączonego shadera
-    m_combinedShaders[handle] = std::move(combinedShader);
+    // Logging descriptor information
+    if (!metadata.descriptors.empty()) {
+        SPDLOG_INFO("  - Descriptors ({}): ", metadata.descriptors.size());
+        for (const auto& desc : metadata.descriptors) {
+            SPDLOG_INFO("    * Set: {}, Binding: {}, Type: {}, Name: '{}'",
+                desc.set, desc.binding, static_cast<int>(desc.type), desc.name);
+        }
+    }
+    else {
+        SPDLOG_INFO("  - No descriptors");
+    }
 
-    // Tworzenie layoutów deskryptorów
+    // Logging custom UBO information
+    if (!metadata.customUBOs.empty()) {
+        SPDLOG_INFO("  - Custom UBOs ({}): ", metadata.customUBOs.size());
+        for (const auto& ubo : metadata.customUBOs) {
+            SPDLOG_INFO("    * Name: '{}', Set: {}, Binding: {}, Size: {} bytes",
+                ubo.name, ubo.set, ubo.binding, ubo.size);
+            if (!ubo.variables.empty()) {
+                SPDLOG_DEBUG("      Variables in UBO '{}':", ubo.name);
+                for (const auto& var : ubo.variables) {
+                    SPDLOG_DEBUG("      - '{}': type {}, offset {}, size {}",
+                        var.name, ShaderLib::TypeConversion::UniformTypeToString(var.type), var.offset, var.size);
+                }
+            }
+        }
+    }
+    else {
+        SPDLOG_INFO("  - No custom UBOs");
+    }
+
+    // Logging GlobalUBO information if used
+    if (metadata.usesGlobalUBO) {
+        SPDLOG_INFO("  - GlobalUBO: Set {}, Binding {}, Size {} bytes, {} variables",
+            metadata.globalUBO.set, metadata.globalUBO.binding, metadata.globalUBO.size, metadata.globalUBO.variables.size());
+    }
+
+    // Logging ObjectUBO information if used
+    if (metadata.usesObjectUBO) {
+        SPDLOG_INFO("  - ObjectUBO: Set {}, Binding {}, Size {} bytes, {} variables",
+            metadata.objectUBO.set, metadata.objectUBO.binding, metadata.objectUBO.size, metadata.objectUBO.variables.size());
+    }
+
+    // Logging shader stage information
+    SPDLOG_INFO("Shader stages ({}):", stages.size());
+    for (const auto& stage : stages) {
+        SPDLOG_INFO("  - Stage: {}, SPIRV Size: {} bytes",
+            ShaderLib::TypeConversion::StageToString(stage.stage), stage.spirv.size() * sizeof(uint32_t));
+    }
+
+    // Generating unique handle
+    ShaderHandle handle(m_nextShaderHandle++);
+    SPDLOG_INFO("Generated shader handle: {}", handle.id);
+
+    // Creating modules for each stage
+    CombinedShader combinedShader;
+    for (const auto& stage : stages) {
+        // Creating shader module for this stage
+        SPDLOG_DEBUG("Creating shader module for stage {}", ShaderLib::TypeConversion::StageToString(stage.stage));
+        ShaderModuleHandle moduleHandle = createModuleFromSPIRV(stage.spirv);
+        // Storing module in the combined shader
+        combinedShader.stages[stage.stage] = moduleHandle;
+        SPDLOG_DEBUG("Created shader module: {}", moduleHandle.id);
+    }
+
+    // Storing the combined shader
+    m_combinedShaders[handle] = std::move(combinedShader);
+    SPDLOG_DEBUG("Stored combined shader in map (shader count: {})", m_combinedShaders.size());
+
+    // Creating descriptor layouts
+    SPDLOG_DEBUG("Creating descriptor layouts");
     auto descriptorLayouts = createDescriptorLayouts(metadata);
 
-    // Tworzenie layoutu potoku
+    // Creating pipeline layout
+    SPDLOG_DEBUG("Creating pipeline layout");
     auto pipelineLayout = createPipelineLayout(metadata, descriptorLayouts);
 
-    // Zapisanie zasobów shadera
+    // Storing shader resources
     ShaderResources resources;
     resources.descriptorLayouts = std::move(descriptorLayouts);
     resources.pipelineLayout = pipelineLayout;
-    resources.uniformBuffers = std::unordered_map<std::string, UniformBufferHandle>(); // Bufory będą tworzone na żądanie
-
+    resources.uniformBuffers = std::unordered_map<std::string, UniformBufferHandle>(); // Buffers will be created on demand
     m_shaderResources[handle] = std::move(resources);
+    SPDLOG_DEBUG("Stored shader resources in map (resource count: {})", m_shaderResources.size());
 
-    // Zapisanie metadanych shadera
+    // Storing shader metadata
     m_shaderMetadata[handle] = metadata;
-
+    SPDLOG_INFO("Shader created successfully (handle: {})", handle.id);
     return handle;
 }
 
@@ -311,6 +426,8 @@ UniformBufferHandle ShaderModuleManager::createCustomUniformBuffer(ShaderHandle 
     }
 
     const auto& metadata = m_shaderMetadata[shaderHandle];
+
+
 
     // Sprawdź czy istnieje UBO o podanej nazwie
     bool exists = false;

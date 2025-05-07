@@ -1,5 +1,6 @@
 #include "Engine.h"
 #include "Editor.h"
+#define SPDLOG_ACTIVE_LEVEL SPDLOG_LEVEL_TRACE
 #include <spdlog/spdlog.h>
 #include <spdlog/sinks/stdout_color_sinks.h>
 #include <csignal>
@@ -19,7 +20,7 @@ int main() {
     auto preinit_logger = std::make_shared<spdlog::logger>("PREINIT", console_sink);
     spdlog::set_default_logger(preinit_logger);
     spdlog::set_pattern("[%H:%M:%S.%e] [%^%l%$] %v");
-    spdlog::set_level(spdlog::level::trace);
+    preinit_logger->set_level(spdlog::level::trace);
 
     SPDLOG_INFO("=== Launching application ===");
 
@@ -33,10 +34,6 @@ int main() {
 
         SPDLOG_INFO("Entering main loop");
         engine.run();
-
-        while(1) {
-
-        }
 
         SPDLOG_DEBUG("Stopping editor...");
         editor.stop();
