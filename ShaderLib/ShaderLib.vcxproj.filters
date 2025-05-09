@@ -8,6 +8,7 @@
     <ClInclude Include="TypeConversions.h" />
     <ClInclude Include="VulkanHelper.h" />
     <ClInclude Include="UBODefinitions.h" />
+    <ClInclude Include="UBOStandardDefinitions.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="pch.cpp" />

@@ -41,23 +41,53 @@ layout(std140, set = 1, binding = 0) uniform ObjectUBO {
 
 
 
-layout(location = 0) in vec3 fragNormal;
-layout(location = 1) in vec3 fragPos;
+layout(set = 2, binding = 0) uniform InputDataUBO {
+    float shininess;
+    float ka;
+    float kd;
+    float ks;
+} inputData;
+
+layout(set = 2, binding = 1) uniform sampler2D albedo;
+
+layout(location = 0) in vec3 fragColor;
+layout(location = 1) in vec2 fragTexCoord;
+layout(location = 2) in vec3 fragNormal;
+layout(location = 3) in vec3 fragPos;
+layout(location = 4) in vec3 directionToCamera;
 
 layout(location = 0) out vec4 outColor;
 
 void main() {
-    // Basic directional light calculation
     vec3 normal = normalize(fragNormal);
+    vec3 viewDir = normalize(directionToCamera);
+
+    vec3 directional = vec3(0.0);
     vec3 lightDir = normalize(-directionalLight.direction);
-    
-    // Ambient and diffuse components
-    float ambientStrength = 0.1;
-    vec3 ambient = ambientStrength * directionalLight.color.xyz;
     float diff = max(dot(normal, lightDir), 0.0);
-    vec3 diffuse = diff * directionalLight.color.xyz * directionalLight.color.w;
-    
-    // Final color with object's base color
-    vec3 result = (ambient + diffuse) * color.rgb;
-    outColor = vec4(result, color.a);
+    vec3 halfwayDir = normalize(lightDir + viewDir);
+    float spec = pow(max(dot(normal, halfwayDir), 0.0), inputData.shininess);
+    directional += directionalLight.color.w * (inputData.kd * diff + inputData.ks * spec) * directionalLight.color.xyz;
+
+    vec3 point = vec3(0.0);
+    for(int i = 0; i < activePointLights; ++i) {
+        vec3 L = pointLights[i].position - fragPos;
+        float distance = length(L);
+        vec3 lightDir = normalize(L);
+        float diff = max(dot(normal, lightDir), 0.0);
+
+        vec3 halfwayDir = normalize(lightDir + viewDir);
+        float spec = pow(max(dot(normal, halfwayDir), 0.0), inputData.shininess);
+
+        float d = max(distance - pointLights[i].radius, 0.0) / pointLights[i].color.w;
+        float denom = d/pointLights[i].radius + 1;
+        float attenuation = 1 / (denom*denom);
+        attenuation = max((attenuation - 0.0001) / (1 - 0.0001), 0.0);
+
+        point += pointLights[i].color.xyz * (inputData.kd * diff + inputData.ks * spec) * pointLights[i].color.w * attenuation;
+    }
+
+    vec4 texColor = texture(albedo, fragTexCoord);
+    vec3 result = (inputData.ka + directional + point) * texColor.rgb;
+    outColor = vec4(result, 1.0);
 }

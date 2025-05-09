@@ -72,6 +72,6 @@ void main() {
     }
 
     vec4 texColor = texture(albedo, fragTexCoord);
-    vec3 result = (inputData.ka + directional + point) * fragColor * texColor.rgb;
+    vec3 result = (inputData.ka + directional + point) * texColor.rgb;
     outColor = vec4(result, 1.0);
 }

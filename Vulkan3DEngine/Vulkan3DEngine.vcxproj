@@ -170,6 +170,7 @@
     <ClCompile Include="..\Libs\imgui\imgui_impl_vulkan.cpp" />
     <ClCompile Include="..\Libs\imgui\imgui_tables.cpp" />
     <ClCompile Include="..\Libs\imgui\imgui_widgets.cpp" />
+    <ClCompile Include="Src\GlobalStateManager.cpp" />
     <ClCompile Include="Src\RenderStage.cpp" />
     <ClCompile Include="Src\MeshManager.cpp" />
     <ClCompile Include="Src\PipelineAssignmentStage.cpp" />
@@ -243,6 +244,7 @@
     <ClInclude Include="..\Libs\imgui\imstb_rectpack.h" />
     <ClInclude Include="..\Libs\imgui\imstb_textedit.h" />
     <ClInclude Include="..\Libs\imgui\imstb_truetype.h" />
+    <ClInclude Include="Src\GlobalStateManager.h" />
     <ClInclude Include="Src\PipelineHandle.h" />
     <ClInclude Include="Src\RenderStage.h" />
     <ClInclude Include="Src\Mesh.h" />
@@ -253,7 +255,6 @@
     <ClInclude Include="Src\ShaderModuleHandle.h" />
     <ClInclude Include="Src\RenderSystem.h" />
     <ClInclude Include="Src\AssetResolutionStage.h" />
-    <ClInclude Include="Src\OrderCollectionStage.h" />
     <ClInclude Include="Src\ProcessingStage.h" />
     <ClInclude Include="Src\MaterialHandle.h" />
     <ClInclude Include="Src\RenderOrder.h" />

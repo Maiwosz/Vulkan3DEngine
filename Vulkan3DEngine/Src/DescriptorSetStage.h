@@ -10,6 +10,7 @@
 #include "VramManager.h"
 #include "RenderOrder.h"
 #include "Renderer.h"
+#include "ImageSamplerManager.h"
 
 class DescriptorSetStage : public OrderProcessingStage {
 public:
@@ -24,8 +25,6 @@ public:
 private:
     // Process different types of render orders
     void processMeshOrder(std::shared_ptr<MeshRenderOrder> order);
-    void processLightOrder(std::shared_ptr<LightRenderOrder> order);
-    void processCameraOrder(std::shared_ptr<CameraRenderOrder> order);
 
     // Create and bind descriptor sets for different shader set bindings
     void createGlobalDescriptorSet(std::shared_ptr<MeshRenderOrder> order, ShaderHandle shader);
@@ -39,5 +38,6 @@ private:
     DescriptorAllocator& m_descriptorAllocator;
     VramManager& m_vramManager;
     DescriptorLayoutManager& m_layoutManager;
+    ImageSamplerManager& m_samplerManager;
     DescriptorWriter m_writer;
 };

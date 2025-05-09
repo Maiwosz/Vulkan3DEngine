@@ -13,6 +13,7 @@ DescriptorSetStage::DescriptorSetStage(
     m_descriptorAllocator(renderer.descriptorAllocator()),
     m_vramManager(renderer.vramManager()),
     m_layoutManager(renderer.descriptorLayoutManager()),
+    m_samplerManager(m_renderer.imageSamplerManager()),
     m_writer()
 {
     SPDLOG_INFO("Initializing DescriptorSetStage");
@@ -31,18 +32,8 @@ void DescriptorSetStage::process(std::shared_ptr<RenderOrder> order) {
         processMeshOrder(meshOrder);
         break;
     }
-    case RenderOrderType::Light: {
-        auto lightOrder = std::static_pointer_cast<LightRenderOrder>(order);
-        processLightOrder(lightOrder);
-        break;
-    }
-    case RenderOrderType::Camera: {
-        auto cameraOrder = std::static_pointer_cast<CameraRenderOrder>(order);
-        processCameraOrder(cameraOrder);
-        break;
-    }
     default:
-        SPDLOG_WARN("Unknown render order type: {}", static_cast<int>(order->getType()));
+        SPDLOG_WARN("Unknown render order type");
         break;
     }
 
@@ -51,196 +42,292 @@ void DescriptorSetStage::process(std::shared_ptr<RenderOrder> order) {
 }
 
 void DescriptorSetStage::processMeshOrder(std::shared_ptr<MeshRenderOrder> order) {
-    // Get the material
-    Material* material = m_materialManager.get(order->materialHandle);
-    if (!material) {
-        SPDLOG_ERROR("Invalid material handle for entity {}", order->entity.id);
-        return; // Invalid material, can't continue
-    }
-
-    // Get shader handle from material
-    ShaderHandle shader = material->shader();
-    if (!m_shaderManager.isShaderValid(shader)) {
-        SPDLOG_ERROR("Invalid shader for material '{}', entity {}", material->name(), order->entity.id);
-        return; // Invalid shader, can't continue
-    }
-
-    // Create descriptor sets for each set binding (0, 1, 2)
-    createGlobalDescriptorSet(order, shader);
-    createObjectDescriptorSet(order, shader);
-    createMaterialDescriptorSet(order, shader, material);
-}
-
-void DescriptorSetStage::processLightOrder(std::shared_ptr<LightRenderOrder> order) {
-    // For light orders, we typically don't need separate descriptor sets
-    // They are usually included in the global UBO
-    // But we could add specific processing here if needed
-}
-
-void DescriptorSetStage::processCameraOrder(std::shared_ptr<CameraRenderOrder> order) {
-    // For camera orders, we typically update the global UBO
-    // They are usually included in the global UBO view/projection matrices
-    // But we could add specific processing here if needed
-}
-
-void DescriptorSetStage::createGlobalDescriptorSet(std::shared_ptr<MeshRenderOrder> order, ShaderHandle shader) {
-    // Get shader resources
-    const auto& shaderResources = m_shaderManager.getShaderResources(shader);
-
-    // Find descriptor layout for set 0
-    auto layoutIt = shaderResources.descriptorLayouts.find(0);
-    if (layoutIt == shaderResources.descriptorLayouts.end()) {
-        SPDLOG_WARN("No descriptor layout for set 0 found for entity {}", order->entity.id);
-        return; // No layout for set 0
-    }
-
-    // Allocate descriptor set for set 0 (Global UBO)
-    VkDescriptorSetLayout layout = m_layoutManager.get(layoutIt->second);
-    VkDescriptorSet descriptorSet = m_descriptorAllocator.allocate(layout);
-
-    if (descriptorSet == VK_NULL_HANDLE) {
-        SPDLOG_ERROR("Failed to allocate global descriptor set for entity {}", order->entity.id);
+    if (!order) {
+        SPDLOG_WARN("Null mesh render order provided");
         return;
     }
 
-    // Get the global UBO buffer
-    Buffer* globalBuffer = m_uniformBufferManager.getBuffer(order->globalUBOHandle);
-    if (!globalBuffer) {
-        SPDLOG_ERROR("Invalid global UBO buffer for entity {}", order->entity.id);
-        return; // Invalid global UBO
-    }
+    SPDLOG_DEBUG("Processing descriptor sets for mesh handle {}", order->meshHandle.id);
 
-    // Write descriptor set for global UBO
-    m_writer.clear();
-    m_writer.writeBuffer(0, globalBuffer->get(), globalBuffer->getAllocatedSize(), 0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER);
-    m_writer.updateSet(m_renderer.vulkanContext().logical().get(), descriptorSet);
-
-    // Store the descriptor set in the order
-    order->globalDescriptorSet = descriptorSet;
-}
-
-void DescriptorSetStage::createObjectDescriptorSet(std::shared_ptr<MeshRenderOrder> order, ShaderHandle shader) {
-    // Get shader resources
-    const auto& shaderResources = m_shaderManager.getShaderResources(shader);
-
-    // Find descriptor layout for set 1
-    auto layoutIt = shaderResources.descriptorLayouts.find(1);
-    if (layoutIt == shaderResources.descriptorLayouts.end()) {
-        SPDLOG_WARN("No descriptor layout for set 1 found for entity {}", order->entity.id);
-        return; // No layout for set 1
-    }
-
-    // Allocate descriptor set for set 1 (Object UBO)
-    VkDescriptorSetLayout layout = m_layoutManager.get(layoutIt->second);
-    VkDescriptorSet descriptorSet = m_descriptorAllocator.allocate(layout);
-
-    if (descriptorSet == VK_NULL_HANDLE) {
-        SPDLOG_ERROR("Failed to allocate object descriptor set for entity {}", order->entity.id);
-        return;
-    }
-
-    // Get the object UBO buffer
-    Buffer* objectBuffer = m_uniformBufferManager.getBuffer(order->objectUBOHandle);
-    if (!objectBuffer) {
-        SPDLOG_ERROR("Invalid object UBO buffer for entity {}", order->entity.id);
-        return; // Invalid object UBO
-    }
-
-    // Write descriptor set for object UBO
-    m_writer.clear();
-    m_writer.writeBuffer(0, objectBuffer->get(), objectBuffer->getAllocatedSize(), 0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER);
-    m_writer.updateSet(m_renderer.vulkanContext().logical().get(), descriptorSet);
-
-    // Store the descriptor set in the order
-    order->objectDescriptorSet = descriptorSet;
-}
-
-void DescriptorSetStage::createMaterialDescriptorSet(std::shared_ptr<MeshRenderOrder> order, ShaderHandle shader, Material* material) {
-    // Get shader resources
-    const auto& shaderResources = m_shaderManager.getShaderResources(shader);
-
-    // Find descriptor layout for set 2
-    auto layoutIt = shaderResources.descriptorLayouts.find(2);
-    if (layoutIt == shaderResources.descriptorLayouts.end()) {
-        SPDLOG_WARN("No descriptor layout for set 2 found for entity {}", order->entity.id);
-        return; // No layout for set 2
-    }
-
-    // Allocate descriptor set for set 2 (Material data)
-    VkDescriptorSetLayout layout = m_layoutManager.get(layoutIt->second);
-    VkDescriptorSet descriptorSet = m_descriptorAllocator.allocate(layout);
-
-    if (descriptorSet == VK_NULL_HANDLE) {
-        SPDLOG_ERROR("Failed to allocate material descriptor set for entity {}", order->entity.id);
-        return;
-    }
-
-    // Get the material UBO buffer
-    Buffer* materialBuffer = m_uniformBufferManager.getBuffer(order->materialUBOHandle);
-    if (!materialBuffer) {
-        SPDLOG_ERROR("Invalid material UBO buffer for entity {}", order->entity.id);
-        return; // Invalid material UBO
-    }
-
-    // Clear writer for new descriptor set
-    m_writer.clear();
-
-    // Write descriptor set for material UBO at binding 0
-    m_writer.writeBuffer(0, materialBuffer->get(), materialBuffer->getAllocatedSize(), 0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER);
-
-    // Write texture descriptors if available
-    for (const auto& param : material->parameters()) {
-        // Only process texture parameters
-        if (std::holds_alternative<Material::TextureParam>(param.value) &&
-            param.descriptorType == AssetLib::DescriptorType::CombinedImageSampler) {
-
-            const auto& textureParam = std::get<Material::TextureParam>(param.value);
-
-            // Skip invalid textures
-            if (!textureParam.vramHandle.isValid()) {
-                SPDLOG_WARN("Invalid VRAM handle for texture parameter at binding {} in material '{}'",
-                    param.binding, material->name());
-                continue;
-            }
-
-            // Get the Image resource from VramManager
-            Image* textureImage = m_vramManager.getResource<Image>(textureParam.vramHandle);
-            if (!textureImage) {
-                SPDLOG_WARN("Failed to get image resource for texture parameter at binding {} in material '{}'",
-                    param.binding, material->name());
-                continue;
-            }
-
-            // Create image view
-            VkImageView view = textureImage->createView(
-                m_renderer.vulkanContext().logical().get(),
-                VK_IMAGE_VIEW_TYPE_2D
-                // Format will use the image's format by default
-                // AspectMask will be derived from the format automatically
-                // Mip levels will default to VK_REMAINING_MIP_LEVELS
-                // Array layers will default to VK_REMAINING_ARRAY_LAYERS
-            );
-
-            if (view == VK_NULL_HANDLE) {
-                SPDLOG_ERROR("Failed to create image view for texture at binding {} in material '{}'",
-                    param.binding, material->name());
-                continue;
-            }
-
-            // Write image descriptor at appropriate binding
-            m_writer.writeImage(
-                param.binding,
-                view,
-                textureParam.sampler,
-                VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-                VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER
-            );
+    // Get material if specified in the order
+    Material* material = nullptr;
+    ShaderHandle shaderHandle;
+    if (order->materialHandle) {
+        material = m_materialManager.get(order->materialHandle);
+        if (!material) {
+            SPDLOG_WARN("Invalid material handle in render order: {}", order->materialHandle.id);
         }
     }
 
-    // Update the descriptor set
-    m_writer.updateSet(m_renderer.vulkanContext().logical().get(), descriptorSet);
+    // Get shader handle - either from material or directly from order
+    if (material) {
+        shaderHandle = material->shader();
+    }
+        
 
-    // Store the descriptor set in the order
-    order->materialDescriptorSet = descriptorSet;
+    if (!m_shaderManager.isShaderValid(shaderHandle)) {
+        SPDLOG_ERROR("Invalid shader handle for mesh render order");
+        return;
+    }
+
+    // Create global descriptor set
+    createGlobalDescriptorSet(order, shaderHandle);
+
+    // Create object descriptor set
+    createObjectDescriptorSet(order, shaderHandle);
+
+    // Create material descriptor set if material is present
+    if (material) {
+        createMaterialDescriptorSet(order, shaderHandle, material);
+    }
+}
+
+void DescriptorSetStage::createGlobalDescriptorSet(std::shared_ptr<MeshRenderOrder> order, ShaderHandle shader) {
+    // Get shader resources (descriptor layouts, pipeline layout)
+    const ShaderResources& shaderResources = m_shaderManager.getShaderResources(shader);
+
+    // Check if we have a layout for global descriptor set (set=1)
+    if (shaderResources.descriptorLayouts.count(0) > 0) {
+        // Get descriptor set layout for set=1
+        VkDescriptorSetLayout globalSetLayout =
+            m_layoutManager.get(shaderResources.descriptorLayouts.at(0));
+
+        // Allocate descriptor set using allocator
+        VkDescriptorSet globalDescriptorSet = m_descriptorAllocator.allocate(globalSetLayout);
+
+        if (globalDescriptorSet != VK_NULL_HANDLE) {
+            // Prepare descriptor writer
+            m_writer.clear();
+
+            // Write global UBO to descriptor set if available
+            if (order->globalUBOHandle) {
+                Buffer* globalBuffer = m_uniformBufferManager.getBuffer(order->globalUBOHandle);
+                if (globalBuffer) {
+                    m_writer.writeBuffer(0, globalBuffer->get(), globalBuffer->getSize(), 0,
+                        VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER);
+                    SPDLOG_DEBUG("Added global UBO to global descriptor set at binding 0");
+                }
+                else {
+                    SPDLOG_WARN("Invalid global UBO buffer");
+                }
+            }
+            else {
+                SPDLOG_WARN("Missing global UBO handle in render order");
+            }
+
+            // Update descriptor set
+            m_writer.updateSet(m_renderer.vulkanContext().logical().get(), globalDescriptorSet);
+
+            // Store descriptor set in render order
+            order->globalDescriptorSet = globalDescriptorSet;
+            SPDLOG_DEBUG("Created global descriptor set");
+        }
+        else {
+            SPDLOG_ERROR("Failed to allocate global descriptor set");
+        }
+    }
+    else {
+        SPDLOG_DEBUG("No descriptor layout found for global set (set=1)");
+    }
+}
+
+void DescriptorSetStage::createObjectDescriptorSet(std::shared_ptr<MeshRenderOrder> order, ShaderHandle shader) {
+    // Get shader resources (descriptor layouts, pipeline layout)
+    const ShaderResources& shaderResources = m_shaderManager.getShaderResources(shader);
+
+    // Check if we have a layout for object descriptor set (set=1)
+    if (shaderResources.descriptorLayouts.count(1) > 0) {
+        // Get descriptor set layout for set=1
+        VkDescriptorSetLayout objectSetLayout =
+            m_layoutManager.get(shaderResources.descriptorLayouts.at(1));
+
+        // Allocate descriptor set using allocator
+        VkDescriptorSet objectDescriptorSet = m_descriptorAllocator.allocate(objectSetLayout);
+
+        if (objectDescriptorSet != VK_NULL_HANDLE) {
+            // Prepare descriptor writer
+            m_writer.clear();
+
+            // Write object UBO to descriptor set if available
+            if (order->objectUBOHandle) {
+                Buffer* objectBuffer = m_uniformBufferManager.getBuffer(order->objectUBOHandle);
+                if (objectBuffer) {
+                    m_writer.writeBuffer(0, objectBuffer->get(), objectBuffer->getSize(), 0,
+                        VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER);
+                    SPDLOG_DEBUG("Added object UBO to object descriptor set at binding 0");
+                }
+                else {
+                    SPDLOG_WARN("Invalid object UBO buffer");
+                }
+            }
+            else {
+                SPDLOG_WARN("Missing object UBO handle in render order");
+            }
+
+            // Update descriptor set
+            m_writer.updateSet(m_renderer.vulkanContext().logical().get(), objectDescriptorSet);
+
+            // Store descriptor set in render order
+            order->objectDescriptorSet = objectDescriptorSet;
+            SPDLOG_DEBUG("Created object descriptor set");
+        }
+        else {
+            SPDLOG_ERROR("Failed to allocate object descriptor set");
+        }
+    }
+    else {
+        SPDLOG_DEBUG("No descriptor layout found for object set (set=1)");
+    }
+}
+
+void DescriptorSetStage::createMaterialDescriptorSet(std::shared_ptr<MeshRenderOrder> order,
+    ShaderHandle shader, Material* material) {
+    if (!material) {
+        SPDLOG_WARN("Null material provided to createMaterialDescriptorSet");
+        return;
+    }
+
+    // Get shader resources and metadata
+    const ShaderResources& shaderResources = m_shaderManager.getShaderResources(shader);
+    const ShaderLib::ShaderMetadata& shaderMetadata = m_shaderManager.getShaderMetadata(shader);
+
+    // Check if we have a layout for material descriptor set (set=2)
+    if (shaderResources.descriptorLayouts.count(2) > 0) {
+        // Get descriptor set layout for set=2
+        VkDescriptorSetLayout materialSetLayout =
+            m_layoutManager.get(shaderResources.descriptorLayouts.at(2));
+
+        // Allocate descriptor set using allocator
+        VkDescriptorSet materialDescriptorSet = m_descriptorAllocator.allocate(materialSetLayout);
+
+        if (materialDescriptorSet != VK_NULL_HANDLE) {
+            // Prepare descriptor writer
+            m_writer.clear();
+
+            // Write custom UBO (material data) to descriptor set if available
+            if (order->materialUBOHandle) {
+                Buffer* customBuffer = m_uniformBufferManager.getBuffer(order->materialUBOHandle);
+                if (customBuffer) {
+                    m_writer.writeBuffer(0, customBuffer->get(), customBuffer->getSize(), 0,
+                        VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER);
+                    SPDLOG_DEBUG("Added custom UBO to material descriptor set at binding 0");
+                }
+                else {
+                    SPDLOG_WARN("Invalid custom UBO buffer");
+                }
+            }
+            else {
+                SPDLOG_WARN("Missing custom UBO handle in render order");
+            }
+
+            // Process texture parameters from material
+            const auto& materialParams = material->parameters();
+            for (const auto& param : materialParams) {
+                if (std::holds_alternative<Material::TextureParam>(param.value)) {
+                    const auto& textureParam = std::get<Material::TextureParam>(param.value);
+
+                    // Check if this is a texture with a valid handle
+                    if (textureParam.vramHandle.isValid()) {
+                        // Find appropriate binding based on shader metadata
+                        int binding = -1;
+
+                        // First try direct name match
+                        for (const auto& descriptor : shaderMetadata.descriptors) {
+                            if (descriptor.name == param.name &&
+                                descriptor.set == ShaderLib::CUSTOM_DESCRIPTOR_SET &&
+                                descriptor.type == ShaderLib::DescriptorType::CombinedImageSampler) {
+                                binding = descriptor.binding;
+                                SPDLOG_DEBUG("Found texture binding for '{}' by direct name match: binding={}",
+                                    param.name, binding);
+                                break;
+                            }
+                        }
+
+                        // If not found directly, try matching by sampler declaration
+                        if (binding < 0) {
+                            // Try to find sampler using different naming conventions
+                            std::vector<std::string> possibleNames = {
+                                param.name,
+                                param.name + "Sampler",
+                                param.name + "_sampler",
+                                "sampler" + param.name.substr(0, 1) + param.name.substr(1)  // samplerDiffuse
+                            };
+
+                            for (const auto& name : possibleNames) {
+                                for (const auto& descriptor : shaderMetadata.descriptors) {
+                                    if (descriptor.name == name &&
+                                        descriptor.set == ShaderLib::CUSTOM_DESCRIPTOR_SET &&
+                                        descriptor.type == ShaderLib::DescriptorType::CombinedImageSampler) {
+                                        binding = descriptor.binding;
+                                        SPDLOG_DEBUG("Found texture binding for '{}' by alternative name '{}': binding={}",
+                                            param.name, name, binding);
+                                        break;
+                                    }
+                                }
+                                if (binding >= 0) break;
+                            }
+                        }
+
+                        if (binding >= 0) {
+                            // Get sampler from textureParam or use default from samplerManager
+                            VkSampler sampler = textureParam.sampler;
+                            if (sampler == VK_NULL_HANDLE) {
+                                // Use default sampler configuration
+                                SamplerConfig samplerConfig{}; // Default configuration
+                                sampler = m_samplerManager.getSampler(samplerConfig);
+                                SPDLOG_DEBUG("Using default sampler for texture '{}'", param.name);
+                            }
+                            else {
+                                SPDLOG_DEBUG("Using provided sampler for texture '{}'", param.name);
+                            }
+
+                            Image* textureImage = m_vramManager.getResource<Image>(textureParam.vramHandle);
+
+                            // Get ImageView for texture from image manager
+                            VkImageView imageView = textureImage->createView(
+                                m_renderer.vulkanContext().logical().get(),
+                                VK_IMAGE_VIEW_TYPE_2D
+                                // Format will use the image's format by default
+                                // AspectMask will be derived from the format automatically
+                                // Mip levels will default to VK_REMAINING_MIP_LEVELS
+                                // Array layers will default to VK_REMAINING_ARRAY_LAYERS
+                            );
+
+                            if (imageView != VK_NULL_HANDLE) {
+                                m_writer.writeImage(binding, imageView, sampler,
+                                    VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+                                    VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER);
+
+                                SPDLOG_DEBUG("Added texture '{}' to material descriptor set at binding {}",
+                                    param.name, binding);
+                            }
+                            else {
+                                SPDLOG_ERROR("Failed to get valid ImageView for texture '{}'", param.name);
+                            }
+                        }
+                        else {
+                            SPDLOG_WARN("No suitable binding found for texture parameter '{}' in shader metadata",
+                                param.name);
+                        }
+                    }
+                    else {
+                        SPDLOG_WARN("Texture parameter '{}' has invalid VRAM handle", param.name);
+                    }
+                }
+            }
+
+            // Update descriptor set
+            m_writer.updateSet(m_renderer.vulkanContext().logical().get(), materialDescriptorSet);
+
+            // Store descriptor set in render order
+            order->materialDescriptorSet = materialDescriptorSet;
+            SPDLOG_DEBUG("Created material descriptor set");
+        }
+        else {
+            SPDLOG_ERROR("Failed to allocate material descriptor set");
+        }
+    }
+    else {
+        SPDLOG_DEBUG("No descriptor layout found for material set (set=2)");
+    }
 }

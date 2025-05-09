@@ -64,25 +64,6 @@ public:
 
     // Added for logging purposes
     LightType lightType;
-
-    // Convert LightType to string for logging
-    std::string getLightTypeString() const {
-        switch (lightType) {
-        case LightType::Directional: return "Directional";
-        case LightType::Point: return "Point";
-        default: return "Unknown";
-        }
-    }
-
-    // Default constructor explicitly setting light type
-    LightRenderOrder() : lightType(LightType::Point) {
-        SPDLOG_TRACE("Created LightRenderOrder with default Point type");
-    }
-
-    // Constructor with explicit light type
-    explicit LightRenderOrder(LightType type) : lightType(type) {
-        SPDLOG_TRACE("Created LightRenderOrder with explicit type: {}", getLightTypeString());
-    }
 };
 
 class CameraRenderOrder : public RenderOrder {

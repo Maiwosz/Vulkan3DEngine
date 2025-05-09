@@ -4,16 +4,15 @@
 #include "ProcessingStage.h"
 #include "Registry.h"
 #include "AssetManager.h"
-#include "OrderCollectionStage.h"
 #include "AssetResolutionStage.h"
 #include "UniformBufferStage.h"
 #include "RenderStage.h"
 #include "Renderer.h"
 #include "DescriptorSetStage.h"
 #include "PipelineAssignmentStage.h"
+#include "GlobalStateManager.h"
 
 // Forward declarations
-class OrderCollectionStage;
 class AssetResolutionStage;
 class UniformBufferStage;
 class DescriptorSetStage;
@@ -40,14 +39,15 @@ public:
     // Reset the system for the next frame
     void prepareForNextFrame();
 
-    void resetForNextFrame();
+    void reset();
 private:
     Registry& m_registry;
     AssetManager& m_assetManager;
     Renderer& m_renderer;
 
+    std::unique_ptr<GlobalStateManager> m_globalStateManager;
+
     // Pipeline stages
-    std::shared_ptr<OrderCollectionStage> m_collectionStage;
     std::shared_ptr<AssetResolutionStage> m_assetResolutionStage;
     std::shared_ptr<UniformBufferStage> m_uniformBufferStage;
     std::shared_ptr<DescriptorSetStage> m_descriptorSetStage;

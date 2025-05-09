@@ -64,22 +64,22 @@ void Window::createWindow() {
 void Window::setupCallbacks() {
     glfwSetFramebufferSizeCallback(m_window, [](GLFWwindow* window, int w, int h) {
         auto self = static_cast<Window*>(glfwGetWindowUserPointer(window));
-        self->m_resizeEvent->invoke(w, h);
+        //self->m_resizeEvent->invoke(w, h);
         });
 
     glfwSetWindowFocusCallback(m_window, [](GLFWwindow* window, int focused) {
         auto self = static_cast<Window*>(glfwGetWindowUserPointer(window));
-        self->m_focusEvent->invoke(focused);
+        //self->m_focusEvent->invoke(focused);
         });
 
     glfwSetWindowIconifyCallback(m_window, [](GLFWwindow* window, int iconified) {
         auto self = static_cast<Window*>(glfwGetWindowUserPointer(window));
-        self->m_minimizeEvent->invoke(iconified);
+        //self->m_minimizeEvent->invoke(iconified);
         });
 
     glfwSetWindowCloseCallback(m_window, [](GLFWwindow* window) {
         auto self = static_cast<Window*>(glfwGetWindowUserPointer(window));
-        self->m_closeEvent->invoke();
+        //self->m_closeEvent->invoke();
         });
 }
 

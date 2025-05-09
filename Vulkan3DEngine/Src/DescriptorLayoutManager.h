@@ -22,7 +22,14 @@ namespace std {
 
 class DescriptorLayoutManager {
 public:
+    enum class BuiltInLayout {
+        Global,
+        Object
+    };
+
     DescriptorLayoutManager(const LogicalDevice& device);
+    ~DescriptorLayoutManager();
+
     DescriptorLayoutHandle create(
         const DescriptorLayoutBuilder& builder,
         VkShaderStageFlags shaderStages,
@@ -33,8 +40,18 @@ public:
     VkDescriptorSetLayout get(DescriptorLayoutHandle handle) const;
     bool isValid(DescriptorLayoutHandle handle) const;
 
+    // Methods to access built-in layouts
+    DescriptorLayoutHandle getBuiltInLayout(BuiltInLayout layout) const;
+    VkDescriptorSetLayout getBuiltInVkLayout(BuiltInLayout layout) const;
+
 private:
+    void createBuiltInLayouts();
+
     const LogicalDevice& m_device;
     std::unordered_map<DescriptorLayoutHandle, VkDescriptorSetLayout> m_layouts;
     uint32_t m_nextHandle = 1;
+
+    // Built-in layouts
+    DescriptorLayoutHandle m_globalLayout;
+    DescriptorLayoutHandle m_objectLayout;
 };

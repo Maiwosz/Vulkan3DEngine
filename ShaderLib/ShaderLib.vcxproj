@@ -149,6 +149,7 @@
     <ClInclude Include="ShaderLib.h" />
     <ClInclude Include="TypeConversions.h" />
     <ClInclude Include="UBODefinitions.h" />
+    <ClInclude Include="UBOStandardDefinitions.h" />
     <ClInclude Include="VulkanHelper.h" />
   </ItemGroup>
   <ItemGroup>

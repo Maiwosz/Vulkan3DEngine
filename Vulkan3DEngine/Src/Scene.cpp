@@ -32,67 +32,82 @@ Scene::Scene()
     m_registry->getSystemManager().registerSystem<LightSystem>();
     m_registry->getSystemManager().registerSystem<CameraSystem>();
 
-    // Creating test object with mesh
-    testEntity = m_registry->create();
+    // Creating object with mesh
+    Entity testEntity = m_registry->create();
     {
-        // Transform
+        // Konfiguracja zasobów
+        std::string meshName = "Flora_C";
+        std::string materialName = "Flora_c";
+
+        // Transform with rotation
         auto& transform = m_registry->addComponent<TransformComponent>(testEntity);
         transform.setPosition(glm::vec3(0.0f, 0.0f, 0.0f));
+
+        // Apply rotation - 30 degrees around Y axis
+        float rotationAngle = 30.0f;
+        glm::vec3 rotationAxis = glm::vec3(0.0f, 1.0f, 0.0f);
+        transform.setRotation(glm::vec3(0.0f, rotationAngle, 0.0f));
+
         transform.setScale(glm::vec3(1.0f));
 
         // Mesh and material
         auto& mesh = m_registry->addComponent<MeshComponent>(testEntity);
-        mesh.setMesh(AssetHandle(AssetLib::AssetType::Mesh, "FLora_C"));
+        mesh.setMesh(AssetHandle(AssetLib::AssetType::Mesh, meshName));
 
         auto& material = m_registry->addComponent<MaterialComponent>(testEntity);
-        material.setMaterial(AssetHandle(AssetLib::AssetType::Material, "FLora_C"));
+        material.setMaterial(AssetHandle(AssetLib::AssetType::Material, materialName));
     }
 
+
     // Camera
-    testCamera = m_registry->create();
+    Entity testCamera = m_registry->create();
     {
         auto& cameraTransform = m_registry->addComponent<TransformComponent>(testCamera);
-        // Position camera further from object to ensure everything is visible
-        cameraTransform.setPosition(glm::vec3(0.0f, 0.0f, 100.0f)); // Increased distance to 10 units
-        cameraTransform.setRotation(glm::vec3(0.0f)); // Initial rotation
+
+        // Camera position
+        cameraTransform.setPosition(glm::vec3(0.0f, 2.0f, 15.0f));
+        // Set the rotation
+        cameraTransform.setRotation(glm::vec3(0.0f, 0.0f, 0.0f));
+
+        // Store the entity ID for later reference
+        this->testCamera = testCamera;
 
         auto& camera = m_registry->addComponent<CameraComponent>(testCamera);
-        camera.setAspectRatio(16.0f / 9.0f);
-        camera.setClippingPlanes(0.1f, 1000.0f);
-        // Set wider field of view for better scene coverage
-        camera.setVerticalFOV(70.0f);
+        float fieldOfView = 45.0f;
+        float aspectRatio = 1920.0f / 1080.0f;
+        float nearPlane = 0.1f;
+        float farPlane = 100.0f;
+        camera.setVerticalFOV(fieldOfView);
+        camera.setAspectRatio(aspectRatio);
+        camera.setClippingPlanes(nearPlane, farPlane);
     }
 
     // Directional light
-    testDirectionalLight = m_registry->create();
+    Entity testDirectionalLight = m_registry->create();
     {
         auto& transform = m_registry->addComponent<TransformComponent>(testDirectionalLight);
         auto& light = m_registry->addComponent<LightComponent>(testDirectionalLight, LightComponent::Type::Directional);
-        light.setDirection(glm::vec3(0.5f, -1.0f, 0.5f)); // Angled light
-        light.setColor(glm::vec4(1.0f, 1.0f, 0.9f, 1.0f)); // Slightly warm light
+
+        glm::vec3 directionalLightDir = glm::vec3(-1.0f, -1.0f, -1.0f);
+        glm::vec4 directionalLightColor = glm::vec4(1.0f, 0.8f, 0.8f, 0.05f);
+
+        light.setDirection(directionalLightDir);
+        light.setColor(directionalLightColor);
     }
 
-    // Point light (moved further for better lighting of the entire scene)
-    testPointLight = m_registry->create();
+    // Point light
+    Entity testPointLight = m_registry->create();
     {
         auto& lightTransform = m_registry->addComponent<TransformComponent>(testPointLight);
-        lightTransform.setPosition(glm::vec3(3.0f, 3.0f, 3.0f)); // Position further from center
+        glm::vec3 pointLightPosition = glm::vec3(2.0f, 2.0f, 2.0f);
+        lightTransform.setPosition(pointLightPosition);
 
         auto& light = m_registry->addComponent<LightComponent>(testPointLight, LightComponent::Type::Point);
-        light.setColor(glm::vec4(0.8f, 0.8f, 1.0f, 1.0f)); // Cool light
-        light.setRadius(25.0f); // Increased light range for covering larger scene
-    }
+        float pointLightRadius = 10.0f;
+        glm::vec4 pointLightColor = glm::vec4(0.8f, 0.8f, 0.8f, 0.0f);
 
-    // Set up input handlers
-    setupInputHandlers();
-
-    // Log initial camera position and rotation
-    if (m_registry->hasComponent<TransformComponent>(testCamera)) {
-        auto& transform = m_registry->getComponent<TransformComponent>(testCamera);
-        glm::vec3 pos = transform.getPosition();
-        glm::vec3 rot = transform.getRotation();
-        SPDLOG_ERROR("Initial Camera: Position[{:.2f}, {:.2f}, {:.2f}] Rotation[{:.2f}, {:.2f}, {:.2f}]",
-            pos.x, pos.y, pos.z, rot.x, rot.y, rot.z);
+        light.setRadius(pointLightRadius);
+        light.setColor(pointLightColor);
     }
 }
 
@@ -218,23 +233,25 @@ void Scene::handleMouseScroll(float delta)
 
 void Scene::updateCameraMovement(float deltaTime)
 {
-    if (!m_registry->hasComponent<TransformComponent>(testCamera)) {
+    // Check if camera entity exists and has transform component
+    if (!m_registry || !m_registry->valid(testCamera) || !m_registry->hasComponent<TransformComponent>(testCamera)) {
         return;
     }
 
     auto& transform = m_registry->getComponent<TransformComponent>(testCamera);
 
-    // Update camera rotation
+    // Update camera rotation from the stored offset values
     transform.setRotation(glm::vec3(m_cameraPitchOffset, m_cameraYawOffset, 0.0f));
 
     // Convert Euler angles to direction vectors
     float yawRad = glm::radians(m_cameraYawOffset);
     float pitchRad = glm::radians(m_cameraPitchOffset);
 
+    // Calculate forward direction from yaw and pitch
     glm::vec3 forward;
-    forward.x = cos(yawRad) * cos(pitchRad);
-    forward.y = sin(pitchRad);
-    forward.z = sin(yawRad) * cos(pitchRad);
+    forward.x = sin(yawRad) * cos(pitchRad);  // Note: sin(yaw) for x
+    forward.y = sin(pitchRad);                // Up/down based on pitch
+    forward.z = cos(yawRad) * cos(pitchRad);  // Note: cos(yaw) for z
     forward = glm::normalize(forward);
 
     // Calculate right and up vectors
@@ -276,7 +293,7 @@ void Scene::update()
     float deltaTime = Engine::get().getDeltaTime();
 
     // Update camera based on input
-    updateCameraMovement(deltaTime);
+    //updateCameraMovement(deltaTime);
 
     // Update all systems
     m_registry->getSystemManager().updateAll();

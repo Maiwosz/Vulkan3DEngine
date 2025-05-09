@@ -2,6 +2,8 @@
 #include "Component.h"
 #include <glm/glm.hpp>
 
+struct TransformComponent;
+
 struct CameraComponent : public Component {
 public:
     enum class ProjectionType {
@@ -45,7 +47,7 @@ public:
     float getFarClip() const { return m_farClip; }
 
     // Helper functions
-    glm::mat4 calculateProjectionMatrix() const {
+    glm::mat4 getProjectionMatrix() const {
         if (m_projectionType == ProjectionType::Perspective) {
             return glm::perspective(
                 glm::radians(m_verticalFOV),

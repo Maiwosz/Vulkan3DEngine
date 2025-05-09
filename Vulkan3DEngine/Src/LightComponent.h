@@ -56,4 +56,6 @@ struct LightComponent : public Component {
     }
 
     const glm::vec4& getColor() const { return color; }
+
+
 };

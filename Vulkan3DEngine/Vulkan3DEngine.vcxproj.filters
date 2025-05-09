@@ -209,6 +209,9 @@
     <ClCompile Include="Src\TransferManager.cpp">
       <Filter>Engine\Renderer\VramManager\TransferManager</Filter>
     </ClCompile>
+    <ClCompile Include="Src\GlobalStateManager.cpp">
+      <Filter>Engine\RenderSystem\GlobalStateManager</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Src\Prerequisites.h" />
@@ -447,9 +450,6 @@
     <ClInclude Include="Src\ProcessingStage.h">
       <Filter>Engine\RenderSystem</Filter>
     </ClInclude>
-    <ClInclude Include="Src\OrderCollectionStage.h">
-      <Filter>Engine\RenderSystem\ProcessingStages</Filter>
-    </ClInclude>
     <ClInclude Include="Src\AssetResolutionStage.h">
       <Filter>Engine\RenderSystem\ProcessingStages</Filter>
     </ClInclude>
@@ -491,6 +491,9 @@
     </ClInclude>
     <ClInclude Include="Src\TransferManager.h">
       <Filter>Engine\Renderer\VramManager\TransferManager</Filter>
+    </ClInclude>
+    <ClInclude Include="Src\GlobalStateManager.h">
+      <Filter>Engine\RenderSystem\GlobalStateManager</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
@@ -708,6 +711,9 @@
     </Filter>
     <Filter Include="Engine\Renderer\VramManager\TransferManager">
       <UniqueIdentifier>{6423c72c-d74d-44a4-884e-81e849d45c75}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Engine\RenderSystem\GlobalStateManager">
+      <UniqueIdentifier>{882842c2-b9ed-4d8a-8848-c37083718aaf}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
 </Project>
