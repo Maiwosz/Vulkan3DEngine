@@ -13,6 +13,7 @@ public:
     void start();
     void stop();
 
+    AssetWatcher& assetWatcher() {return *m_assetWatcher;}
     std::shared_ptr<spdlog::logger> getLogger() { return m_logger; }
 private:
     std::unique_ptr<AssetWatcher> m_assetWatcher;

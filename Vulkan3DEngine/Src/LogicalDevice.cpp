@@ -2,10 +2,9 @@
 #include <stdexcept>
 #include <set>
 
-LogicalDevice::LogicalDevice(
-    const PhysicalDevice& physicalDevice,
-    const std::vector<const char*>& extensions
-)
+LogicalDevice::LogicalDevice(const PhysicalDevice& physicalDevice,
+    const std::vector<const char*>& deviceExtensions,
+    bool enableDebugPrintf)
     : m_queueFamilyIndices(physicalDevice.findQueueFamilies())
 {
     std::set<uint32_t> uniqueQueueFamilies = {
@@ -29,6 +28,11 @@ LogicalDevice::LogicalDevice(
     VkPhysicalDeviceFeatures deviceFeatures{};
     deviceFeatures.samplerAnisotropy = VK_TRUE;
     deviceFeatures.sampleRateShading = VK_TRUE;
+
+    std::vector<const char*> extensions = deviceExtensions;
+    if (enableDebugPrintf) {
+        extensions.push_back(VK_KHR_SHADER_NON_SEMANTIC_INFO_EXTENSION_NAME);
+    }
 
     VkDeviceCreateInfo createInfo{};
     createInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;

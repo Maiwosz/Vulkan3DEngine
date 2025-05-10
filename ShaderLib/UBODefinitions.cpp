@@ -1,5 +1,6 @@
 #include "pch.h"
 #include "UBODefinitions.h"
+#include "UBOStandardDefinitions.h"
 #include "TypeConversions.h"
 
 namespace ShaderLib {
@@ -231,37 +232,11 @@ namespace ShaderLib {
 
     // Create GlobalUBO definition
     UniformBufferObject UBORegistry::CreateGlobalUBO() {
-        UBOBuilder builder("GlobalUBO", GLOBAL_DESCRIPTOR_SET, 0);
-
-        // Add common global variables
-        builder.AddField<glm::mat4>("view", "View matrix")
-            .AddField<glm::mat4>("proj", "Projection matrix")
-            .AddField<glm::vec3>("cameraPosition", "Camera position in world space")
-
-            // Add directional light
-            .AddStructField<DirectionalLight>("directionalLight", "Main directional light")
-
-            // Add point lights array
-            .AddArrayField<PointLight>("pointLights", 64, "Array of point lights")
-
-            // Add spot lights array
-            .AddArrayField<SpotLight>("spotLights", 16, "Array of spot lights")
-
-            // Add light counters
-            .AddField<int>("activePointLights", "Number of active point lights")
-            .AddField<int>("activeSpotLights", "Number of active spot lights");
-
-        return builder.Build();
+        return OBJECT_UBO;
     }
 
     // Create ObjectUBO definition
     UniformBufferObject UBORegistry::CreateObjectUBO() {
-        UBOBuilder builder("ObjectUBO", OBJECT_DESCRIPTOR_SET, 0);
-
-        // Add object-specific variables
-        builder.AddField<glm::mat4>("model", "Model matrix")
-            .AddField<glm::vec4>("color", "Object color/tint");
-
-        return builder.Build();
+        return GLOBAL_UBO;
     }
 } // namespace ShaderLib

@@ -11,16 +11,26 @@ Window::Window(const char* title, Settings::WindowMode initialMode, Settings::Re
     m_resizeEvent(Event<int, int>::create()),
     m_focusEvent(Event<bool>::create()),
     m_minimizeEvent(Event<bool>::create()),
-    m_closeEvent(Event<>::create())
+    m_closeEvent(Event<>::create()),
+    m_isDestroying(false)
 {
     initGLFW();
     createWindow();
     setupCallbacks();
-
 }
 
 Window::~Window() {
+    // Set the destroying flag to prevent callbacks from using the events
+    m_isDestroying.store(true);
+
     if (m_window) {
+        // Reset callbacks first to prevent new events from being triggered
+        glfwSetFramebufferSizeCallback(m_window, nullptr);
+        glfwSetWindowFocusCallback(m_window, nullptr);
+        glfwSetWindowIconifyCallback(m_window, nullptr);
+        glfwSetWindowCloseCallback(m_window, nullptr);
+        glfwSetWindowUserPointer(m_window, nullptr);
+
         glfwDestroyWindow(m_window);
         glfwTerminate();
     }
@@ -64,22 +74,38 @@ void Window::createWindow() {
 void Window::setupCallbacks() {
     glfwSetFramebufferSizeCallback(m_window, [](GLFWwindow* window, int w, int h) {
         auto self = static_cast<Window*>(glfwGetWindowUserPointer(window));
-        //self->m_resizeEvent->invoke(w, h);
+        // Check if window is valid and not being destroyed
+        if (!self || self->m_isDestroying.load() || !self->m_resizeEvent || !self->m_resizeEvent->isActive()) {
+            return;
+        }
+        self->m_resizeEvent->invoke(w, h);
         });
 
     glfwSetWindowFocusCallback(m_window, [](GLFWwindow* window, int focused) {
         auto self = static_cast<Window*>(glfwGetWindowUserPointer(window));
-        //self->m_focusEvent->invoke(focused);
+        // Check if window is valid and not being destroyed
+        if (!self || self->m_isDestroying.load() || !self->m_focusEvent || !self->m_focusEvent->isActive()) {
+            return;
+        }
+        self->m_focusEvent->invoke(focused);
         });
 
     glfwSetWindowIconifyCallback(m_window, [](GLFWwindow* window, int iconified) {
         auto self = static_cast<Window*>(glfwGetWindowUserPointer(window));
-        //self->m_minimizeEvent->invoke(iconified);
+        // Check if window is valid and not being destroyed
+        if (!self || self->m_isDestroying.load() || !self->m_minimizeEvent || !self->m_minimizeEvent->isActive()) {
+            return;
+        }
+        self->m_minimizeEvent->invoke(iconified);
         });
 
     glfwSetWindowCloseCallback(m_window, [](GLFWwindow* window) {
         auto self = static_cast<Window*>(glfwGetWindowUserPointer(window));
-        //self->m_closeEvent->invoke();
+        // Check if window is valid and not being destroyed
+        if (!self || self->m_isDestroying.load() || !self->m_closeEvent || !self->m_closeEvent->isActive()) {
+            return;
+        }
+        self->m_closeEvent->invoke();
         });
 }
 

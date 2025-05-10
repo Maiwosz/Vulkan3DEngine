@@ -33,6 +33,7 @@
 #include <shaderc/shaderc.hpp>
 #include <spirv_cross/spirv_cross.hpp>
 #include "Shader.h"
+#include <iostream>
 
 
 using json = nlohmann::json;
@@ -99,7 +100,7 @@ AssetData Converter::ProcessTexture(const std::string& inputPath, const Settings
         void operator()(stbi_uc* p) const { stbi_image_free(p); }
     };
 
-    // Ładowanie obrazu
+    // Load image with STBI
     int width, height, channels;
     std::unique_ptr<stbi_uc, StbiDeleter> pixels(
         stbi_load(inputPath.c_str(), &width, &height, &channels, STBI_rgb_alpha),
@@ -107,72 +108,101 @@ AssetData Converter::ProcessTexture(const std::string& inputPath, const Settings
     );
 
     ValidateTextureDimensions(width, height);
+
     if (!pixels) {
         throw std::runtime_error("Failed to load texture: " + inputPath);
     }
 
-    // Generowanie mipmap
+    // Ensure we're working with RGBA (4 bytes per pixel)
+    const int bytesPerPixel = 4;
+
+    // Generate mipmaps
     std::vector<std::vector<uint8_t>> mipLevels;
-    std::vector<std::pair<uint32_t, uint32_t>> mipSizes;
     uint32_t currentWidth = width;
     uint32_t currentHeight = height;
-    const uint8_t* currentPixels = pixels.get();
 
-    while (true) {
-        uint32_t paddedWidth = currentWidth;
-        uint32_t paddedHeight = currentHeight;
-        if (settings.textureFormat == AssetLib::TextureFormat::BC7) {
-            paddedWidth = PadToMultipleOf4(paddedWidth);
-            paddedHeight = PadToMultipleOf4(paddedHeight);
+    // Add original level (level 0)
+    std::vector<uint8_t> originalLevel(pixels.get(), pixels.get() + width * height * bytesPerPixel);
+    mipLevels.push_back(std::move(originalLevel));
+
+    // Generate additional mipmap levels if required
+    if (settings.generateMipmaps) {
+        while (currentWidth > 1 || currentHeight > 1) {
+            // Calculate dimensions for next level
+            uint32_t nextWidth = std::max(currentWidth / 2, 1U);
+            uint32_t nextHeight = std::max(currentHeight / 2, 1U);
+
+            // Allocate memory for next level
+            std::vector<uint8_t> nextLevel(nextWidth * nextHeight * bytesPerPixel);
+
+            // Resize image to next mipmap level using stbir
+            stbir_resize_uint8(
+                mipLevels.back().data(), currentWidth, currentHeight, 0,
+                nextLevel.data(), nextWidth, nextHeight, 0, bytesPerPixel
+            );
+
+            // Store the mip level
+            mipLevels.push_back(std::move(nextLevel));
+
+            // Update dimensions for next iteration
+            currentWidth = nextWidth;
+            currentHeight = nextHeight;
         }
-
-        std::vector<uint8_t> resized(paddedWidth * paddedHeight * 4, 0);
-        stbir_resize_uint8(
-            currentPixels, currentWidth, currentHeight, 0,
-            resized.data(), paddedWidth, paddedHeight, 0, 4
-        );
-
-        mipLevels.push_back(std::move(resized));
-        mipSizes.emplace_back(paddedWidth, paddedHeight);
-
-        if ((paddedWidth <= 1 && paddedHeight <= 1) || !settings.generateMipmaps) break;
-
-        currentWidth = std::max(paddedWidth / 2, 1U);
-        currentHeight = std::max(paddedHeight / 2, 1U);
-        currentPixels = mipLevels.back().data();
     }
 
-    // Przygotowanie danych tekstury i zapis przy użyciu AssetLib
+    // Prepare texture info
     AssetLib::TextureInfo texInfo;
-    texInfo.format = settings.textureFormat;
+    texInfo.format = AssetLib::TextureFormat::RGBA8; // Ensure we're working with RGBA8
     texInfo.width = static_cast<uint32_t>(width);
     texInfo.height = static_cast<uint32_t>(height);
     texInfo.mipLevels = static_cast<uint32_t>(mipLevels.size());
     texInfo.flags = 0;
+    texInfo.mips.reserve(mipLevels.size());
 
+    // Combine all mipmap levels into a single buffer and fill the mip info
     std::vector<uint8_t> pixelData;
+    size_t totalSize = 0;
 
-    if (settings.textureFormat == AssetLib::TextureFormat::BC7) {
-        // Kompresja BC7 dla każdego poziomu mipmapy
-        for (size_t i = 0; i < mipLevels.size(); ++i) {
-            auto compressed = CompressBC7(
-                mipLevels[i].data(),
-                mipSizes[i].first,
-                mipSizes[i].second
-            );
-            pixelData.insert(pixelData.end(), compressed.begin(), compressed.end());
-        }
+    // First, calculate total size needed
+    for (const auto& mip : mipLevels) {
+        totalSize += mip.size();
     }
-    else {
-        // Składanie surowych danych RGBA8
-        for (const auto& mip : mipLevels) {
-            pixelData.insert(pixelData.end(), mip.begin(), mip.end());
-        }
+
+    // Pre-allocate the buffer
+    pixelData.reserve(totalSize);
+
+    // Copy each mip level into the combined buffer and record its info
+    uint32_t offset = 0;
+    uint32_t mipIndex = 0;
+    uint32_t mipWidth = width;
+    uint32_t mipHeight = height;
+
+    for (const auto& mip : mipLevels) {
+        // Create MipLevel entry
+        AssetLib::MipLevel mipInfo;
+        mipInfo.width = mipWidth;
+        mipInfo.height = mipHeight;
+        mipInfo.dataOffset = offset;
+        mipInfo.dataSize = static_cast<uint32_t>(mip.size());
+
+        // Add mip info to texture
+        texInfo.mips.push_back(mipInfo);
+
+        // Copy data to combined buffer
+        pixelData.insert(pixelData.end(), mip.begin(), mip.end());
+
+        // Update offset for next mip level
+        offset += mipInfo.dataSize;
+
+        // Update dimensions for next mip level
+        mipWidth = std::max(mipWidth / 2, 1U);
+        mipHeight = std::max(mipHeight / 2, 1U);
+        mipIndex++;
     }
 
     std::string filename = std::filesystem::path(inputPath).filename().string();
 
-    // Zapis przy użyciu ustandaryzowanej funkcji
+    // Write using standardized function
     AssetData asset = AssetLib::WriteTexture(
         filename,
         texInfo,
@@ -196,9 +226,12 @@ AssetData Converter::ProcessMesh(const std::string& inputPath, const Settings& s
             throw std::runtime_error("OBJ load error: " + warn + err);
         }
 
+        // Sprawdź, które atrybuty są dostępne w modelu
         const bool hasNormals = !attrib.normals.empty();
         const bool hasTexCoords = !attrib.texcoords.empty();
+        const bool hasColors = !attrib.colors.empty();
 
+        // Weryfikacja indeksów dla dostępnych atrybutów
         for (const auto& shape : shapes) {
             for (const auto& index : shape.mesh.indices) {
                 if (index.vertex_index < 0) throw std::runtime_error("Missing vertex index");
@@ -207,27 +240,133 @@ AssetData Converter::ProcessMesh(const std::string& inputPath, const Settings& s
             }
         }
 
+        // Zdefiniujmy wartości domyślne dla brakujących atrybutów
+        const std::array<float, 3> defaultNormal = { 0.0f, 0.0f, 1.0f };  // Domyślnie w kierunku Z
+        const std::array<float, 2> defaultTexCoord = { 0.0f, 0.0f };      // Lewy dolny róg tekstury
+        const std::array<float, 4> defaultColor = { 1.0f, 1.0f, 1.0f, 1.0f }; // Biały kolor
+
         std::vector<DynamicVertex> vertices;
         std::vector<uint32_t> indices;
         std::unordered_map<DynamicVertex, uint32_t, DynamicVertexHasher> uniqueVertices;
 
+        // Definicja jakie atrybuty chcemy mieć w każdej siatce
+        const bool generateNormals = true;    // Zawsze chcemy mieć normalne
+        const bool generateTexCoords = true;  // Zawsze chcemy mieć współrzędne tekstury
+        const bool generateColors = true;     // Zawsze chcemy mieć kolory
+
+        // Obliczanie normalnych, jeśli ich brak
+        std::vector<std::array<float, 3>> calculatedNormals;
+        if (!hasNormals && generateNormals) {
+
+            // Alokuj miejsce na normalne dla każdego wierzchołka
+            calculatedNormals.resize(attrib.vertices.size() / 3, { 0.0f, 0.0f, 0.0f });
+
+            // Oblicz normalne dla każdego trójkąta i dodaj do wierzchołków
+            for (const auto& shape : shapes) {
+                for (size_t f = 0; f < shape.mesh.indices.size() / 3; f++) {
+                    // Pobierz indeksy wierzchołków trójkąta
+                    tinyobj::index_t idx0 = shape.mesh.indices[3 * f + 0];
+                    tinyobj::index_t idx1 = shape.mesh.indices[3 * f + 1];
+                    tinyobj::index_t idx2 = shape.mesh.indices[3 * f + 2];
+
+                    // Pobierz współrzędne wierzchołków
+                    float v0[3] = {
+                        attrib.vertices[3 * idx0.vertex_index + 0],
+                        attrib.vertices[3 * idx0.vertex_index + 1],
+                        attrib.vertices[3 * idx0.vertex_index + 2]
+                    };
+                    float v1[3] = {
+                        attrib.vertices[3 * idx1.vertex_index + 0],
+                        attrib.vertices[3 * idx1.vertex_index + 1],
+                        attrib.vertices[3 * idx1.vertex_index + 2]
+                    };
+                    float v2[3] = {
+                        attrib.vertices[3 * idx2.vertex_index + 0],
+                        attrib.vertices[3 * idx2.vertex_index + 1],
+                        attrib.vertices[3 * idx2.vertex_index + 2]
+                    };
+
+                    // Oblicz wektory krawędzi
+                    float e1[3] = { v1[0] - v0[0], v1[1] - v0[1], v1[2] - v0[2] };
+                    float e2[3] = { v2[0] - v0[0], v2[1] - v0[1], v2[2] - v0[2] };
+
+                    // Oblicz iloczyn wektorowy, aby uzyskać normalną
+                    float normal[3] = {
+                        e1[1] * e2[2] - e1[2] * e2[1],
+                        e1[2] * e2[0] - e1[0] * e2[2],
+                        e1[0] * e2[1] - e1[1] * e2[0]
+                    };
+
+                    // Dodaj normalną do wszystkich trzech wierzchołków trójkąta
+                    for (int i = 0; i < 3; i++) {
+                        calculatedNormals[idx0.vertex_index][i] += normal[i];
+                        calculatedNormals[idx1.vertex_index][i] += normal[i];
+                        calculatedNormals[idx2.vertex_index][i] += normal[i];
+                    }
+                }
+            }
+
+            // Normalizuj wszystkie normalne
+            for (auto& n : calculatedNormals) {
+                float len = std::sqrt(n[0] * n[0] + n[1] * n[1] + n[2] * n[2]);
+                if (len > 0.00001f) {
+                    n[0] /= len;
+                    n[1] /= len;
+                    n[2] /= len;
+                }
+                else {
+                    // Jeśli długość jest bliska zeru, ustaw domyślną normalną
+                    n = defaultNormal;
+                }
+            }
+        }
+
         for (const auto& shape : shapes) {
             for (const auto& index : shape.mesh.indices) {
                 DynamicVertex vertex{};
-                vertex.hasNormals = hasNormals;
-                vertex.hasTexCoords = hasTexCoords;
 
+                // Pozycja (zawsze dostępna)
                 const int vi = 3 * index.vertex_index;
                 vertex.pos = { attrib.vertices[vi], attrib.vertices[vi + 1], attrib.vertices[vi + 2] };
 
+                // Normalne (oryginalne lub wygenerowane)
+                vertex.hasNormals = generateNormals;
                 if (hasNormals) {
                     const int ni = 3 * index.normal_index;
                     vertex.norm = { attrib.normals[ni], attrib.normals[ni + 1], attrib.normals[ni + 2] };
                 }
+                else if (generateNormals) {
+                    vertex.norm = calculatedNormals[index.vertex_index];
+                }
+                else {
+                    vertex.norm = defaultNormal;
+                }
 
+                // Współrzędne tekstury (oryginalne lub domyślne)
+                vertex.hasTexCoords = generateTexCoords;
                 if (hasTexCoords) {
-                    const int ti = 2 * index.texcoord_index;
-                    vertex.uv = { attrib.texcoords[ti], attrib.texcoords[ti + 1] };
+                    if (hasTexCoords) {
+                        const int ti = 2 * index.texcoord_index;
+                        vertex.uv = { attrib.texcoords[ti], 1.0f - attrib.texcoords[ti + 1] }; // Obróć Y dla Vulkana
+                    }
+                }
+                else if (generateTexCoords) {
+                    vertex.uv = defaultTexCoord;
+                }
+
+                // Kolory (oryginalne lub domyślne)
+                vertex.hasColors = generateColors;
+                if (hasColors) {
+                    const int ci = 3 * index.vertex_index;
+                    vertex.color = {
+                        attrib.colors[ci],
+                        attrib.colors[ci + 1],
+                        attrib.colors[ci + 2],
+                        1.0f  // Domyślna wartość alpha
+                    };
+                }
+                else if (generateColors) {
+                    vertex.color = defaultColor;
                 }
 
                 auto it = uniqueVertices.find(vertex);
@@ -239,6 +378,7 @@ AssetData Converter::ProcessMesh(const std::string& inputPath, const Settings& s
             }
         }
 
+        // Określ typ indeksów w zależności od liczby wierzchołków
         const bool use16Bit = (vertices.size() - 1) <= std::numeric_limits<uint16_t>::max();
         uint8_t indexType = use16Bit ? 0 : 1;
         std::vector<uint8_t> indexBuffer;
@@ -253,42 +393,53 @@ AssetData Converter::ProcessMesh(const std::string& inputPath, const Settings& s
             memcpy(indexBuffer.data(), indices.data(), indexBuffer.size());
         }
 
-        const size_t vertexSize = 3 * sizeof(float)
-            + (hasNormals ? 3 * sizeof(float) : 0)
-            + (hasTexCoords ? 2 * sizeof(float) : 0);
+        // Określ rozmiar wierzchołka na podstawie wymaganych atrybutów
+        const size_t positionSize = 3 * sizeof(float);
+        const size_t normalSize = generateNormals ? 3 * sizeof(float) : 0;
+        const size_t texCoordSize = generateTexCoords ? 2 * sizeof(float) : 0;
+        const size_t colorSize = generateColors ? 4 * sizeof(float) : 0;
+
+        const size_t vertexSize = positionSize + normalSize + texCoordSize + colorSize;
 
         std::vector<uint8_t> vertexData(vertices.size() * vertexSize);
         uint8_t* ptr = vertexData.data();
 
         for (const auto& v : vertices) {
-            memcpy(ptr, v.pos.data(), 3 * sizeof(float));
-            ptr += 3 * sizeof(float);
+            // Pozycja (zawsze)
+            memcpy(ptr, v.pos.data(), positionSize);
+            ptr += positionSize;
 
-            if (hasNormals) {
-                memcpy(ptr, v.norm.data(), 3 * sizeof(float));
-                ptr += 3 * sizeof(float);
+            // Normalne (jeśli wymagane)
+            if (generateNormals) {
+                memcpy(ptr, v.norm.data(), normalSize);
+                ptr += normalSize;
             }
 
-            if (hasTexCoords) {
-                memcpy(ptr, v.uv.data(), 2 * sizeof(float));
-                ptr += 2 * sizeof(float);
+            // Współrzędne tekstury (jeśli wymagane)
+            if (generateTexCoords) {
+                memcpy(ptr, v.uv.data(), texCoordSize);
+                ptr += texCoordSize;
+            }
+
+            // Kolory (jeśli wymagane)
+            if (generateColors) {
+                memcpy(ptr, v.color.data(), colorSize);
+                ptr += colorSize;
             }
         }
 
-        std::vector<uint8_t> meshData;
-        meshData.reserve(vertexData.size() + indexBuffer.size());
-        meshData.insert(meshData.end(), vertexData.begin(), vertexData.end());
-        meshData.insert(meshData.end(), indexBuffer.begin(), indexBuffer.end());
+        // Określ flagi atrybutów
+        uint32_t attributeFlags = static_cast<uint32_t>(AssetLib::VertexAttribute::Position);
+        if (generateNormals) attributeFlags |= static_cast<uint32_t>(AssetLib::VertexAttribute::Normal);
+        if (generateTexCoords) attributeFlags |= static_cast<uint32_t>(AssetLib::VertexAttribute::TexCoord);
+        if (generateColors) attributeFlags |= static_cast<uint32_t>(AssetLib::VertexAttribute::Color);
 
+        // Przygotuj informacje o siatce
         AssetLib::MeshInfo meshInfo{};
         meshInfo.vertexCount = static_cast<uint32_t>(vertices.size());
         meshInfo.indexCount = static_cast<uint32_t>(indices.size());
         meshInfo.vertexStride = static_cast<uint32_t>(vertexSize);
-        meshInfo.attributes = static_cast<uint32_t>(
-            AssetLib::VertexAttribute::Position |
-            (hasNormals ? AssetLib::VertexAttribute::Normal : AssetLib::VertexAttribute(0)) |
-            (hasTexCoords ? AssetLib::VertexAttribute::TexCoord : AssetLib::VertexAttribute(0))
-            );
+        meshInfo.attributes = attributeFlags;
         meshInfo.indexType = indexType;
 
         std::string filename = std::filesystem::path(inputPath).filename().string();

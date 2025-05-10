@@ -36,8 +36,9 @@ namespace ShaderLib {
 
     // Light structure definitions that can be used in both C++ and shader code
     struct DirectionalLight {
-        alignas(16) glm::vec3 direction;
-        alignas(16) glm::vec4 color; // w is intensity
+        glm::vec3 direction;
+        float padding1;         // Jawne dopełnienie dla wyrównania wektorów
+        glm::vec4 color;        // w to intensywność
 
         // Generate GLSL struct definition
         static std::string GetGLSLDefinition() {
@@ -49,9 +50,9 @@ namespace ShaderLib {
     };
 
     struct PointLight {
-        alignas(16) glm::vec3 position;
+        glm::vec3 position;
         float radius;
-        alignas(16) glm::vec4 color; // w is intensity
+        glm::vec4 color;        // w to intensywność
 
         // Generate GLSL struct definition
         static std::string GetGLSLDefinition() {
@@ -64,13 +65,13 @@ namespace ShaderLib {
     };
 
     struct SpotLight {
-        alignas(16) glm::vec3 position;
+        glm::vec3 position;
         float innerCutoff;
-        alignas(16) glm::vec3 direction;
+        glm::vec3 direction;
         float outerCutoff;
-        alignas(16) glm::vec4 color; // w is intensity
+        glm::vec4 color;        // w to intensywność
         float range;
-        float padding[3]; // Explicit padding for consistent memory layout
+        float padding[3];       // Jawne dopełnienie
 
         // Generate GLSL struct definition
         static std::string GetGLSLDefinition() {

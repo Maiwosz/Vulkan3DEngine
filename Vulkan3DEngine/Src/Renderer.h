@@ -49,6 +49,7 @@ public:
 
     RenderPassHandle renderPass() { return m_mainRenderPassHandle; }
     AttachmentHandle depthAttachmentHandle() { return m_depthAttachmentHandle; }
+    AttachmentHandle msColorAttachmentHandle() { return m_msColorAttachmentHandle; }
 
 private:
     Window& m_window;
@@ -74,9 +75,9 @@ private:
     // Main render pass and resources
     RenderPassHandle m_mainRenderPassHandle;
     AttachmentHandle m_depthAttachmentHandle;
+    AttachmentHandle m_msColorAttachmentHandle;
 
     // Helper methods
     void createMainRenderPass();
     void recreateRenderResources();
-    void handleWindowResize(int width, int height);
 };

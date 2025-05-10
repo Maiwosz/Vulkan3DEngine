@@ -34,25 +34,53 @@ namespace {
     }
 
     struct DynamicVertex {
-        std::array<float, 3> pos;
-        std::array<float, 3> norm;
-        std::array<float, 2> uv;
-        bool hasNormals;
-        bool hasTexCoords;
+        std::array<float, 3> pos;      // Pozycja (zawsze)
+        std::array<float, 3> norm;     // Normalna
+        std::array<float, 2> uv;       // Współrzędne tekstury
+        std::array<float, 4> color;    // Kolor (RGBA)
+        bool hasNormals;               // Czy wierzchołek ma normalne
+        bool hasTexCoords;             // Czy wierzchołek ma współrzędne tekstury
+        bool hasColors;                // Czy wierzchołek ma kolory
 
         bool operator==(const DynamicVertex& other) const {
-            return pos == other.pos &&
-                (!hasNormals || norm == other.norm) &&
-                (!hasTexCoords || uv == other.uv);
+            // Zawsze porównujemy pozycję
+            if (pos != other.pos) return false;
+
+            // Porównujemy normalne tylko jeśli oba wierzchołki je mają
+            if (hasNormals && other.hasNormals && norm != other.norm) return false;
+
+            // Porównujemy współrzędne tekstury tylko jeśli oba wierzchołki je mają
+            if (hasTexCoords && other.hasTexCoords && uv != other.uv) return false;
+
+            // Porównujemy kolory tylko jeśli oba wierzchołki je mają
+            if (hasColors && other.hasColors && color != other.color) return false;
+
+            return true;
         }
     };
 
     struct DynamicVertexHasher {
         size_t operator()(const DynamicVertex& v) const {
             size_t seed = 0;
+
+            // Zawsze zahaszuj pozycję
             for (float val : v.pos) hash_combine(seed, val);
-            if (v.hasNormals) for (float val : v.norm) hash_combine(seed, val);
-            if (v.hasTexCoords) for (float val : v.uv) hash_combine(seed, val);
+
+            // Zahaszuj normalne tylko jeśli wierzchołek je ma
+            if (v.hasNormals) {
+                for (float val : v.norm) hash_combine(seed, val);
+            }
+
+            // Zahaszuj współrzędne tekstury tylko jeśli wierzchołek je ma
+            if (v.hasTexCoords) {
+                for (float val : v.uv) hash_combine(seed, val);
+            }
+
+            // Zahaszuj kolory tylko jeśli wierzchołek je ma
+            if (v.hasColors) {
+                for (float val : v.color) hash_combine(seed, val);
+            }
+
             return seed;
         }
     };

@@ -31,11 +31,22 @@ private:
     // Camera movement state
     void updateCameraMovement(float deltaTime);
 
+    void updatePointLightOrbit(float deltaTime);
+
     Entity testEntity;
+    Entity testEntity2;
+    Entity testEntity3;
     Entity testDirectionalLight;
     Entity testPointLight;
     Entity testCamera;
+    Entity testFloor;
     std::unique_ptr<Registry> m_registry;
+
+    // Point light orbit parameters
+    float m_lightOrbitRadius;             // Radius of orbit in units
+    float m_lightOrbitSpeed;              // Orbit speed in radians per second
+    float m_lightOrbitHeight;             // Height of orbit above floor
+    float m_lightOrbitAngle;              // Current angle of orbit in radians
 
     // Camera control variables
     float m_cameraRotationSpeed;          // Rotation speed in degrees per second

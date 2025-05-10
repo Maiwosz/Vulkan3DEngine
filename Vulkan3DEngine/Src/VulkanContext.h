@@ -23,6 +23,7 @@ public:
     CommandPool& graphicsCommandPool() { return *m_graphicsCommandPool; }
     CommandPool& transferCommandPool() { return *m_transferCommandPool; }
     CommandPool& computeCommandPool() { return *m_computeCommandPool; }
+    bool debugPrintfEnabled() const { return m_instance.debugPrintfEnabled(); }
 
 private:
     Instance m_instance;

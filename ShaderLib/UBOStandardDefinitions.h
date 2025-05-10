@@ -23,14 +23,12 @@ namespace ShaderLib {
             .AddStructField<DirectionalLight>("directionalLight", "Main directional light")
 
             // Add point lights array
+            .AddField<int>("activePointLights", "Number of active point lights")
             .AddArrayField<PointLight>("pointLights", 64, "Array of point lights")
 
             // Add spot lights array
-            .AddArrayField<SpotLight>("spotLights", 16, "Array of spot lights")
-
-            // Add light counters
-            .AddField<int>("activePointLights", "Number of active point lights")
-            .AddField<int>("activeSpotLights", "Number of active spot lights");
+            .AddField<int>("activeSpotLights", "Number of active spot lights")
+            .AddArrayField<SpotLight>("spotLights", 16, "Array of spot lights");
 
         return builder.Build();
         }();
@@ -54,14 +52,17 @@ namespace ShaderLib {
 
      // Global UBO struct template - matching the definition in UBORegistry::CreateGlobalUBO()
     struct GlobalUBOData {
-        alignas(16) glm::mat4 view;                        // View matrix
-        alignas(16) glm::mat4 proj;                        // Projection matrix
-        alignas(16) glm::vec3 cameraPosition;              // Camera position in world space
-        alignas(16) DirectionalLight directionalLight;     // Main directional light
-        alignas(16) PointLight pointLights[64];            // Array of point lights
-        alignas(16) SpotLight spotLights[16];              // Array of spot lights
-        alignas(4)  int activePointLights;                 // Number of active point lights
-        alignas(4)  int activeSpotLights;                  // Number of active spot lights
+        glm::mat4 view;
+        glm::mat4 proj;
+        glm::vec3 cameraPosition;
+        float padding1;         // Dopełnienie dla wyrównania następnej struktury
+        DirectionalLight directionalLight;
+        int activePointLights;
+        float padding2[3];      // Dopełnienie dla wyrównania do 16 bajtów
+        PointLight pointLights[64];
+        int activeSpotLights;
+        float padding3[3];      // Dopełnienie dla wyrównania do 16 bajtów
+        SpotLight spotLights[16];
 
         // Helper method to initialize the UBO with default values
         void SetDefaults() {
@@ -77,15 +78,24 @@ namespace ShaderLib {
             activePointLights = 0;
             activeSpotLights = 0;
 
-            // Optional: Initialize light arrays to zero
+            // Thoroughly initialize light arrays
             for (int i = 0; i < 64; i++) {
-                pointLights[i].color = glm::vec4(0.0f);
+                pointLights[i].position = glm::vec3(0.0f);
                 pointLights[i].radius = 0.0f;
+                pointLights[i].color = glm::vec4(0.0f);
             }
 
             for (int i = 0; i < 16; i++) {
+                spotLights[i].position = glm::vec3(0.0f);
+                spotLights[i].direction = glm::vec3(0.0f);
+                spotLights[i].innerCutoff = 0.0f;
+                spotLights[i].outerCutoff = 0.0f;
                 spotLights[i].color = glm::vec4(0.0f);
                 spotLights[i].range = 0.0f;
+                // Initialize padding if necessary
+                spotLights[i].padding[0] = 0.0f;
+                spotLights[i].padding[1] = 0.0f;
+                spotLights[i].padding[2] = 0.0f;
             }
         }
     };
@@ -95,8 +105,8 @@ namespace ShaderLib {
 
     // Object UBO struct template - matching the definition in UBORegistry::CreateObjectUBO()
     struct ObjectUBOData {
-        alignas(16) glm::mat4 model;      // Model matrix
-        alignas(16) glm::vec4 color;      // Object color/tint
+        glm::mat4 model;
+        glm::vec4 color;
 
         // Helper method to initialize the UBO with default values
         void SetDefaults() {

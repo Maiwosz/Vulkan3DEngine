@@ -26,10 +26,10 @@ layout(std140, set = 0, binding = 0) uniform GlobalUBO {
     mat4 proj;
     vec3 cameraPosition;
     DirectionalLight directionalLight;
-    PointLight pointLights[64];
-    SpotLight spotLights[16];
     int activePointLights;
+    PointLight pointLights[64];
     int activeSpotLights;
+    SpotLight spotLights[16];
 };
 
 

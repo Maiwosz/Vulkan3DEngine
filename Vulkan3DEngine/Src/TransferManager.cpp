@@ -40,7 +40,12 @@ void TransferManager::queueBufferTransfer(Buffer* destination, const void* data,
     m_pendingBufferTransfers.push_back(std::move(request));
 }
 
-void TransferManager::queueImageTransfer(Image* destination, const void* data, const VkImageCreateInfo& imageInfo) {
+void TransferManager::queueImageTransfer(
+    Image* destination,
+    const void* data,
+    const VkImageCreateInfo& imageInfo,
+    const std::vector<AssetLib::MipLevel>& mipLevels) {
+
     std::lock_guard<std::mutex> lock(m_mutex);
 
     if (!destination || !data || imageInfo.extent.width == 0 || imageInfo.extent.height == 0) {
@@ -60,18 +65,94 @@ void TransferManager::queueImageTransfer(Image* destination, const void* data, c
 
     ImageTransferRequest request;
     request.destination = destination;
-    request.destinationImage = imageHandle; // Store the actual Vulkan handle
+    request.destinationImage = imageHandle;
     request.imageInfo = imageInfo;
 
-    // Calculate total size and mip level information
-    auto [mipLevelSizes, mipLevelOffsets] = calculateMipLevelInfo(imageInfo);
-    request.mipLevelSizes = mipLevelSizes;
-    request.mipLevelOffsets = mipLevelOffsets;
+    // Zapisujemy dostarczone informacje o mipmapach
+    if (!mipLevels.empty()) {
+        request.mipLevels = mipLevels;
+    }
+    // Jeśli nie dostarczono informacji o mipmapach, używamy domyślnego obliczania
+    else {
+        // Obliczamy rozmiar każdego poziomu mipmapy
+        uint32_t bytesPerPixel = 4; // Domyślnie RGBA8
 
-    // Calculate total size
+        // Określ format na podstawie podanego formatu obrazu
+        switch (imageInfo.format) {
+        case VK_FORMAT_R8G8B8A8_UNORM:
+        case VK_FORMAT_R8G8B8A8_SRGB:
+            bytesPerPixel = 4;
+            break;
+        case VK_FORMAT_R8G8B8_UNORM:
+        case VK_FORMAT_R8G8B8_SRGB:
+            bytesPerPixel = 3;
+            break;
+        case VK_FORMAT_R8G8_UNORM:
+            bytesPerPixel = 2;
+            break;
+        case VK_FORMAT_R8_UNORM:
+            bytesPerPixel = 1;
+            break;
+            // BC7 wymaga specjalnej obsługi
+        case VK_FORMAT_BC7_UNORM_BLOCK:
+        case VK_FORMAT_BC7_SRGB_BLOCK:
+            // Specjalna obsługa dla BC7
+            // W tym przypadku powinniśmy mieć dostarczone mipLevels, ale w razie czego
+            // utworzymy podstawową wersję
+            for (uint32_t i = 0; i < imageInfo.mipLevels; i++) {
+                uint32_t mipWidth = std::max(1u, imageInfo.extent.width >> i);
+                uint32_t mipHeight = std::max(1u, imageInfo.extent.height >> i);
+
+                // Zaokrąglij do wielokrotności 4 dla kompresji blokowej
+                uint32_t blocksX = (mipWidth + 3) / 4;
+                uint32_t blocksY = (mipHeight + 3) / 4;
+
+                // Każdy blok zajmuje 16 bajtów w BC7
+                uint32_t levelSize = blocksX * blocksY * 16;
+
+                AssetLib::MipLevel mipLevel;
+                mipLevel.width = mipWidth;
+                mipLevel.height = mipHeight;
+                mipLevel.dataOffset = (i > 0) ?
+                    request.mipLevels.back().dataOffset + request.mipLevels.back().dataSize : 0;
+                mipLevel.dataSize = levelSize;
+
+                request.mipLevels.push_back(mipLevel);
+            }
+            break;
+        default:
+            // Dla innych formatów, domyślnie 4 bajty na piksel
+            bytesPerPixel = 4;
+            break;
+        }
+
+        // Jeśli nie jest to BC7, generujemy standardowe informacje o mipmapach
+        if (imageInfo.format != VK_FORMAT_BC7_UNORM_BLOCK &&
+            imageInfo.format != VK_FORMAT_BC7_SRGB_BLOCK) {
+
+            for (uint32_t i = 0; i < imageInfo.mipLevels; i++) {
+                uint32_t mipWidth = std::max(1u, imageInfo.extent.width >> i);
+                uint32_t mipHeight = std::max(1u, imageInfo.extent.height >> i);
+
+                uint32_t levelSize = mipWidth * mipHeight * bytesPerPixel;
+
+                AssetLib::MipLevel mipLevel;
+                mipLevel.width = mipWidth;
+                mipLevel.height = mipHeight;
+                mipLevel.dataOffset = (i > 0) ?
+                    request.mipLevels.back().dataOffset + request.mipLevels.back().dataSize : 0;
+                mipLevel.dataSize = levelSize;
+
+                request.mipLevels.push_back(mipLevel);
+            }
+        }
+    }
+
+    // Oblicz całkowitą wielkość
     VkDeviceSize totalSize = 0;
-    if (!mipLevelSizes.empty()) {
-        totalSize = mipLevelOffsets.back() + mipLevelSizes.back();
+    if (!request.mipLevels.empty()) {
+        const auto& lastMip = request.mipLevels.back();
+        totalSize = lastMip.dataOffset + lastMip.dataSize;
     }
 
     if (totalSize == 0) {
@@ -83,11 +164,14 @@ void TransferManager::queueImageTransfer(Image* destination, const void* data, c
     request.data.resize(totalSize);
     memcpy(request.data.data(), data, totalSize);
 
-    SPDLOG_DEBUG("Queued image transfer: width={}, height={}, format={}, image={}",
+    SPDLOG_DEBUG("Queued image transfer: width={}, height={}, format={}, mips={}, size={}, image={}",
         imageInfo.extent.width,
         imageInfo.extent.height,
         (uint32_t)imageInfo.format,
+        imageInfo.mipLevels,
+        totalSize,
         (void*)imageHandle);
+
     m_pendingImageTransfers.push_back(std::move(request));
 }
 
@@ -278,12 +362,12 @@ void TransferManager::executeTransfers(CommandBuffer& transferCmd, CommandBuffer
                 std::vector<VkBufferImageCopy> copyRegions;
                 copyRegions.reserve(request.imageInfo.mipLevels);
 
-                for (uint32_t i = 0; i < request.imageInfo.mipLevels; i++) {
-                    uint32_t mipWidth = std::max(1u, request.imageInfo.extent.width >> i);
-                    uint32_t mipHeight = std::max(1u, request.imageInfo.extent.height >> i);
+                // Use the mipLevels directly from the request
+                for (uint32_t i = 0; i < request.mipLevels.size(); i++) {
+                    const auto& mipLevel = request.mipLevels[i];
 
                     VkBufferImageCopy region{};
-                    region.bufferOffset = imageOffset + request.mipLevelOffsets[i];
+                    region.bufferOffset = imageOffset + mipLevel.dataOffset;
                     region.bufferRowLength = 0;   // Tightly packed
                     region.bufferImageHeight = 0; // Tightly packed
                     region.imageSubresource.aspectMask = aspectMask;
@@ -291,7 +375,11 @@ void TransferManager::executeTransfers(CommandBuffer& transferCmd, CommandBuffer
                     region.imageSubresource.baseArrayLayer = 0;
                     region.imageSubresource.layerCount = request.imageInfo.arrayLayers;
                     region.imageOffset = { 0, 0, 0 };
-                    region.imageExtent = { mipWidth, mipHeight, 1 };
+                    region.imageExtent = {
+                        mipLevel.width,
+                        mipLevel.height,
+                        1
+                    };
 
                     copyRegions.push_back(region);
                 }
@@ -351,61 +439,4 @@ void TransferManager::executeTransfers(CommandBuffer& transferCmd, CommandBuffer
             imageStagingBuffer->unmap();
         }
     }
-}
-
-std::pair<std::vector<VkDeviceSize>, std::vector<VkDeviceSize>>
-TransferManager::calculateMipLevelInfo(const VkImageCreateInfo& imageInfo) {
-    std::vector<VkDeviceSize> mipLevelSizes;
-    std::vector<VkDeviceSize> mipLevelOffsets;
-    VkDeviceSize totalSize = 0;
-
-    uint32_t bytesPerPixel = 4; // Default to 4 bytes per pixel (RGBA8)
-
-    // Determine bytes per pixel based on format
-    switch (imageInfo.format) {
-    case VK_FORMAT_R8G8B8A8_UNORM:
-    case VK_FORMAT_R8G8B8A8_SRGB:
-        bytesPerPixel = 4;
-        break;
-    case VK_FORMAT_R8G8B8_UNORM:
-    case VK_FORMAT_R8G8B8_SRGB:
-        bytesPerPixel = 3;
-        break;
-    case VK_FORMAT_R8G8_UNORM:
-        bytesPerPixel = 2;
-        break;
-    case VK_FORMAT_R8_UNORM:
-        bytesPerPixel = 1;
-        break;
-    case VK_FORMAT_R32G32B32A32_SFLOAT:
-        bytesPerPixel = 16;
-        break;
-    case VK_FORMAT_R32G32B32_SFLOAT:
-        bytesPerPixel = 12;
-        break;
-    case VK_FORMAT_R32G32_SFLOAT:
-        bytesPerPixel = 8;
-        break;
-    case VK_FORMAT_R32_SFLOAT:
-        bytesPerPixel = 4;
-        break;
-    default:
-        bytesPerPixel = 4; // Default fallback
-        break;
-    }
-
-    // Calculate size for each mip level and the total size
-    for (uint32_t i = 0; i < imageInfo.mipLevels; i++) {
-        uint32_t mipWidth = std::max(1u, imageInfo.extent.width >> i);
-        uint32_t mipHeight = std::max(1u, imageInfo.extent.height >> i);
-
-        // For standard formats, calculate size based on pixels
-        VkDeviceSize levelSize = static_cast<VkDeviceSize>(mipWidth * mipHeight * bytesPerPixel);
-
-        mipLevelOffsets.push_back(totalSize);
-        mipLevelSizes.push_back(levelSize);
-        totalSize += levelSize;
-    }
-
-    return { mipLevelSizes, mipLevelOffsets };
 }

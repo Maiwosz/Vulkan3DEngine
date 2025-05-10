@@ -4,6 +4,7 @@
 #include "MeshManager.h"
 #include "Mesh.h"
 #include "Renderer.h"
+#include "Engine.h"
 
 PipelineAssignmentStage::PipelineAssignmentStage(Renderer& renderer)
     :
@@ -204,8 +205,11 @@ GraphicsPipelineConfig PipelineAssignmentStage::createPipelineConfig(
     config.depthStencil.depthCompareOp = VK_COMPARE_OP_LESS;
     config.depthStencil.stencilTestEnable = VK_FALSE;
 
+    Settings& settings = Engine::get().settings();
+    VkSampleCountFlagBits samples = Graphics::convertSampleCount(settings.getMsaaSamples());
+
     // Configure multisampling
-    //config.multisample.samples = VK_FALSE;
+    config.multisample.samples = samples;
 
     // Configure color blending - match debug code's approach
     config.colorBlend.blendEnable = VK_FALSE;
@@ -236,114 +240,88 @@ VertexInputConfig PipelineAssignmentStage::createVertexInputConfig(const Mesh& m
     VertexInputConfig config;
     SPDLOG_DEBUG("Creating vertex input config for mesh with attributes {}", mesh.attributes);
 
-    // Binding description - one binding for all attributes
+    // Binding description - jedno wiązanie dla wszystkich atrybutów
     VkVertexInputBindingDescription bindingDesc = {};
     bindingDesc.binding = 0;
     bindingDesc.stride = mesh.vertexStride;
     bindingDesc.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
     config.vertexBindings.push_back(bindingDesc);
 
-    // FIXED IMPLEMENTATION: Instead of reusing the position data for missing attributes,
-    // we'll allocate separate attributes with appropriate defaults
+    // Lokalizacje atrybutów zgodne z oczekiwaniami shadera:
+    // location = 0: Position (vec3) - zawsze obecna
+    // location = 1: Normal (vec3) - opcjonalnie, ale zawsze generujemy
+    // location = 2: TexCoord (vec2) - opcjonalnie, ale zawsze generujemy
+    // location = 3: Color (vec4) - opcjonalnie, ale zawsze generujemy
+    // location = 4: Tangent (vec4) - opcjonalnie
 
-    // Mandatory attribute locations based on shader expectations:
-    // location = 0: Position (vec3)
-    // location = 1: Color (vec3)
-    // location = 2: TexCoord (vec2)
-    // location = 3: Normal (vec3)
+    uint32_t currentOffset = 0;
 
-    uint32_t offset = 0;
+    // Position attribute (zawsze obecna) - location 0
+    VkVertexInputAttributeDescription posAttr = {};
+    posAttr.binding = 0;
+    posAttr.location = 0;
+    posAttr.format = VK_FORMAT_R32G32B32_SFLOAT; // vec3
+    posAttr.offset = currentOffset;
+    config.vertexAttributes.push_back(posAttr);
+    currentOffset += sizeof(float) * 3;
+    SPDLOG_DEBUG("Added position attribute at location 0, offset {}", posAttr.offset);
 
-    // Position attribute (always present) - Always location 0
-    if (mesh.hasPosition()) {
-        VkVertexInputAttributeDescription posAttr = {};
-        posAttr.binding = 0;
-        posAttr.location = 0;
-        posAttr.format = VK_FORMAT_R32G32B32_SFLOAT; // vec3
-        posAttr.offset = offset;
-        config.vertexAttributes.push_back(posAttr);
-        offset += sizeof(float) * 3; // Advance offset for position
-        SPDLOG_DEBUG("Added position attribute at location 0, offset {}", posAttr.offset);
-    }
-    else {
-        SPDLOG_WARN("Mesh is missing position attribute, which should be mandatory");
-    }
-
-    // Color attribute - Location 1
-    if (mesh.hasColor()) {
-        VkVertexInputAttributeDescription colorAttr = {};
-        colorAttr.binding = 0;
-        colorAttr.location = 1;
-        colorAttr.format = VK_FORMAT_R32G32B32_SFLOAT; // vec3 as per shader
-        colorAttr.offset = offset;
-        config.vertexAttributes.push_back(colorAttr);
-        offset += sizeof(float) * 4; // Assuming color is vec4 in mesh
-        SPDLOG_DEBUG("Added color attribute at location 1, offset {}", colorAttr.offset);
-    }
-    else {
-        // Instead of reusing position data, we'll create a dummy color attribute
-        // that points to a default value (this requires vertex shader to handle missing attributes)
-        VkVertexInputAttributeDescription colorAttr = {};
-        colorAttr.binding = 0;
-        colorAttr.location = 1;
-        colorAttr.format = VK_FORMAT_R32G32B32_SFLOAT;
-        // We'll set a special offset - shader needs to detect this
-        // In a real implementation, you might want to use vertex buffer with default attributes
-        colorAttr.offset = 0; // Or a special value your shader recognizes
-        config.vertexAttributes.push_back(colorAttr);
-        SPDLOG_DEBUG("Added dummy color attribute at location 1");
+    // Normal attribute - location 1
+    if (mesh.hasNormal()) {
+        VkVertexInputAttributeDescription normalAttr = {};
+        normalAttr.binding = 0;
+        normalAttr.location = 1;
+        normalAttr.format = VK_FORMAT_R32G32B32_SFLOAT; // vec3
+        normalAttr.offset = currentOffset;
+        config.vertexAttributes.push_back(normalAttr);
+        currentOffset += sizeof(float) * 3;
+        SPDLOG_DEBUG("Added normal attribute at location 1, offset {}", normalAttr.offset);
     }
 
-    // TexCoord attribute - Location 2
+    // TexCoord attribute - location 2
     if (mesh.hasTexCoord()) {
         VkVertexInputAttributeDescription uvAttr = {};
         uvAttr.binding = 0;
         uvAttr.location = 2;
         uvAttr.format = VK_FORMAT_R32G32_SFLOAT; // vec2
-        uvAttr.offset = offset;
+        uvAttr.offset = currentOffset;
         config.vertexAttributes.push_back(uvAttr);
-        offset += sizeof(float) * 2;
+        currentOffset += sizeof(float) * 2;
         SPDLOG_DEBUG("Added texcoord attribute at location 2, offset {}", uvAttr.offset);
     }
-    else {
-        // Dummy texcoord attribute
-        VkVertexInputAttributeDescription uvAttr = {};
-        uvAttr.binding = 0;
-        uvAttr.location = 2;
-        uvAttr.format = VK_FORMAT_R32G32_SFLOAT;
-        uvAttr.offset = 0; // Special offset
-        config.vertexAttributes.push_back(uvAttr);
-        SPDLOG_DEBUG("Added dummy texcoord attribute at location 2");
+
+    // Color attribute - location 3
+    if (mesh.hasColor()) {
+        VkVertexInputAttributeDescription colorAttr = {};
+        colorAttr.binding = 0;
+        colorAttr.location = 3;
+        colorAttr.format = VK_FORMAT_R32G32B32A32_SFLOAT; // vec4
+        colorAttr.offset = currentOffset;
+        config.vertexAttributes.push_back(colorAttr);
+        currentOffset += sizeof(float) * 4;
+        SPDLOG_DEBUG("Added color attribute at location 3, offset {}", colorAttr.offset);
     }
 
-    // Normal attribute - Location 3
-    if (mesh.hasNormal()) {
-        VkVertexInputAttributeDescription normalAttr = {};
-        normalAttr.binding = 0;
-        normalAttr.location = 3;
-        normalAttr.format = VK_FORMAT_R32G32B32_SFLOAT; // vec3
-        normalAttr.offset = offset;
-        config.vertexAttributes.push_back(normalAttr);
-        offset += sizeof(float) * 3;
-        SPDLOG_DEBUG("Added normal attribute at location 3, offset {}", normalAttr.offset);
-    }
-    else {
-        // Dummy normal attribute 
-        VkVertexInputAttributeDescription normalAttr = {};
-        normalAttr.binding = 0;
-        normalAttr.location = 3;
-        normalAttr.format = VK_FORMAT_R32G32B32_SFLOAT;
-        normalAttr.offset = 0; // Special offset
-        config.vertexAttributes.push_back(normalAttr);
-        SPDLOG_DEBUG("Added dummy normal attribute at location 3");
-    }
-
-    // Account for tangent if present
+    // Tangent attribute - location 4
     if (mesh.hasTangent()) {
-        offset += sizeof(float) * 4; // Assuming tangent is vec4
+        VkVertexInputAttributeDescription tangentAttr = {};
+        tangentAttr.binding = 0;
+        tangentAttr.location = 4;
+        tangentAttr.format = VK_FORMAT_R32G32B32A32_SFLOAT; // vec4 z handedness
+        tangentAttr.offset = currentOffset;
+        config.vertexAttributes.push_back(tangentAttr);
+        currentOffset += sizeof(float) * 4;
+        SPDLOG_DEBUG("Added tangent attribute at location 4, offset {}", tangentAttr.offset);
     }
 
     SPDLOG_DEBUG("Created vertex input config with {} attributes", config.vertexAttributes.size());
+
+    // Weryfikacja, czy obliczony stride wierzchołka zgadza się z zadeklarowanym
+    if (currentOffset != mesh.vertexStride) {
+        SPDLOG_WARN("Computed vertex stride ({}) doesn't match mesh vertex stride ({})",
+            currentOffset, mesh.vertexStride);
+    }
+
     return config;
 }
 
