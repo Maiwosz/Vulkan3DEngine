@@ -88,7 +88,11 @@ VramHandle VramManager::createBuffer(const Graphics::BufferCreateInfo& info, con
     return handle;
 }
 
-VramHandle VramManager::createImage(const Graphics::ImageCreateInfo& info, const void* initialData) {
+VramHandle VramManager::createImage(
+    const Graphics::ImageCreateInfo& info,
+    const void* initialData,
+    const std::vector<AssetLib::MipLevel>& mipLevels) {
+
     // Validate inputs
     if (info.width == 0 || info.height == 0) {
         throw std::runtime_error("Image dimensions cannot be zero");
@@ -123,7 +127,7 @@ VramHandle VramManager::createImage(const Graphics::ImageCreateInfo& info, const
         Image image = Image::create(m_allocator, vkImageInfo, VMA_MEMORY_USAGE_AUTO);
 
         if (initialData) {
-            m_transferManager.queueImageTransfer(&image, initialData, vkImageInfo);
+            m_transferManager.queueImageTransfer(&image, initialData, vkImageInfo, mipLevels);
         }
 
         VramHandle handle{ m_nextId++ };
@@ -280,7 +284,7 @@ VramHandle VramManager::createImage(
 
         vkCmdCopyBufferToImage(
             cmdBuffer->get(),
-            staging->get(),  // Używamy operatora -> zamiast . ponieważ mamy wskaźnik
+            staging->get(),
             image.get(),
             VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
             1,

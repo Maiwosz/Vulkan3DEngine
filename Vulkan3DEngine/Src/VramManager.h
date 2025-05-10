@@ -35,7 +35,8 @@ public:
     // Queues transfer with frame resources (executed before next frame)
     VramHandle createImage(
         const Graphics::ImageCreateInfo& info,
-        const void* initialData = nullptr
+        const void* initialData,
+        const std::vector<AssetLib::MipLevel>& mipLevels
     );
 
     // Performs immediate blocking transfer (for frame-critical resources)

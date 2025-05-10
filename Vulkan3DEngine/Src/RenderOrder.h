@@ -58,12 +58,7 @@ public:
 
 class LightRenderOrder : public RenderOrder {
 public:
-    enum class LightType { Directional, Point };
-
     RenderOrderType getType() const override { return RenderOrderType::Light; }
-
-    // Added for logging purposes
-    LightType lightType;
 };
 
 class CameraRenderOrder : public RenderOrder {

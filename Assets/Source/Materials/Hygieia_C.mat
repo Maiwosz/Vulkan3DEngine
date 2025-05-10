@@ -23,7 +23,7 @@
     },
     "albedo": {
       "descriptorType": "CombinedImageSampler",
-      "path": "Flora_C_Flora_O_Material_u1_v1",
+      "path": "Hygieia_C_Hygieia_O",
       "sampler": {
         "magFilter": "Linear",
         "minFilter": "Linear",

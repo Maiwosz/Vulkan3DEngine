@@ -11,7 +11,9 @@ public:
         Compute
     };
 
-    LogicalDevice(const PhysicalDevice& physicalDevice, const std::vector<const char*>& extensions);
+    LogicalDevice(const PhysicalDevice& physicalDevice,
+        const std::vector<const char*>& deviceExtensions,
+        bool enableDebugPrintf);
     ~LogicalDevice();
 
     VkDevice get() const { return m_device; }

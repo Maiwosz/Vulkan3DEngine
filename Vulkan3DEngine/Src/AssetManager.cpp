@@ -569,10 +569,10 @@ bool AssetManager::uploadTexture(const AssetLib::AssetData& data, const AssetHan
         Graphics::ImageFormat format;
         switch (texInfo.format) {
         case AssetLib::TextureFormat::RGBA8:
-            format = Graphics::ImageFormat::R8G8B8A8_UNORM;
+            format = Graphics::ImageFormat::R8G8B8A8_SRGB; // Use sRGB for better color representation
             break;
         case AssetLib::TextureFormat::BC7:
-            format = Graphics::ImageFormat::BC7_UNORM;
+            format = Graphics::ImageFormat::BC7_SRGB; // Use sRGB for BC7 too
             break;
         default:
             SPDLOG_ERROR("Unsupported texture format: {} for texture {}",
@@ -590,14 +590,15 @@ bool AssetManager::uploadTexture(const AssetLib::AssetData& data, const AssetHan
             .samples = Settings::MsaaSampleCount::Samples1
         };
 
-        SPDLOG_INFO("Uploading texture: {} ({}x{}, {} mip levels)",
-            handle, texInfo.width, texInfo.height, texInfo.mipLevels);
+        SPDLOG_INFO("Uploading texture: {} ({}x{}, {} mip levels, format {})",
+            handle, texInfo.width, texInfo.height, texInfo.mipLevels,
+            static_cast<int>(texInfo.format));
 
         // Create resource in VRAM
-        VramHandle vramTexture;
-        vramTexture = m_vramManager.createImage(
+        VramHandle vramTexture = m_vramManager.createImage(
             imageInfo,
-            decompressedData.data()
+            decompressedData.data(),
+            texInfo.mips
         );
 
         if (!vramTexture.isValid()) {

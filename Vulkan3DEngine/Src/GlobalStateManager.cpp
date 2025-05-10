@@ -32,9 +32,8 @@ void GlobalStateManager::processCamera(std::shared_ptr<CameraRenderOrder> camera
 
 void GlobalStateManager::processLight(std::shared_ptr<LightRenderOrder> light) {
     m_lights.push_back(light);
-    SPDLOG_DEBUG("Added light to frame, entity: {}, type: {}",
-        light->entity.id,
-        light->lightType == LightRenderOrder::LightType::Directional ? "Directional" : "Point");
+    SPDLOG_DEBUG("Added light to frame, entity: {}",
+        light->entity.id);
 }
 
 // Create global uniform buffer with camera and light data
@@ -76,11 +75,11 @@ UniformBufferHandle GlobalStateManager::createGlobalUniformBuffer() {
     // Process directional lights - using only first one if available
     bool hasDirectionalLight = false;
     for (auto& lightOrder : m_lights) {
-        if (lightOrder->lightType == LightRenderOrder::LightType::Directional && !hasDirectionalLight) {
-            Entity lightEntity = lightOrder->entity;
-            auto& lightComponent = m_registry.getComponent<LightComponent>(lightEntity);
-            auto& lightTransform = m_registry.getComponent<TransformComponent>(lightEntity);
+        Entity lightEntity = lightOrder->entity;
+        auto& lightComponent = m_registry.getComponent<LightComponent>(lightEntity);
+        auto& lightTransform = m_registry.getComponent<TransformComponent>(lightEntity);
 
+        if (lightComponent.type == LightComponent::Type::Directional && !hasDirectionalLight) {
             // Get light direction from component
             globalUboData.directionalLight.direction = glm::normalize(lightComponent.direction);
             globalUboData.directionalLight.color = lightComponent.color;
@@ -88,22 +87,19 @@ UniformBufferHandle GlobalStateManager::createGlobalUniformBuffer() {
             hasDirectionalLight = true;
             SPDLOG_DEBUG("Added directional light to global UBO, entity: {}", lightEntity.id);
         }
-    }
-
-    // Process point lights
-    for (auto& lightOrder : m_lights) {
-        if (lightOrder->lightType == LightRenderOrder::LightType::Point && pointLightCount < 64) {
-            Entity lightEntity = lightOrder->entity;
-            auto& lightComponent = m_registry.getComponent<LightComponent>(lightEntity);
-            auto& lightTransform = m_registry.getComponent<TransformComponent>(lightEntity);
-
-            // Get light position from transform
+        else if (lightComponent.type == LightComponent::Type::Point && pointLightCount < 64) {
+            // VERIFY ALL PARAMETERS ARE CORRECTLY SET
             globalUboData.pointLights[pointLightCount].position = lightTransform.getPosition();
             globalUboData.pointLights[pointLightCount].radius = lightComponent.radius;
             globalUboData.pointLights[pointLightCount].color = lightComponent.color;
 
+            SPDLOG_DEBUG("Added point light to global UBO, entity: {}, position: ({}, {}, {}), radius: {}, color: ({}, {}, {}, {})",
+                lightEntity.id,
+                lightTransform.getPosition().x, lightTransform.getPosition().y, lightTransform.getPosition().z,
+                lightComponent.radius,
+                lightComponent.color.r, lightComponent.color.g, lightComponent.color.b, lightComponent.color.a);
+
             pointLightCount++;
-            SPDLOG_DEBUG("Added point light to global UBO, entity: {}", lightEntity.id);
         }
     }
 

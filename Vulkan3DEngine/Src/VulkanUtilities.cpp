@@ -151,6 +151,58 @@ namespace VulkanUtils {
             return actualExtent;
         }
     }
+
+    bool checkDebugPrintfSupport(VkPhysicalDevice device) {
+        // Check if validation layers are available first
+        uint32_t layerCount;
+        vkEnumerateInstanceLayerProperties(&layerCount, nullptr);
+        std::vector<VkLayerProperties> availableLayers(layerCount);
+        vkEnumerateInstanceLayerProperties(&layerCount, availableLayers.data());
+
+        bool validationLayerFound = false;
+        for (const auto& layer : availableLayers) {
+            if (strcmp("VK_LAYER_KHRONOS_validation", layer.layerName) == 0) {
+                validationLayerFound = true;
+                break;
+            }
+        }
+
+        if (!validationLayerFound) {
+            std::cout << "Validation layer not found, debug printf not available.\n";
+            return false;
+        }
+
+        // Check for extension support
+        uint32_t extensionCount;
+        vkEnumerateDeviceExtensionProperties(device, nullptr, &extensionCount, nullptr);
+        std::vector<VkExtensionProperties> extensions(extensionCount);
+        vkEnumerateDeviceExtensionProperties(device, nullptr, &extensionCount, extensions.data());
+
+        for (const auto& extension : extensions) {
+            if (strcmp(VK_KHR_SHADER_NON_SEMANTIC_INFO_EXTENSION_NAME, extension.extensionName) == 0) {
+                std::cout << "Debug printf supported!\n";
+                return true;
+            }
+        }
+
+        std::cout << "Debug printf not supported (missing " << VK_KHR_SHADER_NON_SEMANTIC_INFO_EXTENSION_NAME << ").\n";
+        return false;
+    }
+
+    VkValidationFeaturesEXT createValidationFeaturesStruct() {
+        static const VkValidationFeatureEnableEXT enables[] = {
+            VK_VALIDATION_FEATURE_ENABLE_DEBUG_PRINTF_EXT
+        };
+
+        VkValidationFeaturesEXT validationFeatures{};
+        validationFeatures.sType = VK_STRUCTURE_TYPE_VALIDATION_FEATURES_EXT;
+        validationFeatures.enabledValidationFeatureCount = 1;
+        validationFeatures.pEnabledValidationFeatures = enables;
+        validationFeatures.disabledValidationFeatureCount = 0;
+        validationFeatures.pDisabledValidationFeatures = nullptr;
+
+        return validationFeatures;
+    }
 }
 
 

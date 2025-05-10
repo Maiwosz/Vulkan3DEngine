@@ -8,64 +8,69 @@ struct InputCallbackData {
     void* originalUserPointer;
 };
 
+// Helper function to safely invoke events
+template <typename... Args>
+static void tryInvoke(std::shared_ptr<Event<Args...>> event, Args... args) {
+    if (event && event->isActive()) {
+        event->invoke(std::forward<Args>(args)...);
+    }
+}
+
 InputSystem::InputSystem(Window& window)
     : m_window(window), m_glfwWindow(window.get()),
     m_currentMousePosition(0.0f), m_previousMousePosition(0.0f),
     m_mouseDelta(0.0f), m_mouseScrollDelta(0.0f)
 {
-    // Inicjalizacja eventów z obsługą wyjątków
-    m_keyEvent = Event<int, KeyState>::create();
-    m_keyEvent->setExceptionHandler([](std::exception_ptr e) {
+    // Ensure window is valid
+    if (!m_glfwWindow) {
+        throw std::runtime_error("Invalid GLFW window handle in InputSystem constructor");
+    }
+
+    // Create events with shared exception handler
+    auto exceptionHandler = [](std::exception_ptr e) {
         try {
             if (e) std::rethrow_exception(e);
         }
         catch (const std::exception& ex) {
-            std::cerr << "Exception in key event handler: " << ex.what() << std::endl;
+            std::cerr << "Exception in input event handler: " << ex.what() << std::endl;
         }
-        });
+        };
+
+    m_keyEvent = Event<int, KeyState>::create();
+    m_keyEvent->setExceptionHandler(exceptionHandler);
 
     m_mouseButtonEvent = Event<MouseButton, bool>::create();
-    m_mouseButtonEvent->setExceptionHandler([](std::exception_ptr e) {
-        try {
-            if (e) std::rethrow_exception(e);
-        }
-        catch (const std::exception& ex) {
-            std::cerr << "Exception in mouse button event handler: " << ex.what() << std::endl;
-        }
-        });
+    m_mouseButtonEvent->setExceptionHandler(exceptionHandler);
 
     m_mouseMoveEvent = Event<glm::vec2>::create();
-    m_mouseMoveEvent->setExceptionHandler([](std::exception_ptr e) {
-        try {
-            if (e) std::rethrow_exception(e);
-        }
-        catch (const std::exception& ex) {
-            std::cerr << "Exception in mouse move event handler: " << ex.what() << std::endl;
-        }
-        });
+    m_mouseMoveEvent->setExceptionHandler(exceptionHandler);
 
     m_mouseScrollEvent = Event<float>::create();
-    m_mouseScrollEvent->setExceptionHandler([](std::exception_ptr e) {
-        try {
-            if (e) std::rethrow_exception(e);
-        }
-        catch (const std::exception& ex) {
-            std::cerr << "Exception in mouse scroll event handler: " << ex.what() << std::endl;
-        }
-        });
-
-    setupCallbacks();
+    m_mouseScrollEvent->setExceptionHandler(exceptionHandler);
 
     // Initialize mouse position
     double xpos, ypos;
     glfwGetCursorPos(m_glfwWindow, &xpos, &ypos);
     m_currentMousePosition = m_previousMousePosition = glm::vec2(static_cast<float>(xpos), static_cast<float>(ypos));
+
+    // Setup callbacks after initializing everything else
+    setupCallbacks();
 }
 
 InputSystem::~InputSystem() {
-    // Upewnij się, że callbacki są wyczyszczone
-    if (m_callbackDataPtr) {
-        delete static_cast<InputCallbackData*>(m_callbackDataPtr);
+    // Restore original window user pointer
+    if (m_glfwWindow && m_callbackDataPtr) {
+        auto* callbackData = static_cast<InputCallbackData*>(m_callbackDataPtr);
+        // Reset callbacks to prevent them from firing during destruction
+        glfwSetKeyCallback(m_glfwWindow, nullptr);
+        glfwSetMouseButtonCallback(m_glfwWindow, nullptr);
+        glfwSetCursorPosCallback(m_glfwWindow, nullptr);
+        glfwSetScrollCallback(m_glfwWindow, nullptr);
+
+        // Restore original user pointer
+        glfwSetWindowUserPointer(m_glfwWindow, callbackData->originalUserPointer);
+
+        delete callbackData;
         m_callbackDataPtr = nullptr;
     }
 }
@@ -173,20 +178,18 @@ void InputSystem::setupCallbacks()
         return;
     }
 
-    // Przechowujemy oryginalny wskaźnik użytkownika i nasz InputSystem w strukturze danych
-    void* originalUserPointer = glfwGetWindowUserPointer(m_glfwWindow);
+    // Get the current window user pointer (which is a Window*)
+    void* windowPtr = glfwGetWindowUserPointer(m_glfwWindow);
 
-    // Tworzymy dane dla callbacków
-    InputCallbackData* callbackData = new InputCallbackData{ this, originalUserPointer };
+    // Create new callback data that keeps track of the Window pointer
+    InputCallbackData* callbackData = new InputCallbackData{ this, windowPtr };
     m_callbackDataPtr = callbackData;
 
-    // Ustawiamy te dane jako wskaźnik użytkownika okna
+    // Replace the user pointer with our callback data
     glfwSetWindowUserPointer(m_glfwWindow, callbackData);
 
-    // Set up key callback
+    // Set callbacks
     glfwSetKeyCallback(m_glfwWindow, keyCallback);
-
-    // Set up mouse callbacks
     glfwSetMouseButtonCallback(m_glfwWindow, mouseButtonCallback);
     glfwSetCursorPosCallback(m_glfwWindow, cursorPositionCallback);
     glfwSetScrollCallback(m_glfwWindow, scrollCallback);
@@ -195,7 +198,7 @@ void InputSystem::setupCallbacks()
 void InputSystem::keyCallback(GLFWwindow* window, int key, int scancode, int action, int mods)
 {
     auto* callbackData = static_cast<InputCallbackData*>(glfwGetWindowUserPointer(window));
-    if (!callbackData || !callbackData->inputSystem || !callbackData->inputSystem->m_keyEvent) return;
+    if (!callbackData || !callbackData->inputSystem) return;
 
     auto* input = callbackData->inputSystem;
 
@@ -211,13 +214,13 @@ void InputSystem::keyCallback(GLFWwindow* window, int key, int scancode, int act
     default:           return;
     }
 
-    input->m_keyEvent->invoke(key, state);
+    tryInvoke(input->m_keyEvent, key, state);
 }
 
 void InputSystem::mouseButtonCallback(GLFWwindow* window, int button, int action, int mods)
 {
     auto* callbackData = static_cast<InputCallbackData*>(glfwGetWindowUserPointer(window));
-    if (!callbackData || !callbackData->inputSystem || !callbackData->inputSystem->m_mouseButtonEvent) return;
+    if (!callbackData || !callbackData->inputSystem) return;
 
     auto* input = callbackData->inputSystem;
 
@@ -227,13 +230,13 @@ void InputSystem::mouseButtonCallback(GLFWwindow* window, int button, int action
     // Fire event
     MouseButton mouseButton = static_cast<MouseButton>(button);
     bool pressed = (action == GLFW_PRESS);
-    input->m_mouseButtonEvent->invoke(mouseButton, pressed);
+    tryInvoke(input->m_mouseButtonEvent, mouseButton, pressed);
 }
 
 void InputSystem::cursorPositionCallback(GLFWwindow* window, double xpos, double ypos)
 {
     auto* callbackData = static_cast<InputCallbackData*>(glfwGetWindowUserPointer(window));
-    if (!callbackData || !callbackData->inputSystem || !callbackData->inputSystem->m_mouseMoveEvent) return;
+    if (!callbackData || !callbackData->inputSystem) return;
 
     auto* input = callbackData->inputSystem;
 
@@ -241,19 +244,19 @@ void InputSystem::cursorPositionCallback(GLFWwindow* window, double xpos, double
     input->m_currentMousePosition = glm::vec2(static_cast<float>(xpos), static_cast<float>(ypos));
 
     // Fire event
-    input->m_mouseMoveEvent->invoke(input->m_currentMousePosition);
+    tryInvoke(input->m_mouseMoveEvent, input->m_currentMousePosition);
 }
 
 void InputSystem::scrollCallback(GLFWwindow* window, double xoffset, double yoffset)
 {
     auto* callbackData = static_cast<InputCallbackData*>(glfwGetWindowUserPointer(window));
-    if (!callbackData || !callbackData->inputSystem || !callbackData->inputSystem->m_mouseScrollEvent) return;
+    if (!callbackData || !callbackData->inputSystem) return;
 
     auto* input = callbackData->inputSystem;
 
-    // Update scroll delta (we're only using vertical scrolling)
+    // Update scroll delta
     input->m_mouseScrollDelta = static_cast<float>(yoffset);
 
     // Fire event
-    input->m_mouseScrollEvent->invoke(input->m_mouseScrollDelta);
+    tryInvoke(input->m_mouseScrollEvent, input->m_mouseScrollDelta);
 }

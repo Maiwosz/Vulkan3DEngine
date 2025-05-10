@@ -9,6 +9,7 @@ Renderer::Renderer(Window& window) : m_window(window) {
         // Configure instance
         Instance::Config instanceConfig;
         instanceConfig.enableValidationLayers = true;
+        instanceConfig.enableDebugPrintf = true;  // Enable debug printf
         instanceConfig.validationLayers = { "VK_LAYER_KHRONOS_validation" };
         instanceConfig.requiredExtensions = VulkanUtils::getRequiredExtensions(instanceConfig.enableValidationLayers);
 
@@ -113,16 +114,31 @@ Renderer::~Renderer() {
 }
 
 void Renderer::createMainRenderPass() {
-    // Create/retrieve a color attachment for the swapchain image
-    AttachmentSpec colorAttachmentSpec{
+    Settings& settings = Engine::get().settings();
+    VkSampleCountFlagBits samples = Graphics::convertSampleCount(settings.getMsaaSamples());
+
+    // Create a multisampled color attachment (not for presentation)
+    AttachmentSpec msColorAttachmentSpec{
         .format = m_swapChain->getImageFormat(),
         .extent = m_swapChain->getSwapChainExtent(),
-        .samples = VK_SAMPLE_COUNT_1_BIT, // Can be updated based on MSAA settings
+        .samples = samples, // Multisampled (4x MSAA in your case)
+        .usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT,
+        .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
+        .finalLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+        .type = AttachmentType::Color,
+        .name = "MSAAColorAttachment"
+    };
+
+    // Create a resolve attachment (for presentation, single sample)
+    AttachmentSpec resolveAttachmentSpec{
+        .format = m_swapChain->getImageFormat(),
+        .extent = m_swapChain->getSwapChainExtent(),
+        .samples = VK_SAMPLE_COUNT_1_BIT, // Single sample for presentation
         .usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
         .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
         .finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
-        .type = AttachmentType::Color,
-        .name = "MainColorAttachment"
+        .type = AttachmentType::Resolve,
+        .name = "ResolveAttachment"
     };
 
     // Create/retrieve a depth attachment
@@ -130,98 +146,117 @@ void Renderer::createMainRenderPass() {
     AttachmentSpec depthAttachmentSpec{
         .format = depthFormat,
         .extent = m_swapChain->getSwapChainExtent(),
-        .samples = VK_SAMPLE_COUNT_1_BIT, // Same as color attachment
-        .usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
+        .samples = samples, // Same as multisampled color attachment
+        .usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT,
         .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
         .finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
         .type = AttachmentType::Depth,
         .name = "MainDepthAttachment"
     };
 
-    // Create the depth attachment (color attachments come from swapchain)
+    // Create all attachments
+    m_msColorAttachmentHandle = m_attachmentManager->getOrCreate(msColorAttachmentSpec);
+    // Note: Resolve attachment will typically come from the swapchain
     m_depthAttachmentHandle = m_attachmentManager->getOrCreate(depthAttachmentSpec);
 
     // Configure render pass
     RenderPassConfig renderPassConfig;
 
-    // Color attachment description
-    RenderPassConfig::AttachmentDesc colorAttachDesc{
-        .format = colorAttachmentSpec.format,
-        .samples = colorAttachmentSpec.samples,
-        .loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR, // Clear at the beginning of the render pass
-        .storeOp = VK_ATTACHMENT_STORE_OP_STORE, // Store for presentation
-        .initialLayout = colorAttachmentSpec.initialLayout,
-        .finalLayout = colorAttachmentSpec.finalLayout,
+    // Multisampled color attachment description
+    RenderPassConfig::AttachmentDesc msColorAttachDesc{
+        .format = msColorAttachmentSpec.format,
+        .samples = msColorAttachmentSpec.samples, // Multisampled
+        .loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
+        .storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE, // We don't need to store this, just resolve it
+        .initialLayout = msColorAttachmentSpec.initialLayout,
+        .finalLayout = msColorAttachmentSpec.finalLayout,
         .type = AttachmentType::Color
+    };
+
+    // Resolve attachment description (for the swapchain image)
+    RenderPassConfig::AttachmentDesc resolveAttachDesc{
+        .format = resolveAttachmentSpec.format,
+        .samples = resolveAttachmentSpec.samples, // Single sample
+        .loadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE, // We don't need to load this since we're resolving to it
+        .storeOp = VK_ATTACHMENT_STORE_OP_STORE, // Store for presentation
+        .initialLayout = resolveAttachmentSpec.initialLayout,
+        .finalLayout = resolveAttachmentSpec.finalLayout,
+        .type = AttachmentType::Resolve
     };
 
     // Depth attachment description
     RenderPassConfig::AttachmentDesc depthAttachDesc{
         .format = depthAttachmentSpec.format,
-        .samples = depthAttachmentSpec.samples,
-        .loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR, // Clear at the beginning
-        .storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE, // Don't care about storing depth
+        .samples = depthAttachmentSpec.samples, // Multisampled
+        .loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
+        .storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
         .initialLayout = depthAttachmentSpec.initialLayout,
         .finalLayout = depthAttachmentSpec.finalLayout,
         .type = AttachmentType::Depth
     };
 
     // Add attachments to config
-    renderPassConfig.attachments.push_back(colorAttachDesc);
-    renderPassConfig.attachments.push_back(depthAttachDesc);
+    renderPassConfig.attachments.push_back(msColorAttachDesc);    // Index 0: Multisampled color
+    renderPassConfig.attachments.push_back(resolveAttachDesc);    // Index 1: Resolve target
+    renderPassConfig.attachments.push_back(depthAttachDesc);      // Index 2: Depth
 
     // Set indices
-    renderPassConfig.colorAttachmentIndices.push_back(0); // First attachment is color
-    renderPassConfig.depthAttachmentIndex = 1; // Second attachment is depth
+    renderPassConfig.colorAttachmentIndices.push_back(0);         // Multisampled color is the main color attachment
+    renderPassConfig.resolveAttachmentIndex = 1;                  // Resolve from index 0 to index 1
+    renderPassConfig.depthAttachmentIndex = 2;                    // Depth attachment index
 
     // Create/retrieve the render pass
     m_mainRenderPassHandle = m_renderPassManager->getOrCreate(renderPassConfig);
 }
 
+// Also update the recreateRenderResources method to handle the multisampled color attachment
+
 void Renderer::recreateRenderResources() {
     vkDeviceWaitIdle(m_vulkanContext->logical().get());
 
     // Update MSAA sample count if needed
-    VkSampleCountFlagBits msaaSamples = static_cast<VkSampleCountFlagBits>(
-        Engine::get().settings().getCurrentMsaaSampleCount()
-        );
+    Settings& settings = Engine::get().settings();
+    VkSampleCountFlagBits samples = Graphics::convertSampleCount(settings.getMsaaSamples());
+
+    // Create a new multisampled color attachment
+    AttachmentSpec msColorAttachmentSpec{
+        .format = m_swapChain->getImageFormat(),
+        .extent = m_swapChain->getSwapChainExtent(),
+        .samples = samples,
+        .usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT,
+        .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
+        .finalLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+        .type = AttachmentType::Color,
+        .name = "MSAAColorAttachment"
+    };
 
     // Recreate depth attachment with new swapchain extent
     VkFormat depthFormat = m_vulkanContext->physical().findDepthFormat();
     AttachmentSpec depthAttachmentSpec{
         .format = depthFormat,
         .extent = m_swapChain->getSwapChainExtent(),
-        .samples = msaaSamples,
-        .usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
+        .samples = samples,
+        .usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT,
         .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
         .finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
         .type = AttachmentType::Depth,
         .name = "MainDepthAttachment"
     };
 
-    // Destroy old depth attachment if it exists
+    // Destroy old attachments if they exist
+    if (m_attachmentManager->isValid(m_msColorAttachmentHandle)) {
+        m_attachmentManager->destroy(m_msColorAttachmentHandle);
+    }
     if (m_attachmentManager->isValid(m_depthAttachmentHandle)) {
         m_attachmentManager->destroy(m_depthAttachmentHandle);
     }
 
-    // Create new depth attachment
+    // Create new attachments 
+    m_msColorAttachmentHandle = m_attachmentManager->getOrCreate(msColorAttachmentSpec);
     m_depthAttachmentHandle = m_attachmentManager->getOrCreate(depthAttachmentSpec);
 
     // Notify the framebuffer manager of resize
     m_framebufferManager->onResize(m_swapChain->getSwapChainExtent());
 
     // Main framebuffers will be recreated on-demand in drawFrame
-}
-
-void Renderer::handleWindowResize(int width, int height) {
-    // Ignore resize events with zero size (e.g., during minimization)
-    if (width == 0 || height == 0) {
-        return;
-    }
-
-    // Wait for all operations to complete
-    vkDeviceWaitIdle(m_vulkanContext->logical().get());
-
-    // The SwapChain will be recreated through its own internal handling
-    m_swapChain->recreateSwapChain();
 }

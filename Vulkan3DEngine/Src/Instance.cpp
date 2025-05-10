@@ -45,18 +45,32 @@ void Instance::createInstance() {
     createInfo.enabledExtensionCount = static_cast<uint32_t>(m_config.requiredExtensions.size());
     createInfo.ppEnabledExtensionNames = m_config.requiredExtensions.data();
 
+    // Add these variables
     VkDebugUtilsMessengerCreateInfoEXT debugCreateInfo{};
+    VkValidationFeaturesEXT validationFeatures{};
+    void* pNext = nullptr;
+
     if (m_config.enableValidationLayers) {
         createInfo.enabledLayerCount = static_cast<uint32_t>(m_config.validationLayers.size());
         createInfo.ppEnabledLayerNames = m_config.validationLayers.data();
 
         DebugMessenger::populateCreateInfo(debugCreateInfo);
-        createInfo.pNext = &debugCreateInfo;
+
+        // Setup the chain of pNext structures
+        if (m_config.enableDebugPrintf) {
+            validationFeatures = VulkanUtils::createValidationFeaturesStruct();
+            validationFeatures.pNext = &debugCreateInfo;
+            pNext = &validationFeatures;
+        }
+        else {
+            pNext = &debugCreateInfo;
+        }
     }
     else {
         createInfo.enabledLayerCount = 0;
-        createInfo.pNext = nullptr;
     }
+
+    createInfo.pNext = pNext;
 
     if (vkCreateInstance(&createInfo, nullptr, &m_vkInstance) != VK_SUCCESS) {
         throw std::runtime_error("Failed to create Vulkan instance!");

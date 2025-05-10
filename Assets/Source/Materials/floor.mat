@@ -23,7 +23,7 @@
     },
     "albedo": {
       "descriptorType": "CombinedImageSampler",
-      "path": "Flora_C_Flora_O_Material_u1_v1",
+      "path": "grey_cartago_02_diff_2k",
       "sampler": {
         "magFilter": "Linear",
         "minFilter": "Linear",

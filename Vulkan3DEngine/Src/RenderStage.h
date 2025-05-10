@@ -24,8 +24,6 @@ public:
     // Execute all rendering for the current frame
     void executeRenderPass();
 
-    void createAndRenderDebugObject();
-
 private:
     VulkanContext& m_vulkanContext;
     FrameManager& m_frameManager;
@@ -38,6 +36,7 @@ private:
     MeshManager& m_meshManager;
     AttachmentHandle m_depthAttachmentHandle;
     RenderPassHandle m_mainRenderPassHandle;
+    AttachmentHandle m_msColorAttachmentHandle;
     
 
     // Helper function to execute render commands for collected orders

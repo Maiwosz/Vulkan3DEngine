@@ -32,6 +32,11 @@ int main() {
         SPDLOG_DEBUG("Initializing editor...");
         editor.start();
 
+        // Perform initial asset scan
+        SPDLOG_INFO("Performing initial asset scan...");
+        editor.assetWatcher().Run();
+        SPDLOG_INFO("Initial asset scan completed");
+
         SPDLOG_INFO("Entering main loop");
         engine.run();
 

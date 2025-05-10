@@ -24,7 +24,11 @@ Scene::Scene()
     m_movingDown(false),
     m_mouseRightButtonDown(false),
     m_lastMousePos(0.0f),
-    m_mouseSensitivity(0.1f)
+    m_mouseSensitivity(0.1f),
+    m_lightOrbitRadius(7.0f),
+    m_lightOrbitSpeed(1.0f),
+    m_lightOrbitHeight(3.0f),
+    m_lightOrbitAngle(0.0f)
 {
     m_registry = std::make_unique<Registry>();
     m_registry->getSystemManager().registerSystem<AssetCollectionSystem>();
@@ -32,8 +36,10 @@ Scene::Scene()
     m_registry->getSystemManager().registerSystem<LightSystem>();
     m_registry->getSystemManager().registerSystem<CameraSystem>();
 
+    setupInputHandlers();
+
     // Creating object with mesh
-    Entity testEntity = m_registry->create();
+    testEntity = m_registry->create();
     {
         // Konfiguracja zasobów
         std::string meshName = "Flora_C";
@@ -41,14 +47,11 @@ Scene::Scene()
 
         // Transform with rotation
         auto& transform = m_registry->addComponent<TransformComponent>(testEntity);
-        transform.setPosition(glm::vec3(0.0f, 0.0f, 0.0f));
+        transform.setPosition(glm::vec3(0.0f, 2.0f, 0.0f));
 
-        // Apply rotation - 30 degrees around Y axis
-        float rotationAngle = 30.0f;
-        glm::vec3 rotationAxis = glm::vec3(0.0f, 1.0f, 0.0f);
-        transform.setRotation(glm::vec3(0.0f, rotationAngle, 0.0f));
+        transform.setRotation(glm::vec3(0.0f, 0.0f, 0.0f));
 
-        transform.setScale(glm::vec3(1.0f));
+        transform.setScale(glm::vec3(0.4f));
 
         // Mesh and material
         auto& mesh = m_registry->addComponent<MeshComponent>(testEntity);
@@ -58,9 +61,79 @@ Scene::Scene()
         material.setMaterial(AssetHandle(AssetLib::AssetType::Material, materialName));
     }
 
+    testEntity2 = m_registry->create();
+    {
+        // Konfiguracja zasobów
+        std::string meshName = "Hygieia_C";
+        std::string materialName = "Hygieia_C";
+
+        // Transform with rotation
+        auto& transform = m_registry->addComponent<TransformComponent>(testEntity2);
+        transform.setPosition(glm::vec3(5.0f, -0.2f, 0.0f));
+
+        transform.setRotation(glm::vec3(0.0f, 0.0f, 0.0f));
+
+        transform.setScale(glm::vec3(1.0f));
+
+        // Mesh and material
+        auto& mesh = m_registry->addComponent<MeshComponent>(testEntity2);
+        mesh.setMesh(AssetHandle(AssetLib::AssetType::Mesh, meshName));
+
+        auto& material = m_registry->addComponent<MaterialComponent>(testEntity2);
+        material.setMaterial(AssetHandle(AssetLib::AssetType::Material, materialName));
+    }
+
+    testEntity3 = m_registry->create();
+    {
+        // Konfiguracja zasobów
+        std::string meshName = "Omphale_C";
+        std::string materialName = "Omphale_C";
+
+        // Transform with rotation
+        auto& transform = m_registry->addComponent<TransformComponent>(testEntity3);
+        transform.setPosition(glm::vec3(-5.0f, 0.0f, 0.0f));
+
+        // Apply rotation - 30 degrees around Y axis
+        float rotationAngle = 30.0f;
+        glm::vec3 rotationAxis = glm::vec3(0.0f, 1.0f, 0.0f);
+        transform.setRotation(glm::vec3(0.0f, rotationAngle, 0.0f));
+
+        transform.setScale(glm::vec3(0.3f));
+
+        // Mesh and material
+        auto& mesh = m_registry->addComponent<MeshComponent>(testEntity3);
+        mesh.setMesh(AssetHandle(AssetLib::AssetType::Mesh, meshName));
+
+        auto& material = m_registry->addComponent<MaterialComponent>(testEntity3);
+        material.setMaterial(AssetHandle(AssetLib::AssetType::Material, materialName));
+    }
+
+    // floor
+    testFloor = m_registry->create();
+    {
+        // Konfiguracja zasobów
+        std::string meshName = "quad";
+        std::string materialName = "floor";
+
+        // Transform with rotation
+        auto& transform = m_registry->addComponent<TransformComponent>(testFloor);
+        transform.setPosition(glm::vec3(0.0f, 0.0f, 0.0f));
+
+        transform.setRotation(glm::vec3(0.0f, 0.0f, 0.0f));
+
+        transform.setScale(glm::vec3(1.0f));
+
+        // Mesh and material
+        auto& mesh = m_registry->addComponent<MeshComponent>(testFloor);
+        mesh.setMesh(AssetHandle(AssetLib::AssetType::Mesh, meshName));
+
+        auto& material = m_registry->addComponent<MaterialComponent>(testFloor);
+        material.setMaterial(AssetHandle(AssetLib::AssetType::Material, materialName));
+    }
+
 
     // Camera
-    Entity testCamera = m_registry->create();
+    testCamera = m_registry->create();
     {
         auto& cameraTransform = m_registry->addComponent<TransformComponent>(testCamera);
 
@@ -83,7 +156,7 @@ Scene::Scene()
     }
 
     // Directional light
-    Entity testDirectionalLight = m_registry->create();
+    testDirectionalLight = m_registry->create();
     {
         auto& transform = m_registry->addComponent<TransformComponent>(testDirectionalLight);
         auto& light = m_registry->addComponent<LightComponent>(testDirectionalLight, LightComponent::Type::Directional);
@@ -96,15 +169,21 @@ Scene::Scene()
     }
 
     // Point light
-    Entity testPointLight = m_registry->create();
+    testPointLight = m_registry->create();
     {
         auto& lightTransform = m_registry->addComponent<TransformComponent>(testPointLight);
-        glm::vec3 pointLightPosition = glm::vec3(2.0f, 2.0f, 2.0f);
+
+        // Initial position based on orbit parameters
+        glm::vec3 pointLightPosition = glm::vec3(
+            m_lightOrbitRadius * cos(m_lightOrbitAngle),
+            m_lightOrbitHeight,
+            m_lightOrbitRadius * sin(m_lightOrbitAngle)
+        );
         lightTransform.setPosition(pointLightPosition);
 
         auto& light = m_registry->addComponent<LightComponent>(testPointLight, LightComponent::Type::Point);
-        float pointLightRadius = 10.0f;
-        glm::vec4 pointLightColor = glm::vec4(0.8f, 0.8f, 0.8f, 0.0f);
+        float pointLightRadius = 12.0f;
+        glm::vec4 pointLightColor = glm::vec4(1.0f, 1.0f, 1.0f, 1.0f);
 
         light.setRadius(pointLightRadius);
         light.setColor(pointLightColor);
@@ -237,7 +316,6 @@ void Scene::updateCameraMovement(float deltaTime)
     if (!m_registry || !m_registry->valid(testCamera) || !m_registry->hasComponent<TransformComponent>(testCamera)) {
         return;
     }
-
     auto& transform = m_registry->getComponent<TransformComponent>(testCamera);
 
     // Update camera rotation from the stored offset values
@@ -247,27 +325,33 @@ void Scene::updateCameraMovement(float deltaTime)
     float yawRad = glm::radians(m_cameraYawOffset);
     float pitchRad = glm::radians(m_cameraPitchOffset);
 
-    // Calculate forward direction from yaw and pitch
+    // Calculate forward direction using both pitch and yaw
+    // This gives us true "flying" behavior where camera moves where it's looking
     glm::vec3 forward;
-    forward.x = sin(yawRad) * cos(pitchRad);  // Note: sin(yaw) for x
-    forward.y = sin(pitchRad);                // Up/down based on pitch
-    forward.z = cos(yawRad) * cos(pitchRad);  // Note: cos(yaw) for z
+    forward.x = -cos(pitchRad) * sin(yawRad);
+    forward.y = sin(pitchRad);
+    forward.z = -cos(pitchRad) * cos(yawRad);
     forward = glm::normalize(forward);
 
-    // Calculate right and up vectors
+    // Calculate right vector (perpendicular to forward and world up)
     glm::vec3 worldUp(0.0f, 1.0f, 0.0f);
     glm::vec3 right = glm::normalize(glm::cross(forward, worldUp));
+
+    // Recalculate up vector to ensure orthogonality
     glm::vec3 up = glm::normalize(glm::cross(right, forward));
 
     // Calculate movement direction
     glm::vec3 movement(0.0f);
 
-    if (m_movingForward)  movement += forward;
-    if (m_movingBackward) movement -= forward;
-    if (m_movingRight)    movement += right;
-    if (m_movingLeft)     movement -= right;
-    if (m_movingUp)       movement += up;
-    if (m_movingDown)     movement -= up;
+    // Poprawne mapowanie klawiszy WASD (odwrócone od oryginalnego)
+    if (m_movingForward)  movement += forward;  // W - do przodu
+    if (m_movingBackward) movement -= forward;  // S - do tyłu
+    if (m_movingRight)    movement += right;    // D - w prawo
+    if (m_movingLeft)     movement -= right;    // A - w lewo
+
+    // Space and Ctrl movement - use world up/down (absolute vertical)
+    if (m_movingUp)       movement += worldUp;
+    if (m_movingDown)     movement -= worldUp;
 
     // Normalize if moving in multiple directions
     if (glm::length(movement) > 0.0f) {
@@ -278,14 +362,34 @@ void Scene::updateCameraMovement(float deltaTime)
     glm::vec3 currentPos = transform.getPosition();
     glm::vec3 newPos = currentPos + movement * m_cameraMovementSpeed * deltaTime;
     transform.setPosition(newPos);
+}
 
-    // Log position and rotation changes only when camera is actually moving
-    if (glm::length(movement) > 0.0f || m_mouseRightButtonDown) {
-        SPDLOG_ERROR("Camera: Pos[{:.2f}, {:.2f}, {:.2f}] Rot[{:.2f}, {:.2f}, {:.2f}] Speed: {:.2f}",
-            newPos.x, newPos.y, newPos.z,
-            m_cameraPitchOffset, m_cameraYawOffset, 0.0f,
-            m_cameraMovementSpeed);
+void Scene::updatePointLightOrbit(float deltaTime)
+{
+    // Skip if light orbiting is disabled or registry/entity is invalid
+    if ( !m_registry || !m_registry->valid(testPointLight) ||
+        !m_registry->hasComponent<TransformComponent>(testPointLight)) {
+        return;
     }
+
+    // Update orbit angle based on speed and deltaTime
+    m_lightOrbitAngle += m_lightOrbitSpeed * deltaTime;
+
+    // Keep angle in the range [0, 2π]
+    if (m_lightOrbitAngle > glm::two_pi<float>()) {
+        m_lightOrbitAngle -= glm::two_pi<float>();
+    }
+
+    // Calculate new position based on orbit parameters
+    glm::vec3 newPosition = glm::vec3(
+        m_lightOrbitRadius * cos(m_lightOrbitAngle),
+        m_lightOrbitHeight,
+        m_lightOrbitRadius * sin(m_lightOrbitAngle)
+    );
+
+    // Update light position
+    auto& transform = m_registry->getComponent<TransformComponent>(testPointLight);
+    transform.setPosition(newPosition);
 }
 
 void Scene::update()
@@ -293,7 +397,10 @@ void Scene::update()
     float deltaTime = Engine::get().getDeltaTime();
 
     // Update camera based on input
-    //updateCameraMovement(deltaTime);
+    updateCameraMovement(deltaTime);
+
+    // Update point light orbit
+    updatePointLightOrbit(deltaTime);
 
     // Update all systems
     m_registry->getSystemManager().updateAll();

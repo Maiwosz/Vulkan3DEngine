@@ -62,14 +62,27 @@ public:
         bool m_valid = false;
     };
 
-    Event() = default;
-    ~Event() = default;
+    Event() : m_isActive(true) {}
+    ~Event() {
+        // Mark event as inactive before destroying
+        m_isActive.store(false);
+
+        // Clear all callbacks under lock to ensure thread safety
+        std::lock_guard<std::mutex> lock(m_mutex);
+        m_callbacks.clear();
+        m_owners.clear();
+    }
 
     static std::shared_ptr<Event<Args...>> create() {
         return std::make_shared<Event<Args...>>();
     }
 
     [[nodiscard]] Subscription subscribe(Callback callback) {
+        // Check if event is still active
+        if (!m_isActive.load()) {
+            return Subscription(); // Return invalid subscription
+        }
+
         std::lock_guard<std::mutex> lock(m_mutex);
         CallbackId id = m_nextId++;
         m_callbacks.push_back({ id, std::move(callback) });
@@ -77,6 +90,11 @@ public:
     }
 
     void subscribeWithOwner(Callback callback, std::shared_ptr<void> owner) {
+        // Check if event is still active
+        if (!m_isActive.load()) {
+            return;
+        }
+
         std::lock_guard<std::mutex> lock(m_mutex);
         CallbackId id = m_nextId++;
         m_callbacks.push_back({ id, std::move(callback) });
@@ -84,6 +102,11 @@ public:
     }
 
     void unsubscribe(CallbackId id) {
+        // Check if event is still active
+        if (!m_isActive.load()) {
+            return;
+        }
+
         std::lock_guard<std::mutex> lock(m_mutex);
         auto it = std::find_if(m_callbacks.begin(), m_callbacks.end(),
             [id](const auto& pair) { return pair.first == id; });
@@ -96,11 +119,21 @@ public:
     }
 
     void invoke(Args... args) {
+        // Quick check without lock first
+        if (!m_isActive.load()) {
+            return;
+        }
+
         // Kopia callbacków, aby uniknąć blokowania mutexu podczas wywołań
         std::vector<std::pair<CallbackId, Callback>> callbacksCopy;
 
         {
-            std::lock_guard<std::mutex> lock(m_mutex);
+            // Critical section - only take lock if event is active
+            std::unique_lock<std::mutex> lock(m_mutex, std::try_to_lock);
+            if (!lock.owns_lock() || !m_isActive.load()) {
+                // If we couldn't acquire the lock or the event became inactive, just return
+                return;
+            }
 
             // Usuń callbacki, których właściciele zostali zniszczeni
             for (auto it = m_owners.begin(); it != m_owners.end();) {
@@ -135,23 +168,47 @@ public:
         }
     }
 
+    template <typename... Args>
+    void safeInvokeEvent(std::shared_ptr<Event<Args...>> event, Args... args) {
+        if (event && event->isActive()) {
+            event->invoke(std::forward<Args>(args)...);
+        }
+    }
+
     void setExceptionHandler(std::function<void(std::exception_ptr)> handler) {
         std::lock_guard<std::mutex> lock(m_mutex);
         m_exceptionHandler = std::move(handler);
     }
 
     void clear() {
+        // Mark event as inactive before clearing
+        m_isActive.store(false);
+
         std::lock_guard<std::mutex> lock(m_mutex);
         m_callbacks.clear();
         m_owners.clear();
+
+        // Reactivate event after clearing
+        m_isActive.store(true);
     }
 
     size_t subscriberCount() const {
+        if (!m_isActive.load()) {
+            return 0;
+        }
+
         std::lock_guard<std::mutex> lock(m_mutex);
         return m_callbacks.size();
     }
 
+    bool isActive() const {
+        return m_isActive.load();
+    }
+
 private:
+    // Flag to track if this event is active
+    std::atomic<bool> m_isActive;
+
     // Wektor par (id, callback) - użycie wektora zamiast listy dla lepszej wydajności cache
     std::vector<std::pair<CallbackId, Callback>> m_callbacks;
 

@@ -29,18 +29,24 @@ namespace AssetLib {
     // =============================================
     enum class TextureFormat : uint8_t {
         RGBA8 = 0,
-        BC7 = 1,
-        BC1 = 2,
-        BC3 = 3,
-        BC5 = 4
+        BC7 = 1
+    };
+
+    // Struktura opisująca pojedynczy poziom mipmapy
+    struct MipLevel {
+        uint32_t width;
+        uint32_t height;
+        uint32_t dataOffset;  // Offset w bajtach od początku bufora danych
+        uint32_t dataSize;    // Rozmiar poziomu mipmapy w bajtach
     };
 
     struct TextureInfo {
         TextureFormat format;
-        uint32_t width;
-        uint32_t height;
-        uint32_t mipLevels;
+        uint32_t width;       // Szerokość podstawowego poziomu (level 0)
+        uint32_t height;      // Wysokość podstawowego poziomu (level 0)
+        uint32_t mipLevels;   // Liczba poziomów mipmap
         uint32_t flags;
+        std::vector<MipLevel> mips;  // Informacje o każdym poziomie mipmapy
     };
 
     // =============================================
@@ -150,13 +156,13 @@ namespace AssetLib {
     // Funkcje dla tekstur
     // =============================================
     AssetData WriteTexture(const std::string& source, const TextureInfo& info, const std::vector<uint8_t>& pixelData, CompressionType compression = CompressionType::LZ4, int compressionLevel = 1);
-    std::pair<TextureInfo, std::vector<uint8_t>> ReadTexture(const AssetData asset);
+    std::pair<TextureInfo, std::vector<uint8_t>> ReadTexture(const AssetData& asset);
 
     // =============================================
     // Funkcje dla meshów
     // =============================================
     AssetData WriteMesh(const std::string& source, const MeshInfo& info, const std::vector<uint8_t>& vertexData, const std::vector<uint8_t>& indexData, CompressionType compression = CompressionType::LZ4, int compressionLevel = 1);
-    std::tuple<MeshInfo, std::vector<uint8_t>, std::vector<uint8_t>> ReadMesh(const AssetData asset);
+    std::tuple<MeshInfo, std::vector<uint8_t>, std::vector<uint8_t>> ReadMesh(const AssetData& asset);
 
     // =============================================
     // Funkcje dla materiałów

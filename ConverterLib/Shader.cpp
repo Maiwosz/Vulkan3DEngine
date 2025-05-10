@@ -15,6 +15,8 @@
 using namespace ShaderLib;
 using namespace ShaderLib::TypeConversion;
 
+bool usePritnf = true;
+
 namespace Shader {
 
     struct ShaderStage {
@@ -287,6 +289,10 @@ namespace Shader {
         // 1. Version line must be first
         ss << data.versionLine << "\n\n";
 
+        if (usePritnf) {
+            ss << "#extension GL_EXT_debug_printf : enable" << "\n\n";
+        }
+
         // 2. Add global UBO if needed
         if (data.usesGlobalUBO) {
             ss << UBORegistry::Get().GenerateGLSL("GlobalUBO") << "\n\n";
@@ -369,6 +375,11 @@ namespace Shader {
         options.SetTargetSpirv(shaderc_spirv_version_1_3);
         options.SetOptimizationLevel(shaderc_optimization_level_performance);
 
+        if (usePritnf) {
+            options.SetGenerateDebugInfo();
+            options.AddMacroDefinition("DEBUG_PRINTF_ENABLED", "1");
+        }
+        
         ShaderData result;
         ShaderMetadata metadata;
         StageFlags stageFlags = 0;

@@ -14,26 +14,58 @@ namespace AssetLib {
         constexpr uint32_t CURRENT_VERSION = 1;
         constexpr std::array<char, 4> EXPECTED_MAGIC{ 'A', 'S', 'E', 'T' };
     
-        json SerializeTextureInfo(const TextureInfo& info) {
+        json SerializeMipLevel(const MipLevel& mip) {
             return {
+                {"width", mip.width},
+                {"height", mip.height},
+                {"dataOffset", mip.dataOffset},
+                {"dataSize", mip.dataSize}
+            };
+        }
+
+        MipLevel DeserializeMipLevel(const json& j) {
+            MipLevel mip;
+            mip.width = j["width"].get<uint32_t>();
+            mip.height = j["height"].get<uint32_t>();
+            mip.dataOffset = j["dataOffset"].get<uint32_t>();
+            mip.dataSize = j["dataSize"].get<uint32_t>();
+            return mip;
+        }
+
+        json SerializeTextureInfo(const TextureInfo& info) {
+            json j = {
                 {"format", static_cast<uint8_t>(info.format)},
                 {"width", info.width},
                 {"height", info.height},
                 {"mipLevels", info.mipLevels},
                 {"flags", info.flags}
             };
+
+            // Serializacja informacji o każdym poziomie mipmapy
+            json mipsArray = json::array();
+            for (const auto& mip : info.mips) {
+                mipsArray.push_back(SerializeMipLevel(mip));
+            }
+            j["mips"] = std::move(mipsArray);
+
+            return j;
         }
 
         TextureInfo DeserializeTextureInfo(const json& j) {
             TextureInfo info;
             info.format = static_cast<TextureFormat>(j["format"].get<uint8_t>());
-            if (info.format > TextureFormat::BC5) {
-                throw std::runtime_error("Invalid texture format");
-            }
             info.width = j["width"].get<uint32_t>();
             info.height = j["height"].get<uint32_t>();
             info.mipLevels = j["mipLevels"].get<uint32_t>();
             info.flags = j["flags"].get<uint32_t>();
+
+            // Deserializacja informacji o każdym poziomie mipmapy
+            const json& mipsArray = j["mips"];
+            info.mips.reserve(info.mipLevels);
+            for (const auto& mipJson : mipsArray) {
+                info.mips.push_back(DeserializeMipLevel(mipJson));
+            }
+
             return info;
         }
 
@@ -289,11 +321,11 @@ namespace AssetLib {
         asset.metadata["source"] = source;
         asset.metadata["texture"] = SerializeTextureInfo(info);
         asset.compressedData = Compress(pixelData.data(), pixelData.size(), compression, compressionLevel);
-        
+
         return asset;
     }
 
-    std::pair<TextureInfo, std::vector<uint8_t>> ReadTexture(const AssetData asset) {
+    std::pair<TextureInfo, std::vector<uint8_t>> ReadTexture(const AssetData& asset) {
         if (asset.header.assetType != AssetType::Texture) {
             throw std::runtime_error("Not a texture asset");
         }
@@ -332,7 +364,7 @@ namespace AssetLib {
         return asset;
     }
 
-    std::tuple<MeshInfo, std::vector<uint8_t>, std::vector<uint8_t>> ReadMesh(const AssetData asset) {
+    std::tuple<MeshInfo, std::vector<uint8_t>, std::vector<uint8_t>> ReadMesh(const AssetData& asset) {
         if (asset.header.assetType != AssetType::Mesh) {
             throw std::runtime_error("Not a mesh asset");
         }

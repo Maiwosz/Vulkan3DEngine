@@ -10,6 +10,7 @@
 #include <functional>
 #include <memory>
 #include <spdlog/spdlog.h>
+#include <AssetLib.h>
 
 // Forward declarations
 class FrameManager;
@@ -26,11 +27,10 @@ struct BufferTransferRequest {
 // Structure to hold the data for a pending image transfer
 struct ImageTransferRequest {
     Image* destination;
+    VkImage destinationImage;
     VkImageCreateInfo imageInfo;
-    std::vector<uint8_t> data;  // Copy of the data
-    std::vector<VkDeviceSize> mipLevelSizes;
-    std::vector<VkDeviceSize> mipLevelOffsets;
-    VkImage destinationImage;   // Store the actual VkImage handle
+    std::vector<uint8_t> data;
+    std::vector<AssetLib::MipLevel> mipLevels;
 };
 
 class TransferManager {
@@ -48,7 +48,12 @@ public:
     void queueBufferTransfer(Buffer* destination, const void* data, VkDeviceSize size);
 
     // Queue an image transfer request to be executed at the beginning of the next frame
-    void queueImageTransfer(Image* destination, const void* data, const VkImageCreateInfo& imageInfo);
+    void queueImageTransfer(
+        Image* destination,
+        const void* data,
+        const VkImageCreateInfo& imageInfo,
+        const std::vector<AssetLib::MipLevel>& mipLevels = {}
+    );
 
     // Execute all queued transfers
     // Should be called at the beginning of each frame before any rendering
@@ -66,8 +71,4 @@ private:
     mutable std::mutex m_mutex;
     std::vector<BufferTransferRequest> m_pendingBufferTransfers;
     std::vector<ImageTransferRequest> m_pendingImageTransfers;
-
-    // Calculate mip level sizes and offsets for an image
-    std::pair<std::vector<VkDeviceSize>, std::vector<VkDeviceSize>>
-        calculateMipLevelInfo(const VkImageCreateInfo& imageInfo);
 };
