@@ -1,5 +1,7 @@
 #version 450
 
+#extension GL_EXT_debug_printf : enable
+
 struct DirectionalLight {
     vec3 direction;
     vec4 color; // w is intensity
@@ -59,6 +61,17 @@ layout(location = 4) in vec3 directionToCamera;
 layout(location = 0) out vec4 outColor;
 
 void main() {
+
+	if (int(gl_FragCoord.x) == 1 && int(gl_FragCoord.y) == 1) {
+        debugPrintfEXT("=== FRAGMENT SHADER DEBUG ===\n");
+        debugPrintfEXT("Fragment at (%.1f, %.1f)\n", gl_FragCoord.x, gl_FragCoord.y);
+        debugPrintfEXT("Normal: (%.2f, %.2f, %.2f)\n", fragNormal.x, fragNormal.y, fragNormal.z);
+        
+        // Print material properties
+        debugPrintfEXT("Material: shininess=%.2f, ka=%.2f, kd=%.2f, ks=%.2f\n", 
+                      inputData.shininess, inputData.ka, inputData.kd, inputData.ks);
+    }
+
     vec3 normal = normalize(fragNormal);
     vec3 viewDir = normalize(directionToCamera);
 

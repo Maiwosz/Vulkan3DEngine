@@ -24,6 +24,27 @@ layout(location = 3) out vec3 fragPos;
 layout(location = 4) out vec3 directionToCamera;
 
 void main() {
+
+	if (gl_VertexIndex == 0) {
+        debugPrintfEXT("=== VERTEX SHADER DEBUG ===\n");
+        debugPrintfEXT("Camera Position: (%.2f, %.2f, %.2f)\n", 
+                      cameraPosition.x, cameraPosition.y, cameraPosition.z);
+        debugPrintfEXT("Directional Light: dir=(%.2f, %.2f, %.2f), color=(%.2f, %.2f, %.2f, %.2f)\n", 
+                      directionalLight.direction.x, directionalLight.direction.y, directionalLight.direction.z,
+                      directionalLight.color.r, directionalLight.color.g, directionalLight.color.b, directionalLight.color.a);
+        
+        // Print summary of lights instead of details for each
+        debugPrintfEXT("Active Lights: %d point lights, %d spot lights\n", activePointLights, activeSpotLights);
+        
+        // Only print details for first point light if any exist
+        if (activePointLights > 0) {
+            debugPrintfEXT("First Point Light: pos=(%.2f, %.2f, %.2f), radius=%.2f, color=(%.2f, %.2f, %.2f, %.2f)\n",
+                          pointLights[0].position.x, pointLights[0].position.y, pointLights[0].position.z,
+                          pointLights[0].radius,
+                          pointLights[0].color.r, pointLights[0].color.g, pointLights[0].color.b, pointLights[0].color.a);
+        }
+    }
+
     vec4 posWorld = model * vec4(inPosition, 1.0);
     gl_Position = proj * view * posWorld;
     fragColor = inColor;
@@ -43,6 +64,17 @@ layout(location = 4) in vec3 directionToCamera;
 layout(location = 0) out vec4 outColor;
 
 void main() {
+
+	if (int(gl_FragCoord.x) == 1 && int(gl_FragCoord.y) == 1) {
+        debugPrintfEXT("=== FRAGMENT SHADER DEBUG ===\n");
+        debugPrintfEXT("Fragment at (%.1f, %.1f)\n", gl_FragCoord.x, gl_FragCoord.y);
+        debugPrintfEXT("Normal: (%.2f, %.2f, %.2f)\n", fragNormal.x, fragNormal.y, fragNormal.z);
+        
+        // Print material properties
+        debugPrintfEXT("Material: shininess=%.2f, ka=%.2f, kd=%.2f, ks=%.2f\n", 
+                      inputData.shininess, inputData.ka, inputData.kd, inputData.ks);
+    }
+
     vec3 normal = normalize(fragNormal);
     vec3 viewDir = normalize(directionToCamera);
 
