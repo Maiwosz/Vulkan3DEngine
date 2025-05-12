@@ -124,15 +124,15 @@
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>SPDLOG_ACTIVE_LEVEL=TRACE;GLM_ENABLE_EXPERIMENTAL;NOMINMAX;WIN32_LEAN_AND_MEAN;_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
-      <AdditionalIncludeDirectories>$(SolutionDir)Libs\VulkanSDK\Include;$(SolutionDir)Libs\glfw\include;$(SolutionDir)Libs\nlohmann;$(SolutionDir)Libs\imgui;$(SolutionDir)Libs\spdlog;$(SolutionDir)AssetLib\;$(SolutionDir)ConverterLib\;$(SolutionDir)ShaderLib\</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(SolutionDir)Libs\VulkanSDK\Include;$(SolutionDir)Libs\glfw\include;$(SolutionDir)Libs\nlohmann;$(SolutionDir)Libs\imgui;$(SolutionDir)Libs\spdlog;$(SolutionDir)AssetLib\;$(SolutionDir)ConverterLib\;$(SolutionDir)ShaderLib\;$(SolutionDir)Libs\lua\include;$(SolutionDir)Libs\sol2\</AdditionalIncludeDirectories>
       <LanguageStandard>stdcpp20</LanguageStandard>
-      <AdditionalOptions>/utf-8 %(AdditionalOptions)</AdditionalOptions>
+      <AdditionalOptions>/utf-8 /bigobj %(AdditionalOptions)</AdditionalOptions>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalLibraryDirectories>$(SolutionDir)Libs\VulkanSDK\Lib;$(SolutionDir)Libs\glfw\lib-vc2022;$(SolutionDir)x64\Debug;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
-      <AdditionalDependencies>vulkan-1.lib;glfw3.lib;AssetLib.lib;ConverterLib.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalLibraryDirectories>$(SolutionDir)Libs\VulkanSDK\Lib;$(SolutionDir)Libs\glfw\lib-vc2022;$(SolutionDir)Libs\lua\lib;$(SolutionDir)x64\Debug;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalDependencies>vulkan-1.lib;glfw3.lib;AssetLib.lib;ConverterLib.lib;lua54.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
     <PreBuildEvent>
       <Command>powershell -Command "$solDir = '$(SolutionDir)'.Replace('\', '\\'); $def = '#define SOLUTION_ROOT \"' + $solDir.TrimEnd('\') + '\"'; Set-Content -Path '$(ProjectDir)Src/solution_root.h' -Value $def"</Command>
@@ -146,17 +146,17 @@
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>SPDLOG_ACTIVE_LEVEL=TRACE;GLM_ENABLE_EXPERIMENTAL;NOMINMAX;WIN32_LEAN_AND_MEAN;NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
-      <AdditionalIncludeDirectories>$(SolutionDir)Libs\VulkanSDK\Include;$(SolutionDir)Libs\glfw\include;$(SolutionDir)Libs\nlohmann;$(SolutionDir)Libs\imgui;$(SolutionDir)Libs\spdlog;$(SolutionDir)AssetLib\;$(SolutionDir)ConverterLib\;$(SolutionDir)ShaderLib\</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(SolutionDir)Libs\VulkanSDK\Include;$(SolutionDir)Libs\glfw\include;$(SolutionDir)Libs\nlohmann;$(SolutionDir)Libs\imgui;$(SolutionDir)Libs\spdlog;$(SolutionDir)AssetLib\;$(SolutionDir)ConverterLib\;$(SolutionDir)ShaderLib\;$(SolutionDir)Libs\lua\include;$(SolutionDir)Libs\sol2\</AdditionalIncludeDirectories>
       <LanguageStandard>stdcpp20</LanguageStandard>
-      <AdditionalOptions>/utf-8 %(AdditionalOptions)</AdditionalOptions>
+      <AdditionalOptions>/utf-8 /bigobj %(AdditionalOptions)</AdditionalOptions>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalLibraryDirectories>$(SolutionDir)Libs\VulkanSDK\Lib;$(SolutionDir)Libs\glfw\lib-vc2022;$(SolutionDir)x64\Release;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
-      <AdditionalDependencies>vulkan-1.lib;glfw3.lib;AssetLib.lib;ConverterLib.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalLibraryDirectories>$(SolutionDir)Libs\VulkanSDK\Lib;$(SolutionDir)Libs\glfw\lib-vc2022;$(SolutionDir)Libs\lua\lib;$(SolutionDir)x64\Release;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalDependencies>vulkan-1.lib;glfw3.lib;AssetLib.lib;ConverterLib.lib;lua54.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
     <PreBuildEvent>
       <Command>powershell -Command "$solDir = '$(SolutionDir)'.Replace('\', '\\'); $def = '#define SOLUTION_ROOT \"' + $solDir.TrimEnd('\') + '\"'; Set-Content -Path '$(ProjectDir)Src/solution_root.h' -Value $def"</Command>
@@ -170,6 +170,14 @@
     <ClCompile Include="..\Libs\imgui\imgui_impl_vulkan.cpp" />
     <ClCompile Include="..\Libs\imgui\imgui_tables.cpp" />
     <ClCompile Include="..\Libs\imgui\imgui_widgets.cpp" />
+    <ClCompile Include="Src\LuaBindingsRegistry.cpp" />
+    <ClCompile Include="Src\LuaBindingsSpdlog.cpp" />
+    <ClCompile Include="Src\LuaBindingsComponents.cpp" />
+    <ClCompile Include="Src\LuaBindingsCoreTypes.cpp" />
+    <ClCompile Include="Src\LuaBindingsEngine.cpp" />
+    <ClCompile Include="Src\LuaBindingsInput.cpp" />
+    <ClCompile Include="Src\LuaBindings.cpp" />
+    <ClCompile Include="Src\ScriptSystem.cpp" />
     <ClCompile Include="Src\GlobalStateManager.cpp" />
     <ClCompile Include="Src\RenderStage.cpp" />
     <ClCompile Include="Src\MeshManager.cpp" />
@@ -223,7 +231,6 @@
     <ClCompile Include="Src\AllocatedResource.cpp" />
     <ClCompile Include="Src\Window.cpp" />
     <ClCompile Include="Src\AssetCollectionSystem.cpp" />
-    <ClCompile Include="Src\SystemManager.cpp" />
     <ClCompile Include="Src\VramManager.cpp" />
     <ClCompile Include="Src\VulkanUtilities.cpp" />
     <ClCompile Include="Src\VulkanContext.cpp" />
@@ -244,6 +251,15 @@
     <ClInclude Include="..\Libs\imgui\imstb_rectpack.h" />
     <ClInclude Include="..\Libs\imgui\imstb_textedit.h" />
     <ClInclude Include="..\Libs\imgui\imstb_truetype.h" />
+    <ClInclude Include="Src\LuaBindingsRegistry.h" />
+    <ClInclude Include="Src\LuaBindingsSpdlog.h" />
+    <ClInclude Include="Src\LuaBindingsComponents.h" />
+    <ClInclude Include="Src\LuaBindingsCoreTypes.h" />
+    <ClInclude Include="Src\LuaBindingsEngine.h" />
+    <ClInclude Include="Src\LuaBindingsInput.h" />
+    <ClInclude Include="Src\LuaBindings.h" />
+    <ClInclude Include="Src\ScriptSystem.h" />
+    <ClInclude Include="Src\ScriptComponent.h" />
     <ClInclude Include="Src\GlobalStateManager.h" />
     <ClInclude Include="Src\PipelineHandle.h" />
     <ClInclude Include="Src\RenderStage.h" />

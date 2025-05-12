@@ -7,36 +7,22 @@
 #include "MaterialComponent.h"
 #include "LightComponent.h"
 #include "CameraComponent.h"
+#include "ScriptComponent.h"
 #include "Engine.h"
 #include "InputSystem.h"
 #include <spdlog/spdlog.h>
 
 Scene::Scene()
-    : m_cameraRotationSpeed(20.0f),
-    m_cameraYawOffset(0.0f),
-    m_cameraPitchOffset(0.0f),
-    m_cameraMovementSpeed(5.0f),
-    m_movingForward(false),
-    m_movingBackward(false),
-    m_movingLeft(false),
-    m_movingRight(false),
-    m_movingUp(false),
-    m_movingDown(false),
-    m_mouseRightButtonDown(false),
-    m_lastMousePos(0.0f),
-    m_mouseSensitivity(0.1f),
-    m_lightOrbitRadius(7.0f),
-    m_lightOrbitSpeed(1.0f),
-    m_lightOrbitHeight(3.0f),
-    m_lightOrbitAngle(0.0f)
 {
     m_registry = std::make_unique<Registry>();
-    m_registry->getSystemManager().registerSystem<AssetCollectionSystem>();
-    m_registry->getSystemManager().registerSystem<MeshRenderSystem>();
-    m_registry->getSystemManager().registerSystem<LightSystem>();
-    m_registry->getSystemManager().registerSystem<CameraSystem>();
+    auto& systems = m_registry->getSystemManager();
+    systems.registerSystem<ScriptSystem>();
+    systems.registerSystem<AssetCollectionSystem>();
+    systems.registerSystem<MeshRenderSystem>();
+    systems.registerSystem<LightSystem>();
+    systems.registerSystem<CameraSystem>();
 
-    setupInputHandlers();
+    systems.getSystem<ScriptSystem>().initialize();
 
     // Creating object with mesh
     testEntity = m_registry->create();
@@ -131,20 +117,16 @@ Scene::Scene()
         material.setMaterial(AssetHandle(AssetLib::AssetType::Material, materialName));
     }
 
-
-    // Camera
+    // Camera with script
     testCamera = m_registry->create();
     {
-        auto& cameraTransform = m_registry->addComponent<TransformComponent>(testCamera);
+        auto& transform = m_registry->addComponent<TransformComponent>(testCamera);
 
-        // Camera position
-        cameraTransform.setPosition(glm::vec3(0.0f, 2.0f, 15.0f));
-        // Set the rotation
-        cameraTransform.setRotation(glm::vec3(0.0f, 0.0f, 0.0f));
+        // Initial camera position (will be overridden by script)
+        transform.setPosition(glm::vec3(0.0f, 2.0f, 15.0f));
+        transform.setRotation(glm::vec3(0.0f, 0.0f, 0.0f));
 
-        // Store the entity ID for later reference
-        this->testCamera = testCamera;
-
+        // Add camera component
         auto& camera = m_registry->addComponent<CameraComponent>(testCamera);
         float fieldOfView = 45.0f;
         float aspectRatio = 1920.0f / 1080.0f;
@@ -153,6 +135,10 @@ Scene::Scene()
         camera.setVerticalFOV(fieldOfView);
         camera.setAspectRatio(aspectRatio);
         camera.setClippingPlanes(nearPlane, farPlane);
+
+        // Add light orbiter script
+        auto& script = m_registry->addComponent<ScriptComponent>(testCamera);
+        script.setScriptPath("scripts/CameraController.lua");
     }
 
     // Directional light
@@ -168,240 +154,32 @@ Scene::Scene()
         light.setColor(directionalLightColor);
     }
 
-    // Point light
+    // Point light with orbit script
     testPointLight = m_registry->create();
     {
-        auto& lightTransform = m_registry->addComponent<TransformComponent>(testPointLight);
+        auto& transform = m_registry->addComponent<TransformComponent>(testPointLight);
 
-        // Initial position based on orbit parameters
-        glm::vec3 pointLightPosition = glm::vec3(
-            m_lightOrbitRadius * cos(m_lightOrbitAngle),
-            m_lightOrbitHeight,
-            m_lightOrbitRadius * sin(m_lightOrbitAngle)
-        );
-        lightTransform.setPosition(pointLightPosition);
+        // Initial position (will be overridden by script)
+        transform.setPosition(glm::vec3(7.0f, 3.0f, 0.0f));
 
+        // Add light component
         auto& light = m_registry->addComponent<LightComponent>(testPointLight, LightComponent::Type::Point);
-        float pointLightRadius = 12.0f;
-        glm::vec4 pointLightColor = glm::vec4(1.0f, 1.0f, 1.0f, 1.0f);
+        light.setRadius(12.0f);
+        light.setColor(glm::vec4(1.0f, 1.0f, 1.0f, 1.0f));
 
-        light.setRadius(pointLightRadius);
-        light.setColor(pointLightColor);
+        // Add light orbiter script
+        auto& script = m_registry->addComponent<ScriptComponent>(testPointLight);
+        script.setScriptPath("scripts/LightOrbiter.lua");
     }
 }
 
 Scene::~Scene()
 {
-    // The Subscription objects will automatically unsubscribe in their destructors
-    // No need to manually unsubscribe anymore
-}
-
-void Scene::setupInputHandlers()
-{
-    auto& inputSystem = Engine::get().inputSystem();
-
-    // Subscribe to input events with the new Event system
-    // The returned Subscription objects will automatically manage the lifetime of our subscriptions
-    m_keyEventSub = inputSystem.onKey([this](int key, InputSystem::KeyState state) {
-        this->handleKeyInput(key, state);
-        });
-
-    m_mouseButtonEventSub = inputSystem.onMouseButton([this](InputSystem::MouseButton button, bool pressed) {
-        this->handleMouseButton(button, pressed);
-        });
-
-    m_mouseMoveEventSub = inputSystem.onMouseMove([this](glm::vec2 position) {
-        this->handleMouseMove(position);
-        });
-
-    m_mouseScrollEventSub = inputSystem.onMouseScroll([this](float delta) {
-        this->handleMouseScroll(delta);
-        });
-}
-
-void Scene::handleKeyInput(int key, InputSystem::KeyState state)
-{
-    bool pressed = (state == InputSystem::KeyState::Pressed || state == InputSystem::KeyState::Repeated);
-
-    // Camera movement keys
-    switch (key) {
-    case GLFW_KEY_W:
-        m_movingForward = pressed;
-        break;
-    case GLFW_KEY_S:
-        m_movingBackward = pressed;
-        break;
-    case GLFW_KEY_A:
-        m_movingLeft = pressed;
-        break;
-    case GLFW_KEY_D:
-        m_movingRight = pressed;
-        break;
-    case GLFW_KEY_SPACE:
-        m_movingUp = pressed;
-        break;
-    case GLFW_KEY_LEFT_CONTROL:
-    case GLFW_KEY_RIGHT_CONTROL:
-        m_movingDown = pressed;
-        break;
-    }
-
-    // Log key state changes for debugging
-    if (state == InputSystem::KeyState::Pressed || state == InputSystem::KeyState::Released) {
-        SPDLOG_ERROR("Key {} {}", key, pressed ? "pressed" : "released");
-    }
-}
-
-void Scene::handleMouseMove(glm::vec2 position)
-{
-    if (m_mouseRightButtonDown) {
-        // Calculate mouse delta
-        glm::vec2 delta = position - m_lastMousePos;
-
-        // Update camera rotation
-        m_cameraYawOffset -= delta.x * m_mouseSensitivity;
-        m_cameraPitchOffset -= delta.y * m_mouseSensitivity;
-
-        // Clamp pitch to avoid gimbal lock
-        m_cameraPitchOffset = glm::clamp(m_cameraPitchOffset, -89.0f, 89.0f);
-
-        // Wrap yaw to 0-360 degrees
-        if (m_cameraYawOffset > 360.0f) {
-            m_cameraYawOffset -= 360.0f;
-        }
-        else if (m_cameraYawOffset < 0.0f) {
-            m_cameraYawOffset += 360.0f;
-        }
-
-        // Log rotation changes for significant movements
-        if (glm::length(delta) > 5.0f) {
-            SPDLOG_ERROR("Camera rotation: Yaw={:.2f}, Pitch={:.2f}", m_cameraYawOffset, m_cameraPitchOffset);
-        }
-    }
-
-    // Update last mouse position
-    m_lastMousePos = position;
-}
-
-void Scene::handleMouseButton(InputSystem::MouseButton button, bool pressed)
-{
-    if (button == InputSystem::MouseButton::Right) {
-        m_mouseRightButtonDown = pressed;
-
-        // Capture or release cursor
-        GLFWwindow* window = Engine::get().window().get();
-        if (pressed) {
-            glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
-        }
-        else {
-            glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
-        }
-
-        SPDLOG_ERROR("Right mouse button {}", pressed ? "pressed" : "released");
-    }
-}
-
-void Scene::handleMouseScroll(float delta)
-{
-    // Adjust movement speed with mouse wheel
-    m_cameraMovementSpeed += delta * 0.5f;
-    m_cameraMovementSpeed = glm::clamp(m_cameraMovementSpeed, 1.0f, 20.0f);
-
-    SPDLOG_ERROR("Camera movement speed: {:.2f}", m_cameraMovementSpeed);
-}
-
-void Scene::updateCameraMovement(float deltaTime)
-{
-    // Check if camera entity exists and has transform component
-    if (!m_registry || !m_registry->valid(testCamera) || !m_registry->hasComponent<TransformComponent>(testCamera)) {
-        return;
-    }
-    auto& transform = m_registry->getComponent<TransformComponent>(testCamera);
-
-    // Update camera rotation from the stored offset values
-    transform.setRotation(glm::vec3(m_cameraPitchOffset, m_cameraYawOffset, 0.0f));
-
-    // Convert Euler angles to direction vectors
-    float yawRad = glm::radians(m_cameraYawOffset);
-    float pitchRad = glm::radians(m_cameraPitchOffset);
-
-    // Calculate forward direction using both pitch and yaw
-    // This gives us true "flying" behavior where camera moves where it's looking
-    glm::vec3 forward;
-    forward.x = -cos(pitchRad) * sin(yawRad);
-    forward.y = sin(pitchRad);
-    forward.z = -cos(pitchRad) * cos(yawRad);
-    forward = glm::normalize(forward);
-
-    // Calculate right vector (perpendicular to forward and world up)
-    glm::vec3 worldUp(0.0f, 1.0f, 0.0f);
-    glm::vec3 right = glm::normalize(glm::cross(forward, worldUp));
-
-    // Recalculate up vector to ensure orthogonality
-    glm::vec3 up = glm::normalize(glm::cross(right, forward));
-
-    // Calculate movement direction
-    glm::vec3 movement(0.0f);
-
-    // Poprawne mapowanie klawiszy WASD (odwrócone od oryginalnego)
-    if (m_movingForward)  movement += forward;  // W - do przodu
-    if (m_movingBackward) movement -= forward;  // S - do tyłu
-    if (m_movingRight)    movement += right;    // D - w prawo
-    if (m_movingLeft)     movement -= right;    // A - w lewo
-
-    // Space and Ctrl movement - use world up/down (absolute vertical)
-    if (m_movingUp)       movement += worldUp;
-    if (m_movingDown)     movement -= worldUp;
-
-    // Normalize if moving in multiple directions
-    if (glm::length(movement) > 0.0f) {
-        movement = glm::normalize(movement);
-    }
-
-    // Update camera position
-    glm::vec3 currentPos = transform.getPosition();
-    glm::vec3 newPos = currentPos + movement * m_cameraMovementSpeed * deltaTime;
-    transform.setPosition(newPos);
-}
-
-void Scene::updatePointLightOrbit(float deltaTime)
-{
-    // Skip if light orbiting is disabled or registry/entity is invalid
-    if ( !m_registry || !m_registry->valid(testPointLight) ||
-        !m_registry->hasComponent<TransformComponent>(testPointLight)) {
-        return;
-    }
-
-    // Update orbit angle based on speed and deltaTime
-    m_lightOrbitAngle += m_lightOrbitSpeed * deltaTime;
-
-    // Keep angle in the range [0, 2π]
-    if (m_lightOrbitAngle > glm::two_pi<float>()) {
-        m_lightOrbitAngle -= glm::two_pi<float>();
-    }
-
-    // Calculate new position based on orbit parameters
-    glm::vec3 newPosition = glm::vec3(
-        m_lightOrbitRadius * cos(m_lightOrbitAngle),
-        m_lightOrbitHeight,
-        m_lightOrbitRadius * sin(m_lightOrbitAngle)
-    );
-
-    // Update light position
-    auto& transform = m_registry->getComponent<TransformComponent>(testPointLight);
-    transform.setPosition(newPosition);
+    // No manual cleanup needed as the subscriptions are automatically handled
 }
 
 void Scene::update()
 {
-    float deltaTime = Engine::get().getDeltaTime();
-
-    // Update camera based on input
-    updateCameraMovement(deltaTime);
-
-    // Update point light orbit
-    updatePointLightOrbit(deltaTime);
-
-    // Update all systems
+    // Update all systems - the ScriptSystem will handle our scripts
     m_registry->getSystemManager().updateAll();
 }

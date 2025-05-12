@@ -21,6 +21,12 @@ public:
         Middle = GLFW_MOUSE_BUTTON_MIDDLE
     };
 
+    enum class CursorMode {
+        Normal = GLFW_CURSOR_NORMAL,
+        Hidden = GLFW_CURSOR_HIDDEN,
+        Disabled = GLFW_CURSOR_DISABLED
+    };
+
     InputSystem(Window& window);
     ~InputSystem();
 
@@ -45,6 +51,8 @@ public:
     glm::vec2 getMousePosition() const;
     glm::vec2 getMouseDelta() const;
     float getMouseScrollDelta() const;
+
+    void setCursorMode(CursorMode mode);
 
     // Event subscriptions
     typename Event<int, KeyState>::Subscription onKey(typename Event<int, KeyState>::Callback callback) {

@@ -77,13 +77,13 @@ InputSystem::~InputSystem() {
 
 void InputSystem::update()
 {
+    // Update mouse delta
+    m_mouseDelta = m_currentMousePosition - m_previousMousePosition;
+
     // Update previous states
     m_previousKeyStates = m_currentKeyStates;
     m_previousMouseButtonStates = m_currentMouseButtonStates;
     m_previousMousePosition = m_currentMousePosition;
-
-    // Update mouse delta
-    m_mouseDelta = m_currentMousePosition - m_previousMousePosition;
 
     // Reset scroll delta each frame
     m_mouseScrollDelta = 0.0f;
@@ -169,6 +169,12 @@ glm::vec2 InputSystem::getMouseDelta() const
 float InputSystem::getMouseScrollDelta() const
 {
     return m_mouseScrollDelta;
+}
+
+void InputSystem::setCursorMode(CursorMode mode) {
+    if (m_glfwWindow) {
+        glfwSetInputMode(m_glfwWindow, GLFW_CURSOR, static_cast<int>(mode));
+    }
 }
 
 void InputSystem::setupCallbacks()

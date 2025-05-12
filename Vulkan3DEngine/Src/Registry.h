@@ -46,7 +46,7 @@ public:
     T& getComponent(Entity entity) {
         auto type = std::type_index(typeid(T));
         auto& pool = static_cast<ComponentPool<T>&>(*m_componentPools.at(type));
-        return pool.m_components[pool.m_entityToIndex.at(entity)]; // Add m_ prefix
+        return pool.m_components[pool.m_entityToIndex.at(entity)];
     }
 
     template<typename T>
@@ -54,7 +54,7 @@ public:
         auto type = std::type_index(typeid(T));
         if (auto it = m_componentPools.find(type); it != m_componentPools.end()) {
             auto& pool = static_cast<const ComponentPool<T>&>(*it->second);
-            return pool.m_entityToIndex.count(entity) > 0; // Add m_ prefix
+            return pool.m_entityToIndex.count(entity) > 0;
         }
         return false;
     }

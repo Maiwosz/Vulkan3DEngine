@@ -13,6 +13,13 @@ struct LightComponent : public Component {
     glm::vec3 direction; // Używane tylko dla Type::Directional
     float radius;        // Używane tylko dla Type::Point
 
+    // Default constructor - initializes as a Directional light by default
+    LightComponent() : type(Type::Directional) {
+        color = glm::vec4(1.0f);
+        direction = glm::vec3(0.0f, -1.0f, 0.0f);
+        radius = 0.0f; // Nieużywane dla światła kierunkowego
+    }
+
     explicit LightComponent(Type lightType) : type(lightType) {
         color = glm::vec4(1.0f);
         if (type == Type::Directional) {
@@ -49,13 +56,34 @@ struct LightComponent : public Component {
         return radius;
     }
 
+    // Method to change light type if needed
+    void setType(Type newType) {
+        if (type != newType) {
+            type = newType;
+            // Reset properties based on new type
+            if (type == Type::Directional) {
+                direction = glm::vec3(0.0f, -1.0f, 0.0f);
+                radius = 0.0f;
+            }
+            else {
+                direction = glm::vec3(0.0f);
+                radius = 10.0f;
+            }
+            incrementVersion();
+        }
+    }
+
+    Type getType() const {
+        return type;
+    }
+
     // Wspólna metoda dla koloru
     void setColor(const glm::vec4& col) {
         color = col;
         incrementVersion();
     }
 
-    const glm::vec4& getColor() const { return color; }
-
-
+    const glm::vec4& getColor() const {
+        return color;
+    }
 };

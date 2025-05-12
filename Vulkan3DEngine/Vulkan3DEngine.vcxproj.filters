@@ -47,9 +47,6 @@
     <ClCompile Include="Src\Registry.cpp">
       <Filter>Engine\Scene\EntityComponentSystem\Registry</Filter>
     </ClCompile>
-    <ClCompile Include="Src\SystemManager.cpp">
-      <Filter>Engine\Scene\EntityComponentSystem\SystemManager</Filter>
-    </ClCompile>
     <ClCompile Include="Src\ImGuiWrapper.cpp">
       <Filter>Editor\ImGuiWrapper</Filter>
     </ClCompile>
@@ -211,6 +208,30 @@
     </ClCompile>
     <ClCompile Include="Src\GlobalStateManager.cpp">
       <Filter>Engine\RenderSystem\GlobalStateManager</Filter>
+    </ClCompile>
+    <ClCompile Include="Src\ScriptSystem.cpp">
+      <Filter>Engine\Scene\EntityComponentSystem\SystemManager\Systems\ScriptSystem</Filter>
+    </ClCompile>
+    <ClCompile Include="Src\LuaBindings.cpp">
+      <Filter>Engine\Scene\EntityComponentSystem\SystemManager\Systems\ScriptSystem\LuaBindings</Filter>
+    </ClCompile>
+    <ClCompile Include="Src\LuaBindingsCoreTypes.cpp">
+      <Filter>Engine\Scene\EntityComponentSystem\SystemManager\Systems\ScriptSystem\LuaBindings\CoreTypes</Filter>
+    </ClCompile>
+    <ClCompile Include="Src\LuaBindingsEngine.cpp">
+      <Filter>Engine\Scene\EntityComponentSystem\SystemManager\Systems\ScriptSystem\LuaBindings\Engine</Filter>
+    </ClCompile>
+    <ClCompile Include="Src\LuaBindingsInput.cpp">
+      <Filter>Engine\Scene\EntityComponentSystem\SystemManager\Systems\ScriptSystem\LuaBindings\Input</Filter>
+    </ClCompile>
+    <ClCompile Include="Src\LuaBindingsComponents.cpp">
+      <Filter>Engine\Scene\EntityComponentSystem\SystemManager\Systems\ScriptSystem\LuaBindings\Components</Filter>
+    </ClCompile>
+    <ClCompile Include="Src\LuaBindingsSpdlog.cpp">
+      <Filter>Engine\Scene\EntityComponentSystem\SystemManager\Systems\ScriptSystem\LuaBindings\Spdlog</Filter>
+    </ClCompile>
+    <ClCompile Include="Src\LuaBindingsRegistry.cpp">
+      <Filter>Engine\Scene\EntityComponentSystem\SystemManager\Systems\ScriptSystem\LuaBindings\Registry</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -495,6 +516,33 @@
     <ClInclude Include="Src\GlobalStateManager.h">
       <Filter>Engine\RenderSystem\GlobalStateManager</Filter>
     </ClInclude>
+    <ClInclude Include="Src\ScriptComponent.h">
+      <Filter>Engine\Scene\EntityComponentSystem\Components</Filter>
+    </ClInclude>
+    <ClInclude Include="Src\ScriptSystem.h">
+      <Filter>Engine\Scene\EntityComponentSystem\SystemManager\Systems\ScriptSystem</Filter>
+    </ClInclude>
+    <ClInclude Include="Src\LuaBindings.h">
+      <Filter>Engine\Scene\EntityComponentSystem\SystemManager\Systems\ScriptSystem\LuaBindings</Filter>
+    </ClInclude>
+    <ClInclude Include="Src\LuaBindingsCoreTypes.h">
+      <Filter>Engine\Scene\EntityComponentSystem\SystemManager\Systems\ScriptSystem\LuaBindings\CoreTypes</Filter>
+    </ClInclude>
+    <ClInclude Include="Src\LuaBindingsEngine.h">
+      <Filter>Engine\Scene\EntityComponentSystem\SystemManager\Systems\ScriptSystem\LuaBindings\Engine</Filter>
+    </ClInclude>
+    <ClInclude Include="Src\LuaBindingsInput.h">
+      <Filter>Engine\Scene\EntityComponentSystem\SystemManager\Systems\ScriptSystem\LuaBindings\Input</Filter>
+    </ClInclude>
+    <ClInclude Include="Src\LuaBindingsComponents.h">
+      <Filter>Engine\Scene\EntityComponentSystem\SystemManager\Systems\ScriptSystem\LuaBindings\Components</Filter>
+    </ClInclude>
+    <ClInclude Include="Src\LuaBindingsSpdlog.h">
+      <Filter>Engine\Scene\EntityComponentSystem\SystemManager\Systems\ScriptSystem\LuaBindings\Spdlog</Filter>
+    </ClInclude>
+    <ClInclude Include="Src\LuaBindingsRegistry.h">
+      <Filter>Engine\Scene\EntityComponentSystem\SystemManager\Systems\ScriptSystem\LuaBindings\Registry</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <None Include="..\Libs\imgui\.gitattributes">
@@ -714,6 +762,30 @@
     </Filter>
     <Filter Include="Engine\RenderSystem\GlobalStateManager">
       <UniqueIdentifier>{882842c2-b9ed-4d8a-8848-c37083718aaf}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Engine\Scene\EntityComponentSystem\SystemManager\Systems\ScriptSystem">
+      <UniqueIdentifier>{f03b593c-7de7-4683-a8cf-8a42b780f250}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Engine\Scene\EntityComponentSystem\SystemManager\Systems\ScriptSystem\LuaBindings">
+      <UniqueIdentifier>{a791418c-dd51-4ea1-bcd9-b214a0ea783c}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Engine\Scene\EntityComponentSystem\SystemManager\Systems\ScriptSystem\LuaBindings\Components">
+      <UniqueIdentifier>{968fa1ec-2465-49f7-b76d-0d901554a9c0}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Engine\Scene\EntityComponentSystem\SystemManager\Systems\ScriptSystem\LuaBindings\CoreTypes">
+      <UniqueIdentifier>{3abb219b-1d8f-46f7-b56e-3dc662a230b3}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Engine\Scene\EntityComponentSystem\SystemManager\Systems\ScriptSystem\LuaBindings\Engine">
+      <UniqueIdentifier>{6e05749f-da33-441f-926b-d2f5551f236d}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Engine\Scene\EntityComponentSystem\SystemManager\Systems\ScriptSystem\LuaBindings\Input">
+      <UniqueIdentifier>{da3b54be-4c3f-44da-894c-b4cf6e044b6b}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Engine\Scene\EntityComponentSystem\SystemManager\Systems\ScriptSystem\LuaBindings\Spdlog">
+      <UniqueIdentifier>{d51e10a7-dfff-4c35-822b-37345ba8749e}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Engine\Scene\EntityComponentSystem\SystemManager\Systems\ScriptSystem\LuaBindings\Registry">
+      <UniqueIdentifier>{e9f7c427-a2af-42a4-99ff-61a07eb3db69}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
 </Project>
