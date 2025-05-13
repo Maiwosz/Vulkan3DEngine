@@ -175,11 +175,10 @@ Scene::Scene()
 
 Scene::~Scene()
 {
-    // No manual cleanup needed as the subscriptions are automatically handled
+
 }
 
 void Scene::update()
 {
-    // Update all systems - the ScriptSystem will handle our scripts
     m_registry->getSystemManager().updateAll();
 }

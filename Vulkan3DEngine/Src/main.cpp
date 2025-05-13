@@ -1,3 +1,4 @@
+// main.cpp (updated)
 #include "Engine.h"
 #include "Editor.h"
 #define SPDLOG_ACTIVE_LEVEL SPDLOG_LEVEL_TRACE
@@ -26,13 +27,14 @@ int main() {
 
     try {
         Engine& engine = Engine::get();
-        engine.initialize("Vulkan3DEngine"); // Full logger configuration happens here
+        engine.initialize("Vulkan3DEngine"); // Engine logger configuration happens here
 
-        Editor editor("Assets/Source", "Assets/Compiled");
-        SPDLOG_DEBUG("Initializing editor...");
+        // Create editor with its own logger
+        Editor editor(ASSETS_SRC, ASSETS_COMP);
+        SPDLOG_DEBUG("Created editor instance");
         editor.start();
 
-        // Perform initial asset scan
+        // Perform initial asset scan (now using editor's logger internally)
         SPDLOG_INFO("Performing initial asset scan...");
         editor.assetWatcher().Run();
         SPDLOG_INFO("Initial asset scan completed");

@@ -215,9 +215,6 @@
     <ClCompile Include="Src\LuaBindings.cpp">
       <Filter>Engine\Scene\EntityComponentSystem\SystemManager\Systems\ScriptSystem\LuaBindings</Filter>
     </ClCompile>
-    <ClCompile Include="Src\LuaBindingsCoreTypes.cpp">
-      <Filter>Engine\Scene\EntityComponentSystem\SystemManager\Systems\ScriptSystem\LuaBindings\CoreTypes</Filter>
-    </ClCompile>
     <ClCompile Include="Src\LuaBindingsEngine.cpp">
       <Filter>Engine\Scene\EntityComponentSystem\SystemManager\Systems\ScriptSystem\LuaBindings\Engine</Filter>
     </ClCompile>
@@ -232,6 +229,12 @@
     </ClCompile>
     <ClCompile Include="Src\LuaBindingsRegistry.cpp">
       <Filter>Engine\Scene\EntityComponentSystem\SystemManager\Systems\ScriptSystem\LuaBindings\Registry</Filter>
+    </ClCompile>
+    <ClCompile Include="Src\LuaBindingsCoreTypes.cpp">
+      <Filter>Engine\Scene\EntityComponentSystem\SystemManager\Systems\ScriptSystem\LuaBindings\CoreTypes</Filter>
+    </ClCompile>
+    <ClCompile Include="Src\LoggerConfig.cpp">
+      <Filter>Engine\LoggerConfig</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -543,6 +546,9 @@
     <ClInclude Include="Src\LuaBindingsRegistry.h">
       <Filter>Engine\Scene\EntityComponentSystem\SystemManager\Systems\ScriptSystem\LuaBindings\Registry</Filter>
     </ClInclude>
+    <ClInclude Include="Src\LoggerConfig.h">
+      <Filter>Engine\LoggerConfig</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <None Include="..\Libs\imgui\.gitattributes">
@@ -786,6 +792,9 @@
     </Filter>
     <Filter Include="Engine\Scene\EntityComponentSystem\SystemManager\Systems\ScriptSystem\LuaBindings\Registry">
       <UniqueIdentifier>{e9f7c427-a2af-42a4-99ff-61a07eb3db69}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Engine\LoggerConfig">
+      <UniqueIdentifier>{f7084a8b-d68e-4686-8bc2-7c3b39c53870}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
 </Project>

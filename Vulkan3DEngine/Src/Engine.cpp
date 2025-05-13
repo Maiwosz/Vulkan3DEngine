@@ -1,48 +1,43 @@
 #include "Engine.h"
-#include <spdlog/spdlog.h>
-#include <spdlog/sinks/basic_file_sink.h>
-#include <spdlog/sinks/stdout_color_sinks.h>
+#include "LoggerConfig.h"
+#include <algorithm>
+#include <filesystem>
+#include <chrono>
+#include <iomanip>
 
 void Engine::initialize(const char* title) {
-    SPDLOG_TRACE("Starting engine initialization");
+    std::filesystem::create_directories(LOGS_DIR);
 
-    // Ensure the logs directory exists
-    std::filesystem::create_directories("logs");
-
-    // Load settings
     m_settings = std::make_unique<Settings>();
     if (!m_settings->loadFromFile("settings.json")) {
-        SPDLOG_WARN("Failed to load settings, using default configuration");
+        // Na tym etapie logger jeszcze nie jest skonfigurowany
+        std::cerr << "Ostrzeżenie: Nie udało się załadować ustawień, używam domyślnej konfiguracji" << std::endl;
     }
-    // Configure logging system
+
     try {
-        // Sink dla pliku
-        auto file_sink = std::make_shared<spdlog::sinks::basic_file_sink_mt>("logs/engine.log");
+        LoggerConfig::LoggerOptions options;
+        options.loggerName = "ENGINE";
+        options.logDir = LOGS_DIR;
+        options.filePrefix = "engine_";
+        options.level = Settings::convertLogLevel(m_settings->getLogLevel());
+        options.maxOldLogFiles = 2;  // zachowaj 2 stare pliki + nowy
 
-        // Sink dla konsoli (kolorowy)
-        auto console_sink = std::make_shared<spdlog::sinks::stdout_color_sink_mt>();
+        auto logger = LoggerConfig::createLogger(options);
+        spdlog::set_default_logger(logger);
 
-        // Łączymy sinki w jeden logger
-        std::vector<spdlog::sink_ptr> sinks{ file_sink, console_sink };
-        auto engine_logger = std::make_shared<spdlog::logger>("ENGINE", sinks.begin(), sinks.end());
-
-        // Formatowanie (dla wszystkich sinków)
-        engine_logger->set_pattern("[%Y-%m-%d %H:%M:%S.%e] [%^%l%$] [%n] - %v");
-
-        engine_logger->set_level(Settings::convertLogLevel(m_settings->getLogLevel()));
-        engine_logger->flush_on(spdlog::level::err);
-        spdlog::set_default_logger(engine_logger);
-        SPDLOG_INFO("Logger configured (level: {})", spdlog::level::to_string_view(Settings::convertLogLevel(m_settings->getLogLevel())));
-
+        SPDLOG_INFO("Logger configured (level: {})",
+            spdlog::level::to_string_view(Settings::convertLogLevel(m_settings->getLogLevel())));
     }
-    catch (const spdlog::spdlog_ex& ex) {
-        SPDLOG_ERROR("Logger configuration failed: {}", ex.what());
+    catch (const std::exception& ex) {
+        std::cerr << "Logger configuration failed: " << ex.what() << std::endl;
         throw std::runtime_error("Failed to initialize logger");
     }
 
+    SPDLOG_TRACE("Engine initialization started");
+
     // Initialize components
     SPDLOG_DEBUG("Creating window: {}x{}",
-        m_settings->getCurrentResolutionDetails().width, 
+        m_settings->getCurrentResolutionDetails().width,
         m_settings->getCurrentResolutionDetails().height);
     m_window = std::make_unique<Window>(title, m_settings->getWindowMode(), m_settings->getResolution());
 
@@ -59,7 +54,7 @@ void Engine::initialize(const char* title) {
     m_assetManager = std::make_unique<AssetManager>(
         m_renderer->vramManager(),
         m_renderer->shaderModuleManager(),
-		m_renderer->materialManager(),
+        m_renderer->materialManager(),
         m_renderer->meshManager()
     );
 
@@ -69,8 +64,8 @@ void Engine::initialize(const char* title) {
     SPDLOG_INFO("Initializing Render System");
     m_renderSystem = std::make_unique<RenderSystem>(
         m_scene->registry(),
-        *m_assetManager, 
-        *m_renderer 
+        *m_assetManager,
+        *m_renderer
     );
 
     SPDLOG_INFO("=== Engine ready ===");
@@ -136,10 +131,8 @@ void Engine::run() {
                 update();
             }
             catch (const std::exception& e) {
-                // Log the error but continue with next frame
                 SPDLOG_ERROR("Error in frame {}: {}", m_frameCount, e.what());
                 m_renderer->waitIdle();
-
             }
         }
     }

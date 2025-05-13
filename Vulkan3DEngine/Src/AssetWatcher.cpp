@@ -2,18 +2,20 @@
 #include "Editor.h"
 #include <fstream>
 #include <json.hpp>
-#include <iostream>
+#include <algorithm>
 #include "AssetLoader.h"
 #include "ConverterLib.h"
 
 using json = nlohmann::json;
 
 AssetWatcher::AssetWatcher(const std::string& sourceDir, const std::string& destDir, Editor& editor)
-    : m_editor(editor) 
+    : m_editor(editor)
     , sourceDirectory(fs::absolute(sourceDir))
     , destinationDirectory(fs::absolute(destDir))
 {
-    m_editor.getLogger()->debug("AssetWatcher configured with:\nSource: {}\nDestination: {}", sourceDirectory.string(), destinationDirectory.string());
+    m_editor.getLogger()->debug("AssetWatcher configured with:\nSource: {}\nDestination: {}",
+        sourceDirectory.string(), destinationDirectory.string());
+
     extensionMap = {
         { ".png", AssetType::Texture },
         { ".jpg", AssetType::Texture },
@@ -146,7 +148,7 @@ bool AssetWatcher::NeedsConversion(const fs::path& sourcePath, const fs::path& d
     std::string storedSource = GetSourceFromMetadata(destPath);
     std::string currentSourceName = sourcePath.filename().string();
 
-    if (storedSource != currentSourceName) { 
+    if (storedSource != currentSourceName) {
         m_editor.getLogger()->debug("Source name mismatch for {} (stored: '{}', current: '{}')",
             destPath.string(), storedSource, currentSourceName);
         return true;

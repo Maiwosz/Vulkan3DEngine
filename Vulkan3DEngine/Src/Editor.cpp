@@ -1,22 +1,24 @@
 #include "Editor.h"
-#include <spdlog/sinks/basic_file_sink.h>
-#include <spdlog/sinks/stdout_color_sinks.h>
-#include <spdlog/spdlog.h>
+#include "LoggerConfig.h"
 #include "Paths.h"
+#include <filesystem>
+#include <iostream>
 
 Editor::Editor(const std::string& sourceRelative, const std::string& destRelative) {
     configureLogger();
 
     m_assetWatcher = std::make_unique<AssetWatcher>(
-        ASSETS_SRC,
-        ASSETS_COMP,
+        sourceRelative,
+        destRelative,
         *this
     );
 }
 
 Editor::~Editor() {
     stop();
-    m_logger->debug("Editor destroyed");
+    if (m_logger) {
+        m_logger->flush();
+    }
 }
 
 void Editor::start() {
@@ -44,25 +46,20 @@ void Editor::stop() {
 
 void Editor::configureLogger() {
     try {
-        std::filesystem::create_directories("logs");
+        LoggerConfig::LoggerOptions options;
+        options.loggerName = "EDITOR";
+        options.logDir = LOGS_DIR;
+        options.filePrefix = "editor_";
+        options.level = spdlog::level::info;
+        options.maxOldLogFiles = 2;
 
-        auto file_sink = std::make_shared<spdlog::sinks::basic_file_sink_mt>("logs/editor.log");
-        auto console_sink = std::make_shared<spdlog::sinks::stdout_color_sink_mt>();
+        m_logger = LoggerConfig::createLogger(options);
 
-        // IDENTYCZNY FORMAT JAK W SILNIKU
-        constexpr const char* ENGINE_FORMAT = "[%Y-%m-%d %H:%M:%S.%e] [%^%l%$] [%n] - %v";
-
-        file_sink->set_pattern(ENGINE_FORMAT);
-        console_sink->set_pattern(ENGINE_FORMAT);  // Usuwamy krótszy format czasu
-
-        std::vector<spdlog::sink_ptr> sinks{ file_sink, console_sink };
-        m_logger = std::make_shared<spdlog::logger>("EDITOR", sinks.begin(), sinks.end());
-
-        m_logger->set_level(spdlog::level::info);
-        m_logger->flush_on(spdlog::level::err);  // Dopasowujemy do zachowania silnika
+        m_logger->info("Editor logger configured (level: {})",
+            spdlog::level::to_string_view(m_logger->level()));
     }
-    catch (const spdlog::spdlog_ex& ex) {
-        SPDLOG_ERROR("Editor logger init failed: {}", ex.what());
-        throw;
+    catch (const std::exception& ex) {
+        std::cerr << "Editor logger init failed: " << ex.what() << std::endl;
+        throw std::runtime_error("Failed to initialize logger");
     }
 }
