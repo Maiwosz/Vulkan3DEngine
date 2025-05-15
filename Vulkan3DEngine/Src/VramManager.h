@@ -4,7 +4,7 @@
 #include "CommandBuffer.h"
 #include "Buffer.h"
 #include "Image.h"
-#include "VramHandle.h"
+#include "Handle.h"
 #include "FrameManager.h"
 #include <VMA/vk_mem_alloc.h>
 #include <variant>

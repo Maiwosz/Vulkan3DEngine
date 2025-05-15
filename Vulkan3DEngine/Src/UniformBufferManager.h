@@ -7,16 +7,12 @@
 #include "VramManager.h"
 #include "ShaderLib.h"
 #include "Buffer.h"
-#include "UniformBufferHandle.h"
+#include "Handle.h"
 
-
-// Struktura przechowująca informacje o buforze uniform
 struct UniformBufferInfo {
     VramHandle vramHandle;
     std::string name;
     uint32_t size;
-    uint32_t set;
-    uint32_t binding;
     bool isInUse;
     std::vector<ShaderLib::UniformVariable> variables;
 };
@@ -26,95 +22,59 @@ public:
     explicit UniformBufferManager(VramManager& vramManager);
     ~UniformBufferManager();
 
-    // Tworzenie bufora uniform na podstawie metadanych z shadera
-    UniformBufferHandle createBuffer(const ShaderLib::UniformBufferObject& uboInfo);
-
-    // Tworzenie konkretnego typu bufora uniform (globalny, obiektowy, niestandardowy)
-    UniformBufferHandle createGlobalBuffer(const ShaderLib::ShaderMetadata& metadata);
-    UniformBufferHandle createObjectBuffer(const ShaderLib::ShaderMetadata& metadata);
-    UniformBufferHandle createCustomBuffer(const ShaderLib::ShaderMetadata& metadata, const std::string& name);
-
-    // Pobieranie bufora uniform z puli (jeśli dostępny) lub tworzenie nowego
     UniformBufferHandle acquireBuffer(const ShaderLib::UniformBufferObject& uboInfo);
-
-    // Zwracanie bufora uniform do puli
     void releaseBuffer(UniformBufferHandle handle);
-
-    // Aktualizacja wartości w buforze uniform
-    // Używanie offsetu i rozmiaru pozwala na aktualizację tylko części bufora
     void updateBuffer(UniformBufferHandle handle, const void* data, uint32_t size, uint32_t offset = 0);
 
-    // Aktualizacja konkretnej zmiennej w buforze uniform
     template<typename T>
     void updateVariable(UniformBufferHandle handle, const std::string& variableName, const T& value) {
         auto& bufferInfo = getBufferInfo(handle);
 
-        // Znajdź zmienną po nazwie
         for (const auto& variable : bufferInfo.variables) {
             if (variable.name == variableName) {
-                // Sprawdź czy rozmiar danych jest zgodny z rozmiarem zmiennej
                 if (sizeof(T) <= variable.size) {
                     updateBuffer(handle, &value, sizeof(T), variable.offset);
                     return;
                 }
+                SPDLOG_WARN("Variable size mismatch for '{}': expected {}, got {}",
+                    variableName, variable.size, sizeof(T));
+                return;
             }
         }
 
-        // Zmienna nie została znaleziona lub ma niepoprawny rozmiar
-        // Możemy tutaj dodać obsługę błędów
+        SPDLOG_WARN("Variable '{}' not found in uniform buffer", variableName);
     }
 
-    // Sprawdzanie czy uchwyt do bufora uniform jest poprawny
     bool isBufferValid(UniformBufferHandle handle) const;
 
-    // Pobieranie informacji o buforze uniform
     const UniformBufferInfo& getBufferInfo(UniformBufferHandle handle) const;
     UniformBufferInfo& getBufferInfo(UniformBufferHandle handle);
 
-    // Pobieranie bufora z VramManager
     Buffer* getBuffer(UniformBufferHandle handle);
 
-    // Czyszczenie nieużywanych buforów (opcjonalnie z limitem czasowym)
     void cleanupUnusedBuffers(uint64_t timeThreshold = 0);
 
 private:
-    // Klucz identyfikacyjny dla puli buforów
+    UniformBufferHandle createBuffer(const ShaderLib::UniformBufferObject& uboInfo);
+
     struct BufferPoolKey {
         std::string name;
         uint32_t size;
-        uint32_t set;
-        uint32_t binding;
 
         bool operator==(const BufferPoolKey& other) const {
-            return name == other.name &&
-                size == other.size &&
-                set == other.set &&
-                binding == other.binding;
+            return name == other.name && size == other.size;
         }
     };
 
-    // Hash function dla BufferPoolKey
     struct BufferPoolKeyHash {
         size_t operator()(const BufferPoolKey& key) const {
-            return std::hash<std::string>()(key.name) ^
-                std::hash<uint32_t>()(key.size) ^
-                std::hash<uint32_t>()(key.set) ^
-                std::hash<uint32_t>()(key.binding);
+            return std::hash<std::string>()(key.name) ^ std::hash<uint32_t>()(key.size);
         }
     };
 
-    // Pula buforów uniform
     std::unordered_map<BufferPoolKey, std::deque<UniformBufferHandle>, BufferPoolKeyHash> m_bufferPool;
-
-    // Przechowywanie informacji o buforach uniform
     std::unordered_map<UniformBufferHandle, UniformBufferInfo> m_buffers;
-
-    // Zasoby
     VramManager& m_vramManager;
-
-    // Licznik dla generowania unikatowych uchwytów
     uint32_t m_nextHandle = 1;
-
-    // Mutex do synchronizacji dostępu do puli buforów
     std::mutex m_poolMutex;
 };

@@ -3,8 +3,7 @@
 #include <string>
 #include <vector>
 #include <functional>
-#include "PipelineLayoutHandle.h"
-#include "ShaderModuleHandle.h"
+#include "Handle.h"
 
 namespace std {
     // Helper function for combining hash values

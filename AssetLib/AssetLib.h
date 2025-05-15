@@ -83,10 +83,6 @@ namespace AssetLib {
     // Materials
     // =============================================
 
-    // Using ShaderLib's descriptor types for consistency
-    using DescriptorType = ShaderLib::DescriptorType;
-    using UniformType = ShaderLib::UniformType;
-
     // Sampler settings for texture parameters
     struct SamplerDescription {
         enum class Filter : uint8_t {
@@ -114,8 +110,8 @@ namespace AssetLib {
     // Parameter for material (corresponds to CustomDescriptorSet bindings in shader)
     struct MaterialParameter {
         std::array<char, 32> name;       // Name of the parameter
-        DescriptorType descriptorType;   // Type of descriptor (UniformBuffer, CombinedImageSampler, etc.)
-        UniformType uniformType;         // For UBO variables - the uniform type
+        ShaderLib::DescriptorType descriptorType;   // Type of descriptor (UniformBuffer, CombinedImageSampler, etc.)
+        ShaderLib::UniformType uniformType;         // For UBO variables - the uniform type
         uint32_t arraySize;              // Size if it's an array, 0 otherwise
         SamplerDescription samplerDesc;  // Sampler settings for textures
         uint32_t dataOffset;             // Offset into the parameter data
@@ -181,8 +177,8 @@ namespace AssetLib {
     // Helper functions to convert between ShaderLib and AssetLib types
     SamplerDescription::Filter ConvertSamplerFilter(const std::string& filter);
     SamplerDescription::AddressMode ConvertAddressMode(const std::string& mode);
-    DescriptorType ConvertDescriptorType(const std::string& type);
-    UniformType ConvertUniformType(const std::string& type);
+    ShaderLib::DescriptorType ConvertDescriptorType(const std::string& type);
+    ShaderLib::UniformType ConvertUniformType(const std::string& type);
 
     // =============================================
     // Funkcje dla shaderów

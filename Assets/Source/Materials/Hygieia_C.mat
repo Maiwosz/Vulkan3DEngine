@@ -9,7 +9,7 @@
     "ka": {
       "descriptorType": "UniformBuffer",
       "uniformType": "Float",
-      "data": 0.05
+      "data": 0.005
     },
     "kd": {
       "descriptorType": "UniformBuffer",

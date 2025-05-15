@@ -1,6 +1,6 @@
 #pragma once
 #include "Material.h"
-#include "MaterialHandle.h"
+#include "Handle.h"
 #include "ShaderModuleManager.h"
 #include "VramManager.h"
 #include "AssetLib.h"
@@ -10,37 +10,31 @@
 #include <unordered_map>
 #include <vector>
 #include <string>
+#include "MaterialResourceManager.h"
 
 class MaterialManager {
 public:
     MaterialManager(
         ShaderModuleManager& shaderModuleManager,
-        ImageSamplerManager& samplerManager
+        ImageSamplerManager& samplerManager,
+        UniformBufferManager& uniformBufferManager,
+        DescriptorAllocator& descriptorAllocator,
+        DescriptorLayoutManager& descriptorlayoutManager,
+        VramManager& vramManager,
+        const LogicalDevice& device
     );
     ~MaterialManager();
 
-    // Create a material from AssetLib data
     MaterialHandle createMaterial(
         const std::string& name,
         const AssetLib::AssetData& assetData,
         ShaderHandle shaderHandle
     );
-
-    // Destroy a material
     void destroyMaterial(MaterialHandle handle);
-
-    // Get a material by handle
     Material* get(MaterialHandle handle);
     const Material* get(MaterialHandle handle) const;
 
-    // Check if a material handle is valid
     bool isValid(MaterialHandle handle) const;
-
-    // Set material parameter by name
-    bool setParameter(MaterialHandle handle, const std::string& paramName, const Material::ParamValue& value);
-
-    // Update material parameters to the GPU
-    void updateMaterialParameters(MaterialHandle handle);
 
     // Convert AssetLib parameter to Material parameter
     Material::ParamValue convertParameter(
@@ -49,36 +43,39 @@ public:
         uint32_t dataOffset
     );
 
+    VkDescriptorSet getMaterialDescriptorSet(MaterialHandle handle);
+
+    MaterialResourceManager::MaterialResources* getOrCreateMaterialResources(MaterialHandle handle);
+
 private:
-    // Helper method to create a material parameter from AssetLib data
     Material::Parameter createMaterialParameter(
         const AssetLib::MaterialParameter& assetParam,
         const std::vector<uint8_t>& parameterData,
         ShaderHandle shaderHandle
     );
-
     void convertTextureParameter(
         Material::Parameter& param,
         const AssetLib::MaterialParameter& assetParam,
         const std::vector<uint8_t>& parameterData
     );
 
-    // Find the appropriate binding for a parameter based on shader metadata
     uint32_t findBindingForParameter(
         ShaderHandle shaderHandle,
         const std::string& paramName,
-        AssetLib::DescriptorType descriptorType
+        ShaderLib::DescriptorType descriptorType
     );
 
-    // Handle counter for uniquely identifying materials
-    uint32_t m_nextHandle = 1;
+    ShaderModuleManager& m_shaderModuleManager;
+    ImageSamplerManager& m_samplerManager;
+    VramManager& m_vramManager;
+    const LogicalDevice& m_device;
 
-    // Map of materials by handle
+    // Resource manager for UBOs and descriptor sets
+    std::unique_ptr<MaterialResourceManager> m_resourceManager;
+
+    // Material storage
+    std::unordered_map<MaterialHandle, MaterialResourceManager::MaterialResources> m_materialResources;
     std::unordered_map<MaterialHandle, std::unique_ptr<Material>> m_materials;
 
-    // Reference to the shader module manager
-    ShaderModuleManager& m_shaderModuleManager;
-
-    // Reference to sampler manager for texture sampler handling
-    ImageSamplerManager& m_samplerManager;
+    uint32_t m_nextHandle = 1;
 };

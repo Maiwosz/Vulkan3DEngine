@@ -67,7 +67,6 @@ Renderer::Renderer(Window& window) : m_window(window) {
         );
         m_shaderModuleManager = std::make_unique<ShaderModuleManager>(
             m_vulkanContext->logical(),
-            *m_uniformBufferManager,
             *m_descriptorLayoutManager,
             *m_pipelineLayoutManager 
         );
@@ -76,10 +75,7 @@ Renderer::Renderer(Window& window) : m_window(window) {
             *m_shaderModuleManager,
             *m_pipelineLayoutManager 
         );
-        m_materialManager = std::make_unique<MaterialManager>(
-            *m_shaderModuleManager,
-            *m_samplerManager
-        );
+        
 
         DescriptorAllocator::PoolConfig allocConfig;
         allocConfig.initialSets = 512;
@@ -92,6 +88,15 @@ Renderer::Renderer(Window& window) : m_window(window) {
         m_descriptorAllocator = std::make_unique<DescriptorAllocator>(
             m_vulkanContext->logical(),
             allocConfig
+        );
+        m_materialManager = std::make_unique<MaterialManager>(
+            *m_shaderModuleManager,
+            *m_samplerManager,
+            *m_uniformBufferManager,
+            *m_descriptorAllocator,
+            *m_descriptorLayoutManager,
+            *m_vramManager,
+            m_vulkanContext->logical()
         );
         m_meshManager = std::make_unique<MeshManager>(
             *m_vramManager

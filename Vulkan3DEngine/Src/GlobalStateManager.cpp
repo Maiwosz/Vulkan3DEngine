@@ -108,7 +108,7 @@ UniformBufferHandle GlobalStateManager::createGlobalUniformBuffer() {
     globalUboData.activeSpotLights = spotLightCount;
 
     // Create and update uniform buffer
-    UniformBufferHandle globalUboHandle = m_uniformBufferManager.createBuffer(ShaderLib::GLOBAL_UBO);
+    UniformBufferHandle globalUboHandle = m_uniformBufferManager.acquireBuffer(ShaderLib::GLOBAL_UBO);
     m_uniformBufferManager.updateBuffer(globalUboHandle, &globalUboData, sizeof(ShaderLib::GlobalUBOData));
 
     SPDLOG_DEBUG("Created global uniform buffer with {} point lights", pointLightCount);

@@ -7,7 +7,7 @@
 #include "ShaderModuleManager.h"
 #include "PipelineLayoutManager.h"
 #include "LogicalDevice.h"
-#include "PipelineHandle.h"
+#include "Handle.h"
 
 
 class PipelineManager {

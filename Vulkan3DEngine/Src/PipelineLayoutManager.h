@@ -4,8 +4,7 @@
 #include <memory>
 #include "PipelineConfig.h"
 #include "LogicalDevice.h"
-
-struct PipelineLayoutHandle;
+#include "Handle.h"
 
 class PipelineLayoutManager {
 public:

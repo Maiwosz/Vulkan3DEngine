@@ -1,5 +1,5 @@
 #pragma once
-#include "VramHandle.h"
+#include "Handle.h"
 #include <AssetLib.h>
 
 struct Mesh {

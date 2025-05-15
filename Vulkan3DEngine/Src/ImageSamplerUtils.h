@@ -6,7 +6,7 @@
 
 namespace ImageSamplerUtils {
     // Convert AssetLib sampler description to SamplerConfig with settings clamping
-    SamplerConfig createSamplerConfig(
+    inline SamplerConfig createSamplerConfig(
         const AssetLib::SamplerDescription& samplerDesc
     ) {
         const Settings& settings = Engine::get().settings();

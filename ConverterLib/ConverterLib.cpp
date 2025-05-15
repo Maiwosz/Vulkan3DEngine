@@ -345,10 +345,8 @@ AssetData Converter::ProcessMesh(const std::string& inputPath, const Settings& s
                 // Współrzędne tekstury (oryginalne lub domyślne)
                 vertex.hasTexCoords = generateTexCoords;
                 if (hasTexCoords) {
-                    if (hasTexCoords) {
-                        const int ti = 2 * index.texcoord_index;
-                        vertex.uv = { attrib.texcoords[ti], 1.0f - attrib.texcoords[ti + 1] }; // Obróć Y dla Vulkana
-                    }
+                    const int ti = 2 * index.texcoord_index;
+                    vertex.uv = { attrib.texcoords[ti], 1.0f - attrib.texcoords[ti + 1] }; // Obróć Y dla Vulkana
                 }
                 else if (generateTexCoords) {
                     vertex.uv = defaultTexCoord;
@@ -516,8 +514,8 @@ AssetData Converter::ProcessMaterial(const std::string& inputPath, const Setting
         }
 
         // Obsługa ImageSampler
-        if (param.descriptorType == AssetLib::DescriptorType::CombinedImageSampler ||
-            param.descriptorType == AssetLib::DescriptorType::SeparateImage) {
+        if (param.descriptorType == ShaderLib::DescriptorType::CombinedImageSampler ||
+            param.descriptorType == ShaderLib::DescriptorType::SeparateImage) {
             // Parsuj ścieżkę tekstury
             if (!value.contains("path")) {
                 throw std::runtime_error("Texture parameter missing path: " + key);
@@ -555,7 +553,7 @@ AssetData Converter::ProcessMaterial(const std::string& inputPath, const Setting
             }
         }
         // UniformBuffer parameters
-        else if (param.descriptorType == AssetLib::DescriptorType::UniformBuffer) {
+        else if (param.descriptorType == ShaderLib::DescriptorType::UniformBuffer) {
             if (!value.contains("data")) {
                 throw std::runtime_error("UniformBuffer parameter missing data: " + key);
             }
@@ -685,11 +683,11 @@ AssetData Converter::ProcessMaterial(const std::string& inputPath, const Setting
                 throw std::runtime_error("Unsupported uniform type for parameter: " + key);
             }
         }
-        else if (param.descriptorType == AssetLib::DescriptorType::StorageBuffer) {
+        else if (param.descriptorType == ShaderLib::DescriptorType::StorageBuffer) {
             // StorageBuffer może wymagać bardziej złożonej obsługi
             throw std::runtime_error("StorageBuffer not yet supported for parameter: " + key);
         }
-        else if (param.descriptorType == AssetLib::DescriptorType::SeparateSampler) {
+        else if (param.descriptorType == ShaderLib::DescriptorType::SeparateSampler) {
             // Sampler bez obrazu
             if (value.contains("sampler")) {
                 auto& s = value["sampler"];

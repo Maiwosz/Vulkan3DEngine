@@ -1,6 +1,6 @@
 #pragma once
 #include "VramManager.h"
-#include "MeshHandle.h"
+#include "Handle.h"
 #include <AssetLib.h>
 #include <unordered_map>
 #include <string>

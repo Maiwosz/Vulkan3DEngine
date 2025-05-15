@@ -2,7 +2,7 @@
 #include <memory>
 #include <vector>
 #include "RenderOrder.h"
-#include "UniformBufferHandle.h"
+#include "Handle.h"
 #include <vulkan/vulkan.h>
 
 // Forward declarations

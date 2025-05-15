@@ -4,11 +4,8 @@
 #include "TransformComponent.h"
 #include <memory>
 #include <variant>
-#include "MeshHandle.h"
-#include "MaterialHandle.h"
-#include "UniformBufferHandle.h"
+#include "Handle.h"
 #include <vulkan/vulkan.h>
-#include "PipelineHandle.h"
 #include <spdlog/spdlog.h>
 
 enum class RenderOrderType {

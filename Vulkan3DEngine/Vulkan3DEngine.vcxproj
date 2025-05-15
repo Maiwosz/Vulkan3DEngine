@@ -171,6 +171,7 @@
     <ClCompile Include="..\Libs\imgui\imgui_impl_vulkan.cpp" />
     <ClCompile Include="..\Libs\imgui\imgui_tables.cpp" />
     <ClCompile Include="..\Libs\imgui\imgui_widgets.cpp" />
+    <ClCompile Include="Src\MaterialResourceManager.cpp" />
     <ClCompile Include="Src\LoggerConfig.cpp" />
     <ClCompile Include="Src\LuaBindingsRegistry.cpp" />
     <ClCompile Include="Src\LuaBindingsSpdlog.cpp" />
@@ -253,6 +254,8 @@
     <ClInclude Include="..\Libs\imgui\imstb_rectpack.h" />
     <ClInclude Include="..\Libs\imgui\imstb_textedit.h" />
     <ClInclude Include="..\Libs\imgui\imstb_truetype.h" />
+    <ClInclude Include="Src\MaterialResourceManager.h" />
+    <ClInclude Include="Src\Handle.h" />
     <ClInclude Include="Src\LoggerConfig.h" />
     <ClInclude Include="Src\LuaBindingsRegistry.h" />
     <ClInclude Include="Src\LuaBindingsSpdlog.h" />
@@ -264,21 +267,17 @@
     <ClInclude Include="Src\ScriptSystem.h" />
     <ClInclude Include="Src\ScriptComponent.h" />
     <ClInclude Include="Src\GlobalStateManager.h" />
-    <ClInclude Include="Src\PipelineHandle.h" />
     <ClInclude Include="Src\RenderStage.h" />
     <ClInclude Include="Src\Mesh.h" />
     <ClInclude Include="Src\MeshManager.h" />
     <ClInclude Include="Src\PipelineAssignmentStage.h" />
     <ClInclude Include="Src\DescriptorSetStage.h" />
     <ClInclude Include="Src\ImageSamplerUtils.h" />
-    <ClInclude Include="Src\ShaderModuleHandle.h" />
     <ClInclude Include="Src\RenderSystem.h" />
     <ClInclude Include="Src\AssetResolutionStage.h" />
     <ClInclude Include="Src\ProcessingStage.h" />
-    <ClInclude Include="Src\MaterialHandle.h" />
     <ClInclude Include="Src\RenderOrder.h" />
     <ClInclude Include="Src\Paths.h" />
-    <ClInclude Include="Src\PipelineLayoutHandle.h" />
     <ClInclude Include="Src\PipelineLayoutManager.h" />
     <ClInclude Include="Src\Material.h" />
     <ClInclude Include="Src\MaterialManager.h" />
@@ -337,18 +336,15 @@
     <ClInclude Include="Src\System.h" />
     <ClInclude Include="Src\AssetCollectionSystem.h" />
     <ClInclude Include="Src\SystemManager.h" />
-    <ClInclude Include="Src\VramHandle.h" />
     <ClInclude Include="Src\VramManager.h" />
     <ClInclude Include="Src\VulkanUtilities.h" />
     <ClInclude Include="Src\VulkanContext.h" />
     <ClInclude Include="Src\Surface.h" />
-    <ClInclude Include="Src\MeshHandle.h" />
     <ClInclude Include="Src\AllocatedResource.h" />
     <ClInclude Include="Src\SynchronizationResourceManager.h" />
     <ClInclude Include="Src\StagingBufferManager.h" />
     <ClInclude Include="Src\UniformBufferManager.h" />
     <ClInclude Include="Src\UniformBufferStage.h" />
-    <ClInclude Include="Src\UniformBufferHandle.h" />
     <ClInclude Include="Src\TransferManager.h" />
   </ItemGroup>
   <ItemGroup>

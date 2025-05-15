@@ -8,49 +8,48 @@
 #include "AssetHandle.h"
 #include "AssetLib.h"
 #include "ImageSamplerManager.h"
+#include "ShaderLib.h"
+#include <glm/glm.hpp>
 
 // Forward declarations
 class MaterialManager;
 
 class Material {
 public:
-    // Parameter variants that a material can have
-    struct FloatParam { float value; };
-    struct Vec2Param { float x, y; };
-    struct Vec3Param { float x, y, z; };
-    struct Vec4Param { float x, y, z, w; };
-    struct IntParam { int32_t value; };
-    struct IVec2Param { int32_t x, y; };
-    struct IVec3Param { int32_t x, y, z; };
-    struct IVec4Param { int32_t x, y, z, w; };
-    struct UintParam { uint32_t value; };
-    struct UVec2Param { uint32_t x, y; };
-    struct UVec3Param { uint32_t x, y, z; };
-    struct UVec4Param { uint32_t x, y, z, w; };
-    struct BoolParam { bool value; };
-    struct Mat2Param { float data[2][2]; };
-    struct Mat3Param { float data[3][3]; };
-    struct Mat4Param { float data[4][4]; };
+    // Texture parameter type (not covered by ShaderLib's UniformTypeTraits)
     struct TextureParam {
         AssetHandle handle;
         VramHandle vramHandle;  // Will be populated during ensureReady
         VkSampler sampler;      // Sampler for this texture
     };
 
-    // Parameter value variant
+    // Parameter value variant that uses native GLM types
     using ParamValue = std::variant<
-        FloatParam, Vec2Param, Vec3Param, Vec4Param,
-        IntParam, IVec2Param, IVec3Param, IVec4Param,
-        UintParam, UVec2Param, UVec3Param, UVec4Param,
-        BoolParam, Mat2Param, Mat3Param, Mat4Param,
-        TextureParam
+        bool,                // for UniformType::Bool
+        float,               // for UniformType::Float
+        glm::vec2,           // for UniformType::Vec2
+        glm::vec3,           // for UniformType::Vec3
+        glm::vec4,           // for UniformType::Vec4
+        int32_t,             // for UniformType::Int
+        glm::ivec2,          // for UniformType::IVec2
+        glm::ivec3,          // for UniformType::IVec3
+        glm::ivec4,          // for UniformType::IVec4
+        uint32_t,            // for UniformType::UInt
+        glm::uvec2,          // for UniformType::UVec2
+        glm::uvec3,          // for UniformType::UVec3
+        glm::uvec4,          // for UniformType::UVec4
+        glm::mat2,           // for UniformType::Mat2
+        glm::mat3,           // for UniformType::Mat3
+        glm::mat4,           // for UniformType::Mat4
+        TextureParam         // for texture parameters
     >;
 
     // Parameter structure
     struct Parameter {
         std::string name;
         ParamValue value;
-        AssetLib::DescriptorType descriptorType;
+        ShaderLib::DescriptorType descriptorType;
+        ShaderLib::UniformType uniformType;  // Added to track the actual uniform type
         uint32_t binding;
         uint32_t arrayIndex;  // For array parameters, 0 for non-array params
     };
@@ -59,8 +58,7 @@ public:
     Material(
         const std::string& name,
         ShaderHandle shader,
-        const std::vector<Parameter>& params,
-        UniformBufferHandle uniformBuffer
+        const std::vector<Parameter>& params
     );
 
     // Destructor
@@ -69,7 +67,6 @@ public:
     // Accessors
     const std::string& name() const { return m_name; }
     ShaderHandle shader() const { return m_shader; }
-    UniformBufferHandle uniformBuffer() const { return m_uniformBuffer; }
     const std::vector<Parameter>& parameters() const { return m_parameters; }
     std::vector<Parameter>& parameters() { return m_parameters; }
 
@@ -77,13 +74,9 @@ public:
     bool setParameter(const std::string& name, const ParamValue& value);
     bool getParameter(const std::string& name, ParamValue& outValue) const;
 
-    // Update all parameters to the uniform buffer
-    void updateUniformBuffer(ShaderModuleManager& shaderManager);
-
 private:
     std::string m_name;
     ShaderHandle m_shader;
-    UniformBufferHandle m_uniformBuffer;
     std::vector<Parameter> m_parameters;
     std::unordered_map<std::string, size_t> m_parameterIndices;  // Name to index mapping for quick lookups
 

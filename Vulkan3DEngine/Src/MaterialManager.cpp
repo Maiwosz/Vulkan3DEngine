@@ -3,11 +3,38 @@
 #include <cassert>
 #include "ImageSamplerUtils.h"
 
-MaterialManager::MaterialManager(ShaderModuleManager& shaderModuleManager, ImageSamplerManager& samplerManager)
-    : m_shaderModuleManager(shaderModuleManager), m_samplerManager(samplerManager) {
+MaterialManager::MaterialManager(
+    ShaderModuleManager& shaderModuleManager,
+    ImageSamplerManager& samplerManager,
+    UniformBufferManager& uniformBufferManager,
+    DescriptorAllocator& descriptorAllocator,
+    DescriptorLayoutManager& descriptorLayoutManager,
+    VramManager& vramManager,
+    const LogicalDevice& device
+)
+    : m_shaderModuleManager(shaderModuleManager),
+    m_samplerManager(samplerManager),
+    m_vramManager(vramManager),
+    m_device(device) {
+
+    // Create the resource manager
+    m_resourceManager = std::make_unique<MaterialResourceManager>(
+        shaderModuleManager,
+        samplerManager,
+        uniformBufferManager,
+        descriptorAllocator,
+        descriptorLayoutManager,
+        vramManager,
+        device
+    );
 }
 
 MaterialManager::~MaterialManager() {
+    // Release all material resources
+    for (auto& [handle, resources] : m_materialResources) {
+        m_resourceManager->destroyMaterialResources(resources);
+    }
+
     // Clean up all materials
     m_materials.clear();
 }
@@ -29,19 +56,9 @@ MaterialHandle MaterialManager::createMaterial(
         materialParams.push_back(createMaterialParameter(param, parameterData, shaderHandle));
     }
 
-    // Create a custom uniform buffer for this material
-    std::string shaderName(materialInfo.shaderName.data());
-    UniformBufferHandle uniformBuffer = m_shaderModuleManager.createCustomUniformBuffer(
-        shaderHandle,
-        "InputData" //nazwa zakodowana na twardo w shaderach
-    );
-
     // Create the material
     MaterialHandle handle(m_nextHandle++);
-    auto material = std::make_unique<Material>(name, shaderHandle, materialParams, uniformBuffer);
-
-    // Update the uniform buffer with initial data
-    material->updateUniformBuffer(m_shaderModuleManager);
+    auto material = std::make_unique<Material>(name, shaderHandle, materialParams);
 
     // Store the material
     m_materials[handle] = std::move(material);
@@ -50,14 +67,16 @@ MaterialHandle MaterialManager::createMaterial(
 }
 
 void MaterialManager::destroyMaterial(MaterialHandle handle) {
+    // Release material resources if they exist
+    auto resourceIt = m_materialResources.find(handle);
+    if (resourceIt != m_materialResources.end()) {
+        m_resourceManager->destroyMaterialResources(resourceIt->second);
+        m_materialResources.erase(resourceIt);
+    }
+
+    // Remove the material
     auto it = m_materials.find(handle);
     if (it != m_materials.end()) {
-        // Release the uniform buffer
-        if (it->second->uniformBuffer()) {
-            m_shaderModuleManager.releaseUniformBuffer(it->second->uniformBuffer());
-        }
-
-        // Remove the material
         m_materials.erase(it);
     }
 }
@@ -74,28 +93,6 @@ const Material* MaterialManager::get(MaterialHandle handle) const {
 
 bool MaterialManager::isValid(MaterialHandle handle) const {
     return m_materials.find(handle) != m_materials.end();
-}
-
-bool MaterialManager::setParameter(MaterialHandle handle, const std::string& paramName, const Material::ParamValue& value) {
-    auto material = get(handle);
-    if (!material) {
-        return false;
-    }
-
-    bool result = material->setParameter(paramName, value);
-    if (result) {
-        // Update the uniform buffer if parameter was set successfully
-        material->updateUniformBuffer(m_shaderModuleManager);
-    }
-
-    return result;
-}
-
-void MaterialManager::updateMaterialParameters(MaterialHandle handle) {
-    auto material = get(handle);
-    if (material) {
-        material->updateUniformBuffer(m_shaderModuleManager);
-    }
 }
 
 Material::Parameter MaterialManager::createMaterialParameter(
@@ -135,117 +132,63 @@ Material::ParamValue MaterialManager::convertParameter(
     const void* data = parameterData.data() + dataOffset;
 
     // For texture parameters
-    if (assetParam.descriptorType == AssetLib::DescriptorType::CombinedImageSampler) {
+    if (assetParam.descriptorType == ShaderLib::DescriptorType::CombinedImageSampler) {
         Material::Parameter param;
         convertTextureParameter(param, assetParam, parameterData);
         return param.value;
     }
 
     // For uniform buffer parameters
-    if (assetParam.descriptorType == AssetLib::DescriptorType::UniformBuffer) {
+    if (assetParam.descriptorType == ShaderLib::DescriptorType::UniformBuffer) {
         // Use the uniform type to determine which variant to use
         switch (assetParam.uniformType) {
-        case AssetLib::UniformType::Float:
-            return Material::FloatParam{ *reinterpret_cast<const float*>(data) };
+        case ShaderLib::UniformType::Bool:
+            return *reinterpret_cast<const uint32_t*>(data) != 0;
 
-        case AssetLib::UniformType::Vec2:
-        {
-            const float* floatData = reinterpret_cast<const float*>(data);
-            return Material::Vec2Param{ floatData[0], floatData[1] };
-        }
+        case ShaderLib::UniformType::Float:
+            return *reinterpret_cast<const float*>(data);
 
-        case AssetLib::UniformType::Vec3:
-        {
-            const float* floatData = reinterpret_cast<const float*>(data);
-            return Material::Vec3Param{ floatData[0], floatData[1], floatData[2] };
-        }
+        case ShaderLib::UniformType::Vec2:
+            return *reinterpret_cast<const glm::vec2*>(data);
 
-        case AssetLib::UniformType::Vec4:
-        {
-            const float* floatData = reinterpret_cast<const float*>(data);
-            return Material::Vec4Param{ floatData[0], floatData[1], floatData[2], floatData[3] };
-        }
+        case ShaderLib::UniformType::Vec3:
+            return *reinterpret_cast<const glm::vec3*>(data);
 
-        case AssetLib::UniformType::Int:
-            return Material::IntParam{ *reinterpret_cast<const int32_t*>(data) };
+        case ShaderLib::UniformType::Vec4:
+            return *reinterpret_cast<const glm::vec4*>(data);
 
-        case AssetLib::UniformType::IVec2:
-        {
-            const int32_t* intData = reinterpret_cast<const int32_t*>(data);
-            return Material::IVec2Param{ intData[0], intData[1] };
-        }
+        case ShaderLib::UniformType::Int:
+            return *reinterpret_cast<const int32_t*>(data);
 
-        case AssetLib::UniformType::IVec3:
-        {
-            const int32_t* intData = reinterpret_cast<const int32_t*>(data);
-            return Material::IVec3Param{ intData[0], intData[1], intData[2] };
-        }
+        case ShaderLib::UniformType::IVec2:
+            return *reinterpret_cast<const glm::ivec2*>(data);
 
-        case AssetLib::UniformType::IVec4:
-        {
-            const int32_t* intData = reinterpret_cast<const int32_t*>(data);
-            return Material::IVec4Param{ intData[0], intData[1], intData[2], intData[3] };
-        }
+        case ShaderLib::UniformType::IVec3:
+            return *reinterpret_cast<const glm::ivec3*>(data);
 
-        case AssetLib::UniformType::UInt:
-            return Material::UintParam{ *reinterpret_cast<const uint32_t*>(data) };
+        case ShaderLib::UniformType::IVec4:
+            return *reinterpret_cast<const glm::ivec4*>(data);
 
-        case AssetLib::UniformType::UVec2:
-        {
-            const uint32_t* uintData = reinterpret_cast<const uint32_t*>(data);
-            return Material::UVec2Param{ uintData[0], uintData[1] };
-        }
+        case ShaderLib::UniformType::UInt:
+            return *reinterpret_cast<const uint32_t*>(data);
 
-        case AssetLib::UniformType::UVec3:
-        {
-            const uint32_t* uintData = reinterpret_cast<const uint32_t*>(data);
-            return Material::UVec3Param{ uintData[0], uintData[1], uintData[2] };
-        }
+        case ShaderLib::UniformType::UVec2:
+            return *reinterpret_cast<const glm::uvec2*>(data);
 
-        case AssetLib::UniformType::UVec4:
-        {
-            const uint32_t* uintData = reinterpret_cast<const uint32_t*>(data);
-            return Material::UVec4Param{ uintData[0], uintData[1], uintData[2], uintData[3] };
-        }
+        case ShaderLib::UniformType::UVec3:
+            return *reinterpret_cast<const glm::uvec3*>(data);
 
-        case AssetLib::UniformType::Bool:
-            return Material::BoolParam{ *reinterpret_cast<const uint32_t*>(data) != 0 };
+        case ShaderLib::UniformType::UVec4:
+            return *reinterpret_cast<const glm::uvec4*>(data);
 
-        case AssetLib::UniformType::Mat2:
-        {
-            Material::Mat2Param mat;
-            const float* floatData = reinterpret_cast<const float*>(data);
-            for (int i = 0; i < 2; ++i) {
-                for (int j = 0; j < 2; ++j) {
-                    mat.data[i][j] = floatData[i * 2 + j];
-                }
-            }
-            return mat;
-        }
+        case ShaderLib::UniformType::Mat2:
+            return *reinterpret_cast<const glm::mat2*>(data);
 
-        case AssetLib::UniformType::Mat3:
-        {
-            Material::Mat3Param mat;
-            const float* floatData = reinterpret_cast<const float*>(data);
-            for (int i = 0; i < 3; ++i) {
-                for (int j = 0; j < 3; ++j) {
-                    mat.data[i][j] = floatData[i * 3 + j];
-                }
-            }
-            return mat;
-        }
+        case ShaderLib::UniformType::Mat3:
+            return *reinterpret_cast<const glm::mat3*>(data);
 
-        case AssetLib::UniformType::Mat4:
-        {
-            Material::Mat4Param mat;
-            const float* floatData = reinterpret_cast<const float*>(data);
-            for (int i = 0; i < 4; ++i) {
-                for (int j = 0; j < 4; ++j) {
-                    mat.data[i][j] = floatData[i * 4 + j];
-                }
-            }
-            return mat;
-        }
+        case ShaderLib::UniformType::Mat4:
+            return *reinterpret_cast<const glm::mat4*>(data);
 
         default:
             throw std::runtime_error("Unsupported uniform type");
@@ -293,7 +236,7 @@ void MaterialManager::convertTextureParameter(
 uint32_t MaterialManager::findBindingForParameter(
     ShaderHandle shaderHandle,
     const std::string& paramName,
-    AssetLib::DescriptorType descriptorType
+    ShaderLib::DescriptorType descriptorType
 ) {
     // Get shader metadata from shader module manager
     const auto& metadata = m_shaderModuleManager.getShaderMetadata(shaderHandle);
@@ -301,10 +244,10 @@ uint32_t MaterialManager::findBindingForParameter(
     // Convert AssetLib descriptor type to ShaderLib descriptor type
     ShaderLib::DescriptorType shaderLibType;
     switch (descriptorType) {
-    case AssetLib::DescriptorType::UniformBuffer:
+    case ShaderLib::DescriptorType::UniformBuffer:
         shaderLibType = ShaderLib::DescriptorType::UniformBuffer;
         break;
-    case AssetLib::DescriptorType::CombinedImageSampler:
+    case ShaderLib::DescriptorType::CombinedImageSampler:
         shaderLibType = ShaderLib::DescriptorType::CombinedImageSampler;
         break;
         // Add other cases as needed...
@@ -313,7 +256,7 @@ uint32_t MaterialManager::findBindingForParameter(
     }
 
     // For UniformBuffer, we know our buffer will use InputData as name
-    if (descriptorType == AssetLib::DescriptorType::UniformBuffer) {
+    if (descriptorType == ShaderLib::DescriptorType::UniformBuffer) {
         // Look for custom UBO with name "InputData"
         for (const auto& ubo : metadata.customUBOs) {
             if (ubo.name == "InputData") {
@@ -323,7 +266,7 @@ uint32_t MaterialManager::findBindingForParameter(
     }
 
     // For textures, search for matching descriptor name
-    if (descriptorType == AssetLib::DescriptorType::CombinedImageSampler) {
+    if (descriptorType == ShaderLib::DescriptorType::CombinedImageSampler) {
         for (const auto& descriptor : metadata.descriptors) {
             if (descriptor.type == shaderLibType && descriptor.name == paramName) {
                 return descriptor.binding;
@@ -334,4 +277,46 @@ uint32_t MaterialManager::findBindingForParameter(
     // If not found, log warning and return default binding
     SPDLOG_WARN("Could not find binding for parameter '{}', using default binding 0", paramName);
     return 0;
+}
+
+VkDescriptorSet MaterialManager::getMaterialDescriptorSet(MaterialHandle handle) {
+    // Get material to ensure it exists
+    const Material* material = get(handle);
+    if (!material) {
+        SPDLOG_ERROR("Cannot get descriptor set - invalid material handle");
+        return VK_NULL_HANDLE;
+    }
+
+    // Check if resources already exist
+    auto resourceIt = m_materialResources.find(handle);
+    if (resourceIt != m_materialResources.end()) {
+        return resourceIt->second.descriptorSet;
+    }
+
+    // If not, create resources for this material
+    return getOrCreateMaterialResources(handle)->descriptorSet;
+}
+
+MaterialResourceManager::MaterialResources* MaterialManager::getOrCreateMaterialResources(MaterialHandle handle) {
+    // Check if resources already exist
+    auto resourceIt = m_materialResources.find(handle);
+    if (resourceIt != m_materialResources.end()) {
+        return &resourceIt->second;
+    }
+
+    // Get material
+    const Material* material = get(handle);
+    if (!material) {
+        return nullptr;
+    }
+
+    // Create material resources using the resource manager
+    MaterialResourceManager::MaterialResources resources = m_resourceManager->createMaterialResources(
+        material->shader(),
+        material->parameters()
+    );
+
+    // Store resources and return them
+    auto [it, inserted] = m_materialResources.emplace(handle, resources);
+    return inserted ? &it->second : nullptr;
 }

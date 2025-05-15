@@ -1,6 +1,6 @@
 #include "PipelineLayoutManager.h"
 #include <stdexcept>
-#include "PipelineLayoutHandle.h"
+#include "Handle.h"
 
 PipelineLayoutManager::PipelineLayoutManager(const LogicalDevice& device)
     : m_device(device) {

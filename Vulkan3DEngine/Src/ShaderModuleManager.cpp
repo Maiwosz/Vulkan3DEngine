@@ -7,11 +7,9 @@
 
 ShaderModuleManager::ShaderModuleManager(
     const LogicalDevice& device,
-    UniformBufferManager& uniformBufferManager,
     DescriptorLayoutManager& descriptorLayoutManager,
     PipelineLayoutManager& pipelineLayoutManager
 ) : m_device(device),
-m_uniformBufferManager(uniformBufferManager),
 m_descriptorLayoutManager(descriptorLayoutManager),
 m_pipelineLayoutManager(pipelineLayoutManager) {
 }
@@ -180,7 +178,6 @@ ShaderHandle ShaderModuleManager::createShader(
     ShaderResources resources;
     resources.descriptorLayouts = std::move(descriptorLayouts);
     resources.pipelineLayout = pipelineLayout;
-    resources.uniformBuffers = std::unordered_map<std::string, UniformBufferHandle>(); // Buffers will be created on demand
     m_shaderResources[handle] = std::move(resources);
     SPDLOG_DEBUG("Stored shader resources in map (resource count: {})", m_shaderResources.size());
 
@@ -366,128 +363,3 @@ PipelineLayoutHandle ShaderModuleManager::createPipelineLayout(
     return m_pipelineLayoutManager.createLayout(layoutConfig);
 }
 
-std::unordered_map<std::string, UniformBufferHandle> ShaderModuleManager::createUniformBuffers(
-    const ShaderLib::ShaderMetadata& metadata
-) {
-    std::unordered_map<std::string, UniformBufferHandle> result;
-
-    // Tworzenie buforów uniform nie jest domyślnie wykonywane - będą tworzone na żądanie
-
-    return result;
-}
-
-// Nowe metody do obsługi buforów uniform
-
-UniformBufferHandle ShaderModuleManager::createGlobalUniformBuffer(ShaderHandle shaderHandle) {
-    if (!isShaderValid(shaderHandle)) {
-        return UniformBufferHandle(0);
-    }
-
-    const auto& metadata = m_shaderMetadata[shaderHandle];
-    if (!metadata.usesGlobalUBO) {
-        return UniformBufferHandle(0);
-    }
-
-    // Utwórz bufor
-    UniformBufferHandle bufferHandle = m_uniformBufferManager.createGlobalBuffer(metadata);
-
-    // Zapisz uchwyt w zasobach shadera
-    if (bufferHandle) {
-        m_shaderResources[shaderHandle].uniformBuffers["global"] = bufferHandle;
-    }
-
-    return bufferHandle;
-}
-
-UniformBufferHandle ShaderModuleManager::createObjectUniformBuffer(ShaderHandle shaderHandle) {
-    if (!isShaderValid(shaderHandle)) {
-        return UniformBufferHandle(0);
-    }
-
-    const auto& metadata = m_shaderMetadata[shaderHandle];
-    if (!metadata.usesObjectUBO) {
-        return UniformBufferHandle(0);
-    }
-
-    // Utwórz bufor
-    UniformBufferHandle bufferHandle = m_uniformBufferManager.createObjectBuffer(metadata);
-
-    // Zapisz uchwyt w zasobach shadera
-    if (bufferHandle) {
-        m_shaderResources[shaderHandle].uniformBuffers["object"] = bufferHandle;
-    }
-
-    return bufferHandle;
-}
-
-UniformBufferHandle ShaderModuleManager::createCustomUniformBuffer(ShaderHandle shaderHandle, const std::string& name) {
-    if (!isShaderValid(shaderHandle)) {
-        return UniformBufferHandle(0);
-    }
-
-    const auto& metadata = m_shaderMetadata[shaderHandle];
-
-
-
-    // Sprawdź czy istnieje UBO o podanej nazwie
-    bool exists = false;
-    for (const auto& ubo : metadata.customUBOs) {
-        if (ubo.name == name) {
-            exists = true;
-            break;
-        }
-    }
-
-    if (!exists) {
-        return UniformBufferHandle(0);
-    }
-
-    // Utwórz bufor
-    UniformBufferHandle bufferHandle = m_uniformBufferManager.createCustomBuffer(metadata, name);
-
-    // Zapisz uchwyt w zasobach shadera
-    if (bufferHandle) {
-        m_shaderResources[shaderHandle].uniformBuffers[name] = bufferHandle;
-    }
-
-    return bufferHandle;
-}
-
-UniformBufferHandle ShaderModuleManager::acquireUniformBuffer(ShaderHandle shaderHandle, const std::string& name) {
-    if (!isShaderValid(shaderHandle)) {
-        return UniformBufferHandle(0);
-    }
-
-    const auto& metadata = m_shaderMetadata[shaderHandle];
-
-    // Sprawdź jakiego rodzaju bufor jest potrzebny
-    if (name == "global" && metadata.usesGlobalUBO) {
-        return m_uniformBufferManager.acquireBuffer(metadata.globalUBO);
-    }
-    else if (name == "object" && metadata.usesObjectUBO) {
-        return m_uniformBufferManager.acquireBuffer(metadata.objectUBO);
-    }
-    else {
-        // Sprawdź czy istnieje custom UBO o podanej nazwie
-        for (const auto& ubo : metadata.customUBOs) {
-            if (ubo.name == name) {
-                return m_uniformBufferManager.acquireBuffer(ubo);
-            }
-        }
-    }
-
-    return UniformBufferHandle(0);
-}
-
-void ShaderModuleManager::releaseUniformBuffer(UniformBufferHandle handle) {
-    m_uniformBufferManager.releaseBuffer(handle);
-}
-
-void ShaderModuleManager::updateUniformBuffer(
-    UniformBufferHandle handle,
-    const void* data,
-    uint32_t size,
-    uint32_t offset
-) {
-    m_uniformBufferManager.updateBuffer(handle, data, size, offset);
-}

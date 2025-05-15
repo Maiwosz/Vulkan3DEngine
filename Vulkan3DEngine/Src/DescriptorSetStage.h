@@ -29,7 +29,6 @@ private:
     // Create and bind descriptor sets for different shader set bindings
     void createGlobalDescriptorSet(std::shared_ptr<MeshRenderOrder> order, ShaderHandle shader);
     void createObjectDescriptorSet(std::shared_ptr<MeshRenderOrder> order, ShaderHandle shader);
-    void createMaterialDescriptorSet(std::shared_ptr<MeshRenderOrder> order, ShaderHandle shader, Material* material);
 
     Renderer& m_renderer;
     ShaderModuleManager& m_shaderManager;

@@ -126,9 +126,9 @@ namespace AssetLib {
             };
 
             // Serialize sampler description for texture parameters
-            if (param.descriptorType == DescriptorType::CombinedImageSampler ||
-                param.descriptorType == DescriptorType::SeparateImage ||
-                param.descriptorType == DescriptorType::SeparateSampler) {
+            if (param.descriptorType == ShaderLib::DescriptorType::CombinedImageSampler ||
+                param.descriptorType == ShaderLib::DescriptorType::SeparateImage ||
+                param.descriptorType == ShaderLib::DescriptorType::SeparateSampler) {
                 j["sampler"] = {
                     {"magFilter", static_cast<int>(param.samplerDesc.magFilter)},
                     {"minFilter", static_cast<int>(param.samplerDesc.minFilter)},
@@ -156,8 +156,8 @@ namespace AssetLib {
             std::copy_n(name.c_str(), std::min(name.size(), param.name.size() - 1), param.name.data());
 
             // Get basic properties
-            param.descriptorType = static_cast<DescriptorType>(j["descriptorType"].get<int>());
-            param.uniformType = static_cast<UniformType>(j["uniformType"].get<int>());
+            param.descriptorType = static_cast<ShaderLib::DescriptorType>(j["descriptorType"].get<int>());
+            param.uniformType = static_cast<ShaderLib::UniformType>(j["uniformType"].get<int>());
             param.arraySize = j["arraySize"].get<uint32_t>();
             param.dataOffset = j["dataOffset"].get<uint32_t>();
             param.dataSize = j["dataSize"].get<uint32_t>();
@@ -489,39 +489,39 @@ namespace AssetLib {
         throw std::runtime_error("Invalid address mode: " + mode);
     }
 
-    DescriptorType ConvertDescriptorType(const std::string& type) {
-        if (type == "UniformBuffer") return DescriptorType::UniformBuffer;
-        if (type == "StorageBuffer") return DescriptorType::StorageBuffer;
-        if (type == "CombinedImageSampler") return DescriptorType::CombinedImageSampler;
-        if (type == "SeparateImage") return DescriptorType::SeparateImage;
-        if (type == "SeparateSampler") return DescriptorType::SeparateSampler;
+    ShaderLib::DescriptorType ConvertDescriptorType(const std::string& type) {
+        if (type == "UniformBuffer") return ShaderLib::DescriptorType::UniformBuffer;
+        if (type == "StorageBuffer") return ShaderLib::DescriptorType::StorageBuffer;
+        if (type == "CombinedImageSampler") return ShaderLib::DescriptorType::CombinedImageSampler;
+        if (type == "SeparateImage") return ShaderLib::DescriptorType::SeparateImage;
+        if (type == "SeparateSampler") return ShaderLib::DescriptorType::SeparateSampler;
         throw std::runtime_error("Invalid descriptor type: " + type);
     }
 
-    UniformType ConvertUniformType(const std::string& type) {
-        static const std::unordered_map<std::string, UniformType> typeMap = {
-            {"Bool", UniformType::Bool},
-            {"Float", UniformType::Float},
-            {"Vec2", UniformType::Vec2},
-            {"Vec3", UniformType::Vec3},
-            {"Vec4", UniformType::Vec4},
-            {"Mat2", UniformType::Mat2},
-            {"Mat3", UniformType::Mat3},
-            {"Mat4", UniformType::Mat4},
-            {"Int", UniformType::Int},
-            {"IVec2", UniformType::IVec2},
-            {"IVec3", UniformType::IVec3},
-            {"IVec4", UniformType::IVec4},
-            {"UInt", UniformType::UInt},
-            {"UVec2", UniformType::UVec2},
-            {"UVec3", UniformType::UVec3},
-            {"UVec4", UniformType::UVec4},
-            {"Double", UniformType::Double},
-            {"DVec2", UniformType::DVec2},
-            {"DVec3", UniformType::DVec3},
-            {"DVec4", UniformType::DVec4},
-            {"Struct", UniformType::Struct},
-            {"Array", UniformType::Array}
+    ShaderLib::UniformType ConvertUniformType(const std::string& type) {
+        static const std::unordered_map<std::string, ShaderLib::UniformType> typeMap = {
+            {"Bool", ShaderLib::UniformType::Bool},
+            {"Float", ShaderLib::UniformType::Float},
+            {"Vec2", ShaderLib::UniformType::Vec2},
+            {"Vec3", ShaderLib::UniformType::Vec3},
+            {"Vec4", ShaderLib::UniformType::Vec4},
+            {"Mat2", ShaderLib::UniformType::Mat2},
+            {"Mat3", ShaderLib::UniformType::Mat3},
+            {"Mat4", ShaderLib::UniformType::Mat4},
+            {"Int", ShaderLib::UniformType::Int},
+            {"IVec2", ShaderLib::UniformType::IVec2},
+            {"IVec3", ShaderLib::UniformType::IVec3},
+            {"IVec4", ShaderLib::UniformType::IVec4},
+            {"UInt", ShaderLib::UniformType::UInt},
+            {"UVec2", ShaderLib::UniformType::UVec2},
+            {"UVec3", ShaderLib::UniformType::UVec3},
+            {"UVec4", ShaderLib::UniformType::UVec4},
+            {"Double", ShaderLib::UniformType::Double},
+            {"DVec2", ShaderLib::UniformType::DVec2},
+            {"DVec3", ShaderLib::UniformType::DVec3},
+            {"DVec4", ShaderLib::UniformType::DVec4},
+            {"Struct", ShaderLib::UniformType::Struct},
+            {"Array", ShaderLib::UniformType::Array}
         };
 
         auto it = typeMap.find(type);
@@ -529,6 +529,6 @@ namespace AssetLib {
             return it->second;
         }
 
-        return UniformType::Unknown;
+        return ShaderLib::UniformType::Unknown;
     }
 }

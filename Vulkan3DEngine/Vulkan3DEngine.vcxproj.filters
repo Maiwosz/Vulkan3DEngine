@@ -236,6 +236,9 @@
     <ClCompile Include="Src\LoggerConfig.cpp">
       <Filter>Engine\LoggerConfig</Filter>
     </ClCompile>
+    <ClCompile Include="Src\MaterialResourceManager.cpp">
+      <Filter>Engine\Renderer\MaterialManager\MaterialResourceManager</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Src\Prerequisites.h" />
@@ -336,9 +339,6 @@
       <Filter>Engine\AssetSystem\AssetManager</Filter>
     </ClInclude>
     <ClInclude Include="Src\VramManager.h">
-      <Filter>Engine\Renderer\VramManager</Filter>
-    </ClInclude>
-    <ClInclude Include="Src\VramHandle.h">
       <Filter>Engine\Renderer\VramManager</Filter>
     </ClInclude>
     <ClInclude Include="Src\DebugMessenger.h">
@@ -461,15 +461,9 @@
     <ClInclude Include="Src\PipelineLayoutManager.h">
       <Filter>Engine\Renderer\PipelineManager\PipelineLayoutManager</Filter>
     </ClInclude>
-    <ClInclude Include="Src\PipelineLayoutHandle.h">
-      <Filter>Engine\Renderer\PipelineManager\PipelineLayoutManager</Filter>
-    </ClInclude>
     <ClInclude Include="Src\Paths.h" />
     <ClInclude Include="Src\RenderOrder.h">
       <Filter>Engine\RenderSystem</Filter>
-    </ClInclude>
-    <ClInclude Include="Src\MaterialHandle.h">
-      <Filter>Engine\Renderer\MaterialManager</Filter>
     </ClInclude>
     <ClInclude Include="Src\ProcessingStage.h">
       <Filter>Engine\RenderSystem</Filter>
@@ -479,9 +473,6 @@
     </ClInclude>
     <ClInclude Include="Src\RenderSystem.h">
       <Filter>Engine\RenderSystem</Filter>
-    </ClInclude>
-    <ClInclude Include="Src\ShaderModuleHandle.h">
-      <Filter>Engine\Renderer\ShaderModuleManager</Filter>
     </ClInclude>
     <ClInclude Include="Src\ImageSamplerUtils.h">
       <Filter>Engine\Renderer\ImageSamplerManager</Filter>
@@ -498,20 +489,11 @@
     <ClInclude Include="Src\MeshManager.h">
       <Filter>Engine\Renderer\MeshManager</Filter>
     </ClInclude>
-    <ClInclude Include="Src\MeshHandle.h">
-      <Filter>Engine\Renderer\MeshManager</Filter>
-    </ClInclude>
     <ClInclude Include="Src\Mesh.h">
       <Filter>Engine\Renderer\MeshManager</Filter>
     </ClInclude>
     <ClInclude Include="Src\RenderStage.h">
       <Filter>Engine\RenderSystem\ProcessingStages\RenderStage</Filter>
-    </ClInclude>
-    <ClInclude Include="Src\UniformBufferHandle.h">
-      <Filter>Engine\Renderer\UniformBufferManager</Filter>
-    </ClInclude>
-    <ClInclude Include="Src\PipelineHandle.h">
-      <Filter>Engine\Renderer\PipelineManager</Filter>
     </ClInclude>
     <ClInclude Include="Src\TransferManager.h">
       <Filter>Engine\Renderer\VramManager\TransferManager</Filter>
@@ -548,6 +530,12 @@
     </ClInclude>
     <ClInclude Include="Src\LoggerConfig.h">
       <Filter>Engine\LoggerConfig</Filter>
+    </ClInclude>
+    <ClInclude Include="Src\Handle.h">
+      <Filter>Engine</Filter>
+    </ClInclude>
+    <ClInclude Include="Src\MaterialResourceManager.h">
+      <Filter>Engine\Renderer\MaterialManager\MaterialResourceManager</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
@@ -795,6 +783,9 @@
     </Filter>
     <Filter Include="Engine\LoggerConfig">
       <UniqueIdentifier>{f7084a8b-d68e-4686-8bc2-7c3b39c53870}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Engine\Renderer\MaterialManager\MaterialResourceManager">
+      <UniqueIdentifier>{b10e81d0-7145-4fb2-bcb8-c240e1bbcf0b}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
 </Project>

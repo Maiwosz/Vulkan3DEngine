@@ -147,8 +147,8 @@ Scene::Scene()
         auto& transform = m_registry->addComponent<TransformComponent>(testDirectionalLight);
         auto& light = m_registry->addComponent<LightComponent>(testDirectionalLight, LightComponent::Type::Directional);
 
-        glm::vec3 directionalLightDir = glm::vec3(-1.0f, -1.0f, -1.0f);
-        glm::vec4 directionalLightColor = glm::vec4(1.0f, 0.8f, 0.8f, 0.05f);
+        glm::vec3 directionalLightDir = glm::vec3(1.0f, -1.0f, 1.0f);
+        glm::vec4 directionalLightColor = glm::vec4(1.0f, 0.8f, 0.8f, 0.005f);
 
         light.setDirection(directionalLightDir);
         light.setColor(directionalLightColor);
