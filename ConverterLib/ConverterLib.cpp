@@ -551,6 +551,10 @@ AssetData Converter::ProcessMaterial(const std::string& inputPath, const Setting
                     16.0f
                 };
             }
+
+            if (value.contains("colorSpace")) {
+                param.samplerDesc.colorSpace = AssetLib::ConvertColorSpace(value["colorSpace"].get<std::string>());
+            }
         }
         // UniformBuffer parameters
         else if (param.descriptorType == ShaderLib::DescriptorType::UniformBuffer) {
@@ -699,6 +703,9 @@ AssetData Converter::ProcessMaterial(const std::string& inputPath, const Setting
                 param.samplerDesc.anisotropy = s.value("anisotropy", 1.0f);
                 param.samplerDesc.minLod = s.value("minLod", 0.0f);
                 param.samplerDesc.maxLod = s.value("maxLod", 16.0f);
+            
+                std::string colorSpaceStr = s.value("colorSpace", "Linear");
+                param.samplerDesc.colorSpace = AssetLib::ConvertColorSpace(colorSpaceStr);
             }
             else {
                 throw std::runtime_error("SeparateSampler requires sampler settings for: " + key);

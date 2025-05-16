@@ -24,6 +24,7 @@
     "albedo": {
       "descriptorType": "CombinedImageSampler",
       "path": "Omphale_C_Omphale_O_Material_u1_v1",
+	  "colorSpace": "SRGB",
       "sampler": {
         "magFilter": "Linear",
         "minFilter": "Linear",

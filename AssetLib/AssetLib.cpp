@@ -137,13 +137,15 @@ namespace AssetLib {
                     {"addressModeW", static_cast<int>(param.samplerDesc.addressModeW)},
                     {"anisotropy", param.samplerDesc.anisotropy},
                     {"minLod", param.samplerDesc.minLod},
-                    {"maxLod", param.samplerDesc.maxLod}
+                    {"maxLod", param.samplerDesc.maxLod},
+                    {"colorSpace", static_cast<int>(param.samplerDesc.colorSpace)}  // Add colorSpace to JSON
                 };
             }
 
             return j;
         }
 
+        // Update DeserializeParameter to handle colorSpace
         MaterialParameter DeserializeParameter(const json& j) {
             MaterialParameter param{};  // Zero-initialize struct
 
@@ -173,6 +175,11 @@ namespace AssetLib {
                 param.samplerDesc.anisotropy = s["anisotropy"].get<float>();
                 param.samplerDesc.minLod = s["minLod"].get<float>();
                 param.samplerDesc.maxLod = s["maxLod"].get<float>();
+
+                // Get colorSpace if present, default to Linear if not
+                param.samplerDesc.colorSpace = s.contains("colorSpace") ?
+                    static_cast<ColorSpace>(s["colorSpace"].get<int>()) :
+                    ColorSpace::Linear;
             }
 
             return param;
@@ -530,5 +537,12 @@ namespace AssetLib {
         }
 
         return ShaderLib::UniformType::Unknown;
+    }
+
+    ColorSpace ConvertColorSpace(const std::string& colorSpace) {
+        if (colorSpace == "SRGB" || colorSpace == "sRGB") return ColorSpace::SRGB;
+        if (colorSpace == "HDR") return ColorSpace::HDR;
+        // Default to Linear for any other value or "Linear"
+        return ColorSpace::Linear;
     }
 }

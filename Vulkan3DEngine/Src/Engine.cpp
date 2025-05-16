@@ -55,7 +55,8 @@ void Engine::initialize(const char* title) {
         m_renderer->vramManager(),
         m_renderer->shaderModuleManager(),
         m_renderer->materialManager(),
-        m_renderer->meshManager()
+        m_renderer->meshManager(),
+        m_renderer->textureManager()
     );
 
     SPDLOG_INFO("Preparing scene");

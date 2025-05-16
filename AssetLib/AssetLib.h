@@ -84,6 +84,12 @@ namespace AssetLib {
     // =============================================
 
     // Sampler settings for texture parameters
+    enum class ColorSpace : uint8_t {
+        Linear = 0,
+        SRGB = 1,
+        HDR = 2
+    };
+
     struct SamplerDescription {
         enum class Filter : uint8_t {
             Nearest = 0,
@@ -105,6 +111,7 @@ namespace AssetLib {
         float anisotropy;
         float minLod;
         float maxLod;
+        ColorSpace colorSpace;
     };
 
     // Parameter for material (corresponds to CustomDescriptorSet bindings in shader)
@@ -179,6 +186,7 @@ namespace AssetLib {
     SamplerDescription::AddressMode ConvertAddressMode(const std::string& mode);
     ShaderLib::DescriptorType ConvertDescriptorType(const std::string& type);
     ShaderLib::UniformType ConvertUniformType(const std::string& type);
+    ColorSpace ConvertColorSpace(const std::string& colorSpace);
 
     // =============================================
     // Funkcje dla shaderów

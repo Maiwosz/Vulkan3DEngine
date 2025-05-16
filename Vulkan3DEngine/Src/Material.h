@@ -9,6 +9,7 @@
 #include "AssetLib.h"
 #include "ImageSamplerManager.h"
 #include "ShaderLib.h"
+#include "TextureManager.h"
 #include <glm/glm.hpp>
 
 // Forward declarations
@@ -19,29 +20,30 @@ public:
     // Texture parameter type (not covered by ShaderLib's UniformTypeTraits)
     struct TextureParam {
         AssetHandle handle;
-        VramHandle vramHandle;  // Will be populated during ensureReady
-        VkSampler sampler;      // Sampler for this texture
+        TextureHandle textureHandle;
+        VkSampler sampler;
+        AssetLib::ColorSpace colorSpace = AssetLib::ColorSpace::SRGB;
     };
 
     // Parameter value variant that uses native GLM types
     using ParamValue = std::variant<
-        bool,                // for UniformType::Bool
-        float,               // for UniformType::Float
-        glm::vec2,           // for UniformType::Vec2
-        glm::vec3,           // for UniformType::Vec3
-        glm::vec4,           // for UniformType::Vec4
-        int32_t,             // for UniformType::Int
-        glm::ivec2,          // for UniformType::IVec2
-        glm::ivec3,          // for UniformType::IVec3
-        glm::ivec4,          // for UniformType::IVec4
-        uint32_t,            // for UniformType::UInt
-        glm::uvec2,          // for UniformType::UVec2
-        glm::uvec3,          // for UniformType::UVec3
-        glm::uvec4,          // for UniformType::UVec4
-        glm::mat2,           // for UniformType::Mat2
-        glm::mat3,           // for UniformType::Mat3
-        glm::mat4,           // for UniformType::Mat4
-        TextureParam         // for texture parameters
+        bool,
+        float,
+        glm::vec2,
+        glm::vec3,
+        glm::vec4,
+        int32_t,
+        glm::ivec2,
+        glm::ivec3,
+        glm::ivec4,
+        uint32_t,
+        glm::uvec2,
+        glm::uvec3,
+        glm::uvec4,
+        glm::mat2,
+        glm::mat3,
+        glm::mat4,
+        TextureParam
     >;
 
     // Parameter structure
@@ -49,7 +51,7 @@ public:
         std::string name;
         ParamValue value;
         ShaderLib::DescriptorType descriptorType;
-        ShaderLib::UniformType uniformType;  // Added to track the actual uniform type
+        ShaderLib::UniformType uniformType;
         uint32_t binding;
         uint32_t arrayIndex;  // For array parameters, 0 for non-array params
     };

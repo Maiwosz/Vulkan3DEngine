@@ -89,19 +89,23 @@ Renderer::Renderer(Window& window) : m_window(window) {
             m_vulkanContext->logical(),
             allocConfig
         );
+        m_textureManager = std::make_unique<TextureManager>(
+            m_vulkanContext->logical(),
+            *m_vramManager
+        );
         m_materialManager = std::make_unique<MaterialManager>(
+            m_vulkanContext->logical(),
             *m_shaderModuleManager,
             *m_samplerManager,
             *m_uniformBufferManager,
             *m_descriptorAllocator,
             *m_descriptorLayoutManager,
-            *m_vramManager,
-            m_vulkanContext->logical()
+            *m_textureManager
         );
         m_meshManager = std::make_unique<MeshManager>(
             *m_vramManager
         );
-
+       
         // Create main render pass
         createMainRenderPass();
 

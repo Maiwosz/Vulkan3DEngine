@@ -230,6 +230,7 @@
     <ClCompile Include="Src\Renderer.cpp" />
     <ClCompile Include="Src\Scene.cpp" />
     <ClCompile Include="Src\SwapChain.cpp" />
+    <ClCompile Include="Src\TextureManager.cpp" />
     <ClCompile Include="Src\ThreadPool.cpp" />
     <ClCompile Include="Src\AllocatedResource.cpp" />
     <ClCompile Include="Src\Window.cpp" />
@@ -330,6 +331,7 @@
     <ClInclude Include="Src\Renderer.h" />
     <ClInclude Include="Src\Scene.h" />
     <ClInclude Include="Src\SwapChain.h" />
+    <ClInclude Include="Src\TextureManager.h" />
     <ClInclude Include="Src\ThreadPool.h" />
     <ClInclude Include="Src\Window.h" />
     <ClInclude Include="Src\TransformComponent.h" />

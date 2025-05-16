@@ -11,9 +11,8 @@
 #include <unordered_map>
 #include <vector>
 #include <string>
+#include "TextureManager.h"
 
-// This class is responsible for creating and managing material resources,
-// specifically UBOs and descriptor sets
 class MaterialResourceManager {
 public:
     struct MaterialResources {
@@ -22,13 +21,13 @@ public:
     };
 
     MaterialResourceManager(
+        const LogicalDevice& device,
         ShaderModuleManager& shaderModuleManager,
         ImageSamplerManager& samplerManager,
         UniformBufferManager& uniformBufferManager,
         DescriptorAllocator& descriptorAllocator,
         DescriptorLayoutManager& descriptorLayoutManager,
-        VramManager& vramManager,
-        const LogicalDevice& device
+		TextureManager& textureManager
     );
     ~MaterialResourceManager();
 
@@ -44,7 +43,7 @@ public:
         ShaderHandle shaderHandle,
         const std::string& paramName,
         int paramBinding,
-        VramHandle textureHandle,
+        TextureHandle textureHandle,
         VkSampler sampler
     );
 
@@ -75,11 +74,11 @@ private:
         const std::vector<Material::Parameter>& parameters
     );
 
+    const LogicalDevice& m_device;
     ShaderModuleManager& m_shaderModuleManager;
     ImageSamplerManager& m_samplerManager;
     DescriptorLayoutManager& m_descriptorLayoutManager;
     UniformBufferManager& m_uniformBufferManager;
     DescriptorAllocator& m_descriptorAllocator;
-    const LogicalDevice& m_device;
-    VramManager& m_vramManager;
+    TextureManager& m_textureManager;
 };

@@ -4,21 +4,21 @@
 #include "ImageSamplerUtils.h"
 
 MaterialResourceManager::MaterialResourceManager(
+    const LogicalDevice& device,
     ShaderModuleManager& shaderModuleManager,
     ImageSamplerManager& samplerManager,
     UniformBufferManager& uniformBufferManager,
     DescriptorAllocator& descriptorAllocator,
     DescriptorLayoutManager& descriptorLayoutManager,
-    VramManager& vramManager,
-    const LogicalDevice& device
+    TextureManager& textureManager
 )
-    : m_shaderModuleManager(shaderModuleManager),
+    :m_device(device),
+    m_shaderModuleManager(shaderModuleManager),
     m_samplerManager(samplerManager),
     m_uniformBufferManager(uniformBufferManager),
     m_descriptorAllocator(descriptorAllocator),
     m_descriptorLayoutManager(descriptorLayoutManager),
-    m_vramManager(vramManager),
-    m_device(device) {
+    m_textureManager(textureManager){
 }
 
 MaterialResourceManager::~MaterialResourceManager() {
@@ -225,17 +225,13 @@ VkDescriptorSet MaterialResourceManager::createMaterialDescriptorSet(
         }
 
         // Check if texture is loaded
-        if (!textureParam->vramHandle) {
+        if (!textureParam->textureHandle) {
             SPDLOG_WARN("Texture not loaded for parameter {}", param.name);
             continue;
         }
 
         // Get image view from texture manager
-        Image* textureImage = m_vramManager.getResource<Image>(textureParam->vramHandle);
-        VkImageView imageView = textureImage->createView(
-            m_device.get(),
-            VK_IMAGE_VIEW_TYPE_2D
-        );
+		VkImageView imageView = m_textureManager.getVkImageView(textureParam->textureHandle);
         if (imageView == VK_NULL_HANDLE) {
             SPDLOG_WARN("Invalid image view for texture parameter {}", param.name);
             continue;
@@ -257,21 +253,12 @@ bool MaterialResourceManager::updateTextureBinding(
     ShaderHandle shaderHandle,
     const std::string& paramName,
     int paramBinding,
-    VramHandle textureHandle,
+    TextureHandle textureHandle,
     VkSampler sampler
 ) {
-    // Get the texture image from VRAM manager
-    Image* textureImage = m_vramManager.getResource<Image>(textureHandle);
-    if (!textureImage) {
-        SPDLOG_ERROR("Cannot update texture binding - invalid texture handle");
-        return false;
-    }
 
     // Create image view for the texture
-    VkImageView imageView = textureImage->createView(
-        m_device.get(),
-        VK_IMAGE_VIEW_TYPE_2D
-    );
+    VkImageView imageView = m_textureManager.getVkImageView(textureHandle);
 
     if (imageView == VK_NULL_HANDLE) {
         SPDLOG_ERROR("Failed to create image view for texture");

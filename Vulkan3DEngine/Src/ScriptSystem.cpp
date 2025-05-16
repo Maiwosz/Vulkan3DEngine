@@ -113,6 +113,7 @@ void ScriptSystem::update(SystemContext<>& context) {
     }
 }
 
+
 bool ScriptSystem::loadScript(Entity entity, ScriptComponent& script) {
     const std::string& path = script.getScriptPath();
     if (path.empty()) {
@@ -120,29 +121,41 @@ bool ScriptSystem::loadScript(Entity entity, ScriptComponent& script) {
         return false;
     }
 
-    // Check if file exists - try both relative and absolute paths
-    std::string absolutePath = path;
-    if (!std::filesystem::exists(absolutePath)) {
-        // Try with current working directory
-        absolutePath = std::filesystem::current_path().string() + "/" + path;
+    // Normalize file extension - add .lua if no extension provided
+    std::string scriptPath = path;
+    if (scriptPath.find('.') == std::string::npos) {
+        scriptPath += ".lua"; // Assuming Lua scripts, adjust as needed
+    }
 
-        if (!std::filesystem::exists(absolutePath)) {
-            SPDLOG_ERROR("Script file not found: {} (also tried: {})", path, absolutePath);
+    // Check if file exists - try multiple path options
+    std::vector<std::string> pathsToTry;
 
-            // Try to list files in scripts directory for debugging
-            std::string scriptsDir = "scripts";
-            if (std::filesystem::exists(scriptsDir) && std::filesystem::is_directory(scriptsDir)) {
-                std::string files;
-                for (const auto& entry : std::filesystem::directory_iterator(scriptsDir)) {
-                    files += "  " + entry.path().string() + "\n";
-                }
-                SPDLOG_DEBUG("Available scripts in directory:\n{}", files);
-            }
+    // Option 1: Direct absolute path as provided
+    if (std::filesystem::path(scriptPath).is_absolute()) {
+        pathsToTry.push_back(scriptPath);
+    }
+    else {
+        // Option 2: Relative to SCRIPTS_DIR (default)
+        pathsToTry.push_back(SCRIPTS_DIR + scriptPath);
 
-            return false;
+        // Option 3: Relative to current working directory
+        pathsToTry.push_back(std::filesystem::current_path().string() + "/" + scriptPath);
+
+        // Option 4: Direct relative path as provided
+        pathsToTry.push_back(scriptPath);
+    }
+
+    // Try each path option
+    std::string absolutePath;
+    bool found = false;
+
+    for (const auto& tryPath : pathsToTry) {
+        if (std::filesystem::exists(tryPath)) {
+            absolutePath = tryPath;
+            found = true;
+            SPDLOG_DEBUG("Found script at: {}", absolutePath);
+            break;
         }
-
-        SPDLOG_DEBUG("Found script at: {}", absolutePath);
     }
 
     try {

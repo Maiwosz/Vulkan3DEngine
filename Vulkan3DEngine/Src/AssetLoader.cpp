@@ -13,20 +13,14 @@ AssetLoader::AssetLoader(const std::string& basePath)
 }
 
 AssetLib::AssetData AssetLoader::load(const AssetHandle handle) {
-    SPDLOG_DEBUG("Loading asset with filename: {}, type: {}",
-        handle.filename, static_cast<int>(handle.type));
-
     try {
         const auto path = findFile(handle.filename, handle.type);
-        SPDLOG_DEBUG("Asset file found at: {}", path);
-
         const auto data = loadFile(path);
         if (data.size() < sizeof(AssetLib::Header)) {
             SPDLOG_ERROR("File too small to be valid: {}", path);
             throw std::runtime_error("File too small to be valid");
         }
 
-        SPDLOG_DEBUG("Reading asset data from path: {}", path);
         AssetLib::AssetData result = AssetLib::ReadAsset(path);
         SPDLOG_INFO("Successfully loaded asset: {}", handle.filename);
         return result;
@@ -38,8 +32,6 @@ AssetLib::AssetData AssetLoader::load(const AssetHandle handle) {
 }
 
 std::vector<uint8_t> AssetLoader::loadFile(const std::string& path) const {
-    SPDLOG_DEBUG("Loading file : {}", path);
-
     try {
         std::ifstream file(path, std::ios::binary | std::ios::ate);
         if (!file) {
@@ -48,13 +40,10 @@ std::vector<uint8_t> AssetLoader::loadFile(const std::string& path) const {
         }
 
         const size_t fileSize = file.tellg();
-        SPDLOG_DEBUG("File size: {} bytes", fileSize);
-
         file.seekg(0);
         std::vector<uint8_t> buffer(fileSize);
         file.read(reinterpret_cast<char*>(buffer.data()), fileSize);
 
-        SPDLOG_DEBUG("Successfully read {} bytes from file: {}", fileSize, path);
         return buffer;
     }
     catch (const std::exception& e) {
@@ -65,26 +54,56 @@ std::vector<uint8_t> AssetLoader::loadFile(const std::string& path) const {
 
 std::string AssetLoader::findFile(const std::string& baseName, AssetType type) const {
     using namespace AssetLib::Utilities;
-    SPDLOG_DEBUG("Finding file for asset: {}, type: {}",
-        baseName, static_cast<int>(type));
 
-    // Konwertuj string_view na string
-    const std::string ext(GetAssetExtension(type));
-    const std::string subdir(GetAssetSubdirectory(type));
+    // Check if baseName already has an extension
+    fs::path baseNamePath(baseName);
+    std::string providedExt = baseNamePath.has_extension() ? baseNamePath.extension().string() : "";
+    std::string nameWithoutExt = baseNamePath.stem().string();
 
-    // 1. Sprawdź w domyślnym folderze dla typu
-    const fs::path defaultPath = fs::path(m_basePath) / subdir / (baseName + ext);
-    SPDLOG_DEBUG("Checking default path: {}", defaultPath.string());
+    // Get expected extension for this asset type
+    const std::string expectedExt(GetAssetExtension(type));
 
-    if (fs::exists(defaultPath)) {
-        SPDLOG_DEBUG("Asset found at default path: {}", defaultPath.string());
-        return defaultPath.string();
+    // Verify extension matches asset type if provided
+    if (!providedExt.empty() && providedExt != expectedExt) {
+        SPDLOG_WARN("Provided extension {} doesn't match expected extension {} for asset type {}",
+            providedExt, expectedExt, static_cast<int>(type));
     }
 
-    // 2. Przeszukaj rekurencyjnie cały katalog bazowy
-    SPDLOG_INFO("Asset not found at default path, searching recursively in: {}", m_basePath);
+    // Use provided extension if it exists, otherwise use the expected one
+    const std::string finalExt = providedExt.empty() ? expectedExt : providedExt;
+    const std::string subdir(GetAssetSubdirectory(type));
 
-    const std::string targetName = baseName + ext;
+    // Determine if path is absolute
+    bool isAbsolutePath = fs::path(baseName).is_absolute();
+    std::vector<std::string> pathsToTry;
+
+    if (isAbsolutePath) {
+        // If absolute path, just use it directly
+        pathsToTry.push_back(baseName);
+    }
+    else {
+        // 1. Try in the default subdirectory for this asset type
+        pathsToTry.push_back((fs::path(m_basePath) / subdir / (nameWithoutExt + finalExt)).string());
+
+        // 2. Try in base path directly
+        pathsToTry.push_back((fs::path(m_basePath) / (nameWithoutExt + finalExt)).string());
+
+        // 3. Try the path as provided (relative to current working directory)
+        pathsToTry.push_back(baseName);
+    }
+
+    // Try each path
+    for (const auto& path : pathsToTry) {
+        if (fs::exists(path)) {
+            SPDLOG_INFO("Asset found at: {}", path);
+            return path;
+        }
+    }
+
+    // If none of the direct paths worked, search recursively as a last resort
+    SPDLOG_INFO("Asset not found at expected paths, searching recursively in: {}", m_basePath);
+
+    const std::string targetName = nameWithoutExt + finalExt;
     try {
         for (const auto& entry : fs::recursive_directory_iterator(m_basePath)) {
             if (entry.is_regular_file() && entry.path().filename() == targetName) {
@@ -93,8 +112,8 @@ std::string AssetLoader::findFile(const std::string& baseName, AssetType type) c
             }
         }
 
-        SPDLOG_WARN("Asset not found: {}{}", baseName, ext);
-        throw std::runtime_error("Asset not found: " + targetName);
+        SPDLOG_WARN("Asset not found: {}{}", nameWithoutExt, finalExt);
+        throw std::runtime_error("Asset not found: " + nameWithoutExt + finalExt);
     }
     catch (const fs::filesystem_error& e) {
         SPDLOG_ERROR("Filesystem error while searching for {}: {}", targetName, e.what());

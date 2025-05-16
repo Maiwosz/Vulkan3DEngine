@@ -11,17 +11,18 @@
 #include <vector>
 #include <string>
 #include "MaterialResourceManager.h"
+#include "TextureManager.h"
 
 class MaterialManager {
 public:
     MaterialManager(
+        const LogicalDevice& device,
         ShaderModuleManager& shaderModuleManager,
         ImageSamplerManager& samplerManager,
         UniformBufferManager& uniformBufferManager,
         DescriptorAllocator& descriptorAllocator,
         DescriptorLayoutManager& descriptorlayoutManager,
-        VramManager& vramManager,
-        const LogicalDevice& device
+		TextureManager& textureManager
     );
     ~MaterialManager();
 
@@ -65,10 +66,10 @@ private:
         ShaderLib::DescriptorType descriptorType
     );
 
+	const LogicalDevice& m_device;
     ShaderModuleManager& m_shaderModuleManager;
     ImageSamplerManager& m_samplerManager;
-    VramManager& m_vramManager;
-    const LogicalDevice& m_device;
+	TextureManager& m_textureManager;
 
     // Resource manager for UBOs and descriptor sets
     std::unique_ptr<MaterialResourceManager> m_resourceManager;

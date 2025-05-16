@@ -138,7 +138,7 @@ Scene::Scene()
 
         // Add light orbiter script
         auto& script = m_registry->addComponent<ScriptComponent>(testCamera);
-        script.setScriptPath("scripts/CameraController.lua");
+        script.setScriptPath("CameraController");
     }
 
     // Directional light
@@ -169,7 +169,7 @@ Scene::Scene()
 
         // Add light orbiter script
         auto& script = m_registry->addComponent<ScriptComponent>(testPointLight);
-        script.setScriptPath("scripts/LightOrbiter.lua");
+        script.setScriptPath("LightOrbiter");
     }
 }
 

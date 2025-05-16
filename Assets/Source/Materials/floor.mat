@@ -24,6 +24,7 @@
     "albedo": {
       "descriptorType": "CombinedImageSampler",
       "path": "grey_cartago_02_diff_2k",
+	  "colorSpace": "SRGB",
       "sampler": {
         "magFilter": "Linear",
         "minFilter": "Linear",

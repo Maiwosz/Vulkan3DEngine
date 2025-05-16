@@ -24,6 +24,7 @@
     "albedo": {
       "descriptorType": "CombinedImageSampler",
       "path": "Hygieia_C_Hygieia_O",
+	  "colorSpace": "SRGB",
       "sampler": {
         "magFilter": "Linear",
         "minFilter": "Linear",

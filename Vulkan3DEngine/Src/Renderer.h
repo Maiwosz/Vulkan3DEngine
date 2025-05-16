@@ -46,6 +46,7 @@ public:
     MaterialManager& materialManager() { return *m_materialManager; }
     DescriptorAllocator& descriptorAllocator() { return *m_descriptorAllocator; }
     MeshManager& meshManager() { return *m_meshManager; }
+    TextureManager& textureManager() { return *m_textureManager; }
 
     RenderPassHandle renderPass() { return m_mainRenderPassHandle; }
     AttachmentHandle depthAttachmentHandle() { return m_depthAttachmentHandle; }
@@ -71,6 +72,7 @@ private:
     std::unique_ptr<MaterialManager> m_materialManager;
     std::unique_ptr<DescriptorAllocator> m_descriptorAllocator;
     std::unique_ptr<MeshManager> m_meshManager;
+    std::unique_ptr<TextureManager> m_textureManager;
 
     // Main render pass and resources
     RenderPassHandle m_mainRenderPassHandle;

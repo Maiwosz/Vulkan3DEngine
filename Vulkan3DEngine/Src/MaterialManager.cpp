@@ -4,28 +4,28 @@
 #include "ImageSamplerUtils.h"
 
 MaterialManager::MaterialManager(
+    const LogicalDevice& device,
     ShaderModuleManager& shaderModuleManager,
     ImageSamplerManager& samplerManager,
     UniformBufferManager& uniformBufferManager,
     DescriptorAllocator& descriptorAllocator,
     DescriptorLayoutManager& descriptorLayoutManager,
-    VramManager& vramManager,
-    const LogicalDevice& device
+    TextureManager& textureManager
 )
-    : m_shaderModuleManager(shaderModuleManager),
+    :m_device(device),
+    m_shaderModuleManager(shaderModuleManager),
     m_samplerManager(samplerManager),
-    m_vramManager(vramManager),
-    m_device(device) {
+    m_textureManager(textureManager){
 
     // Create the resource manager
     m_resourceManager = std::make_unique<MaterialResourceManager>(
+        device,
         shaderModuleManager,
         samplerManager,
         uniformBufferManager,
         descriptorAllocator,
         descriptorLayoutManager,
-        vramManager,
-        device
+        m_textureManager
     );
 }
 
@@ -213,9 +213,14 @@ void MaterialManager::convertTextureParameter(
         Material::TextureParam textureParam;
 
         // Create proper AssetHandle with the texture path
-        // Assuming textures should be of AssetType::Texture
         textureParam.handle = AssetHandle(AssetType::Texture, std::string(texturePath));
-        textureParam.vramHandle = VramHandle(); // Will be populated when ensuring the texture is ready
+        textureParam.textureHandle = TextureHandle(); // Will be populated when ensuring the texture is ready
+
+        // Store the color space from the sampler description
+        textureParam.colorSpace = assetParam.samplerDesc.colorSpace;
+
+        SPDLOG_DEBUG("Texture parameter for {} with color space {}",
+            texturePath, static_cast<int>(textureParam.colorSpace));
 
         // Create sampler configuration based on the material's sampler description
         SamplerConfig samplerConfig = ImageSamplerUtils::createSamplerConfig(assetParam.samplerDesc);
@@ -229,6 +234,8 @@ void MaterialManager::convertTextureParameter(
     else {
         // Invalid texture parameter data - create an empty texture param
         Material::TextureParam emptyTextureParam;
+        // Use default color space for empty texture params
+        emptyTextureParam.colorSpace = AssetLib::ColorSpace::SRGB;
         param.value = emptyTextureParam;
     }
 }
