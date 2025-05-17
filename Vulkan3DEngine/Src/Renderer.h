@@ -52,6 +52,11 @@ public:
     AttachmentHandle depthAttachmentHandle() { return m_depthAttachmentHandle; }
     AttachmentHandle msColorAttachmentHandle() { return m_msColorAttachmentHandle; }
 
+    std::shared_ptr<MeshManager> meshManagerPtr() { return m_meshManager;}
+    std::shared_ptr<TextureManager> textureManagerPtr() { return m_textureManager; }
+    std::shared_ptr<MaterialManager> materialManagerPtr() { return m_materialManager; }
+    std::shared_ptr<ShaderModuleManager> shaderModuleManagerPtr() { return m_shaderModuleManager; }
+
 private:
     Window& m_window;
     std::unique_ptr<VulkanContext> m_vulkanContext;
@@ -67,12 +72,13 @@ private:
     std::unique_ptr<AttachmentManager> m_attachmentManager;
     std::unique_ptr<RenderPassManager> m_renderPassManager;
     std::unique_ptr<FrameBufferManager> m_framebufferManager;
-    std::unique_ptr<ShaderModuleManager> m_shaderModuleManager;
     std::unique_ptr<PipelineManager> m_pipelineManager;
-    std::unique_ptr<MaterialManager> m_materialManager;
     std::unique_ptr<DescriptorAllocator> m_descriptorAllocator;
-    std::unique_ptr<MeshManager> m_meshManager;
-    std::unique_ptr<TextureManager> m_textureManager;
+
+    std::shared_ptr<MaterialManager> m_materialManager;
+    std::shared_ptr<ShaderModuleManager> m_shaderModuleManager;
+    std::shared_ptr<MeshManager> m_meshManager;
+    std::shared_ptr<TextureManager> m_textureManager;
 
     // Main render pass and resources
     RenderPassHandle m_mainRenderPassHandle;

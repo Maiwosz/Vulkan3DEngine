@@ -1,6 +1,7 @@
 #include "LuaBindingsInput.h"
 #include "Engine.h"
 #include <GLFW/glfw3.h>
+#include "InputSystem.h"
 
 namespace LuaBindings {
     void registerInputSystem(sol::state& state) {

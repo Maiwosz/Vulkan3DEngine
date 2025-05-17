@@ -1,21 +1,133 @@
 #include "MeshManager.h"
 #include <stdexcept>
+#include <spdlog/spdlog.h>
 
 MeshManager::MeshManager(VramManager& vramManager)
     : m_vramManager(vramManager) {
 }
 
 MeshManager::~MeshManager() {
+    // Clean up all allocated resources
     for (const auto& [handleId, mesh] : m_meshes) {
         m_vramManager.freeResource(mesh.vertexBuffer);
         m_vramManager.freeResource(mesh.indexBuffer);
     }
     m_meshes.clear();
+    m_meshHandles.clear();
+}
+
+bool MeshManager::prepareAsset(const AssetHandle& handle, const AssetLib::AssetData& data, AssetManager& manager) {
+    try {
+        // Make sure this is actually a mesh asset
+        if (handle.type != AssetType::Mesh) {
+            SPDLOG_ERROR("Attempted to prepare non-mesh asset with MeshManager: {}", handle.filename);
+            return false;
+        }
+
+        // Extract mesh data from asset
+        auto [meshInfo, vertexData, indexData] = AssetLib::ReadMesh(data);
+
+        // Create mesh resource
+        MeshHandle meshHandle = createMesh(meshInfo, vertexData, indexData);
+
+        // Store the mapping between filename and handle
+        m_meshHandles[handle.filename] = meshHandle;
+
+        SPDLOG_INFO("Successfully prepared mesh asset: {}", handle.filename);
+        return true;
+    }
+    catch (const std::exception& e) {
+        SPDLOG_ERROR("Failed to prepare mesh asset {}: {}", handle.filename, e.what());
+        return false;
+    }
+}
+
+void MeshManager::unloadAsset(const std::string& filename) {
+    auto it = m_meshHandles.find(filename);
+    if (it != m_meshHandles.end()) {
+        MeshHandle handle = it->second;
+
+        // Find the mesh
+        auto meshIt = m_meshes.find(handle.id);
+        if (meshIt != m_meshes.end()) {
+            // Free VRAM resources
+            m_vramManager.freeResource(meshIt->second.vertexBuffer);
+            m_vramManager.freeResource(meshIt->second.indexBuffer);
+
+            // Remove mesh from maps
+            m_meshes.erase(meshIt);
+        }
+
+        // Remove the filename->handle mapping
+        m_meshHandles.erase(it);
+
+        SPDLOG_INFO("Unloaded mesh asset: {}", filename);
+    }
+}
+
+bool MeshManager::isAssetReady(const std::string& filename) const {
+    // Check if we have a handle for this asset
+    auto it = m_meshHandles.find(filename);
+    if (it != m_meshHandles.end()) {
+        MeshHandle handle = it->second;
+        // Verify the mesh actually exists
+        return m_meshes.find(handle.id) != m_meshes.end();
+    }
+    return false;
+}
+
+uint64_t MeshManager::getAssetSize(const std::string& filename) const {
+    auto it = m_meshHandles.find(filename);
+    if (it != m_meshHandles.end()) {
+        MeshHandle handle = it->second;
+        auto meshIt = m_meshes.find(handle.id);
+        if (meshIt != m_meshes.end()) {
+            const Mesh& mesh = meshIt->second;
+
+            // Get the size of vertex and index buffers
+            // This is an approximation as we don't have direct access to buffer sizes
+            uint64_t vertexBufferSize = mesh.vertexCount * mesh.vertexStride;
+            uint64_t indexBufferSize = mesh.indexCount * (mesh.indexType == 0 ? 2 : 4); // 2 bytes for uint16, 4 bytes for uint32
+
+            return vertexBufferSize + indexBufferSize;
+        }
+    }
+    return 0;
+}
+
+bool MeshManager::isInVram() const {
+    // Mesh resources are stored in VRAM
+    return true;
+}
+
+std::vector<AssetDependency> MeshManager::getDependencies(const AssetHandle& handle, const AssetLib::AssetData& data) const {
+    // Meshes typically don't have dependencies on other assets
+    return {};
+}
+
+std::any MeshManager::getResourceInternal(const AssetHandle& handle) const {
+    auto it = m_meshHandles.find(handle.filename);
+    if (it != m_meshHandles.end()) {
+        const Mesh* mesh = getMesh(it->second);
+        if (mesh) {
+            return *mesh;
+        }
+    }
+    return {};
+}
+
+std::any MeshManager::getHandleInternal(const std::string& filename) const {
+    auto it = m_meshHandles.find(filename);
+    if (it != m_meshHandles.end()) {
+        return it->second;
+    }
+    return MeshHandle{};
 }
 
 MeshHandle MeshManager::createMesh(const AssetLib::MeshInfo& info,
     const std::vector<uint8_t>& vertexData,
     const std::vector<uint8_t>& indexData) {
+
     Graphics::BufferCreateInfo vertexBufferInfo{
         .usage = Graphics::BufferUsageType::Vertex,
         .size = vertexData.size()
@@ -44,108 +156,14 @@ MeshHandle MeshManager::createMesh(const AssetLib::MeshInfo& info,
     newMesh.attributes = info.attributes;
     newMesh.indexType = info.indexType;
 
+    // Create handle and store mesh
     MeshHandle handle(m_nextHandleId++);
     m_meshes[handle.id] = std::move(newMesh);
-    return handle;
-}
 
-MeshHandle MeshManager::createMesh(
-    VramHandle vertexBuffer,
-    uint32_t vertexCount,
-    VramHandle indexBuffer,
-    uint32_t indexCount,
-    uint8_t indexType
-) {
-    Mesh newMesh;
-    newMesh.vertexBuffer = vertexBuffer;
-    newMesh.indexBuffer = indexBuffer;
-    newMesh.vertexCount = vertexCount;
-    newMesh.indexCount = indexCount;
-    newMesh.indexType = indexType;
-
-    // Default values for other fields
-    newMesh.vertexStride = 0;
-    newMesh.attributes = 0;
-
-    MeshHandle handle(m_nextHandleId++);
-    m_meshes[handle.id] = std::move(newMesh);
-    return handle;
-}
-
-MeshHandle MeshManager::immediateCreateMesh(
-    const void* vertexData,
-    VkDeviceSize vertexBufferSize,
-    VkBufferUsageFlags vertexBufferUsage,
-    uint32_t vertexCount,
-    const void* indexData,
-    VkDeviceSize indexBufferSize,
-    VkBufferUsageFlags indexBufferUsage,
-    uint32_t indexCount,
-    uint8_t indexType,
-    uint32_t vertexStride,
-    uint32_t attributes
-) {
-    // Create buffers immediately using immediate buffer creation
-    VramHandle vertexBuffer = m_vramManager.createBuffer(
-        vertexBufferSize,
-        vertexBufferUsage,
-        VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-        vertexData
-    );
-
-    VramHandle indexBuffer = m_vramManager.createBuffer(
-        indexBufferSize,
-        indexBufferUsage,
-        VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-        indexData
-    );
-
-    // Create mesh structure
-    Mesh newMesh;
-    newMesh.vertexBuffer = vertexBuffer;
-    newMesh.indexBuffer = indexBuffer;
-    newMesh.vertexCount = vertexCount;
-    newMesh.indexCount = indexCount;
-    newMesh.vertexStride = vertexStride;
-    newMesh.attributes = attributes;
-    newMesh.indexType = indexType;
-
-    // Create and return handle
-    MeshHandle handle(m_nextHandleId++);
-    m_meshes[handle.id] = std::move(newMesh);
     return handle;
 }
 
 const Mesh* MeshManager::getMesh(MeshHandle handle) const {
     auto it = m_meshes.find(handle.id);
     return it != m_meshes.end() ? &it->second : nullptr;
-}
-
-void MeshManager::destroyMesh(MeshHandle handle) {
-    auto it = m_meshes.find(handle.id);
-    if (it != m_meshes.end()) {
-        m_vramManager.freeResource(it->second.vertexBuffer);
-        m_vramManager.freeResource(it->second.indexBuffer);
-        m_meshes.erase(it);
-        m_lastUsedFrame.erase(handle.id);
-    }
-}
-
-void MeshManager::markUsed(MeshHandle handle, uint64_t frameNumber) {
-    if (m_meshes.find(handle.id) != m_meshes.end()) {
-        m_lastUsedFrame[handle.id] = frameNumber;
-    }
-}
-
-void MeshManager::purgeUnusedMeshes(uint64_t frameThreshold) {
-    std::vector<uint32_t> toRemove;
-    for (const auto& [handleId, lastUsed] : m_lastUsedFrame) {
-        if (frameThreshold > lastUsed) {
-            toRemove.push_back(handleId);
-        }
-    }
-
-    for (uint32_t handleId : toRemove) {
-        destroyMesh(MeshHandle(handleId));
-    }
 }

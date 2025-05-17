@@ -5,6 +5,8 @@
 #include <fstream>
 #include <filesystem>
 #include <spdlog/spdlog.h>
+#include "Paths.h"
+#include "Scene.h"
 
 ScriptSystem::ScriptSystem() {
     m_luaState = std::make_unique<sol::state>();

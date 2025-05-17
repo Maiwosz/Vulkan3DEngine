@@ -1,8 +1,4 @@
 #include "AssetCollectionSystem.h"
-#include "MaterialComponent.h"
-#include "MeshComponent.h"
-#include "AssetManager.h"
-#include "Engine.h"
 
 void AssetCollectionSystem::update(ContextType& context) {
     auto& registry = context.getRegistry();
@@ -10,21 +6,21 @@ void AssetCollectionSystem::update(ContextType& context) {
 
     std::unordered_set<AssetHandle> assetsToLoad;
 
-    // Zbieranie asset體 z komponent體 materia丑w
+    // Zbieranie asset贸w z komponent贸w materia艂贸w
     auto materialEntities = registry.createView<MaterialComponent>();
     for (auto entity : materialEntities) {
         auto& material = registry.getComponent<MaterialComponent>(entity);
         assetsToLoad.insert(material.getMaterial());
     }
 
-    // Zbieranie asset體 z komponent體 mesh體
+    // Zbieranie asset贸w z komponent贸w mesh贸w
     auto meshEntities = registry.createView<MeshComponent>();
     for (auto entity : meshEntities) {
         auto& mesh = registry.getComponent<MeshComponent>(entity);
         assetsToLoad.insert(mesh.getMesh());
     }
 
-    // dowanie wszystkich zebranych asset體
+    // 艁adowanie wszystkich zebranych asset贸w
     for (const auto& handle : assetsToLoad) {
         assetManager.ensureLoaded(handle);
     }

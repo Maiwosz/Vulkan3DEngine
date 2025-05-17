@@ -2,6 +2,8 @@
 #include <stdexcept>
 #include <cassert>
 #include "ImageSamplerUtils.h"
+#include "AssetManager.h"
+#include <spdlog/spdlog.h>
 
 MaterialManager::MaterialManager(
     const LogicalDevice& device,
@@ -12,10 +14,10 @@ MaterialManager::MaterialManager(
     DescriptorLayoutManager& descriptorLayoutManager,
     TextureManager& textureManager
 )
-    :m_device(device),
+    : m_device(device),
     m_shaderModuleManager(shaderModuleManager),
     m_samplerManager(samplerManager),
-    m_textureManager(textureManager){
+    m_textureManager(textureManager) {
 
     // Create the resource manager
     m_resourceManager = std::make_unique<MaterialResourceManager>(
@@ -25,22 +27,222 @@ MaterialManager::MaterialManager(
         uniformBufferManager,
         descriptorAllocator,
         descriptorLayoutManager,
-        m_textureManager
+        textureManager
     );
 }
 
 MaterialManager::~MaterialManager() {
     // Release all material resources
-    for (auto& [handle, resources] : m_materialResources) {
-        m_resourceManager->destroyMaterialResources(resources);
+    for (auto& [handle, materialData] : m_materials) {
+        if (materialData.isReady) {
+            m_resourceManager->destroyMaterialResources(materialData.resources);
+        }
     }
 
     // Clean up all materials
     m_materials.clear();
+    m_filenameToHandle.clear();
+}
+
+bool MaterialManager::prepareAsset(const AssetHandle& handle, const AssetLib::AssetData& data, AssetManager& manager) {
+    if (handle.type != AssetType::Material) {
+        SPDLOG_ERROR("MaterialManager: Invalid asset type for handle {}", handle.filename);
+        return false;
+    }
+
+    try {
+        // Parse material data
+        auto [materialInfo, parameters, parameterData] = AssetLib::ReadMaterial(data);
+
+        // Get shader name from material info
+        std::string shaderName(materialInfo.shaderName.data());
+        AssetHandle shaderHandle(AssetType::Shader, shaderName);
+
+        // Ensure shader is ready (this should be handled by dependency system)
+        if (!manager.ensureReady(shaderHandle)) {
+            SPDLOG_ERROR("MaterialManager: Failed to prepare shader dependency {}", shaderName);
+            return false;
+        }
+
+        // Get shader handle from shader module manager using the getHandle method
+        ShaderHandle shader = m_shaderModuleManager.getHandle<ShaderHandle>(shaderName);
+        if (!shader.isValid()) {
+            SPDLOG_ERROR("MaterialManager: Invalid shader handle for {}", shaderName);
+            return false;
+        }
+
+        // Create material handle
+        MaterialHandle materialHandle = createMaterial(handle, data, shader);
+        if (!materialHandle.isValid()) {
+            SPDLOG_ERROR("MaterialManager: Failed to create material {}", handle.filename);
+            return false;
+        }
+
+        // Process texture dependencies and ensure they're loaded
+        auto& materialData = m_materials[materialHandle];
+        for (const auto& param : materialData.material->parameters()) {
+            if (std::holds_alternative<Material::TextureParam>(param.value)) {
+                auto& textureParam = std::get<Material::TextureParam>(param.value);
+                if (!textureParam.handle.filename.empty()) {
+                    // Ensure texture is loaded
+                    if (!manager.ensureLoaded(textureParam.handle)) {
+                        SPDLOG_WARN("MaterialManager: Failed to load texture dependency {}",
+                            textureParam.handle.filename);
+                        // Continue with preparation even if some textures fail
+                    }
+                }
+            }
+        }
+
+        // Update texture handles after textures are loaded
+        updateTextureHandles(materialHandle, manager);
+
+        // Create material resources
+        materialData.resources = m_resourceManager->createMaterialResources(
+            materialData.material->shader(),
+            materialData.material->parameters()
+        );
+
+        materialData.isReady = true;
+
+        SPDLOG_DEBUG("MaterialManager: Successfully prepared material {}", handle.filename);
+        return true;
+
+    }
+    catch (const std::exception& e) {
+        SPDLOG_ERROR("MaterialManager: Exception while preparing material {}: {}",
+            handle.filename, e.what());
+        return false;
+    }
+}
+
+void MaterialManager::unloadAsset(const std::string& filename) {
+    auto filenameIt = m_filenameToHandle.find(filename);
+    if (filenameIt != m_filenameToHandle.end()) {
+        MaterialHandle handle = filenameIt->second;
+
+        auto materialIt = m_materials.find(handle);
+        if (materialIt != m_materials.end()) {
+            if (materialIt->second.isReady) {
+                m_resourceManager->destroyMaterialResources(materialIt->second.resources);
+            }
+            m_materials.erase(materialIt);
+        }
+
+        m_filenameToHandle.erase(filenameIt);
+        SPDLOG_DEBUG("MaterialManager: Unloaded material {}", filename);
+    }
+}
+
+bool MaterialManager::isAssetReady(const std::string& filename) const {
+    auto filenameIt = m_filenameToHandle.find(filename);
+    if (filenameIt != m_filenameToHandle.end()) {
+        auto materialIt = m_materials.find(filenameIt->second);
+        return materialIt != m_materials.end() && materialIt->second.isReady;
+    }
+    return false;
+}
+
+uint64_t MaterialManager::getAssetSize(const std::string& filename) const {
+    auto filenameIt = m_filenameToHandle.find(filename);
+    if (filenameIt != m_filenameToHandle.end()) {
+        auto materialIt = m_materials.find(filenameIt->second);
+        if (materialIt != m_materials.end()) {
+            return materialIt->second.estimatedSize;
+        }
+    }
+    return 0;
+}
+
+std::vector<AssetDependency> MaterialManager::getDependencies(const AssetHandle& handle, const AssetLib::AssetData& data) const {
+    std::vector<AssetDependency> dependencies;
+
+    try {
+        // Parse material data to extract dependencies
+        auto [materialInfo, parameters, parameterData] = AssetLib::ReadMaterial(data);
+
+        // Add shader dependency - must be prepared before material
+        std::string shaderName(materialInfo.shaderName.data());
+        dependencies.push_back({
+            AssetHandle(AssetType::Shader, shaderName),
+            DependencyType::PrepareTime,
+            std::any()
+            });
+
+        // Add texture dependencies
+        for (const auto& param : parameters) {
+            if (param.descriptorType == ShaderLib::DescriptorType::CombinedImageSampler) {
+                // Extract texture path from parameter data
+                if (param.dataSize > 0 && param.dataOffset < parameterData.size()) {
+                    const char* texturePath = reinterpret_cast<const char*>(parameterData.data() + param.dataOffset);
+                    std::string textureFilename(texturePath);
+
+                    if (!textureFilename.empty()) {
+                        // Create configuration for texture with color space info
+                        std::unordered_map<std::string, std::any> textureConfig;
+                        textureConfig["colorSpace"] = param.samplerDesc.colorSpace;
+
+                        dependencies.push_back({
+                            AssetHandle(AssetType::Texture, textureFilename),
+                            DependencyType::UsageTime,  // Textures must be prepared before material is prepared
+                            textureConfig
+                            });
+                    }
+                }
+            }
+        }
+
+    }
+    catch (const std::exception& e) {
+        SPDLOG_ERROR("MaterialManager: Error extracting dependencies for {}: {}",
+            handle.filename, e.what());
+    }
+
+    return dependencies;
+}
+
+std::any MaterialManager::getResourceInternal(const AssetHandle& handle) const {
+    auto filenameIt = m_filenameToHandle.find(handle.filename);
+    if (filenameIt != m_filenameToHandle.end()) {
+        auto materialIt = m_materials.find(filenameIt->second);
+        if (materialIt != m_materials.end() && materialIt->second.isReady) {
+            return materialIt->second.material.get();
+        }
+    }
+    return std::any();
+}
+
+std::any MaterialManager::getHandleInternal(const std::string& filename) const {
+    auto filenameIt = m_filenameToHandle.find(filename);
+    if (filenameIt != m_filenameToHandle.end()) {
+        auto materialIt = m_materials.find(filenameIt->second);
+        if (materialIt != m_materials.end() && materialIt->second.isReady) {
+            return filenameIt->second;
+        }
+    }
+    return MaterialHandle(); // Return invalid handle if not found or not ready
+}
+
+Material* MaterialManager::getMaterial(MaterialHandle handle) {
+    auto it = m_materials.find(handle);
+    return (it != m_materials.end() && it->second.isReady) ? it->second.material.get() : nullptr;
+}
+
+const Material* MaterialManager::getMaterial(MaterialHandle handle) const {
+    auto it = m_materials.find(handle);
+    return (it != m_materials.end() && it->second.isReady) ? it->second.material.get() : nullptr;
+}
+
+VkDescriptorSet MaterialManager::getMaterialDescriptorSet(MaterialHandle handle) {
+    auto it = m_materials.find(handle);
+    if (it != m_materials.end() && it->second.isReady) {
+        return it->second.resources.descriptorSet;
+    }
+    return VK_NULL_HANDLE;
 }
 
 MaterialHandle MaterialManager::createMaterial(
-    const std::string& name,
+    const AssetHandle& assetHandle,
     const AssetLib::AssetData& assetData,
     ShaderHandle shaderHandle
 ) {
@@ -52,47 +254,31 @@ MaterialHandle MaterialManager::createMaterial(
     materialParams.reserve(parameters.size());
 
     for (const auto& param : parameters) {
-        // Pass shaderHandle to find proper bindings
         materialParams.push_back(createMaterialParameter(param, parameterData, shaderHandle));
     }
 
-    // Create the material
+    // Create the material handle
     MaterialHandle handle(m_nextHandle++);
-    auto material = std::make_unique<Material>(name, shaderHandle, materialParams);
+    auto material = std::make_unique<Material>(assetHandle.filename, shaderHandle, materialParams);
 
-    // Store the material
-    m_materials[handle] = std::move(material);
+    // Calculate estimated size
+    uint64_t estimatedSize = sizeof(Material) +
+        materialParams.size() * sizeof(Material::Parameter) +
+        1024; // Estimate for UBO and descriptor set
+
+    // Store the material data
+    MaterialData materialData;
+    materialData.material = std::move(material);
+    materialData.estimatedSize = estimatedSize;
+    materialData.isReady = false;
+
+    // Add to handle-based storage
+    m_materials[handle] = std::move(materialData);
+
+    // Add to filename-to-handle mapping
+    m_filenameToHandle[assetHandle.filename] = handle;
 
     return handle;
-}
-
-void MaterialManager::destroyMaterial(MaterialHandle handle) {
-    // Release material resources if they exist
-    auto resourceIt = m_materialResources.find(handle);
-    if (resourceIt != m_materialResources.end()) {
-        m_resourceManager->destroyMaterialResources(resourceIt->second);
-        m_materialResources.erase(resourceIt);
-    }
-
-    // Remove the material
-    auto it = m_materials.find(handle);
-    if (it != m_materials.end()) {
-        m_materials.erase(it);
-    }
-}
-
-Material* MaterialManager::get(MaterialHandle handle) {
-    auto it = m_materials.find(handle);
-    return it != m_materials.end() ? it->second.get() : nullptr;
-}
-
-const Material* MaterialManager::get(MaterialHandle handle) const {
-    auto it = m_materials.find(handle);
-    return it != m_materials.end() ? it->second.get() : nullptr;
-}
-
-bool MaterialManager::isValid(MaterialHandle handle) const {
-    return m_materials.find(handle) != m_materials.end();
 }
 
 Material::Parameter MaterialManager::createMaterialParameter(
@@ -103,6 +289,7 @@ Material::Parameter MaterialManager::createMaterialParameter(
     Material::Parameter param;
     param.name = assetParam.name.data();
     param.descriptorType = assetParam.descriptorType;
+    param.uniformType = assetParam.uniformType;
 
     // Find the appropriate binding for this parameter based on shader metadata
     param.binding = findBindingForParameter(
@@ -133,9 +320,28 @@ Material::ParamValue MaterialManager::convertParameter(
 
     // For texture parameters
     if (assetParam.descriptorType == ShaderLib::DescriptorType::CombinedImageSampler) {
-        Material::Parameter param;
-        convertTextureParameter(param, assetParam, parameterData);
-        return param.value;
+        // Extract the texture path from parameter data
+        if (assetParam.dataSize > 0 && assetParam.dataOffset < parameterData.size()) {
+            const char* texturePath = reinterpret_cast<const char*>(parameterData.data() + assetParam.dataOffset);
+
+            // Create a TextureParam with the handle and empty TextureHandle (will be populated later)
+            Material::TextureParam textureParam;
+            textureParam.handle = AssetHandle(AssetType::Texture, std::string(texturePath));
+            textureParam.textureHandle = TextureHandle(); // Will be populated when texture is loaded
+            textureParam.colorSpace = assetParam.samplerDesc.colorSpace;
+
+            // Create sampler configuration based on the material's sampler description
+            SamplerConfig samplerConfig = ImageSamplerUtils::createSamplerConfig(assetParam.samplerDesc);
+            textureParam.sampler = m_samplerManager.getSampler(samplerConfig);
+
+            return textureParam;
+        }
+        else {
+            // Invalid texture parameter data - create an empty texture param
+            Material::TextureParam emptyTextureParam;
+            emptyTextureParam.colorSpace = AssetLib::ColorSpace::SRGB;
+            return emptyTextureParam;
+        }
     }
 
     // For uniform buffer parameters
@@ -199,44 +405,33 @@ Material::ParamValue MaterialManager::convertParameter(
     throw std::runtime_error("Unsupported parameter type");
 }
 
-void MaterialManager::convertTextureParameter(
-    Material::Parameter& param,
-    const AssetLib::MaterialParameter& assetParam,
-    const std::vector<uint8_t>& parameterData
-) {
-    // Extract the texture path from parameter data
-    if (assetParam.dataSize > 0 && assetParam.dataOffset < parameterData.size()) {
-        // Get the texture path as a null-terminated string
-        const char* texturePath = reinterpret_cast<const char*>(parameterData.data() + assetParam.dataOffset);
+void MaterialManager::updateTextureHandles(MaterialHandle materialHandle, AssetManager& manager) {
+    auto& materialData = m_materials[materialHandle];
 
-        // Create a TextureParam with the handle and empty VramHandle (will be populated later)
-        Material::TextureParam textureParam;
+    for (auto& param : materialData.material->parameters()) {
+        if (std::holds_alternative<Material::TextureParam>(param.value)) {
+            auto& textureParam = std::get<Material::TextureParam>(param.value);
 
-        // Create proper AssetHandle with the texture path
-        textureParam.handle = AssetHandle(AssetType::Texture, std::string(texturePath));
-        textureParam.textureHandle = TextureHandle(); // Will be populated when ensuring the texture is ready
-
-        // Store the color space from the sampler description
-        textureParam.colorSpace = assetParam.samplerDesc.colorSpace;
-
-        SPDLOG_DEBUG("Texture parameter for {} with color space {}",
-            texturePath, static_cast<int>(textureParam.colorSpace));
-
-        // Create sampler configuration based on the material's sampler description
-        SamplerConfig samplerConfig = ImageSamplerUtils::createSamplerConfig(assetParam.samplerDesc);
-
-        // Get the sampler from the sampler manager
-        textureParam.sampler = m_samplerManager.getSampler(samplerConfig);
-
-        // Set the parameter value
-        param.value = textureParam;
-    }
-    else {
-        // Invalid texture parameter data - create an empty texture param
-        Material::TextureParam emptyTextureParam;
-        // Use default color space for empty texture params
-        emptyTextureParam.colorSpace = AssetLib::ColorSpace::SRGB;
-        param.value = emptyTextureParam;
+            if (!textureParam.handle.filename.empty()) {
+                // Get the texture handle from TextureManager through AssetManager
+                try {
+                    TextureHandle texture = manager.getHandle<TextureHandle>(textureParam.handle);
+                    if (texture.isValid()) {
+                        textureParam.textureHandle = texture;
+                        SPDLOG_DEBUG("MaterialManager: Updated texture handle for {} in material {}",
+                            textureParam.handle.filename, materialData.material->name());
+                    }
+                    else {
+                        SPDLOG_WARN("MaterialManager: Failed to get texture handle for {} in material {}",
+                            textureParam.handle.filename, materialData.material->name());
+                    }
+                }
+                catch (const std::exception& e) {
+                    SPDLOG_ERROR("MaterialManager: Exception while updating texture handle for {} in material {}: {}",
+                        textureParam.handle.filename, materialData.material->name(), e.what());
+                }
+            }
+        }
     }
 }
 
@@ -247,20 +442,6 @@ uint32_t MaterialManager::findBindingForParameter(
 ) {
     // Get shader metadata from shader module manager
     const auto& metadata = m_shaderModuleManager.getShaderMetadata(shaderHandle);
-
-    // Convert AssetLib descriptor type to ShaderLib descriptor type
-    ShaderLib::DescriptorType shaderLibType;
-    switch (descriptorType) {
-    case ShaderLib::DescriptorType::UniformBuffer:
-        shaderLibType = ShaderLib::DescriptorType::UniformBuffer;
-        break;
-    case ShaderLib::DescriptorType::CombinedImageSampler:
-        shaderLibType = ShaderLib::DescriptorType::CombinedImageSampler;
-        break;
-        // Add other cases as needed...
-    default:
-        return 0; // Default binding
-    }
 
     // For UniformBuffer, we know our buffer will use InputData as name
     if (descriptorType == ShaderLib::DescriptorType::UniformBuffer) {
@@ -275,7 +456,7 @@ uint32_t MaterialManager::findBindingForParameter(
     // For textures, search for matching descriptor name
     if (descriptorType == ShaderLib::DescriptorType::CombinedImageSampler) {
         for (const auto& descriptor : metadata.descriptors) {
-            if (descriptor.type == shaderLibType && descriptor.name == paramName) {
+            if (descriptor.type == descriptorType && descriptor.name == paramName) {
                 return descriptor.binding;
             }
         }
@@ -286,44 +467,10 @@ uint32_t MaterialManager::findBindingForParameter(
     return 0;
 }
 
-VkDescriptorSet MaterialManager::getMaterialDescriptorSet(MaterialHandle handle) {
-    // Get material to ensure it exists
-    const Material* material = get(handle);
-    if (!material) {
-        SPDLOG_ERROR("Cannot get descriptor set - invalid material handle");
-        return VK_NULL_HANDLE;
-    }
-
-    // Check if resources already exist
-    auto resourceIt = m_materialResources.find(handle);
-    if (resourceIt != m_materialResources.end()) {
-        return resourceIt->second.descriptorSet;
-    }
-
-    // If not, create resources for this material
-    return getOrCreateMaterialResources(handle)->descriptorSet;
-}
-
 MaterialResourceManager::MaterialResources* MaterialManager::getOrCreateMaterialResources(MaterialHandle handle) {
-    // Check if resources already exist
-    auto resourceIt = m_materialResources.find(handle);
-    if (resourceIt != m_materialResources.end()) {
-        return &resourceIt->second;
+    auto it = m_materials.find(handle);
+    if (it != m_materials.end() && it->second.isReady) {
+        return &it->second.resources;
     }
-
-    // Get material
-    const Material* material = get(handle);
-    if (!material) {
-        return nullptr;
-    }
-
-    // Create material resources using the resource manager
-    MaterialResourceManager::MaterialResources resources = m_resourceManager->createMaterialResources(
-        material->shader(),
-        material->parameters()
-    );
-
-    // Store resources and return them
-    auto [it, inserted] = m_materialResources.emplace(handle, resources);
-    return inserted ? &it->second : nullptr;
+    return nullptr;
 }

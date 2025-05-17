@@ -1,9 +1,6 @@
 #include "PipelineAssignmentStage.h"
-#include "MaterialManager.h"
 #include "Material.h"
-#include "MeshManager.h"
 #include "Mesh.h"
-#include "Renderer.h"
 #include "Engine.h"
 
 PipelineAssignmentStage::PipelineAssignmentStage(Renderer& renderer)
@@ -38,13 +35,6 @@ void PipelineAssignmentStage::process(std::shared_ptr<RenderOrder> order) {
 
     // Cast to mesh render order
     auto meshOrder = std::static_pointer_cast<MeshRenderOrder>(order);
-
-    // Skip if material is invalid
-    if (!m_materialManager.isValid(meshOrder->materialHandle)) {
-        SPDLOG_WARN("Invalid material handle for entity {}", meshOrder->entity.id);
-        forwardToNextStage(order);
-        return;
-    }
 
     // Skip if mesh is invalid
     const Mesh* mesh = m_meshManager.getMesh(meshOrder->meshHandle);
@@ -81,7 +71,7 @@ PipelineHandle PipelineAssignmentStage::getPipelineForMaterialAndMesh(
     const MeshHandle& meshHandle,
     RenderPassHandle renderPassHandle
 ) {
-    Material* material = m_materialManager.get(materialHandle);
+    Material* material = m_materialManager.getMaterial(materialHandle);
     if (!material) {
         SPDLOG_ERROR("Cannot get pipeline: invalid material handle");
         return PipelineHandle{};
@@ -134,7 +124,7 @@ GraphicsPipelineConfig PipelineAssignmentStage::createPipelineConfig(
         materialHandle.id, mesh.attributes);
 
     // Get the material
-    Material* material = m_materialManager.get(materialHandle);
+    Material* material = m_materialManager.getMaterial(materialHandle);
     if (!material) {
         SPDLOG_WARN("Invalid material handle in createPipelineConfig, returning default config");
         return config;

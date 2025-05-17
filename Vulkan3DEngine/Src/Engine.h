@@ -8,6 +8,8 @@
 #include "InputSystem.h"
 #include "RenderSystem.h"
 
+class Scene;
+
 class Engine
 {
 public:

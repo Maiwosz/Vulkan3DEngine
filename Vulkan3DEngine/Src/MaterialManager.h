@@ -6,6 +6,7 @@
 #include "AssetLib.h"
 #include "Settings.h"
 #include "ImageSamplerManager.h"
+#include "IAssetHandler.h"
 #include <memory>
 #include <unordered_map>
 #include <vector>
@@ -13,7 +14,7 @@
 #include "MaterialResourceManager.h"
 #include "TextureManager.h"
 
-class MaterialManager {
+class MaterialManager : public IAssetHandler {
 public:
     MaterialManager(
         const LogicalDevice& device,
@@ -21,21 +22,25 @@ public:
         ImageSamplerManager& samplerManager,
         UniformBufferManager& uniformBufferManager,
         DescriptorAllocator& descriptorAllocator,
-        DescriptorLayoutManager& descriptorlayoutManager,
-		TextureManager& textureManager
+        DescriptorLayoutManager& descriptorLayoutManager,
+        TextureManager& textureManager
     );
     ~MaterialManager();
 
-    MaterialHandle createMaterial(
-        const std::string& name,
-        const AssetLib::AssetData& assetData,
-        ShaderHandle shaderHandle
-    );
-    void destroyMaterial(MaterialHandle handle);
-    Material* get(MaterialHandle handle);
-    const Material* get(MaterialHandle handle) const;
+    // IAssetHandler implementation
+    bool prepareAsset(const AssetHandle& handle, const AssetLib::AssetData& data, AssetManager& manager) override;
+    void unloadAsset(const std::string& filename) override;
+    bool isAssetReady(const std::string& filename) const override;
+    uint64_t getAssetSize(const std::string& filename) const override;
+    bool isInVram() const override { return true; } // Materials use VRAM for descriptors and UBOs
+    std::vector<AssetDependency> getDependencies(const AssetHandle& handle, const AssetLib::AssetData& data) const override;
+    std::any getResourceInternal(const AssetHandle& handle) const override;
+    std::any getHandleInternal(const std::string& filename) const override;
 
-    bool isValid(MaterialHandle handle) const;
+    // Additional public interface for MaterialHandle-based access
+    Material* getMaterial(MaterialHandle handle);
+    const Material* getMaterial(MaterialHandle handle) const;
+    VkDescriptorSet getMaterialDescriptorSet(MaterialHandle handle);
 
     // Convert AssetLib parameter to Material parameter
     Material::ParamValue convertParameter(
@@ -44,20 +49,24 @@ public:
         uint32_t dataOffset
     );
 
-    VkDescriptorSet getMaterialDescriptorSet(MaterialHandle handle);
-
-    MaterialResourceManager::MaterialResources* getOrCreateMaterialResources(MaterialHandle handle);
-
 private:
+    struct MaterialData {
+        std::unique_ptr<Material> material;
+        MaterialResourceManager::MaterialResources resources;
+        uint64_t estimatedSize;
+        bool isReady;
+    };
+
+    MaterialHandle createMaterial(
+        const AssetHandle& assetHandle,
+        const AssetLib::AssetData& assetData,
+        ShaderHandle shaderHandle
+    );
+
     Material::Parameter createMaterialParameter(
         const AssetLib::MaterialParameter& assetParam,
         const std::vector<uint8_t>& parameterData,
         ShaderHandle shaderHandle
-    );
-    void convertTextureParameter(
-        Material::Parameter& param,
-        const AssetLib::MaterialParameter& assetParam,
-        const std::vector<uint8_t>& parameterData
     );
 
     uint32_t findBindingForParameter(
@@ -66,17 +75,22 @@ private:
         ShaderLib::DescriptorType descriptorType
     );
 
-	const LogicalDevice& m_device;
+    MaterialResourceManager::MaterialResources* getOrCreateMaterialResources(MaterialHandle handle);
+    void updateTextureHandles(MaterialHandle materialHandle, AssetManager& manager);
+
+    const LogicalDevice& m_device;
     ShaderModuleManager& m_shaderModuleManager;
     ImageSamplerManager& m_samplerManager;
-	TextureManager& m_textureManager;
+    TextureManager& m_textureManager;
 
     // Resource manager for UBOs and descriptor sets
     std::unique_ptr<MaterialResourceManager> m_resourceManager;
 
-    // Material storage
-    std::unordered_map<MaterialHandle, MaterialResourceManager::MaterialResources> m_materialResources;
-    std::unordered_map<MaterialHandle, std::unique_ptr<Material>> m_materials;
+    // Material storage using MaterialHandle as key
+    std::unordered_map<MaterialHandle, MaterialData> m_materials;
+
+    // Mapping from filename to MaterialHandle
+    std::unordered_map<std::string, MaterialHandle> m_filenameToHandle;
 
     uint32_t m_nextHandle = 1;
 };

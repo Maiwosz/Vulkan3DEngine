@@ -53,7 +53,7 @@ void DescriptorSetStage::processMeshOrder(std::shared_ptr<MeshRenderOrder> order
     Material* material = nullptr;
     ShaderHandle shaderHandle;
     if (order->materialHandle) {
-        material = m_materialManager.get(order->materialHandle);
+        material = m_materialManager.getMaterial(order->materialHandle);
         if (!material) {
             SPDLOG_WARN("Invalid material handle in render order: {}", order->materialHandle.id);
         }
@@ -65,7 +65,7 @@ void DescriptorSetStage::processMeshOrder(std::shared_ptr<MeshRenderOrder> order
     }
         
 
-    if (!m_shaderManager.isShaderValid(shaderHandle)) {
+    if (!shaderHandle) {
         SPDLOG_ERROR("Invalid shader handle for mesh render order");
         return;
     }

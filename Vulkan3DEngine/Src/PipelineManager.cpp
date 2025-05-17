@@ -100,8 +100,8 @@ void PipelineManager::updateLastUsed(PipelineHandle handle) {
 
 VkPipeline PipelineManager::createVkPipeline(const GraphicsPipelineConfig& config, VkPipelineLayout layout) {
     // Check if shaders are valid
-    if (!m_shaderManager.isModuleValid(config.shaderStages.vertexShader) ||
-        !m_shaderManager.isModuleValid(config.shaderStages.fragmentShader)) {
+    if (!config.shaderStages.vertexShader ||
+        !config.shaderStages.fragmentShader) {
         throw std::runtime_error("Invalid shader module handle");
     }
 
@@ -112,7 +112,7 @@ VkPipeline PipelineManager::createVkPipeline(const GraphicsPipelineConfig& confi
     VkPipelineShaderStageCreateInfo vertexShaderStageInfo{};
     vertexShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
     vertexShaderStageInfo.stage = VK_SHADER_STAGE_VERTEX_BIT;
-    vertexShaderStageInfo.module = m_shaderManager.getModule(config.shaderStages.vertexShader).get();
+    vertexShaderStageInfo.module = m_shaderManager.getModule(config.shaderStages.vertexShader)->get();
     vertexShaderStageInfo.pName = config.shaderStages.vertexEntryPoint.c_str();
     shaderStages.push_back(vertexShaderStageInfo);
 
@@ -120,7 +120,7 @@ VkPipeline PipelineManager::createVkPipeline(const GraphicsPipelineConfig& confi
     VkPipelineShaderStageCreateInfo fragmentShaderStageInfo{};
     fragmentShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
     fragmentShaderStageInfo.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
-    fragmentShaderStageInfo.module = m_shaderManager.getModule(config.shaderStages.fragmentShader).get();
+    fragmentShaderStageInfo.module = m_shaderManager.getModule(config.shaderStages.fragmentShader)->get();
     fragmentShaderStageInfo.pName = config.shaderStages.fragmentEntryPoint.c_str();
     shaderStages.push_back(fragmentShaderStageInfo);
 
@@ -129,7 +129,7 @@ VkPipeline PipelineManager::createVkPipeline(const GraphicsPipelineConfig& confi
         VkPipelineShaderStageCreateInfo geometryShaderStageInfo{};
         geometryShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
         geometryShaderStageInfo.stage = VK_SHADER_STAGE_GEOMETRY_BIT;
-        geometryShaderStageInfo.module = m_shaderManager.getModule(config.shaderStages.geometryShader).get();
+        geometryShaderStageInfo.module = m_shaderManager.getModule(config.shaderStages.geometryShader)->get();
         geometryShaderStageInfo.pName = config.shaderStages.geometryEntryPoint.c_str();
         shaderStages.push_back(geometryShaderStageInfo);
     }
@@ -139,7 +139,7 @@ VkPipeline PipelineManager::createVkPipeline(const GraphicsPipelineConfig& confi
         VkPipelineShaderStageCreateInfo tessControlShaderStageInfo{};
         tessControlShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
         tessControlShaderStageInfo.stage = VK_SHADER_STAGE_TESSELLATION_CONTROL_BIT;
-        tessControlShaderStageInfo.module = m_shaderManager.getModule(config.shaderStages.tessControlShader).get();
+        tessControlShaderStageInfo.module = m_shaderManager.getModule(config.shaderStages.tessControlShader)->get();
         tessControlShaderStageInfo.pName = config.shaderStages.tessControlEntryPoint.c_str();
         shaderStages.push_back(tessControlShaderStageInfo);
     }
@@ -149,17 +149,17 @@ VkPipeline PipelineManager::createVkPipeline(const GraphicsPipelineConfig& confi
         VkPipelineShaderStageCreateInfo tessEvalShaderStageInfo{};
         tessEvalShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
         tessEvalShaderStageInfo.stage = VK_SHADER_STAGE_TESSELLATION_EVALUATION_BIT;
-        tessEvalShaderStageInfo.module = m_shaderManager.getModule(config.shaderStages.tessEvalShader).get();
+        tessEvalShaderStageInfo.module = m_shaderManager.getModule(config.shaderStages.tessEvalShader)->get();
         tessEvalShaderStageInfo.pName = config.shaderStages.tessEvalEntryPoint.c_str();
         shaderStages.push_back(tessEvalShaderStageInfo);
     }
 
-    // Compute shader stage (optional)
+    // Compute shader stage (optional)s
     if (config.shaderStages.computeShader) {
         VkPipelineShaderStageCreateInfo computeShaderStageInfo{};
         computeShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
         computeShaderStageInfo.stage = VK_SHADER_STAGE_COMPUTE_BIT;
-        computeShaderStageInfo.module = m_shaderManager.getModule(config.shaderStages.computeShader).get();
+        computeShaderStageInfo.module = m_shaderManager.getModule(config.shaderStages.computeShader)->get();
         computeShaderStageInfo.pName = config.shaderStages.computeEntryPoint.c_str();
         shaderStages.push_back(computeShaderStageInfo);
     }

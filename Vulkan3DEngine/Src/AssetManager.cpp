@@ -29,35 +29,109 @@ namespace fmt {
     };
 }
 
-std::string AssetManager::createCacheKey(const AssetHandle& handle) {
+std::string AssetManager::createCacheKey(const AssetHandle& handle) const {
     return std::to_string(static_cast<int>(handle.type)) + ":" + handle.filename;
 }
 
-AssetManager::AssetManager(
-    VramManager& vramManager,
-    ShaderModuleManager& shaderManager,
-    MaterialManager& materialManager,
-    MeshManager& meshManager,
-    TextureManager& textureManager,
-    const std::string& basePath
-)
-    : m_vramManager(vramManager),
-    m_shaderManager(shaderManager),
-    m_materialManager(materialManager),
-    m_meshManager(meshManager),
-    m_textureManager(textureManager),
-    m_assetLoader(basePath) {
-
-    SPDLOG_INFO("AssetManager initialized with base path: {}", basePath);
+AssetManager::AssetManager()
+    : m_assetLoader() {
+    SPDLOG_INFO("AssetManager initialized with");
 }
 
+AssetManager::~AssetManager() {
+    // Clear all registered handlers
+    m_handlers.clear();
+
+    // Clear cached asset data
+    m_assetCache.clear();
+
+    SPDLOG_INFO("AssetManager destroyed");
+}
+
+void AssetManager::registerHandler(AssetType type, std::shared_ptr<IAssetHandler> handler) {
+    SPDLOG_INFO("Registering asset handler for type {}", static_cast<int>(type));
+    m_handlers[type] = std::move(handler);
+}
+
+std::shared_ptr<IAssetHandler> AssetManager::getHandler(AssetType type) const {
+    auto it = m_handlers.find(type);
+    if (it == m_handlers.end()) {
+        return nullptr;
+    }
+    return it->second;
+}
+
+bool AssetManager::detectCyclicDependency(const std::string& assetKey) const {
+    return m_processingAssets.find(assetKey) != m_processingAssets.end();
+}
+
+bool AssetManager::processDependencies(const AssetHandle& handle, const std::vector<AssetDependency>& dependencies) {
+    std::string cacheKey = createCacheKey(handle);
+
+    // Store dependencies for future reference
+    m_assetDependencies[cacheKey] = dependencies;
+
+    // Process each dependency based on its type
+    for (const auto& dependency : dependencies) {
+        std::string depCacheKey = createCacheKey(dependency.handle);
+
+        // Check for cyclic dependencies
+        if (detectCyclicDependency(depCacheKey)) {
+            SPDLOG_ERROR("Cyclic dependency detected for asset {}", handle);
+            return false;
+        }
+
+        // Add to processing set to detect cycles
+        m_processingAssets.insert(cacheKey);
+
+        try {
+            switch (dependency.type) {
+            case DependencyType::LoadTime:
+                // Ensure the dependency is loaded
+                if (!ensureLoaded(dependency.handle)) {
+                    SPDLOG_ERROR("Failed to load dependency {} for asset {}", dependency.handle, handle);
+                    m_processingAssets.erase(cacheKey);
+                    return false;
+                }
+                break;
+
+            case DependencyType::PrepareTime:
+                // Ensure the dependency is loaded but not necessarily prepared
+                if (!ensureLoaded(dependency.handle)) {
+                    SPDLOG_ERROR("Failed to load preparation dependency {} for asset {}", dependency.handle, handle);
+                    m_processingAssets.erase(cacheKey);
+                    return false;
+                }
+                break;
+
+            case DependencyType::UsageTime:
+                // Ensure the dependency is fully prepared
+                if (!ensureReady(dependency.handle)) {
+                    SPDLOG_ERROR("Failed to prepare usage dependency {} for asset {}", dependency.handle, handle);
+                    m_processingAssets.erase(cacheKey);
+                    return false;
+                }
+                break;
+            }
+        }
+        catch (...) {
+            m_processingAssets.erase(cacheKey);
+            throw; // Re-throw the exception
+        }
+
+        // Remove from processing set after handling
+        m_processingAssets.erase(cacheKey);
+    }
+
+    return true;
+}
 
 bool AssetManager::ensureLoaded(const AssetHandle handle) {
     if (m_markedForRemoval.count(handle)) {
         m_markedForRemoval.erase(handle);
     }
 
-    // Create a key that includes both filename and type to distinguish assets with same name but different types
+    // Create a key that includes both filename and type
     std::string cacheKey = createCacheKey(handle);
 
     // Check if already in cache
@@ -70,15 +144,23 @@ bool AssetManager::ensureLoaded(const AssetHandle handle) {
                     handle.filename, static_cast<int>(handle.type), static_cast<int>(data.header.assetType));
                 return false; // Type mismatch
             }
-            m_assetCache.emplace(cacheKey, std::move(data));
 
-            // If it's a material, cache it immediately
-            if (handle.type == AssetLib::AssetType::Material) {
-                if (!cacheMaterial(m_assetCache[cacheKey], handle)) {
-                    SPDLOG_ERROR("Failed to cache material: {}", handle);
-                    return false;
-                }
+            // Get handler for this asset type
+            auto handler = getHandler(handle.type);
+            if (!handler) {
+                SPDLOG_ERROR("No handler registered for asset type {}", static_cast<int>(handle.type));
+                return false;
             }
+
+            // Extract and process dependencies
+            auto dependencies = handler->getDependencies(handle, data);
+            if (!processDependencies(handle, dependencies)) {
+                SPDLOG_ERROR("Failed to process dependencies for asset {}", handle);
+                return false;
+            }
+
+            // Store asset data in cache
+            m_assetCache.emplace(cacheKey, std::move(data));
         }
         catch (const std::exception& e) {
             SPDLOG_ERROR("Exception while loading asset {}: {}", handle, e.what());
@@ -90,6 +172,7 @@ bool AssetManager::ensureLoaded(const AssetHandle handle) {
         }
     }
 
+    updateLastUsed(handle);
     return true;
 }
 
@@ -98,72 +181,15 @@ bool AssetManager::ensureReady(const AssetHandle handle) {
         m_markedForRemoval.erase(handle);
     }
 
-    bool isReady = false;
-    switch (handle.type) {
-    case AssetLib::AssetType::Mesh:
-        isReady = (m_meshHandles.find(handle.filename) != m_meshHandles.end());
-        break;
-    case AssetLib::AssetType::Texture:
-        isReady = (m_textureHandles.find(handle.filename) != m_textureHandles.end());
-        break;
-    case AssetLib::AssetType::Material:
-        isReady = (m_cachedMaterials.find(handle.filename) != m_cachedMaterials.end());
-        break;
-    case AssetLib::AssetType::Shader:
-        isReady = (m_shaders.find(handle.filename) != m_shaders.end());
-        break;
-    default:
-        SPDLOG_ERROR("Unknown asset type for {}", handle);
+    auto handler = getHandler(handle.type);
+    if (!handler) {
+        SPDLOG_ERROR("No handler registered for asset type {}", static_cast<int>(handle.type));
         return false;
     }
 
-    if (isReady) {
+    // Check if the asset is already ready
+    if (handler->isAssetReady(handle.filename)) {
         updateLastUsed(handle);
-
-        // Special handling for materials: if the material is ready, ensure its textures are ready too
-        if (handle.type == AssetLib::AssetType::Material) {
-            auto it = m_cachedMaterials.find(handle.filename);
-            if (it != m_cachedMaterials.end()) {
-                MaterialHandle matHandle = it->second;
-                Material* material = m_materialManager.get(matHandle);
-
-                if (material) {
-                    bool allTexturesReady = true;
-
-                    // Make sure all textures are ready
-                    for (auto& param : material->parameters()) {
-                        if (auto* textureParam = std::get_if<Material::TextureParam>(&param.value)) {
-                            // Ensure the texture is fully ready
-                            if (!ensureReady(textureParam->handle)) {
-                                SPDLOG_ERROR("Failed to make texture ready for material: {} texture: {}",
-                                    handle.filename, textureParam->handle.filename);
-                                allTexturesReady = false;
-                                continue;
-                            }
-
-                            // Update the texture handle in the material
-                            TextureHandle textureHandle = getResource<TextureHandle>(textureParam->handle);
-                            if (textureHandle.isValid()) {
-                                textureParam->textureHandle = textureHandle;
-                                SPDLOG_DEBUG("Updated texture parameter with valid texture handle: {}",
-                                    textureParam->handle.filename);
-                            }
-                            else {
-                                SPDLOG_ERROR("Failed to get valid texture handle for texture: {}",
-                                    textureParam->handle.filename);
-                                allTexturesReady = false;
-                            }
-                        }
-                    }
-
-                    if (!allTexturesReady) {
-                        SPDLOG_WARN("Not all textures for material {} are ready", handle.filename);
-                        return false;
-                    }
-                }
-            }
-        }
-
         return true;
     }
 
@@ -173,349 +199,31 @@ bool AssetManager::ensureReady(const AssetHandle handle) {
         return false;
     }
 
-    // Prepare for use (upload to GPU as needed)
-    if (!prepareForUse(handle)) {
-        SPDLOG_ERROR("Failed to prepare asset {} for use", handle);
+    // Get the asset data and prepare it for use
+    std::string cacheKey = createCacheKey(handle);
+    auto assetDataIt = m_assetCache.find(cacheKey);
+    if (assetDataIt == m_assetCache.end()) {
+        SPDLOG_ERROR("Asset data not found in cache: {}", handle);
         return false;
     }
 
-    updateLastUsed(handle);
-    SPDLOG_INFO("Asset {} is now ready", handle);
-
-    // Special handling for materials: make sure their textures are ready too
-    if (handle.type == AssetLib::AssetType::Material) {
-        auto it = m_cachedMaterials.find(handle.filename);
-        if (it != m_cachedMaterials.end()) {
-            MaterialHandle matHandle = it->second;
-            Material* material = m_materialManager.get(matHandle);
-
-            if (material) {
-                bool allTexturesReady = true;
-
-                // Make sure all textures are ready
-                for (auto& param : material->parameters()) {
-                    if (auto* textureParam = std::get_if<Material::TextureParam>(&param.value)) {
-                        // Ensure the texture is fully ready
-                        if (!ensureReady(textureParam->handle)) {
-                            SPDLOG_ERROR("Failed to make texture ready for material: {} texture: {}",
-                                handle.filename, textureParam->handle.filename);
-                            allTexturesReady = false;
-                            continue;
-                        }
-
-                        // Update the texture handle in the material
-                        TextureHandle textureHandle = getResource<TextureHandle>(textureParam->handle);
-                        if (textureHandle.isValid()) {
-                            textureParam->textureHandle = textureHandle;
-                            SPDLOG_DEBUG("Updated texture parameter with valid texture handle: {}",
-                                textureParam->handle.filename);
-                        }
-                        else {
-                            SPDLOG_ERROR("Failed to get valid texture handle for texture: {}",
-                                textureParam->handle.filename);
-                            allTexturesReady = false;
-                        }
-                    }
-                }
-
-                if (!allTexturesReady) {
-                    SPDLOG_WARN("Not all textures for material {} are ready", handle.filename);
+    // Check UsageTime dependencies to ensure they are ready
+    auto depIt = m_assetDependencies.find(cacheKey);
+    if (depIt != m_assetDependencies.end()) {
+        for (const auto& dep : depIt->second) {
+            if (dep.type == DependencyType::UsageTime) {
+                if (!ensureReady(dep.handle)) {
+                    SPDLOG_ERROR("Failed to prepare usage dependency {} for asset {}", dep.handle, handle);
                     return false;
                 }
             }
         }
     }
 
-    return true;
-}
-
-void AssetManager::unloadAsset(const AssetHandle& handle) {
-    SPDLOG_INFO("Unloading asset: {}", handle);
-    unloadAssetInternal(handle);
-
-    // Update last used tracking
-    switch (handle.type) {
-    case AssetType::Mesh:
-        m_meshLastUsed.erase(handle.filename);
-        break;
-    case AssetType::Texture:
-        m_textureLastUsed.erase(handle.filename);
-        break;
-    case AssetType::Shader:
-        m_shaderLastUsed.erase(handle.filename);
-        break;
-    case AssetType::Material:
-        m_materialLastUsed.erase(handle.filename);
-        break;
-    default:
-        SPDLOG_WARN("Unknown asset type for {} in unloadAsset", handle);
-        break;
-    }
-}
-
-void AssetManager::unloadAssetInternal(const AssetHandle& handle) {
-    switch (handle.type) {
-    case AssetType::Mesh: {
-        auto it = m_meshHandles.find(handle.filename);
-        if (it != m_meshHandles.end()) {
-            m_meshManager.destroyMesh(it->second);
-            m_meshHandles.erase(it);
-        }
-        break;
-    }
-    case AssetType::Texture: {
-        auto it = m_textureHandles.find(handle.filename);
-        if (it != m_textureHandles.end()) {
-            m_textureManager.destroyTexture(it->second);
-            m_textureHandles.erase(it);
-        }
-        break;
-    }
-    case AssetType::Shader: {
-        auto it = m_shaders.find(handle.filename);
-        if (it != m_shaders.end()) {
-            m_shaderManager.destroyShader(it->second);
-            m_shaders.erase(it);
-        }
-        break;
-    }
-    case AssetType::Material: {
-        auto it = m_cachedMaterials.find(handle.filename);
-        if (it != m_cachedMaterials.end()) {
-            m_materialManager.destroyMaterial(it->second);
-            m_cachedMaterials.erase(it);
-            m_materialShaderHandles.erase(handle.filename);
-        }
-        break;
-    }
-    default:
-        SPDLOG_ERROR("Unknown asset type in unloadAssetInternal: {}",
-            static_cast<int>(handle.type));
-        throw std::runtime_error("Unknown asset type");
-    }
-}
-
-void AssetManager::purgeUnusedAssets(float vramThresholdPercentage, uint64_t ageThresholdFrames) {
-    SPDLOG_INFO("Purging unused assets - VRAM threshold: {}%, age threshold: {} frames",
-        vramThresholdPercentage * 100.0f, ageThresholdFrames);
-
-    // Process assets marked for removal
-    auto markIt = m_markedForRemoval.begin();
-    while (markIt != m_markedForRemoval.end()) {
-        const AssetHandle& handle = *markIt;
-        unloadAssetInternal(handle);
-        m_assetCache.erase(createCacheKey(handle));
-        markIt = m_markedForRemoval.erase(markIt);
-    }
-
-    // Release resources based on age
-    auto processAgeBasedUnload = [&](auto& lastUsedMap, AssetType type) {
-        std::vector<AssetHandle> toUnload;
-        for (const auto& [filename, lastUsed] : lastUsedMap) {
-            if (m_currentFrame - lastUsed > ageThresholdFrames) {
-                toUnload.emplace_back(type, filename);
-            }
-        }
-
-        if (!toUnload.empty()) {
-            SPDLOG_INFO("Age-based unload: found {} assets of type {} to unload",
-                toUnload.size(), static_cast<int>(type));
-        }
-
-        for (const auto& handle : toUnload) {
-            unloadAsset(handle);
-        }
-        };
-
-    if (ageThresholdFrames > 0) {
-        processAgeBasedUnload(m_meshLastUsed, AssetType::Mesh);
-        processAgeBasedUnload(m_textureLastUsed, AssetType::Texture);
-        processAgeBasedUnload(m_shaderLastUsed, AssetType::Shader);
-        processAgeBasedUnload(m_materialLastUsed, AssetType::Material);
-    }
-
-    // Release resources based on VRAM usage
-    const float currentUsage = m_vramManager.getVramUsagePercentage();
-
-    if (currentUsage > vramThresholdPercentage) {
-        SPDLOG_WARN("VRAM usage ({}%) exceeds threshold ({}%), performing cleanup",
-            currentUsage * 100.0f, vramThresholdPercentage * 100.0f);
-
-        struct AssetInfo {
-            AssetHandle handle;
-            uint64_t size;
-            uint64_t lastUsed;
-        };
-
-        std::vector<AssetInfo> assets;
-        const uint64_t vramBudget = m_vramManager.getVramBudget();
-        const uint64_t targetUsage = static_cast<uint64_t>(vramBudget * vramThresholdPercentage);
-
-        // Properly define and use collectAssets lambda inside the function
-        auto collectAssets = [&](const auto& container, AssetType type) {
-            for (const auto& [filename, _] : container) {
-                uint64_t size = 0;
-                if constexpr (std::is_same_v<std::decay_t<decltype(container)>, decltype(m_meshHandles)>) {
-                    const Mesh* mesh = m_meshManager.getMesh((m_meshHandles.at(filename)));
-                    size += m_vramManager.getResourceSize(mesh->vertexBuffer);
-                    size += m_vramManager.getResourceSize(mesh->indexBuffer);
-                }
-                else if constexpr (std::is_same_v<std::decay_t<decltype(container)>, decltype(m_textureHandles)>) {
-                    VramHandle vramHandle = m_textureManager.getVramHandle(m_textureHandles.at(filename));
-                    size += m_vramManager.getResourceSize(vramHandle);
-                }
-
-                assets.push_back({
-                    AssetHandle(type, filename),
-                    size,
-                    type == AssetType::Mesh ? m_meshLastUsed[filename] :
-                    type == AssetType::Texture ? m_textureLastUsed[filename] : 0
-                    });
-            }
-            };
-
-        collectAssets(m_meshHandles, AssetType::Mesh);
-        collectAssets(m_textureHandles, AssetType::Texture);
-
-        // Sort by oldest first
-        std::sort(assets.begin(), assets.end(), [](const auto& a, const auto& b) {
-            return a.lastUsed < b.lastUsed;
-            });
-
-        // Release until target is reached
-        uint64_t currentVram = m_vramManager.getVramUsed();
-        size_t unloadedCount = 0;
-        uint64_t freedMemory = 0;
-
-        for (const auto& asset : assets) {
-            if (currentVram <= targetUsage) break;
-
-            uint64_t before = m_vramManager.getVramUsed();
-            unloadAsset(asset.handle);
-            currentVram = m_vramManager.getVramUsed();
-
-            uint64_t freed = before - currentVram;
-            freedMemory += freed;
-            unloadedCount++;
-        }
-
-        if (unloadedCount > 0) {
-            SPDLOG_INFO("VRAM cleanup: unloaded {} assets, freed {} bytes, usage now: {:.2f}%",
-                unloadedCount, freedMemory,
-                static_cast<float>(m_vramManager.getVramUsed()) / vramBudget * 100.0f);
-        }
-    }
-}
-
-void AssetManager::releaseAsset(const AssetHandle& handle) {
-    // Remove from loaded cache
-    std::string cacheKey = createCacheKey(handle);
-    auto cacheIt = m_assetCache.find(cacheKey);
-    if (cacheIt != m_assetCache.end()) {
-        m_assetCache.erase(cacheIt);
-    }
-
-    // Mark for removal if it's ready
-    bool isReady = false;
-    switch (handle.type) {
-    case AssetType::Mesh: isReady = m_meshHandles.count(handle.filename); break;
-    case AssetType::Texture: isReady = m_textureHandles.count(handle.filename); break;
-    case AssetType::Shader: isReady = m_shaders.count(handle.filename); break;
-    case AssetType::Material: isReady = m_cachedMaterials.count(handle.filename); break;
-    default: break;
-    }
-
-    if (isReady) {
-        SPDLOG_INFO("Asset {} marked for removal", handle);
-        m_markedForRemoval.insert(handle);
-    }
-}
-
-void AssetManager::advanceFrame() {
-    ++m_currentFrame;
-    purgeUnusedAssets(0.8f, 300);
-}
-
-void AssetManager::updateLastUsed(const AssetHandle& handle) {
-    switch (handle.type) {
-    case AssetLib::AssetType::Mesh:
-        m_meshLastUsed[handle.filename] = m_currentFrame;
-        break;
-    case AssetLib::AssetType::Texture:
-        m_textureLastUsed[handle.filename] = m_currentFrame;
-        break;
-    case AssetLib::AssetType::Shader:
-        m_shaderLastUsed[handle.filename] = m_currentFrame;
-        break;
-    case AssetLib::AssetType::Material:
-        m_materialLastUsed[handle.filename] = m_currentFrame;
-        break;
-    default:
-        SPDLOG_WARN("Attempted to update last used for unknown asset type: {}", static_cast<int>(handle.type));
-        break;
-    }
-}
-
-bool AssetManager::prepareForUse(const AssetHandle& handle) {
-    std::string cacheKey = createCacheKey(handle);
-    auto it = m_assetCache.find(cacheKey);
-    if (it == m_assetCache.end()) {
-        if (!ensureLoaded(handle)) {
-            SPDLOG_ERROR("Failed to load asset: {}", handle.filename);
-            return false;
-        }
-        it = m_assetCache.find(cacheKey);
-        if (it == m_assetCache.end()) {
-            SPDLOG_ERROR("Asset should be in cache after loading but was not found: {}", handle);
-            return false;
-        }
-    }
-
-    const AssetLib::AssetData& data = it->second;
-
+    // Delegate preparation to the handler
     try {
-        bool success = false;
-
-        switch (handle.type) {
-        case AssetLib::AssetType::Mesh:
-            if (m_meshHandles.find(handle.filename) == m_meshHandles.end()) {
-                success = uploadMesh(data, handle);
-            }
-            else {
-                success = true;
-            }
-            break;
-        case AssetLib::AssetType::Texture:
-            if (m_textureHandles.find(handle.filename) == m_textureHandles.end()) {
-                success = uploadTexture(data, handle);
-            }
-            else {
-                success = true;
-            }
-            break;
-        case AssetLib::AssetType::Shader:
-            if (m_shaders.find(handle.filename) == m_shaders.end()) {
-                success = createShader(data, handle);
-            }
-            else {
-                success = true;
-            }
-            break;
-        case AssetLib::AssetType::Material:
-            if (m_cachedMaterials.find(handle.filename) == m_cachedMaterials.end()) {
-                success = cacheMaterial(data, handle);
-            }
-            else {
-                success = true;
-            }
-            break;
-        default:
-            SPDLOG_ERROR("Unknown asset type: {} for asset {}", static_cast<int>(handle.type), handle);
-            return false;
-        }
-
-        if (!success) {
-            SPDLOG_ERROR("Failed to prepare asset: {}", handle);
+        if (!handler->prepareAsset(handle, assetDataIt->second, *this)) {
+            SPDLOG_ERROR("Failed to prepare asset {} for use", handle);
             return false;
         }
     }
@@ -528,174 +236,177 @@ bool AssetManager::prepareForUse(const AssetHandle& handle) {
         return false;
     }
 
+    updateLastUsed(handle);
+    SPDLOG_INFO("Asset {} is now ready", handle);
     return true;
 }
 
-bool AssetManager::uploadMesh(const AssetLib::AssetData& data, const AssetHandle& handle) {
+void AssetManager::unloadAsset(const AssetHandle& handle) {
+    SPDLOG_INFO("Unloading asset: {}", handle);
+
+    auto handler = getHandler(handle.type);
+    if (!handler) {
+        SPDLOG_ERROR("No handler registered for asset type {}", static_cast<int>(handle.type));
+        return;
+    }
+
+    // Unload the asset using its handler
     try {
-        auto [meshInfo, vertexData, indexData] = AssetLib::ReadMesh(data);
+        handler->unloadAsset(handle.filename);
 
-        SPDLOG_INFO("Uploading mesh: {} (vertices: {}, indices: {})",
-            handle, meshInfo.vertexCount, meshInfo.indexCount);
+        // Remove from asset cache
+        std::string cacheKey = createCacheKey(handle);
+        m_assetCache.erase(cacheKey);
 
-        MeshHandle meshHandle = m_meshManager.createMesh(
-            meshInfo,
-            vertexData,
-            indexData
-        );
+        // Remove dependencies
+        m_assetDependencies.erase(cacheKey);
 
-        if (!meshHandle) {
-            SPDLOG_ERROR("Mesh manager returned invalid handle for mesh: {}", handle);
-            return false;
-        }
-
-        m_meshHandles.emplace(handle.filename, meshHandle);
-        return true;
+        // Remove from usage tracking
+        m_assetLastUsed.erase(cacheKey);
     }
     catch (const std::exception& e) {
-        SPDLOG_ERROR("Error uploading mesh {}: {}", handle, e.what());
-        return false;
-    }
-    catch (...) {
-        SPDLOG_ERROR("Unknown error uploading mesh: {}", handle);
-        return false;
+        SPDLOG_ERROR("Exception during asset unloading: {} for asset {}", e.what(), handle);
     }
 }
 
-bool AssetManager::uploadTexture(const AssetLib::AssetData& data, const AssetHandle& handle) {
-    try {
-        // Default to SRGB if no color space info is available
-        AssetLib::ColorSpace colorSpace = AssetLib::ColorSpace::SRGB;
+void AssetManager::purgeUnusedAssets(float memoryThresholdPercentage, uint64_t ageThresholdFrames) {
+    SPDLOG_INFO("Purging unused assets - memory threshold: {}%, age threshold: {} frames",
+        memoryThresholdPercentage * 100.0f, ageThresholdFrames);
 
-        // Check if this texture is used by materials with specific color space requirements
-        for (const auto& [materialFilename, materialHandle] : m_cachedMaterials) {
-            Material* material = m_materialManager.get(materialHandle);
-            if (material) {
-                for (auto& param : material->parameters()) {
-                    if (auto* textureParam = std::get_if<Material::TextureParam>(&param.value)) {
-                        if (textureParam->handle.filename == handle.filename) {
-                            // Found a material using this texture, check its color space
-                            colorSpace = textureParam->colorSpace;
-                            SPDLOG_INFO("Using color space {} for texture {} from material parameter",
-                                static_cast<int>(colorSpace), handle.filename);
-                        }
-                    }
+    // Process assets marked for removal first
+    auto markIt = m_markedForRemoval.begin();
+    while (markIt != m_markedForRemoval.end()) {
+        const AssetHandle& handle = *markIt;
+        unloadAsset(handle);
+        markIt = m_markedForRemoval.erase(markIt);
+    }
+
+    // Age-based unloading
+    if (ageThresholdFrames > 0) {
+        std::vector<AssetHandle> toUnload;
+
+        // Find assets older than the threshold
+        for (const auto& [cacheKey, lastUsed] : m_assetLastUsed) {
+            if (m_currentFrame - lastUsed > ageThresholdFrames) {
+                // Extract type and filename from cache key
+                size_t separatorPos = cacheKey.find(':');
+                if (separatorPos != std::string::npos) {
+                    AssetType type = static_cast<AssetType>(std::stoi(cacheKey.substr(0, separatorPos)));
+                    std::string filename = cacheKey.substr(separatorPos + 1);
+                    toUnload.emplace_back(type, filename);
                 }
             }
         }
 
-        // Use the texture manager to create the texture with proper color space
-        TextureHandle textureHandle = m_textureManager.createTexture(data, colorSpace);
-
-        if (!textureHandle.isValid()) {
-            SPDLOG_ERROR("TextureManager returned invalid handle for texture: {}", handle);
-            return false;
+        // Unload aged assets
+        if (!toUnload.empty()) {
+            SPDLOG_INFO("Age-based unload: found {} assets to unload", toUnload.size());
+            for (const auto& handle : toUnload) {
+                unloadAsset(handle);
+            }
         }
-
-        m_textureHandles.emplace(handle.filename, textureHandle);
-        return true;
-    }
-    catch (const std::exception& e) {
-        SPDLOG_ERROR("Error uploading texture {}: {}", handle, e.what());
-        return false;
-    }
-    catch (...) {
-        SPDLOG_ERROR("Unknown error uploading texture: {}", handle);
-        return false;
-    }
-}
-
-bool AssetManager::createShader(const AssetLib::AssetData& data, const AssetHandle& handle) {
-    try {
-        auto [metadata, shaderStages] = AssetLib::ReadShader(data);
-
-        SPDLOG_INFO("Creating shader: {} with {} stages", handle, shaderStages.size());
-
-        ShaderHandle shaderHandle = m_shaderManager.createShader(metadata, shaderStages);
-
-        if (!shaderHandle) {
-            SPDLOG_ERROR("Shader manager returned invalid handle for shader: {}", handle);
-            return false;
-        }
-
-        // Store mapping between asset handle and shader handle
-        m_shaders.emplace(handle.filename, std::move(shaderHandle));
-        return true;
-    }
-    catch (const std::exception& e) {
-        SPDLOG_ERROR("Error creating shader {}: {}", handle, e.what());
-        return false;
-    }
-    catch (...) {
-        SPDLOG_ERROR("Unknown error creating shader: {}", handle);
-        return false;
-    }
-}
-
-bool AssetManager::cacheMaterial(const AssetLib::AssetData& data, const AssetHandle& handle) {
-    if (m_cachedMaterials.find(handle.filename) != m_cachedMaterials.end()) {
-        return true; // Already cached
     }
 
-    try {
-        auto [materialInfo, parameters, parameterData] = AssetLib::ReadMaterial(data);
+    // Memory-based unloading
+    if (memoryThresholdPercentage > 0.0f) {
+        // Collect memory usage statistics
+        uint64_t totalVramUsed = 0;
+        uint64_t vramBudget = 0; // Get from VRAM handlers
 
-        // Create shader handle for this material
-        std::string shaderName(materialInfo.shaderName.data());
-        SPDLOG_INFO("Caching material: {} (using shader: {})", handle, shaderName);
+        // Collect all assets that can be unloaded
+        struct AssetInfo {
+            AssetHandle handle;
+            uint64_t size;
+            uint64_t lastUsed;
+            bool isVram;
+        };
+        std::vector<AssetInfo> assets;
 
-        AssetHandle shaderHandle(AssetType::Shader, shaderName);
-        m_materialShaderHandles[handle.filename] = shaderHandle;
+        // Gather statistics and collect assets
+        for (const auto& [type, handler] : m_handlers) {
+            bool isVram = handler->isInVram();
 
-        // Ensure the shader is loaded (but not necessarily ready)
-        if (!ensureLoaded(shaderHandle)) {
-            SPDLOG_ERROR("Failed to load required shader: {} for material: {}", shaderName, handle);
-            throw std::runtime_error("Failed to load shader for material: " + handle.filename);
-        }
+            // For each asset type, check ready assets
+            for (const auto& [cacheKey, lastUsed] : m_assetLastUsed) {
+                // Extract type and filename from cache key
+                size_t separatorPos = cacheKey.find(':');
+                if (separatorPos == std::string::npos) continue;
 
-        // Create the shader handle needed for material creation
-        ShaderHandle shaderModuleHandle;
-        if (ensureReady(shaderHandle)) {
-            shaderModuleHandle = *getResource<ShaderHandle>(shaderHandle);
-        }
-        else {
-            prepareForUse(shaderHandle);
-            shaderModuleHandle = *getResource<ShaderHandle>(shaderHandle);
-        }
+                AssetType assetType = static_cast<AssetType>(std::stoi(cacheKey.substr(0, separatorPos)));
+                if (assetType != type) continue;
 
-        // Create material in material manager
-        MaterialHandle matHandle = m_materialManager.createMaterial(
-            handle.filename,
-            data,
-            shaderModuleHandle
-        );
+                std::string filename = cacheKey.substr(separatorPos + 1);
+                uint64_t size = handler->getAssetSize(filename);
 
-        if (!matHandle) {
-            SPDLOG_ERROR("Material manager returned invalid handle for material: {}", handle);
-            return false;
-        }
-
-        // For each texture parameter in the material, ensure it's loaded (but not ready yet)
-        Material* material = m_materialManager.get(matHandle);
-        if (material) {
-            for (auto& param : material->parameters()) {
-                if (auto* textureParam = std::get_if<Material::TextureParam>(&param.value)) {
-                    // Only ensure the texture is loaded, not ready
-                    ensureLoaded(textureParam->handle);
+                if (isVram) {
+                    totalVramUsed += size;
                 }
+
+                assets.push_back({
+                    AssetHandle(type, filename),
+                    size,
+                    lastUsed,
+                    isVram
+                    });
             }
         }
 
-        m_cachedMaterials[handle.filename] = matHandle;
-        updateLastUsed(handle);
-        return true;
+        // Sort assets by last used time (oldest first)
+        std::sort(assets.begin(), assets.end(), [](const auto& a, const auto& b) {
+            return a.lastUsed < b.lastUsed;
+            });
+
+        // If VRAM usage exceeds threshold, unload assets
+        if (vramBudget > 0 && totalVramUsed > vramBudget * memoryThresholdPercentage) {
+            uint64_t targetUsage = vramBudget * memoryThresholdPercentage;
+            uint64_t freedMemory = 0;
+            size_t unloadedCount = 0;
+
+            for (const auto& asset : assets) {
+                if (!asset.isVram) continue;
+                if (totalVramUsed <= targetUsage) break;
+
+                unloadAsset(asset.handle);
+                totalVramUsed -= asset.size;
+                freedMemory += asset.size;
+                unloadedCount++;
+            }
+
+            if (unloadedCount > 0) {
+                SPDLOG_INFO("VRAM cleanup: unloaded {} assets, freed {} bytes",
+                    unloadedCount, freedMemory);
+            }
+        }
     }
-    catch (const std::exception& e) {
-        SPDLOG_ERROR("Error caching material {}: {}", handle, e.what());
-        return false;
+}
+
+void AssetManager::releaseAsset(const AssetHandle& handle) {
+    // Mark for removal if it's ready
+    auto handler = getHandler(handle.type);
+    if (handler && handler->isAssetReady(handle.filename)) {
+        SPDLOG_INFO("Asset {} marked for removal", handle);
+        m_markedForRemoval.insert(handle);
     }
-    catch (...) {
-        SPDLOG_ERROR("Unknown error caching material: {}", handle);
-        return false;
+    else {
+        // If not ready, we can unload immediately
+        std::string cacheKey = createCacheKey(handle);
+        m_assetCache.erase(cacheKey);
+        m_assetDependencies.erase(cacheKey);
+        m_assetLastUsed.erase(cacheKey);
     }
+}
+
+void AssetManager::advanceFrame() {
+    ++m_currentFrame;
+
+    // Periodic cleanup can be performed here
+    // For example, every 100 frames
+    if (m_currentFrame % 100 == 0) {
+        purgeUnusedAssets(0.8f, 300);
+    }
+}
+
+void AssetManager::updateLastUsed(const AssetHandle& handle) {
+    std::string cacheKey = createCacheKey(handle);
+    m_assetLastUsed[cacheKey] = m_currentFrame;
 }

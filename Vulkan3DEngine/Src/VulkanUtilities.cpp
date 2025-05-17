@@ -5,6 +5,7 @@
 #include <cstring>
 #include <iostream>
 #include "Engine.h"
+#include "Window.h"
 
 namespace VulkanUtils {
 

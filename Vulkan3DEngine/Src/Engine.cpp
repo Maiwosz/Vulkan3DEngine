@@ -4,6 +4,7 @@
 #include <filesystem>
 #include <chrono>
 #include <iomanip>
+#include "Paths.h"
 
 void Engine::initialize(const char* title) {
     std::filesystem::create_directories(LOGS_DIR);
@@ -51,13 +52,12 @@ void Engine::initialize(const char* title) {
     m_renderer = std::make_unique<Renderer>(*m_window);
 
     SPDLOG_DEBUG("Initializing asset manager");
-    m_assetManager = std::make_unique<AssetManager>(
-        m_renderer->vramManager(),
-        m_renderer->shaderModuleManager(),
-        m_renderer->materialManager(),
-        m_renderer->meshManager(),
-        m_renderer->textureManager()
-    );
+    m_assetManager = std::make_unique<AssetManager>();
+
+	m_assetManager->registerHandler(AssetType::Mesh, m_renderer->meshManagerPtr());
+    m_assetManager->registerHandler(AssetType::Texture, m_renderer->textureManagerPtr());
+    m_assetManager->registerHandler(AssetType::Shader, m_renderer->shaderModuleManagerPtr());
+    m_assetManager->registerHandler(AssetType::Material, m_renderer->materialManagerPtr());
 
     SPDLOG_INFO("Preparing scene");
     m_scene = std::make_unique<Scene>();

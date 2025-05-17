@@ -8,7 +8,7 @@
 
 class AssetLoader {
 public:
-    AssetLoader(const std::string& basePath);
+    AssetLoader();
 
     AssetLib::AssetData load(const AssetHandle handle);
 

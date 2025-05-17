@@ -2,6 +2,7 @@
 #include <stdexcept>
 #include <cassert>
 #include "ImageSamplerUtils.h"
+#include <UboDefinitions.h>
 
 MaterialResourceManager::MaterialResourceManager(
     const LogicalDevice& device,
@@ -231,7 +232,7 @@ VkDescriptorSet MaterialResourceManager::createMaterialDescriptorSet(
         }
 
         // Get image view from texture manager
-		VkImageView imageView = m_textureManager.getVkImageView(textureParam->textureHandle);
+		VkImageView imageView = m_textureManager.getImageView(textureParam->textureHandle);
         if (imageView == VK_NULL_HANDLE) {
             SPDLOG_WARN("Invalid image view for texture parameter {}", param.name);
             continue;
@@ -258,7 +259,7 @@ bool MaterialResourceManager::updateTextureBinding(
 ) {
 
     // Create image view for the texture
-    VkImageView imageView = m_textureManager.getVkImageView(textureHandle);
+    VkImageView imageView = m_textureManager.getImageView(textureHandle);
 
     if (imageView == VK_NULL_HANDLE) {
         SPDLOG_ERROR("Failed to create image view for texture");

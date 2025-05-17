@@ -1,9 +1,9 @@
 #include "ShaderModuleManager.h"
+#include "AssetManager.h"
 #include <stdexcept>
 #include <VulkanHelper.h>
 #include <spdlog/spdlog.h>
 #include <TypeConversions.h>
-#include <fstream>
 
 ShaderModuleManager::ShaderModuleManager(
     const LogicalDevice& device,
@@ -15,63 +15,191 @@ m_pipelineLayoutManager(pipelineLayoutManager) {
 }
 
 ShaderModuleManager::~ShaderModuleManager() {
-    // Zniszczenie wszystkich modułów
-    for (auto& [handle, module] : m_modules) {
-        // Moduły są czyszczone przez unique_ptr
+    // Clean up all shader assets
+    for (auto& [filename, asset] : m_shaderAssets) {
+        destroyShader(asset.handle);
+    }
+    m_shaderAssets.clear();
+    m_modules.clear();
+}
+
+bool ShaderModuleManager::prepareAsset(const AssetHandle& handle, const AssetLib::AssetData& data, AssetManager& manager) {
+    if (handle.type != AssetType::Shader) {
+        SPDLOG_ERROR("ShaderModuleManager received non-shader asset: {}", handle.filename);
+        return false;
     }
 
-    // Zniszczenie shaderów - nie ma potrzeby ręcznego zarządzania pamięcią
+    // Check if already prepared
+    if (isAssetReady(handle.filename)) {
+        SPDLOG_DEBUG("Shader asset already prepared: {}", handle.filename);
+        return true;
+    }
+
+    try {
+        // Read shader data from asset
+        auto [metadata, stages] = AssetLib::ReadShader(data);
+
+        SPDLOG_INFO("Preparing shader asset: {}", handle.filename);
+        SPDLOG_DEBUG("Shader has {} stages", stages.size());
+
+        // Create the shader and all associated resources
+        ShaderHandle shaderHandle = createShader(metadata, stages);
+
+        // Find the newly created shader asset
+        ShaderAsset* assetPtr = nullptr;
+        for (auto& [_, asset] : m_shaderAssets) {
+            if (asset.handle == shaderHandle) {
+                assetPtr = &asset;
+                break;
+            }
+        }
+
+        if (!assetPtr) {
+            throw std::runtime_error("Failed to find newly created shader asset");
+        }
+
+        // Store the asset with the proper filename
+        ShaderAsset asset = std::move(*assetPtr);
+
+        // Remove the temporary entry
+        for (auto it = m_shaderAssets.begin(); it != m_shaderAssets.end(); ++it) {
+            if (it->second.handle == shaderHandle) {
+                m_shaderAssets.erase(it);
+                break;
+            }
+        }
+
+        // Store with the correct filename
+        m_shaderAssets[handle.filename] = std::move(asset);
+
+        SPDLOG_INFO("Successfully prepared shader asset: {} (memory: {} bytes)",
+            handle.filename, m_shaderAssets[handle.filename].memorySize);
+        return true;
+    }
+    catch (const std::exception& e) {
+        SPDLOG_ERROR("Failed to prepare shader asset {}: {}", handle.filename, e.what());
+        return false;
+    }
 }
+
+void ShaderModuleManager::unloadAsset(const std::string& filename) {
+    auto it = m_shaderAssets.find(filename);
+    if (it != m_shaderAssets.end()) {
+        SPDLOG_INFO("Unloading shader asset: {}", filename);
+
+        // Destroy the shader and its modules
+        destroyShader(it->second.handle);
+
+        // Remove from cache
+        m_shaderAssets.erase(it);
+
+        SPDLOG_DEBUG("Shader asset unloaded: {}", filename);
+    }
+}
+
+bool ShaderModuleManager::isAssetReady(const std::string& filename) const {
+    return m_shaderAssets.find(filename) != m_shaderAssets.end();
+}
+
+uint64_t ShaderModuleManager::getAssetSize(const std::string& filename) const {
+    auto it = m_shaderAssets.find(filename);
+    if (it != m_shaderAssets.end()) {
+        return it->second.memorySize;
+    }
+    return 0;
+}
+
+std::vector<AssetDependency> ShaderModuleManager::getDependencies(const AssetHandle& handle, const AssetLib::AssetData& data) const {
+    // Shaders typically don't have dependencies on other assets
+    return {};
+}
+
+std::any ShaderModuleManager::getResourceInternal(const AssetHandle& handle) const {
+    auto it = m_shaderAssets.find(handle.filename);
+    if (it != m_shaderAssets.end()) {
+        return it->second.handle;
+    }
+
+    SPDLOG_WARN("Shader resource not found: {}", handle.filename);
+    return ShaderHandle{};
+}
+
+std::any ShaderModuleManager::getHandleInternal(const std::string& filename) const {
+    auto it = m_shaderAssets.find(filename);
+    if (it != m_shaderAssets.end()) {
+        return it->second.handle;
+    }
+
+    SPDLOG_WARN("Shader handle not found: {}", filename);
+    return ShaderHandle{};
+}
+
+const ShaderLib::ShaderMetadata& ShaderModuleManager::getShaderMetadata(ShaderHandle handle) const {
+    for (const auto& [filename, asset] : m_shaderAssets) {
+        if (asset.handle == handle) {
+            return asset.metadata;
+        }
+    }
+    throw std::runtime_error("Invalid shader handle");
+}
+
+const ShaderResources& ShaderModuleManager::getShaderResources(ShaderHandle handle) const {
+    for (const auto& [filename, asset] : m_shaderAssets) {
+        if (asset.handle == handle) {
+            return asset.resources;
+        }
+    }
+    throw std::runtime_error("Invalid shader handle");
+}
+
+ShaderModule* ShaderModuleManager::getModuleForStage(ShaderHandle shader, ShaderLib::Stage stage) {
+    for (const auto& [filename, asset] : m_shaderAssets) {
+        if (asset.handle == shader) {
+            auto it = asset.combinedShader.stages.find(stage);
+            if (it != asset.combinedShader.stages.end()) {
+                auto moduleIt = m_modules.find(it->second);
+                if (moduleIt != m_modules.end()) {
+                    return moduleIt->second.get();
+                }
+            }
+            return nullptr;
+        }
+    }
+    return nullptr;
+}
+
+const CombinedShader& ShaderModuleManager::getCombinedShader(ShaderHandle handle) const {
+    for (const auto& [filename, asset] : m_shaderAssets) {
+        if (asset.handle == handle) {
+            return asset.combinedShader;
+        }
+    }
+    throw std::runtime_error("Invalid shader handle");
+}
+
+ShaderModule* ShaderModuleManager::getModule(ShaderModuleHandle handle) {
+    auto it = m_modules.find(handle);
+    if (it != m_modules.end()) {
+        return it->second.get();
+    }
+    SPDLOG_WARN("Shader module handle not found: {}", handle.id);
+    return nullptr;
+}
+
+// Private implementation methods
 
 ShaderModuleHandle ShaderModuleManager::createModuleFromSPIRV(const std::vector<uint32_t>& spirvCode) {
-    // Tworzenie modułu shadera
-    auto module = std::make_unique<ShaderModule>(m_device, spirvCode);
-
-    // Generowanie unikalnego uchwytu
     ShaderModuleHandle handle(m_nextModuleHandle++);
 
-    // Zapisanie modułu
-    m_modules[handle] = std::move(module);
-
-    return handle;
-}
-
-ShaderModuleHandle ShaderModuleManager::createModuleFromSPIRVFile(const std::string& filePath) {
-    SPDLOG_INFO("Loading SPIRV shader from file: {}", filePath);
-
-    // Open the file and read as binary
-    std::ifstream file(filePath, std::ios::ate | std::ios::binary);
-    if (!file.is_open()) {
-        SPDLOG_ERROR("Failed to open SPIRV file: {}", filePath);
-        throw std::runtime_error("Failed to open SPIRV file: " + filePath);
+    try {
+        auto module = std::make_unique<ShaderModule>(m_device, spirvCode);
+        m_modules[handle] = std::move(module);
+        return handle;
     }
-
-    // Get file size and allocate buffer
-    size_t fileSize = static_cast<size_t>(file.tellg());
-    if (fileSize % sizeof(uint32_t) != 0) {
-        SPDLOG_ERROR("SPIRV file size is not a multiple of 4 bytes: {}", filePath);
-        throw std::runtime_error("Invalid SPIRV file format: " + filePath);
+    catch (const std::exception& e) {
+        SPDLOG_ERROR("Failed to create shader module: {}", e.what());
+        return ShaderModuleHandle{};
     }
-
-    // Calculate how many uint32_t elements we need
-    size_t codeSize = fileSize / sizeof(uint32_t);
-    std::vector<uint32_t> spirvCode(codeSize);
-
-    // Read the file from the beginning
-    file.seekg(0);
-    file.read(reinterpret_cast<char*>(spirvCode.data()), fileSize);
-    file.close();
-
-    // Validate SPIRV magic number (SPIR-V binaries start with magic number 0x07230203)
-    if (spirvCode.empty() || spirvCode[0] != 0x07230203) {
-        SPDLOG_ERROR("Invalid SPIRV file format (missing magic number): {}", filePath);
-        throw std::runtime_error("Invalid SPIRV file format: " + filePath);
-    }
-
-    SPDLOG_INFO("Successfully loaded SPIRV file: {}, size: {} bytes", filePath, fileSize);
-
-    // Create shader module using existing function
-    return createModuleFromSPIRV(spirvCode);
 }
 
 ShaderHandle ShaderModuleManager::createShader(
@@ -80,193 +208,100 @@ ShaderHandle ShaderModuleManager::createShader(
 ) {
     SPDLOG_INFO("Creating new shader with {} available stages", metadata.availableStages);
 
-    // Detailed logging of shader metadata
-    SPDLOG_INFO("Shader metadata:");
-    SPDLOG_INFO("  - Uses GlobalUBO: {}", metadata.usesGlobalUBO ? "yes" : "no");
-    SPDLOG_INFO("  - Uses ObjectUBO: {}", metadata.usesObjectUBO ? "yes" : "no");
+    // Log shader metadata
+    SPDLOG_DEBUG("Shader metadata:");
+    SPDLOG_DEBUG("  - Uses GlobalUBO: {}", metadata.usesGlobalUBO ? "yes" : "no");
+    SPDLOG_DEBUG("  - Uses ObjectUBO: {}", metadata.usesObjectUBO ? "yes" : "no");
+    SPDLOG_DEBUG("  - Descriptors: {}", metadata.descriptors.size());
+    SPDLOG_DEBUG("  - Push constants: {}", metadata.pushConstants.size());
 
-    // Logging push constant information
-    if (!metadata.pushConstants.empty()) {
-        SPDLOG_INFO("  - Push constants ({}): ", metadata.pushConstants.size());
-        for (const auto& pc : metadata.pushConstants) {
-            SPDLOG_INFO("    * Offset: {}, Size: {}, Stages: {}",
-                pc.offset, pc.size, pc.stages);
-        }
-    }
-    else {
-        SPDLOG_INFO("  - No push constants");
-    }
-
-    // Logging descriptor information
-    if (!metadata.descriptors.empty()) {
-        SPDLOG_INFO("  - Descriptors ({}): ", metadata.descriptors.size());
-        for (const auto& desc : metadata.descriptors) {
-            SPDLOG_INFO("    * Set: {}, Binding: {}, Type: {}, Name: '{}'",
-                desc.set, desc.binding, static_cast<int>(desc.type), desc.name);
-        }
-    }
-    else {
-        SPDLOG_INFO("  - No descriptors");
-    }
-
-    // Logging custom UBO information
-    if (!metadata.customUBOs.empty()) {
-        SPDLOG_INFO("  - Custom UBOs ({}): ", metadata.customUBOs.size());
-        for (const auto& ubo : metadata.customUBOs) {
-            SPDLOG_INFO("    * Name: '{}', Set: {}, Binding: {}, Size: {} bytes",
-                ubo.name, ubo.set, ubo.binding, ubo.size);
-            if (!ubo.variables.empty()) {
-                SPDLOG_DEBUG("      Variables in UBO '{}':", ubo.name);
-                for (const auto& var : ubo.variables) {
-                    SPDLOG_DEBUG("      - '{}': type {}, offset {}, size {}",
-                        var.name, ShaderLib::TypeConversion::UniformTypeToString(var.type), var.offset, var.size);
-                }
-            }
-        }
-    }
-    else {
-        SPDLOG_INFO("  - No custom UBOs");
-    }
-
-    // Logging GlobalUBO information if used
-    if (metadata.usesGlobalUBO) {
-        SPDLOG_INFO("  - GlobalUBO: Set {}, Binding {}, Size {} bytes, {} variables",
-            metadata.globalUBO.set, metadata.globalUBO.binding, metadata.globalUBO.size, metadata.globalUBO.variables.size());
-    }
-
-    // Logging ObjectUBO information if used
-    if (metadata.usesObjectUBO) {
-        SPDLOG_INFO("  - ObjectUBO: Set {}, Binding {}, Size {} bytes, {} variables",
-            metadata.objectUBO.set, metadata.objectUBO.binding, metadata.objectUBO.size, metadata.objectUBO.variables.size());
-    }
-
-    // Logging shader stage information
-    SPDLOG_INFO("Shader stages ({}):", stages.size());
-    for (const auto& stage : stages) {
-        SPDLOG_INFO("  - Stage: {}, SPIRV Size: {} bytes",
-            ShaderLib::TypeConversion::StageToString(stage.stage), stage.spirv.size() * sizeof(uint32_t));
-    }
-
-    // Generating unique handle
+    // Generate unique handle
     ShaderHandle handle(m_nextShaderHandle++);
-    SPDLOG_INFO("Generated shader handle: {}", handle.id);
 
-    // Creating modules for each stage
+    // Create modules for each stage
     CombinedShader combinedShader;
     for (const auto& stage : stages) {
-        // Creating shader module for this stage
-        SPDLOG_DEBUG("Creating shader module for stage {}", ShaderLib::TypeConversion::StageToString(stage.stage));
+        SPDLOG_DEBUG("Creating shader module for stage {}",
+            ShaderLib::TypeConversion::StageToString(stage.stage));
+
         ShaderModuleHandle moduleHandle = createModuleFromSPIRV(stage.spirv);
-        // Storing module in the combined shader
+        if (!moduleHandle) {
+            // Clean up already created modules
+            for (const auto& [existingStage, existingHandle] : combinedShader.stages) {
+                destroyModule(existingHandle);
+            }
+            throw std::runtime_error("Failed to create shader module for stage");
+        }
+
         combinedShader.stages[stage.stage] = moduleHandle;
-        SPDLOG_DEBUG("Created shader module: {}", moduleHandle.id);
     }
 
-    // Storing the combined shader
-    m_combinedShaders[handle] = std::move(combinedShader);
-    SPDLOG_DEBUG("Stored combined shader in map (shader count: {})", m_combinedShaders.size());
-
-    // Creating descriptor layouts
-    SPDLOG_DEBUG("Creating descriptor layouts");
+    // Create descriptor layouts
     auto descriptorLayouts = createDescriptorLayouts(metadata);
 
-    // Creating pipeline layout
-    SPDLOG_DEBUG("Creating pipeline layout");
-    auto pipelineLayout = createPipelineLayout(metadata, descriptorLayouts);
+    // Create pipeline layout
+    PipelineLayoutHandle pipelineLayout = createPipelineLayout(
+        metadata,
+        descriptorLayouts
+    );
 
-    // Storing shader resources
-    ShaderResources resources;
-    resources.descriptorLayouts = std::move(descriptorLayouts);
-    resources.pipelineLayout = pipelineLayout;
-    m_shaderResources[handle] = std::move(resources);
-    SPDLOG_DEBUG("Stored shader resources in map (resource count: {})", m_shaderResources.size());
+    // Create shader asset and store it
+    ShaderAsset asset;
+    asset.handle = handle;
+    asset.combinedShader = std::move(combinedShader);
+    asset.resources.descriptorLayouts = std::move(descriptorLayouts);
+    asset.resources.pipelineLayout = pipelineLayout;
+    asset.metadata = metadata;
 
-    // Storing shader metadata
-    m_shaderMetadata[handle] = metadata;
+    // Calculate memory size
+    asset.memorySize = calculateShaderMemorySize(asset);
+
+    // Store in temporary key until prepareAsset can store with the right filename
+    std::string tempKey = "temp_shader_" + std::to_string(handle.id);
+    m_shaderAssets[tempKey] = std::move(asset);
+
     SPDLOG_INFO("Shader created successfully (handle: {})", handle.id);
     return handle;
 }
 
 void ShaderModuleManager::destroyModule(ShaderModuleHandle handle) {
-    if (isModuleValid(handle)) {
-        m_modules.erase(handle);
+    auto it = m_modules.find(handle);
+    if (it != m_modules.end()) {
+        m_modules.erase(it);
     }
 }
 
 void ShaderModuleManager::destroyShader(ShaderHandle handle) {
-    if (isShaderValid(handle)) {
-        // Usunięcie wszystkich modułów shadera
-        auto& combinedShader = m_combinedShaders[handle];
-        for (auto& [stage, moduleHandle] : combinedShader.stages) {
-            destroyModule(moduleHandle);
+    // Find the shader asset
+    ShaderAsset* assetPtr = nullptr;
+    std::string assetFilename;
+
+    for (auto& [filename, asset] : m_shaderAssets) {
+        if (asset.handle == handle) {
+            assetPtr = &asset;
+            assetFilename = filename;
+            break;
+        }
+    }
+
+    if (assetPtr) {
+        // First, destroy the pipeline layout
+        if (assetPtr->resources.pipelineLayout) {
+            m_pipelineLayoutManager.destroy(assetPtr->resources.pipelineLayout);
         }
 
-        // Usunięcie połączonego shadera
-        m_combinedShaders.erase(handle);
+        // Destroy descriptor layouts
+        for (const auto& [set, layoutHandle] : assetPtr->resources.descriptorLayouts) {
+            if (layoutHandle) {
+                m_descriptorLayoutManager.destroy(layoutHandle);
+            }
+        }
 
-        // Usunięcie zasobów shadera
-        m_shaderResources.erase(handle);
-
-        // Usunięcie metadanych shadera
-        m_shaderMetadata.erase(handle);
+        // Destroy all shader modules
+        for (const auto& [stage, moduleHandle] : assetPtr->combinedShader.stages) {
+            destroyModule(moduleHandle);
+        }
     }
-}
-
-ShaderModule& ShaderModuleManager::getModule(ShaderModuleHandle handle) {
-    if (!isModuleValid(handle)) {
-        throw std::runtime_error("Invalid shader module handle");
-    }
-
-    return *m_modules[handle];
-}
-
-ShaderModule* ShaderModuleManager::getModuleForStage(ShaderHandle shader, ShaderLib::Stage stage) {
-    if (!isShaderValid(shader)) {
-        return nullptr;
-    }
-
-    auto& combinedShader = m_combinedShaders[shader];
-    auto it = combinedShader.stages.find(stage);
-    if (it != combinedShader.stages.end()) {
-        return &getModule(it->second);
-    }
-
-    return nullptr;
-}
-
-const CombinedShader& ShaderModuleManager::getCombinedShader(ShaderHandle handle) const {
-    auto it = m_combinedShaders.find(handle);
-    if (it == m_combinedShaders.end()) {
-        throw std::runtime_error("Invalid shader handle");
-    }
-
-    return it->second;
-}
-
-const ShaderResources& ShaderModuleManager::getShaderResources(ShaderHandle handle) const {
-    auto it = m_shaderResources.find(handle);
-    if (it == m_shaderResources.end()) {
-        throw std::runtime_error("Invalid shader handle");
-    }
-
-    return it->second;
-}
-
-const ShaderLib::ShaderMetadata& ShaderModuleManager::getShaderMetadata(ShaderHandle handle) const {
-    auto it = m_shaderMetadata.find(handle);
-    if (it == m_shaderMetadata.end()) {
-        throw std::runtime_error("Invalid shader handle");
-    }
-
-    return it->second;
-}
-
-bool ShaderModuleManager::isModuleValid(ShaderModuleHandle handle) const {
-    return m_modules.find(handle) != m_modules.end();
-}
-
-bool ShaderModuleManager::isShaderValid(ShaderHandle handle) const {
-    return m_combinedShaders.find(handle) != m_combinedShaders.end();
 }
 
 std::unordered_map<uint32_t, DescriptorLayoutHandle> ShaderModuleManager::createDescriptorLayouts(
@@ -274,41 +309,36 @@ std::unordered_map<uint32_t, DescriptorLayoutHandle> ShaderModuleManager::create
 ) {
     std::unordered_map<uint32_t, DescriptorLayoutHandle> result;
 
-    // Grupowanie deskryptorów według setu
+    // Group descriptors by set
     std::unordered_map<uint32_t, std::vector<ShaderLib::DescriptorBinding>> descriptorsBySet;
 
     for (const auto& descriptor : metadata.descriptors) {
         descriptorsBySet[descriptor.set].push_back(descriptor);
     }
 
-    // Tworzenie layoutów deskryptorów dla każdego setu
+    // Create descriptor layouts for each set
     for (const auto& [set, descriptors] : descriptorsBySet) {
-        // Tworzenie buildera layoutu deskryptora
         DescriptorLayoutBuilder builder;
+        VkShaderStageFlags combinedStageFlags = 0;
 
-        // Dodawanie bindingów do buildera
+        // Add bindings to builder
         for (const auto& descriptor : descriptors) {
-            // Konwersja typów z ShaderLib na typy Vulkan
             VkDescriptorType vulkanDescriptorType =
                 static_cast<VkDescriptorType>(ShaderLib::GetVulkanDescriptorType(descriptor.type));
 
-            // Dodanie bindingu do buildera
+            // Convert the stage flags for this descriptor
+            VkShaderStageFlags stageFlags = ShaderLib::GetVulkanShaderStageFlags(descriptor.stages);
+            combinedStageFlags |= stageFlags;
+
             builder.addBinding(descriptor.binding, vulkanDescriptorType);
         }
 
-        // Uzyskanie flag etapu shadera dla tego setu
-        VkShaderStageFlags stageFlags = 0;
-        for (const auto& descriptor : descriptors) {
-            stageFlags |= ShaderLib::GetVulkanShaderStageFlags(descriptor.stages);
-        }
-
-        // Tworzenie layoutu deskryptora za pomocą metody create (zamiast createLayout)
+        // Create descriptor layout
         DescriptorLayoutHandle layoutHandle = m_descriptorLayoutManager.create(
             builder,
-            stageFlags
+            combinedStageFlags
         );
 
-        // Zapisanie layoutu deskryptora
         result[set] = layoutHandle;
     }
 
@@ -319,47 +349,72 @@ PipelineLayoutHandle ShaderModuleManager::createPipelineLayout(
     const ShaderLib::ShaderMetadata& metadata,
     const std::unordered_map<uint32_t, DescriptorLayoutHandle>& descriptorLayouts
 ) {
-    // Konwersja push constants do formatu odpowiedniego dla PipelineLayoutManager
-    std::vector<ShaderLib::VulkanPushConstantRange> pushConstantRanges;
+    // Create pipeline layout configuration
+    PipelineLayoutConfig layoutConfig;
 
+    // Convert push constants
+    layoutConfig.pushConstantRanges.reserve(metadata.pushConstants.size());
     for (const auto& pushConstant : metadata.pushConstants) {
-        ShaderLib::VulkanPushConstantRange range;
+        VkPushConstantRange range;
         range.stageFlags = ShaderLib::GetVulkanShaderStageFlags(pushConstant.stages);
         range.offset = pushConstant.offset;
         range.size = pushConstant.size;
-
-        pushConstantRanges.push_back(range);
+        layoutConfig.pushConstantRanges.push_back(range);
     }
 
-    // Zbieranie layoutów deskryptorów
+    // Collect descriptor layouts in order
     std::vector<VkDescriptorSetLayout> vkLayouts;
 
-    // Dodanie ich w kolejności od najniższego setu do najwyższego
-    for (uint32_t i = 0; i <= ShaderLib::CUSTOM_DESCRIPTOR_SET; ++i) {
-        auto it = descriptorLayouts.find(i);
-        if (it != descriptorLayouts.end()) {
-            // Pobierz VkDescriptorSetLayout z DescriptorLayoutManager używając naszego uchwytu
-            VkDescriptorSetLayout vkLayout = m_descriptorLayoutManager.get(it->second);
-            vkLayouts.push_back(vkLayout);
+    // Find the highest set number to properly size our collection
+    uint32_t maxSetNumber = 0;
+    for (const auto& [set, _] : descriptorLayouts) {
+        maxSetNumber = std::max(maxSetNumber, set);
+    }
+
+    // Reserve space for all sets up to maxSetNumber
+    vkLayouts.resize(maxSetNumber + 1, VK_NULL_HANDLE);
+
+    // Fill in the layouts we have
+    for (const auto& [set, layoutHandle] : descriptorLayouts) {
+        if (set <= maxSetNumber) {
+            vkLayouts[set] = m_descriptorLayoutManager.get(layoutHandle);
         }
     }
 
-    // Tworzenie konfiguracji layoutu potoku
-    PipelineLayoutConfig layoutConfig;
-
-    // Konwersja VulkanPushConstantRange do VkPushConstantRange
-    layoutConfig.pushConstantRanges.reserve(pushConstantRanges.size());
-    for (const auto& range : pushConstantRanges) {
-        VkPushConstantRange vkRange;
-        vkRange.stageFlags = range.stageFlags;
-        vkRange.offset = range.offset;
-        vkRange.size = range.size;
-        layoutConfig.pushConstantRanges.push_back(vkRange);
+    // Remove any nullptr layouts at the end
+    while (!vkLayouts.empty() && vkLayouts.back() == VK_NULL_HANDLE) {
+        vkLayouts.pop_back();
     }
 
     layoutConfig.descriptorSetLayouts = std::move(vkLayouts);
 
-    // Tworzenie layoutu potoku z konfiguracją
     return m_pipelineLayoutManager.createLayout(layoutConfig);
 }
 
+uint64_t ShaderModuleManager::calculateShaderMemorySize(const ShaderAsset& asset) const {
+    uint64_t size = 0;
+
+    // Sum up the actual size of SPIR-V code
+    for (const auto& [stage, moduleHandle] : asset.combinedShader.stages) {
+        auto it = m_modules.find(moduleHandle);
+        if (it != m_modules.end()) {
+            // Approximate size for shader module
+            size += 4096; // Base overhead
+        }
+    }
+
+    // Add descriptor layouts size
+    size += asset.resources.descriptorLayouts.size() * 256;
+
+    // Add pipeline layout size
+    size += 512;
+
+    // Add fixed overhead for shader asset
+    size += 1024;
+
+    return size;
+}
+
+std::string ShaderModuleManager::getShaderCacheKey(const std::string& filename) const {
+    return filename;
+}

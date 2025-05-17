@@ -1,5 +1,6 @@
 #include "LuaBindingsEngine.h"
 #include "Engine.h"
+#include "Scene.h"
 
 namespace LuaBindings {
     void registerEngineFunctions(sol::state& state) {

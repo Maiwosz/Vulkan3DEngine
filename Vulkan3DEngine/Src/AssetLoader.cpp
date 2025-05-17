@@ -3,13 +3,14 @@
 #include <filesystem>
 #include <json.hpp>
 #include <spdlog/spdlog.h>
+#include "Paths.h"
 
 namespace fs = std::filesystem;
 using json = nlohmann::json;
 
-AssetLoader::AssetLoader(const std::string& basePath)
-    : m_basePath(basePath) {
-    SPDLOG_INFO("AssetLoader initialized with base path: {}", m_basePath);
+AssetLoader::AssetLoader()
+    : m_basePath(ASSETS_COMP) {
+    SPDLOG_INFO("AssetLoader initialized with base path: {}", ASSETS_COMP);
 }
 
 AssetLib::AssetData AssetLoader::load(const AssetHandle handle) {

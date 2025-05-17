@@ -5,6 +5,7 @@
 #include <spdlog/spdlog.h>
 #include <spdlog/sinks/stdout_color_sinks.h>
 #include <csignal>
+#include "Paths.h"
 
 void signal_handler(int) {
     SPDLOG_CRITICAL("Critical signal received!");

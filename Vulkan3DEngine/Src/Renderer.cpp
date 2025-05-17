@@ -65,7 +65,7 @@ Renderer::Renderer(Window& window) : m_window(window) {
             *m_renderPassManager,
             *m_attachmentManager
         );
-        m_shaderModuleManager = std::make_unique<ShaderModuleManager>(
+        m_shaderModuleManager = std::make_shared<ShaderModuleManager>(
             m_vulkanContext->logical(),
             *m_descriptorLayoutManager,
             *m_pipelineLayoutManager 
@@ -89,11 +89,11 @@ Renderer::Renderer(Window& window) : m_window(window) {
             m_vulkanContext->logical(),
             allocConfig
         );
-        m_textureManager = std::make_unique<TextureManager>(
+        m_textureManager = std::make_shared<TextureManager>(
             m_vulkanContext->logical(),
             *m_vramManager
         );
-        m_materialManager = std::make_unique<MaterialManager>(
+        m_materialManager = std::make_shared<MaterialManager>(
             m_vulkanContext->logical(),
             *m_shaderModuleManager,
             *m_samplerManager,
@@ -102,7 +102,7 @@ Renderer::Renderer(Window& window) : m_window(window) {
             *m_descriptorLayoutManager,
             *m_textureManager
         );
-        m_meshManager = std::make_unique<MeshManager>(
+        m_meshManager = std::make_shared<MeshManager>(
             *m_vramManager
         );
        
