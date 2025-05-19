@@ -1,7 +1,7 @@
 #pragma once
 #include "Material.h"
 #include "Handle.h"
-#include "ShaderModuleManager.h"
+#include "ShaderManager.h"
 #include "VramManager.h"
 #include "ImageSamplerManager.h"
 #include "UniformBufferManager.h"
@@ -22,7 +22,7 @@ public:
 
     MaterialResourceManager(
         const LogicalDevice& device,
-        ShaderModuleManager& shaderModuleManager,
+        ShaderManager& shaderManager,
         ImageSamplerManager& samplerManager,
         UniformBufferManager& uniformBufferManager,
         DescriptorAllocator& descriptorAllocator,
@@ -75,7 +75,7 @@ private:
     );
 
     const LogicalDevice& m_device;
-    ShaderModuleManager& m_shaderModuleManager;
+    ShaderManager& m_shaderManager;
     ImageSamplerManager& m_samplerManager;
     DescriptorLayoutManager& m_descriptorLayoutManager;
     UniformBufferManager& m_uniformBufferManager;

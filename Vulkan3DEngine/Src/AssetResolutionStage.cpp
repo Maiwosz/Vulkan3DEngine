@@ -1,8 +1,7 @@
 #include "AssetResolutionStage.h"
-#include "AssetManager.h"
 
-AssetResolutionStage::AssetResolutionStage(Registry& registry, AssetManager& assetManager)
-: m_registry(registry), m_assetManager(assetManager)
+AssetResolutionStage::AssetResolutionStage(Registry& registry, AssetSystem& assetSystem)
+: m_registry(registry), m_assetManager(assetSystem.assetManager())
 {
     SPDLOG_INFO("Initializing AssetResolutionStage");
 }

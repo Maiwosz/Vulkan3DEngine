@@ -5,11 +5,11 @@
 #include <glm/gtc/matrix_transform.hpp>
 #include "UBOStandardDefinitions.h"
 
-UniformBufferStage::UniformBufferStage(Registry& registry, Renderer& renderer)
+UniformBufferStage::UniformBufferStage(Registry& registry, Renderer& renderer, AssetSystem& assetSystem)
     : m_registry(registry)
-    , m_shaderManager(renderer.shaderModuleManager())
+    , m_shaderManager(assetSystem.shaderManager())
     , m_uniformBufferManager(renderer.uniformBufferManager())
-    , m_materialManager(renderer.materialManager())
+    , m_materialManager(assetSystem.materialManager())
 {
     SPDLOG_INFO("Initializing UniformBufferStage");
 }

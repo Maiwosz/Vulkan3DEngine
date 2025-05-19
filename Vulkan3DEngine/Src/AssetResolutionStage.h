@@ -4,13 +4,15 @@
 #include "MaterialComponent.h"
 #include <spdlog/spdlog.h>
 #include "Handle.h"
+#include "AssetSystem.h"
 
+class AssetSystem;
 class AssetManager;
 class Registry;
 
 class AssetResolutionStage : public OrderProcessingStage {
 public:
-    AssetResolutionStage(Registry& registry, AssetManager& assetManager);
+    AssetResolutionStage(Registry& registry, AssetSystem& assetSystem);
 
     ~AssetResolutionStage();
 

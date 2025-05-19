@@ -1,7 +1,8 @@
 #pragma once
 #include "ProcessingStage.h"
 #include "RenderOrder.h"
-#include "ShaderModuleManager.h"
+#include "AssetSystem.h"
+#include "ShaderManager.h"
 #include "UniformBufferManager.h"
 #include "TransformComponent.h"
 #include "MaterialComponent.h"
@@ -16,7 +17,7 @@
 
 class UniformBufferStage : public OrderProcessingStage {
 public:
-    UniformBufferStage(Registry& registry, Renderer& renderer);
+    UniformBufferStage(Registry& registry, Renderer& renderer, AssetSystem& assetSystem);
     ~UniformBufferStage() override = default;
 
     // Process a single render order
@@ -25,7 +26,7 @@ public:
 private:
     // References to needed systems
     Registry& m_registry;
-    ShaderModuleManager& m_shaderManager;
+    ShaderManager& m_shaderManager;
     UniformBufferManager& m_uniformBufferManager;
     MaterialManager& m_materialManager;
 

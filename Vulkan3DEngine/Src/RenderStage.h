@@ -1,5 +1,6 @@
 #pragma once
 #include "ProcessingStage.h"
+#include "AssetSystem.h"
 #include "FrameManager.h"
 #include "VramManager.h"
 #include "SwapChain.h"
@@ -14,7 +15,8 @@
 class RenderStage : public OrderProcessingStage {
 public:
     RenderStage(
-        Renderer& renderer
+        Renderer& renderer,
+		AssetSystem& assetSystem
     );
     ~RenderStage() = default;
 
@@ -34,6 +36,8 @@ private:
     RenderPassManager& m_renderPassManager;
     PipelineManager& m_pipelineManager;
     MeshManager& m_meshManager;
+
+
     AttachmentHandle m_depthAttachmentHandle;
     RenderPassHandle m_mainRenderPassHandle;
     AttachmentHandle m_msColorAttachmentHandle;

@@ -3,12 +3,12 @@
 #include "Mesh.h"
 #include "Engine.h"
 
-PipelineAssignmentStage::PipelineAssignmentStage(Renderer& renderer)
+PipelineAssignmentStage::PipelineAssignmentStage(Renderer& renderer, AssetSystem& assetSystem)
     :
     m_pipelineManager(renderer.pipelineManager()),
-    m_shaderManager(renderer.shaderModuleManager()),
-    m_materialManager(renderer.materialManager()),
-    m_meshManager(renderer.meshManager()),
+    m_shaderManager(assetSystem.shaderManager()),
+    m_materialManager(assetSystem.materialManager()),
+    m_meshManager(assetSystem.meshManager()),
     m_renderPassManager(renderer.renderPassManager()),
     m_defaultRenderPassHandle(renderer.renderPass())
 {

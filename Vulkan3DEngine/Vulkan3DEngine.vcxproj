@@ -171,6 +171,8 @@
     <ClCompile Include="..\Libs\imgui\imgui_impl_vulkan.cpp" />
     <ClCompile Include="..\Libs\imgui\imgui_tables.cpp" />
     <ClCompile Include="..\Libs\imgui\imgui_widgets.cpp" />
+    <ClCompile Include="Src\AssetSystem.cpp" />
+    <ClCompile Include="Src\ShaderManager.cpp" />
     <ClCompile Include="Src\AssetResolutionStage.cpp" />
     <ClCompile Include="Src\MaterialResourceManager.cpp" />
     <ClCompile Include="Src\LoggerConfig.cpp" />
@@ -256,6 +258,8 @@
     <ClInclude Include="..\Libs\imgui\imstb_rectpack.h" />
     <ClInclude Include="..\Libs\imgui\imstb_textedit.h" />
     <ClInclude Include="..\Libs\imgui\imstb_truetype.h" />
+    <ClInclude Include="Src\AssetSystem.h" />
+    <ClInclude Include="Src\ShaderManager.h" />
     <ClInclude Include="Src\IAssetHandler.h" />
     <ClInclude Include="Src\MaterialResourceManager.h" />
     <ClInclude Include="Src\Handle.h" />

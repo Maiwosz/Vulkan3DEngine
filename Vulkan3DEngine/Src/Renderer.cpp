@@ -35,6 +35,9 @@ Renderer::Renderer(Window& window) : m_window(window) {
             *m_commandBufferManager,
             *m_syncResourceManager
         );
+        m_shaderModuleManager = std::make_unique<ShaderModuleManager>(
+            m_vulkanContext->logical()
+        );
         m_descriptorLayoutManager = std::make_unique<DescriptorLayoutManager>(
             m_vulkanContext->logical()
         );
@@ -65,18 +68,11 @@ Renderer::Renderer(Window& window) : m_window(window) {
             *m_renderPassManager,
             *m_attachmentManager
         );
-        m_shaderModuleManager = std::make_shared<ShaderModuleManager>(
-            m_vulkanContext->logical(),
-            *m_descriptorLayoutManager,
-            *m_pipelineLayoutManager 
-        );
         m_pipelineManager = std::make_unique<PipelineManager>(
             m_vulkanContext->logical(),
             *m_shaderModuleManager,
             *m_pipelineLayoutManager 
         );
-        
-
         DescriptorAllocator::PoolConfig allocConfig;
         allocConfig.initialSets = 512;
         allocConfig.ratios = {
@@ -88,22 +84,6 @@ Renderer::Renderer(Window& window) : m_window(window) {
         m_descriptorAllocator = std::make_unique<DescriptorAllocator>(
             m_vulkanContext->logical(),
             allocConfig
-        );
-        m_textureManager = std::make_shared<TextureManager>(
-            m_vulkanContext->logical(),
-            *m_vramManager
-        );
-        m_materialManager = std::make_shared<MaterialManager>(
-            m_vulkanContext->logical(),
-            *m_shaderModuleManager,
-            *m_samplerManager,
-            *m_uniformBufferManager,
-            *m_descriptorAllocator,
-            *m_descriptorLayoutManager,
-            *m_textureManager
-        );
-        m_meshManager = std::make_shared<MeshManager>(
-            *m_vramManager
         );
        
         // Create main render pass

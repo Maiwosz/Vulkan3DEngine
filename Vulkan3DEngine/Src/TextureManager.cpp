@@ -96,40 +96,21 @@ bool TextureManager::isAssetReady(const std::string& filename) const {
 
 uint64_t TextureManager::getAssetSize(const std::string& filename) const {
     std::lock_guard<std::mutex> lock(m_mutex);
-    
+
     auto handleIt = m_filenameToHandle.find(filename);
     if (handleIt == m_filenameToHandle.end()) {
         return 0;
     }
-    
+
     auto textureIt = m_textures.find(handleIt->second.id);
     if (textureIt == m_textures.end()) {
         return 0;
     }
-    
+
     const TextureInfo& info = textureIt->second;
-    
-    // Calculate approximate size in bytes
-    // For compressed formats, use appropriate compression ratio
-    uint64_t bytesPerPixel = 4; // Default for RGBA8 
-    
-    if (info.format == Graphics::ImageFormat::BC7_UNORM || 
-        info.format == Graphics::ImageFormat::BC7_SRGB) {
-        bytesPerPixel = 1; // BC7 is approximately 1 byte per pixel (8 bits)
-    }
-    
-    uint64_t totalSize = 0;
-    uint32_t mipWidth = info.width;
-    uint32_t mipHeight = info.height;
-    
-    // Sum up the size of all mip levels
-    for (uint32_t i = 0; i < info.mipLevels; i++) {
-        totalSize += mipWidth * mipHeight * bytesPerPixel;
-        mipWidth = std::max(1u, mipWidth / 2);
-        mipHeight = std::max(1u, mipHeight / 2);
-    }
-    
-    return totalSize;
+
+    // Use VramManager to get the actual allocated size in VRAM
+    return m_vramManager.getResourceSize(info.vramHandle);
 }
 
 bool TextureManager::isInVram() const {

@@ -1,7 +1,7 @@
 #include "RenderSystem.h"
 
-RenderSystem::RenderSystem(Registry& registry, AssetManager& assetManager, Renderer& renderer)
-    : m_registry(registry), m_assetManager(assetManager), m_renderer(renderer) {
+RenderSystem::RenderSystem(Registry& registry, AssetSystem& assetSystem, Renderer& renderer)
+    : m_registry(registry), m_assetSystem(assetSystem), m_renderer(renderer) {
 
     m_globalStateManager = std::make_unique<GlobalStateManager>(registry, renderer);
 
@@ -10,11 +10,11 @@ RenderSystem::RenderSystem(Registry& registry, AssetManager& assetManager, Rende
 
 void RenderSystem::initializePipeline() {
     // Create pipeline stages
-    m_assetResolutionStage = std::make_shared<AssetResolutionStage>(m_registry, m_assetManager);
-    m_uniformBufferStage = std::make_shared<UniformBufferStage>(m_registry, m_renderer);
-    m_descriptorSetStage = std::make_shared<DescriptorSetStage>(m_renderer);
-    m_pipelineAssignmentStage = std::make_shared<PipelineAssignmentStage>(m_renderer);
-    m_renderStage = std::make_shared<RenderStage>(m_renderer);
+    m_assetResolutionStage = std::make_shared<AssetResolutionStage>(m_registry, m_assetSystem);
+    m_uniformBufferStage = std::make_shared<UniformBufferStage>(m_registry, m_renderer, m_assetSystem);
+    m_descriptorSetStage = std::make_shared<DescriptorSetStage>(m_renderer, m_assetSystem);
+    m_pipelineAssignmentStage = std::make_shared<PipelineAssignmentStage>(m_renderer, m_assetSystem);
+    m_renderStage = std::make_shared<RenderStage>(m_renderer, m_assetSystem);
 
     // Connect stages
     m_assetResolutionStage->connectTo(RenderOrderType::Mesh, m_uniformBufferStage);

@@ -51,13 +51,8 @@ void Engine::initialize(const char* title) {
     SPDLOG_INFO("Creating renderer");
     m_renderer = std::make_unique<Renderer>(*m_window);
 
-    SPDLOG_DEBUG("Initializing asset manager");
-    m_assetManager = std::make_unique<AssetManager>();
-
-	m_assetManager->registerHandler(AssetType::Mesh, m_renderer->meshManagerPtr());
-    m_assetManager->registerHandler(AssetType::Texture, m_renderer->textureManagerPtr());
-    m_assetManager->registerHandler(AssetType::Shader, m_renderer->shaderModuleManagerPtr());
-    m_assetManager->registerHandler(AssetType::Material, m_renderer->materialManagerPtr());
+    SPDLOG_DEBUG("Initializing asset system");
+    m_assetSystem = std::make_unique<AssetSystem>(*m_renderer);
 
     SPDLOG_INFO("Preparing scene");
     m_scene = std::make_unique<Scene>();
@@ -65,7 +60,7 @@ void Engine::initialize(const char* title) {
     SPDLOG_INFO("Initializing Render System");
     m_renderSystem = std::make_unique<RenderSystem>(
         m_scene->registry(),
-        *m_assetManager,
+        *m_assetSystem,
         *m_renderer
     );
 
@@ -78,8 +73,11 @@ void Engine::shutdown() {
     SPDLOG_DEBUG("Destroying scene...");
     m_scene.reset();
 
-    SPDLOG_DEBUG("Cleaning up asset manager...");
-    m_assetManager.reset();
+    SPDLOG_DEBUG("Cleaning up render system...");
+    m_renderSystem.reset();
+
+    SPDLOG_DEBUG("Cleaning up asset system...");
+    m_assetSystem.reset();
 
     SPDLOG_INFO("Shutting down renderer...");
     m_renderer.reset();
@@ -111,7 +109,7 @@ void Engine::update() {
         SPDLOG_ERROR("Render error: {}", e.what());
     }
 
-    //m_assetManager->advanceFrame(); //tymczasowe wyłącznie przez problemy
+    m_assetSystem->advanceFrame();
 }
 
 void Engine::run() {

@@ -3,6 +3,7 @@
 #include "Window.h"
 #include "SwapChain.h"
 #include "ImGuiWrapper.h"
+#include "ShaderModuleManager.h"
 #include "CommandBuffer.h"
 #include "FrameManager.h"
 #include "RenderPassManager.h"
@@ -10,15 +11,12 @@
 #include "AttachmentManager.h"
 #include "FrameBufferManager.h"
 #include "Event.h"
-#include "ShaderModuleManager.h"
 #include "PipelineManager.h"
-#include "MaterialManager.h"
 #include "UniformBufferManager.h"
 #include "PipelineLayoutManager.h"
 #include "DescriptorLayoutManager.h"
 #include "ImageSamplerManager.h"
 #include "DescriptorAllocator.h"
-#include "MeshManager.h"
 
 class Renderer
 {
@@ -27,8 +25,9 @@ public:
     ~Renderer();
 
     void waitIdle() { vkDeviceWaitIdle(m_vulkanContext->logical().get()); }
-    
+
     VulkanContext& vulkanContext() { return *m_vulkanContext; }
+    ShaderModuleManager& shaderModuleManager() { return *m_shaderModuleManager; }
     CommandBufferManager& commandBufferManager() { return *m_commandBufferManager; }
     SynchronizationResourceManager& synchronizationResourceManager() { return *m_syncResourceManager; }
     FrameManager& frameManager() { return *m_frameManager; }
@@ -41,25 +40,17 @@ public:
     AttachmentManager& attachmentManager() { return *m_attachmentManager; }
     RenderPassManager& renderPassManager() { return *m_renderPassManager; }
     FrameBufferManager& framebufferManager() { return *m_framebufferManager; }
-    ShaderModuleManager& shaderModuleManager() { return *m_shaderModuleManager; }
     PipelineManager& pipelineManager() { return *m_pipelineManager; }
-    MaterialManager& materialManager() { return *m_materialManager; }
     DescriptorAllocator& descriptorAllocator() { return *m_descriptorAllocator; }
-    MeshManager& meshManager() { return *m_meshManager; }
-    TextureManager& textureManager() { return *m_textureManager; }
 
     RenderPassHandle renderPass() { return m_mainRenderPassHandle; }
     AttachmentHandle depthAttachmentHandle() { return m_depthAttachmentHandle; }
     AttachmentHandle msColorAttachmentHandle() { return m_msColorAttachmentHandle; }
 
-    std::shared_ptr<MeshManager> meshManagerPtr() { return m_meshManager;}
-    std::shared_ptr<TextureManager> textureManagerPtr() { return m_textureManager; }
-    std::shared_ptr<MaterialManager> materialManagerPtr() { return m_materialManager; }
-    std::shared_ptr<ShaderModuleManager> shaderModuleManagerPtr() { return m_shaderModuleManager; }
-
 private:
     Window& m_window;
     std::unique_ptr<VulkanContext> m_vulkanContext;
+    std::unique_ptr<ShaderModuleManager> m_shaderModuleManager;
     std::unique_ptr<CommandBufferManager> m_commandBufferManager;
     std::unique_ptr<SynchronizationResourceManager> m_syncResourceManager;
     std::unique_ptr<FrameManager> m_frameManager;
@@ -74,11 +65,6 @@ private:
     std::unique_ptr<FrameBufferManager> m_framebufferManager;
     std::unique_ptr<PipelineManager> m_pipelineManager;
     std::unique_ptr<DescriptorAllocator> m_descriptorAllocator;
-
-    std::shared_ptr<MaterialManager> m_materialManager;
-    std::shared_ptr<ShaderModuleManager> m_shaderModuleManager;
-    std::shared_ptr<MeshManager> m_meshManager;
-    std::shared_ptr<TextureManager> m_textureManager;
 
     // Main render pass and resources
     RenderPassHandle m_mainRenderPassHandle;

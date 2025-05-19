@@ -1,7 +1,7 @@
 #pragma once
 #include "Material.h"
 #include "Handle.h"
-#include "ShaderModuleManager.h"
+#include "ShaderManager.h"
 #include "VramManager.h"
 #include "AssetLib.h"
 #include "Settings.h"
@@ -18,7 +18,7 @@ class MaterialManager : public IAssetHandler {
 public:
     MaterialManager(
         const LogicalDevice& device,
-        ShaderModuleManager& shaderModuleManager,
+        ShaderManager& shaderManager,
         ImageSamplerManager& samplerManager,
         UniformBufferManager& uniformBufferManager,
         DescriptorAllocator& descriptorAllocator,
@@ -79,7 +79,7 @@ private:
     void updateTextureHandles(MaterialHandle materialHandle, AssetManager& manager);
 
     const LogicalDevice& m_device;
-    ShaderModuleManager& m_shaderModuleManager;
+    ShaderManager& m_shaderManager;
     ImageSamplerManager& m_samplerManager;
     TextureManager& m_textureManager;
 

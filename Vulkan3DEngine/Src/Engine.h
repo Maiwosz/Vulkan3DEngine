@@ -4,7 +4,7 @@
 #include "Renderer.h"
 #include "Scene.h"
 #include "ThreadPool.h"
-#include "AssetManager.h"
+#include "AssetSystem.h"
 #include "InputSystem.h"
 #include "RenderSystem.h"
 
@@ -37,7 +37,8 @@ public:
     InputSystem& inputSystem() const { return *m_inputSystem; }
     Renderer& renderer() const { return *m_renderer; }
     Scene& scene() const { return *m_scene; }
-    AssetManager& assetManager() const { return *m_assetManager; }
+    AssetSystem& assetSystem() const { return *m_assetSystem; } 
+    AssetManager& assetManager() const { return m_assetSystem->assetManager(); }
     RenderSystem& renderSystem() const { return *m_renderSystem; }
 
 private:
@@ -50,7 +51,7 @@ private:
     std::unique_ptr<InputSystem> m_inputSystem;
     std::unique_ptr<Renderer> m_renderer;
     std::unique_ptr<Scene> m_scene;
-    std::unique_ptr<AssetManager> m_assetManager;
+    std::unique_ptr<AssetSystem> m_assetSystem;
     std::unique_ptr<RenderSystem> m_renderSystem;
 
     bool m_running = false;
@@ -58,5 +59,4 @@ private:
     float m_deltaTime = 0.0f;
     float m_totalTime = 0.0f;
     uint32_t m_frameCount = 0;
-
 };

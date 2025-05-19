@@ -11,11 +11,13 @@
 #include "RenderOrder.h"
 #include "Renderer.h"
 #include "ImageSamplerManager.h"
+#include "AssetSystem.h"
 
 class DescriptorSetStage : public OrderProcessingStage {
 public:
     DescriptorSetStage(
-        Renderer& renderer
+        Renderer& renderer,
+        AssetSystem& assetSystem
     );
     ~DescriptorSetStage() override = default;
 
@@ -31,7 +33,8 @@ private:
     void createObjectDescriptorSet(std::shared_ptr<MeshRenderOrder> order, ShaderHandle shader);
 
     Renderer& m_renderer;
-    ShaderModuleManager& m_shaderManager;
+	AssetSystem& m_assetSystem;
+    ShaderManager& m_shaderManager;
     MaterialManager& m_materialManager;
     UniformBufferManager& m_uniformBufferManager;
     DescriptorAllocator& m_descriptorAllocator;

@@ -7,7 +7,7 @@
 
 MaterialManager::MaterialManager(
     const LogicalDevice& device,
-    ShaderModuleManager& shaderModuleManager,
+    ShaderManager& shaderManager,
     ImageSamplerManager& samplerManager,
     UniformBufferManager& uniformBufferManager,
     DescriptorAllocator& descriptorAllocator,
@@ -15,14 +15,14 @@ MaterialManager::MaterialManager(
     TextureManager& textureManager
 )
     : m_device(device),
-    m_shaderModuleManager(shaderModuleManager),
+    m_shaderManager(shaderManager),
     m_samplerManager(samplerManager),
     m_textureManager(textureManager) {
 
     // Create the resource manager
     m_resourceManager = std::make_unique<MaterialResourceManager>(
         device,
-        shaderModuleManager,
+        shaderManager,
         samplerManager,
         uniformBufferManager,
         descriptorAllocator,
@@ -65,7 +65,7 @@ bool MaterialManager::prepareAsset(const AssetHandle& handle, const AssetLib::As
         }
 
         // Get shader handle from shader module manager using the getHandle method
-        ShaderHandle shader = m_shaderModuleManager.getHandle<ShaderHandle>(shaderName);
+        ShaderHandle shader = m_shaderManager.getHandle<ShaderHandle>(shaderName);
         if (!shader.isValid()) {
             SPDLOG_ERROR("MaterialManager: Invalid shader handle for {}", shaderName);
             return false;
@@ -441,7 +441,7 @@ uint32_t MaterialManager::findBindingForParameter(
     ShaderLib::DescriptorType descriptorType
 ) {
     // Get shader metadata from shader module manager
-    const auto& metadata = m_shaderModuleManager.getShaderMetadata(shaderHandle);
+    const auto& metadata = m_shaderManager.getShaderMetadata(shaderHandle);
 
     // For UniformBuffer, we know our buffer will use InputData as name
     if (descriptorType == ShaderLib::DescriptorType::UniformBuffer) {

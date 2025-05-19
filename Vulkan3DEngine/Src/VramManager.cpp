@@ -2,6 +2,7 @@
 #include <stdexcept>
 #include "GraphicsTypes.h"
 #include <cassert>
+#include <spdlog/spdlog.h>
 
 VramManager::VramManager(
     VulkanContext& context,
@@ -22,17 +23,30 @@ VramManager::VramManager(
 
     // Add logging or debug check here
     if (m_allocator == VK_NULL_HANDLE) {
+        SPDLOG_ERROR("VMA allocator initialization failed");
         throw std::runtime_error("VMA allocator initialization failed");
     }
+
+    // Log total VRAM available
+    uint64_t vramBudget = getVramBudget();
+    SPDLOG_INFO("VramManager initialized with {:.2f} MB total VRAM", vramBudget / (1024.0f * 1024.0f));
 }
 
 VramManager::~VramManager() {
+    uint64_t vramUsed = getVramUsed();
+    if (vramUsed > 0) {
+        SPDLOG_WARN("VramManager destroyed with {:.2f} MB VRAM still in use ({} resources remaining)",
+            vramUsed / (1024.0f * 1024.0f), m_resources.size());
+    }
+
     m_resources.clear();
 
     if (m_allocator) {
         vmaDestroyAllocator(m_allocator);
         m_allocator = VK_NULL_HANDLE;
     }
+
+    SPDLOG_DEBUG("VramManager destroyed");
 }
 
 VmaAllocator VramManager::createVmaAllocator(VulkanContext& context) {
@@ -44,14 +58,17 @@ VmaAllocator VramManager::createVmaAllocator(VulkanContext& context) {
 
     // Add additional validation
     if (allocatorInfo.physicalDevice == VK_NULL_HANDLE) {
+        SPDLOG_ERROR("Physical device is null in VMA allocator creation");
         throw std::runtime_error("Physical device is null in VMA allocator creation");
     }
 
     if (allocatorInfo.device == VK_NULL_HANDLE) {
+        SPDLOG_ERROR("Logical device is null in VMA allocator creation");
         throw std::runtime_error("Logical device is null in VMA allocator creation");
     }
 
     if (allocatorInfo.instance == VK_NULL_HANDLE) {
+        SPDLOG_ERROR("Vulkan instance is null in VMA allocator creation");
         throw std::runtime_error("Vulkan instance is null in VMA allocator creation");
     }
 
@@ -59,20 +76,23 @@ VmaAllocator VramManager::createVmaAllocator(VulkanContext& context) {
     VkResult result = vmaCreateAllocator(&allocatorInfo, &allocator);
 
     if (result != VK_SUCCESS || allocator == VK_NULL_HANDLE) {
-        throw std::runtime_error("Failed to create VMA allocator (VkResult: " +
-            std::to_string(result) + ")");
+        SPDLOG_ERROR("Failed to create VMA allocator");
+        throw std::runtime_error("Failed to create VMA allocator");
     }
 
+    SPDLOG_DEBUG("VMA allocator created successfully");
     return allocator;
 }
 
 VramHandle VramManager::createBuffer(const Graphics::BufferCreateInfo& info, const void* initialData) {
     // Validate inputs
     if (info.size == 0) {
+        SPDLOG_ERROR("Attempted to create buffer with zero size");
         throw std::runtime_error("Buffer size cannot be zero");
     }
 
     if (m_allocator == VK_NULL_HANDLE) {
+        SPDLOG_ERROR("Cannot create buffer with null VMA allocator");
         throw std::runtime_error("Cannot create buffer with null VMA allocator");
     }
 
@@ -85,6 +105,13 @@ VramHandle VramManager::createBuffer(const Graphics::BufferCreateInfo& info, con
 
     VramHandle handle{ m_nextId++ };
     m_resources.emplace(handle.id, std::move(buffer));
+
+    // Log resource creation and VRAM usage
+    uint64_t resourceSize = getResourceSize(handle);
+    float usagePercent = getVramUsagePercentage();
+    SPDLOG_INFO("Buffer created: handle={}, size={:.2f} KB, VRAM usage={:.1f}%",
+        handle.id, resourceSize / 1024.0f, usagePercent);
+
     return handle;
 }
 
@@ -95,10 +122,12 @@ VramHandle VramManager::createImage(
 
     // Validate inputs
     if (info.width == 0 || info.height == 0) {
+        SPDLOG_ERROR("Attempted to create image with invalid dimensions: {}x{}", info.width, info.height);
         throw std::runtime_error("Image dimensions cannot be zero");
     }
 
     if (m_allocator == VK_NULL_HANDLE) {
+        SPDLOG_ERROR("Cannot create image with null VMA allocator");
         throw std::runtime_error("Cannot create image with null VMA allocator");
     }
 
@@ -118,6 +147,7 @@ VramHandle VramManager::createImage(
     if (info.format == Graphics::ImageFormat::BC7_UNORM ||
         info.format == Graphics::ImageFormat::BC7_SRGB) {
         if (info.width % 4 != 0 || info.height % 4 != 0) {
+            SPDLOG_ERROR("Compressed texture dimensions must be multiple of 4: {}x{}", info.width, info.height);
             throw std::runtime_error("Compressed texture dimensions must be multiple of 4: " +
                 std::to_string(info.width) + "x" + std::to_string(info.height));
         }
@@ -132,9 +162,18 @@ VramHandle VramManager::createImage(
 
         VramHandle handle{ m_nextId++ };
         m_resources.emplace(handle.id, std::move(image));
+
+        // Log resource creation and VRAM usage
+        uint64_t resourceSize = getResourceSize(handle);
+        float usagePercent = getVramUsagePercentage();
+        SPDLOG_INFO("Image created: handle={}, size={:.2f} KB, dimensions={}x{}, mips={}, format={}, VRAM usage={:.1f}%",
+            handle.id, resourceSize / 1024.0f, info.width, info.height, info.mipLevels,
+            static_cast<int>(info.format), usagePercent);
+
         return handle;
     }
     catch (const std::exception& e) {
+        SPDLOG_ERROR("Failed to create image: {}", e.what());
         throw std::runtime_error(std::string("Failed to create image: ") + e.what());
     }
 }
@@ -145,6 +184,11 @@ VramHandle VramManager::createBuffer(
     VkMemoryPropertyFlags memoryProperties,
     const void* initialData)
 {
+    if (size == 0) {
+        SPDLOG_ERROR("Attempted to create buffer with zero size");
+        throw std::runtime_error("Buffer size cannot be zero");
+    }
+
     // Tworzenie głównego bufora
     VmaAllocationCreateInfo allocInfo = {};
 
@@ -213,6 +257,8 @@ VramHandle VramManager::createBuffer(
 
             // 9. Zwolnij bufory dla zakończonych płotków
             m_stagingManager.reclaimBuffers();
+
+            SPDLOG_DEBUG("Immediate buffer transfer completed for buffer of size {:.2f} KB", size / 1024.0f);
         }
         else {
             // For host-visible memory, we can directly map and copy
@@ -220,12 +266,20 @@ VramHandle VramManager::createBuffer(
             if (mappedData) {
                 memcpy(mappedData, initialData, size);
                 buffer.unmap();
+                SPDLOG_DEBUG("Direct mapped memory transfer completed for buffer of size {:.2f} KB", size / 1024.0f);
             }
         }
     }
 
     VramHandle handle{ m_nextId++ };
     m_resources.emplace(handle.id, std::move(buffer));
+
+    // Log resource creation and VRAM usage
+    uint64_t resourceSize = getResourceSize(handle);
+    float usagePercent = getVramUsagePercentage();
+    SPDLOG_INFO("Buffer created (immediate): handle={}, size={:.2f} KB, usage=0x{:x}, memory=0x{:x}, VRAM usage={:.1f}%",
+        handle.id, resourceSize / 1024.0f, usage, memoryProperties, usagePercent);
+
     return handle;
 }
 
@@ -234,6 +288,12 @@ VramHandle VramManager::createImage(
     VkMemoryPropertyFlags memoryProperties,
     const void* initialData)
 {
+    if (imageInfo.extent.width == 0 || imageInfo.extent.height == 0) {
+        SPDLOG_ERROR("Attempted to create image with invalid dimensions: {}x{}",
+            imageInfo.extent.width, imageInfo.extent.height);
+        throw std::runtime_error("Image dimensions cannot be zero");
+    }
+
     // Tworzenie głównego obrazu
     VmaAllocationCreateInfo allocInfo = {};
     allocInfo.usage = VMA_MEMORY_USAGE_AUTO;
@@ -321,28 +381,42 @@ VramHandle VramManager::createImage(
         // 9. Zwolnij bufory dla zakończonych płotków
         m_stagingManager.reclaimBuffers();
 
+        SPDLOG_DEBUG("Immediate image transfer completed for image of size {:.2f} KB", imageSize / 1024.0f);
     }
 
     VramHandle handle{ m_nextId++ };
     m_resources.emplace(handle.id, std::move(image));
+
+    // Log resource creation and VRAM usage
+    uint64_t resourceSize = getResourceSize(handle);
+    float usagePercent = getVramUsagePercentage();
+    SPDLOG_INFO("Image created (immediate): handle={}, size={:.2f} KB, dimensions={}x{}, mips={}, format={}, VRAM usage={:.1f}%",
+        handle.id, resourceSize / 1024.0f, imageInfo.extent.width, imageInfo.extent.height,
+        imageInfo.mipLevels, static_cast<int>(imageInfo.format), usagePercent);
+
     return handle;
 }
 
 void VramManager::freeResource(VramHandle handle) {
     if (!handle.isValid()) {
+        SPDLOG_WARN("Attempted to free invalid resource handle");
         return; // Ignoruj nieprawidłowe uchwyty
     }
 
     auto it = m_resources.find(handle.id);
     if (it == m_resources.end()) {
+        SPDLOG_WARN("Attempted to free non-existent resource: handle={}", handle.id);
         return; // Zasób już został zwolniony
     }
+
+    uint64_t resourceSize = getResourceSize(handle);
 
     // Obsłuż specjalny przypadek obrazów zewnętrznych
     if (std::holds_alternative<Image>(it->second)) {
         Image& img = std::get<Image>(it->second);
 
         if (img.isExternalResource()) {
+            SPDLOG_DEBUG("Freeing external image resource: handle={}", handle.id);
             // 1. Wykonaj barierę końcową jeśli potrzebna
             // 2. Usuń tylko referencję, nie niszcz VkImage
             // 3. Wyczyść stan w managera
@@ -355,14 +429,67 @@ void VramManager::freeResource(VramHandle handle) {
     if (std::holds_alternative<Image>(it->second)) {
         Image& img = std::get<Image>(it->second);
         // Ewentualne dodatkowe przygotowanie obrazu
+        SPDLOG_DEBUG("Freeing image resource: handle={}, size={:.2f} KB",
+            handle.id, resourceSize / 1024.0f);
     }
     else if (std::holds_alternative<Buffer>(it->second)) {
         Buffer& buf = std::get<Buffer>(it->second);
         // Ewentualne dodatkowe przygotowanie bufora
+        SPDLOG_DEBUG("Freeing buffer resource: handle={}, size={:.2f} KB",
+            handle.id, resourceSize / 1024.0f);
     }
 
     m_resources.erase(it); // Wyzwala destruktor zasobu
+
+    // Log VRAM status after freeing
+    float usagePercent = getVramUsagePercentage();
+    SPDLOG_INFO("Resource freed: handle={}, size={:.2f} KB, VRAM usage={:.1f}%",
+        handle.id, resourceSize / 1024.0f, usagePercent);
 }
+
+VramHandle VramManager::registerExternalImage(
+    VkImage image,
+    VkFormat format,
+    VkExtent2D extent,
+    VkImageLayout initialLayout,
+    VkSampleCountFlagBits samples)
+{
+    if (image == VK_NULL_HANDLE) {
+        SPDLOG_ERROR("Attempted to register null external image");
+        throw std::runtime_error("Cannot register null external image");
+    }
+
+    // Generate a new handle ID
+    VramHandle handle{ m_nextId++ };
+
+    // Create the image directly in the map (avoiding temporary)
+    auto [iter, success] = m_resources.try_emplace(
+        handle.id,
+        std::in_place_type<Image>
+    );
+
+    // If insertion succeeded, now initialize the Image
+    if (success) {
+        Image* imgPtr = std::get_if<Image>(&iter->second);
+        if (imgPtr) {
+            // Initialize the image in-place
+            *imgPtr = Image::createExternal(
+                m_allocator,
+                image,
+                format,
+                extent,
+                initialLayout,
+                samples
+            );
+
+            SPDLOG_INFO("External image registered: handle={}, dimensions={}x{}, format={}",
+                handle.id, extent.width, extent.height, static_cast<int>(format));
+        }
+    }
+
+    return handle;
+}
+
 
 uint64_t VramManager::getResourceSize(VramHandle handle) {
     if (!handle.isValid()) {
@@ -386,76 +513,51 @@ uint64_t VramManager::getResourceSize(VramHandle handle) {
 
 uint64_t VramManager::getVramUsed() const
 {
-    VkPhysicalDeviceMemoryProperties memProps;
-    vkGetPhysicalDeviceMemoryProperties(m_context.physical().get(), &memProps);
-
     VmaBudget budgets[VK_MAX_MEMORY_HEAPS];
     vmaGetHeapBudgets(m_allocator, budgets);
 
-    VkDeviceSize usedBytes = 0;
+    VkPhysicalDeviceMemoryProperties memProps;
+    vkGetPhysicalDeviceMemoryProperties(m_context.physical().get(), &memProps);
+
+    uint64_t usedBytes = 0;
     for (uint32_t i = 0; i < memProps.memoryHeapCount; ++i) {
+        // Only count device-local heaps (GPU VRAM)
         if (memProps.memoryHeaps[i].flags & VK_MEMORY_HEAP_DEVICE_LOCAL_BIT) {
             usedBytes += budgets[i].usage;
         }
     }
-    return static_cast<uint64_t>(usedBytes);
+    return usedBytes;
 }
 
 uint64_t VramManager::getVramBudget() const
 {
-    VkPhysicalDeviceMemoryProperties memProps;
-    vkGetPhysicalDeviceMemoryProperties(m_context.physical().get(), &memProps);
-
     VmaBudget budgets[VK_MAX_MEMORY_HEAPS];
     vmaGetHeapBudgets(m_allocator, budgets);
 
-    VkDeviceSize budgetBytes = 0;
+    VkPhysicalDeviceMemoryProperties memProps;
+    vkGetPhysicalDeviceMemoryProperties(m_context.physical().get(), &memProps);
+
+    uint64_t budgetBytes = 0;
     for (uint32_t i = 0; i < memProps.memoryHeapCount; ++i) {
+        // Only count device-local heaps (GPU VRAM)
         if (memProps.memoryHeaps[i].flags & VK_MEMORY_HEAP_DEVICE_LOCAL_BIT) {
+            // Use the budget reported by VMA, which should be more accurate
             budgetBytes += budgets[i].budget;
         }
     }
-    return static_cast<uint64_t>(budgetBytes);
+    return budgetBytes;
 }
 
 float VramManager::getVramUsagePercentage() const
 {
-    const VkDeviceSize used = getVramUsed();
-    const VkDeviceSize budget = getVramBudget();
-    return (budget > 0) ? static_cast<float>(used) / static_cast<float>(budget) * 100.0f : 0.0f;
-}
+    const uint64_t used = getVramUsed();
+    const uint64_t budget = getVramBudget();
 
-VramHandle VramManager::registerExternalImage(
-    VkImage image,
-    VkFormat format,
-    VkExtent2D extent,
-    VkImageLayout initialLayout,
-    VkSampleCountFlagBits samples)
-{
-    // Generate a new handle ID
-    VramHandle handle{ m_nextId++ };
+    // Protect against division by zero and ensure values make sense
+    if (budget == 0) return 0.0f;
 
-    // Create the image directly in the map (avoiding temporary)
-    auto [iter, success] = m_resources.try_emplace(
-        handle.id,
-        std::in_place_type<Image>
-    );
-
-    // If insertion succeeded, now initialize the Image
-    if (success) {
-        Image* imgPtr = std::get_if<Image>(&iter->second);
-        if (imgPtr) {
-            // Initialize the image in-place
-            *imgPtr = Image::createExternal(
-                m_allocator,
-                image,
-                format,
-                extent,
-                initialLayout,
-                samples
-            );
-        }
-    }
-
-    return handle;
+    // Clamp the result to a maximum of 100% to avoid unrealistic values
+    // This ensures we don't report using more VRAM than exists
+    float percentage = static_cast<float>(used) / static_cast<float>(budget) * 100.0f;
+    return std::min(percentage, 100.0f);
 }

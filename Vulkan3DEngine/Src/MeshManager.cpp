@@ -84,10 +84,9 @@ uint64_t MeshManager::getAssetSize(const std::string& filename) const {
         if (meshIt != m_meshes.end()) {
             const Mesh& mesh = meshIt->second;
 
-            // Get the size of vertex and index buffers
-            // This is an approximation as we don't have direct access to buffer sizes
-            uint64_t vertexBufferSize = mesh.vertexCount * mesh.vertexStride;
-            uint64_t indexBufferSize = mesh.indexCount * (mesh.indexType == 0 ? 2 : 4); // 2 bytes for uint16, 4 bytes for uint32
+            // Use VramManager to get the actual allocated size in VRAM
+            uint64_t vertexBufferSize = m_vramManager.getResourceSize(mesh.vertexBuffer);
+            uint64_t indexBufferSize = m_vramManager.getResourceSize(mesh.indexBuffer);
 
             return vertexBufferSize + indexBufferSize;
         }

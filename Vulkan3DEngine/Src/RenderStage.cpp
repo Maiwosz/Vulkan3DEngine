@@ -4,7 +4,7 @@
 
 #include "Engine.h"
 
-RenderStage::RenderStage(Renderer& renderer)
+RenderStage::RenderStage(Renderer& renderer, AssetSystem& assetSystem)
     : m_vulkanContext(renderer.vulkanContext()),
     m_frameManager(renderer.frameManager()),
     m_vramManager(renderer.vramManager()),
@@ -13,7 +13,7 @@ RenderStage::RenderStage(Renderer& renderer)
     m_framebufferManager(renderer.framebufferManager()),
     m_renderPassManager(renderer.renderPassManager()),
     m_pipelineManager(renderer.pipelineManager()),
-    m_meshManager(renderer.meshManager()),
+    m_meshManager(assetSystem.meshManager()),
     m_depthAttachmentHandle(renderer.depthAttachmentHandle()),
     m_msColorAttachmentHandle(renderer.msColorAttachmentHandle()),
     m_mainRenderPassHandle(renderer.renderPass()) {

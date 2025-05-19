@@ -114,16 +114,16 @@
       <Filter>Engine\Renderer\ShaderModuleManager</Filter>
     </ClCompile>
     <ClCompile Include="Src\DescriptorAllocator.cpp">
-      <Filter>Engine\Renderer\Descriptors\DescriptorAllocator</Filter>
+      <Filter>Engine\Renderer\DescriptorSystem\DescriptorAllocator</Filter>
     </ClCompile>
     <ClCompile Include="Src\DescriptorLayoutBuilder.cpp">
-      <Filter>Engine\Renderer\Descriptors\DescriptorLayoutManager\DescriptorLayoutBuilder</Filter>
+      <Filter>Engine\Renderer\DescriptorSystem\DescriptorLayoutManager\DescriptorLayoutBuilder</Filter>
     </ClCompile>
     <ClCompile Include="Src\DescriptorWriter.cpp">
-      <Filter>Engine\Renderer\Descriptors\DescriptorWriter</Filter>
+      <Filter>Engine\Renderer\DescriptorSystem\DescriptorWriter</Filter>
     </ClCompile>
     <ClCompile Include="Src\DescriptorLayoutManager.cpp">
-      <Filter>Engine\Renderer\Descriptors\DescriptorLayoutManager</Filter>
+      <Filter>Engine\Renderer\DescriptorSystem\DescriptorLayoutManager</Filter>
     </ClCompile>
     <ClCompile Include="Src\SynchronizationResourceManager.cpp">
       <Filter>Engine\Renderer\SynchronizationResourceManager</Filter>
@@ -171,10 +171,10 @@
       <Filter>Engine</Filter>
     </ClCompile>
     <ClCompile Include="Src\Material.cpp">
-      <Filter>Engine\Renderer\MaterialManager\Material</Filter>
+      <Filter>Engine\AssetSystem\AssetManager\AssetHandlers\MaterialManager\Material</Filter>
     </ClCompile>
     <ClCompile Include="Src\MaterialManager.cpp">
-      <Filter>Engine\Renderer\MaterialManager</Filter>
+      <Filter>Engine\AssetSystem\AssetManager\AssetHandlers\MaterialManager</Filter>
     </ClCompile>
     <ClCompile Include="Src\UniformBufferManager.cpp">
       <Filter>Engine\Renderer\UniformBufferManager</Filter>
@@ -198,7 +198,7 @@
       <Filter>Engine\RenderSystem\ProcessingStages\PipelineAssignmentStage</Filter>
     </ClCompile>
     <ClCompile Include="Src\MeshManager.cpp">
-      <Filter>Engine\Renderer\MeshManager</Filter>
+      <Filter>Engine\AssetSystem\AssetManager\AssetHandlers\MeshManager</Filter>
     </ClCompile>
     <ClCompile Include="Src\RenderStage.cpp">
       <Filter>Engine\RenderSystem\ProcessingStages\RenderStage</Filter>
@@ -237,13 +237,19 @@
       <Filter>Engine\LoggerConfig</Filter>
     </ClCompile>
     <ClCompile Include="Src\MaterialResourceManager.cpp">
-      <Filter>Engine\Renderer\MaterialManager\MaterialResourceManager</Filter>
+      <Filter>Engine\AssetSystem\AssetManager\AssetHandlers\MaterialManager\MaterialResourceManager</Filter>
     </ClCompile>
     <ClCompile Include="Src\TextureManager.cpp">
-      <Filter>Engine\Renderer\TextureManager</Filter>
+      <Filter>Engine\AssetSystem\AssetManager\AssetHandlers\TextureManager</Filter>
     </ClCompile>
     <ClCompile Include="Src\AssetResolutionStage.cpp">
       <Filter>Engine\RenderSystem\ProcessingStages\AssetResolutionStage</Filter>
+    </ClCompile>
+    <ClCompile Include="Src\ShaderManager.cpp">
+      <Filter>Engine\AssetSystem\AssetManager\AssetHandlers\ShaderManager</Filter>
+    </ClCompile>
+    <ClCompile Include="Src\AssetSystem.cpp">
+      <Filter>Engine\AssetSystem</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -396,16 +402,16 @@
       <Filter>Engine\Renderer\ShaderModuleManager</Filter>
     </ClInclude>
     <ClInclude Include="Src\DescriptorAllocator.h">
-      <Filter>Engine\Renderer\Descriptors\DescriptorAllocator</Filter>
+      <Filter>Engine\Renderer\DescriptorSystem\DescriptorAllocator</Filter>
     </ClInclude>
     <ClInclude Include="Src\DescriptorWriter.h">
-      <Filter>Engine\Renderer\Descriptors\DescriptorWriter</Filter>
+      <Filter>Engine\Renderer\DescriptorSystem\DescriptorWriter</Filter>
     </ClInclude>
     <ClInclude Include="Src\DescriptorLayoutBuilder.h">
-      <Filter>Engine\Renderer\Descriptors\DescriptorLayoutManager\DescriptorLayoutBuilder</Filter>
+      <Filter>Engine\Renderer\DescriptorSystem\DescriptorLayoutManager\DescriptorLayoutBuilder</Filter>
     </ClInclude>
     <ClInclude Include="Src\DescriptorLayoutManager.h">
-      <Filter>Engine\Renderer\Descriptors\DescriptorLayoutManager</Filter>
+      <Filter>Engine\Renderer\DescriptorSystem\DescriptorLayoutManager</Filter>
     </ClInclude>
     <ClInclude Include="Src\SynchronizationResourceManager.h">
       <Filter>Engine\Renderer\SynchronizationResourceManager</Filter>
@@ -453,10 +459,10 @@
       <Filter>ImGui</Filter>
     </ClInclude>
     <ClInclude Include="Src\Material.h">
-      <Filter>Engine\Renderer\MaterialManager\Material</Filter>
+      <Filter>Engine\AssetSystem\AssetManager\AssetHandlers\MaterialManager\Material</Filter>
     </ClInclude>
     <ClInclude Include="Src\MaterialManager.h">
-      <Filter>Engine\Renderer\MaterialManager</Filter>
+      <Filter>Engine\AssetSystem\AssetManager\AssetHandlers\MaterialManager</Filter>
     </ClInclude>
     <ClInclude Include="Src\UniformBufferManager.h">
       <Filter>Engine\Renderer\UniformBufferManager</Filter>
@@ -490,10 +496,10 @@
       <Filter>Engine\RenderSystem\ProcessingStages\PipelineAssignmentStage</Filter>
     </ClInclude>
     <ClInclude Include="Src\MeshManager.h">
-      <Filter>Engine\Renderer\MeshManager</Filter>
+      <Filter>Engine\AssetSystem\AssetManager\AssetHandlers\MeshManager</Filter>
     </ClInclude>
     <ClInclude Include="Src\Mesh.h">
-      <Filter>Engine\Renderer\MeshManager</Filter>
+      <Filter>Engine\AssetSystem\AssetManager\AssetHandlers\MeshManager</Filter>
     </ClInclude>
     <ClInclude Include="Src\RenderStage.h">
       <Filter>Engine\RenderSystem\ProcessingStages\RenderStage</Filter>
@@ -538,16 +544,22 @@
       <Filter>Engine</Filter>
     </ClInclude>
     <ClInclude Include="Src\MaterialResourceManager.h">
-      <Filter>Engine\Renderer\MaterialManager\MaterialResourceManager</Filter>
+      <Filter>Engine\AssetSystem\AssetManager\AssetHandlers\MaterialManager\MaterialResourceManager</Filter>
     </ClInclude>
     <ClInclude Include="Src\TextureManager.h">
-      <Filter>Engine\Renderer\TextureManager</Filter>
-    </ClInclude>
-    <ClInclude Include="Src\IAssetHandler.h">
-      <Filter>Engine\AssetSystem\AssetManager</Filter>
+      <Filter>Engine\AssetSystem\AssetManager\AssetHandlers\TextureManager</Filter>
     </ClInclude>
     <ClInclude Include="Src\AssetResolutionStage.h">
       <Filter>Engine\RenderSystem\ProcessingStages\AssetResolutionStage</Filter>
+    </ClInclude>
+    <ClInclude Include="Src\IAssetHandler.h">
+      <Filter>Engine\AssetSystem\AssetManager\AssetHandlers</Filter>
+    </ClInclude>
+    <ClInclude Include="Src\ShaderManager.h">
+      <Filter>Engine\AssetSystem\AssetManager\AssetHandlers\ShaderManager</Filter>
+    </ClInclude>
+    <ClInclude Include="Src\AssetSystem.h">
+      <Filter>Engine\AssetSystem</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
@@ -643,21 +655,6 @@
     <Filter Include="Engine\Renderer\VulkanContext\DebugMessenger">
       <UniqueIdentifier>{2b2cdc98-f07e-45cc-a1ce-28ab2d93e640}</UniqueIdentifier>
     </Filter>
-    <Filter Include="Engine\Renderer\Descriptors">
-      <UniqueIdentifier>{91c5c937-c5c2-4cc0-9d19-37d16231a80e}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Engine\Renderer\Descriptors\DescriptorAllocator">
-      <UniqueIdentifier>{2659d45c-9a77-4568-9b56-485650558fe2}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Engine\Renderer\Descriptors\DescriptorWriter">
-      <UniqueIdentifier>{9e6b4c44-45b3-4d7d-964a-ea170325c0da}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Engine\Renderer\Descriptors\DescriptorLayoutManager">
-      <UniqueIdentifier>{82b31a41-ac8c-4730-be48-acb73fb57196}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Engine\Renderer\Descriptors\DescriptorLayoutManager\DescriptorLayoutBuilder">
-      <UniqueIdentifier>{21ffb734-cbfa-4098-b9e3-32a172bd2e29}</UniqueIdentifier>
-    </Filter>
     <Filter Include="Engine\Renderer\SynchronizationResourceManager">
       <UniqueIdentifier>{e87da695-7a96-4681-84a2-1205a4a03d08}</UniqueIdentifier>
     </Filter>
@@ -675,12 +672,6 @@
     </Filter>
     <Filter Include="Engine\Renderer\RenderPassManager">
       <UniqueIdentifier>{f740f6ed-08ff-4a46-8a71-8db3d3a50785}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Engine\Renderer\ShaderModuleManager">
-      <UniqueIdentifier>{ac2b5c6e-3c1d-42c4-81ce-71e973923c15}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Engine\Renderer\ShaderModuleManager\ShaderModule">
-      <UniqueIdentifier>{73f3a81a-7cd0-4e0c-82b8-9b6ac6429520}</UniqueIdentifier>
     </Filter>
     <Filter Include="Engine\Renderer\SwapChain">
       <UniqueIdentifier>{f89a2610-55c3-4650-90b7-cb8a53396734}</UniqueIdentifier>
@@ -724,12 +715,6 @@
     <Filter Include="Editor\ImGuiWrapper">
       <UniqueIdentifier>{771687ec-623b-4f20-99f4-8a37762989e3}</UniqueIdentifier>
     </Filter>
-    <Filter Include="Engine\Renderer\MaterialManager">
-      <UniqueIdentifier>{0b9ca18a-a4bb-43a9-92ce-87a7777a0c61}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Engine\Renderer\MaterialManager\Material">
-      <UniqueIdentifier>{c9815ef4-15ce-4b11-bbea-1f3dba77ede4}</UniqueIdentifier>
-    </Filter>
     <Filter Include="Engine\Renderer\UniformBufferManager">
       <UniqueIdentifier>{f4f12b53-9db7-47a6-9c37-5077623ee1c0}</UniqueIdentifier>
     </Filter>
@@ -756,9 +741,6 @@
     </Filter>
     <Filter Include="Engine\RenderSystem\ProcessingStages\PipelineAssignmentStage">
       <UniqueIdentifier>{e1bd4975-38e0-4411-81ce-725805ea8af8}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Engine\Renderer\MeshManager">
-      <UniqueIdentifier>{5fb181cf-8c87-4674-a810-939b4b38ad82}</UniqueIdentifier>
     </Filter>
     <Filter Include="Engine\RenderSystem\ProcessingStages\RenderStage">
       <UniqueIdentifier>{99aaa877-e779-48c1-a547-ee837d07b171}</UniqueIdentifier>
@@ -796,14 +778,50 @@
     <Filter Include="Engine\LoggerConfig">
       <UniqueIdentifier>{f7084a8b-d68e-4686-8bc2-7c3b39c53870}</UniqueIdentifier>
     </Filter>
-    <Filter Include="Engine\Renderer\MaterialManager\MaterialResourceManager">
-      <UniqueIdentifier>{b10e81d0-7145-4fb2-bcb8-c240e1bbcf0b}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Engine\Renderer\TextureManager">
-      <UniqueIdentifier>{6c158321-f629-42c8-9575-11a75750bbb3}</UniqueIdentifier>
-    </Filter>
     <Filter Include="Engine\RenderSystem\ProcessingStages\AssetResolutionStage">
       <UniqueIdentifier>{ea5bd055-c6ad-452c-bf30-11a8877845d3}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Engine\AssetSystem\AssetManager\AssetHandlers">
+      <UniqueIdentifier>{f892f428-0955-44aa-9422-e52d53d5c1bc}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Engine\AssetSystem\AssetManager\AssetHandlers\MeshManager">
+      <UniqueIdentifier>{5fb181cf-8c87-4674-a810-939b4b38ad82}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Engine\AssetSystem\AssetManager\AssetHandlers\MaterialManager">
+      <UniqueIdentifier>{0b9ca18a-a4bb-43a9-92ce-87a7777a0c61}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Engine\AssetSystem\AssetManager\AssetHandlers\MaterialManager\Material">
+      <UniqueIdentifier>{c9815ef4-15ce-4b11-bbea-1f3dba77ede4}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Engine\AssetSystem\AssetManager\AssetHandlers\MaterialManager\MaterialResourceManager">
+      <UniqueIdentifier>{b10e81d0-7145-4fb2-bcb8-c240e1bbcf0b}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Engine\AssetSystem\AssetManager\AssetHandlers\TextureManager">
+      <UniqueIdentifier>{6c158321-f629-42c8-9575-11a75750bbb3}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Engine\Renderer\DescriptorSystem">
+      <UniqueIdentifier>{91c5c937-c5c2-4cc0-9d19-37d16231a80e}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Engine\Renderer\DescriptorSystem\DescriptorAllocator">
+      <UniqueIdentifier>{2659d45c-9a77-4568-9b56-485650558fe2}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Engine\Renderer\DescriptorSystem\DescriptorWriter">
+      <UniqueIdentifier>{9e6b4c44-45b3-4d7d-964a-ea170325c0da}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Engine\Renderer\DescriptorSystem\DescriptorLayoutManager">
+      <UniqueIdentifier>{82b31a41-ac8c-4730-be48-acb73fb57196}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Engine\Renderer\DescriptorSystem\DescriptorLayoutManager\DescriptorLayoutBuilder">
+      <UniqueIdentifier>{21ffb734-cbfa-4098-b9e3-32a172bd2e29}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Engine\AssetSystem\AssetManager\AssetHandlers\ShaderManager">
+      <UniqueIdentifier>{106800e0-480b-4b59-aa29-5a04e36f4ca0}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Engine\Renderer\ShaderModuleManager">
+      <UniqueIdentifier>{ac2b5c6e-3c1d-42c4-81ce-71e973923c15}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Engine\Renderer\ShaderModuleManager\ShaderModule">
+      <UniqueIdentifier>{73f3a81a-7cd0-4e0c-82b8-9b6ac6429520}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
 </Project>

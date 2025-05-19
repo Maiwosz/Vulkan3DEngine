@@ -1,4 +1,5 @@
 #pragma once
+#include "AssetSystem.h"
 #include "ProcessingStage.h"
 #include "PipelineManager.h"
 #include "RenderPassManager.h"
@@ -38,7 +39,8 @@ namespace std {
 class PipelineAssignmentStage : public OrderProcessingStage {
 public:
     PipelineAssignmentStage(
-        Renderer& renderer
+        Renderer& renderer,
+		AssetSystem& assetSystem
     );
 
     ~PipelineAssignmentStage();
@@ -69,7 +71,7 @@ private:
 
     // References to required managers
     PipelineManager& m_pipelineManager;
-    ShaderModuleManager& m_shaderManager;
+    ShaderManager& m_shaderManager;
     MaterialManager& m_materialManager;
     RenderPassManager& m_renderPassManager;
     MeshManager& m_meshManager;

@@ -3,7 +3,7 @@
 #include <vector>
 #include "ProcessingStage.h"
 #include "Registry.h"
-#include "AssetManager.h"
+#include "AssetSystem.h"
 #include "AssetResolutionStage.h"
 #include "UniformBufferStage.h"
 #include "RenderStage.h"
@@ -21,7 +21,7 @@ class RenderStage;
 
 class RenderSystem {
 public:
-    RenderSystem(Registry& registry, AssetManager& assetManager, Renderer& renderer);
+    RenderSystem(Registry& registry, AssetSystem& assetSystem, Renderer& renderer);
     ~RenderSystem() = default;
 
     // Submit a render order to the pipeline
@@ -42,7 +42,7 @@ public:
     void reset();
 private:
     Registry& m_registry;
-    AssetManager& m_assetManager;
+    AssetSystem& m_assetSystem;
     Renderer& m_renderer;
 
     std::unique_ptr<GlobalStateManager> m_globalStateManager;

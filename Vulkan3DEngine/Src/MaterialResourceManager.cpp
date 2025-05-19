@@ -6,7 +6,7 @@
 
 MaterialResourceManager::MaterialResourceManager(
     const LogicalDevice& device,
-    ShaderModuleManager& shaderModuleManager,
+    ShaderManager& shaderManager,
     ImageSamplerManager& samplerManager,
     UniformBufferManager& uniformBufferManager,
     DescriptorAllocator& descriptorAllocator,
@@ -14,7 +14,7 @@ MaterialResourceManager::MaterialResourceManager(
     TextureManager& textureManager
 )
     :m_device(device),
-    m_shaderModuleManager(shaderModuleManager),
+    m_shaderManager(shaderManager),
     m_samplerManager(samplerManager),
     m_uniformBufferManager(uniformBufferManager),
     m_descriptorAllocator(descriptorAllocator),
@@ -53,7 +53,7 @@ UniformBufferHandle MaterialResourceManager::createMaterialUniformBuffer(
     const std::vector<Material::Parameter>& parameters
 ) {
     // Get shader metadata to access UBO information
-    const auto& metadata = m_shaderModuleManager.getShaderMetadata(shaderHandle);
+    const auto& metadata = m_shaderManager.getShaderMetadata(shaderHandle);
 
     // Look for UBO in the custom UBOs (should be in set CUSTOM_DESCRIPTOR_SET = 2)
     const ShaderLib::UniformBufferObject* uboInfo = nullptr;
@@ -175,7 +175,7 @@ VkDescriptorSet MaterialResourceManager::createMaterialDescriptorSet(
     const std::vector<Material::Parameter>& parameters
 ) {
     // Get shader resources to access the descriptor set layout
-    const auto& resources = m_shaderModuleManager.getShaderResources(shaderHandle);
+    const auto& resources = m_shaderManager.getShaderResources(shaderHandle);
 
     // Find the layout for set 2 (CUSTOM_DESCRIPTOR_SET)
     auto layoutIt = resources.descriptorLayouts.find(ShaderLib::CUSTOM_DESCRIPTOR_SET);
@@ -289,7 +289,7 @@ bool MaterialResourceManager::updateUniformParameter(
     const Material::ParamValue& value
 ) {
     // Get shader metadata
-    const auto& metadata = m_shaderModuleManager.getShaderMetadata(shaderHandle);
+    const auto& metadata = m_shaderManager.getShaderMetadata(shaderHandle);
 
     // Look for the UBO in the shader metadata
     for (const auto& ubo : metadata.customUBOs) {

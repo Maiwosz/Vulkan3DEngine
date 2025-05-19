@@ -4,11 +4,13 @@
 #include "Buffer.h"
 
 DescriptorSetStage::DescriptorSetStage(
-    Renderer& renderer
+    Renderer& renderer,
+    AssetSystem& assetSystem
 )
     : m_renderer(renderer),
-    m_shaderManager(renderer.shaderModuleManager()),
-    m_materialManager(renderer.materialManager()),
+	m_assetSystem(assetSystem),
+    m_shaderManager(assetSystem.shaderManager()),
+    m_materialManager(assetSystem.materialManager()),
     m_uniformBufferManager(renderer.uniformBufferManager()),
     m_descriptorAllocator(renderer.descriptorAllocator()),
     m_vramManager(renderer.vramManager()),
