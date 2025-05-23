@@ -4,6 +4,7 @@
 #include <spdlog/sinks/stdout_color_sinks.h>
 #include <spdlog/sinks/rotating_file_sink.h>
 #include <spdlog/fmt/ostr.h>
+#include <algorithm>
 
 using json = nlohmann::json;
 
@@ -33,9 +34,9 @@ std::string AssetManager::createCacheKey(const AssetHandle& handle) const {
     return std::to_string(static_cast<int>(handle.type)) + ":" + handle.filename;
 }
 
-AssetManager::AssetManager()
-    : m_assetLoader() {
-    SPDLOG_INFO("AssetManager initialized with");
+AssetManager::AssetManager(VramManager& vramManager)
+    : m_assetLoader(), m_vramManager(vramManager) {
+    SPDLOG_INFO("AssetManager initialized");
 }
 
 AssetManager::~AssetManager() {
@@ -126,6 +127,27 @@ bool AssetManager::processDependencies(const AssetHandle& handle, const std::vec
     return true;
 }
 
+void AssetManager::updateUsageInfo(const AssetHandle& handle, bool activeUse) {
+    std::string cacheKey = createCacheKey(handle);
+    auto& usage = m_assetUsage[cacheKey];
+
+    // Always update the loaded timestamp
+    usage.lastLoadedFrame = m_currentFrame;
+
+    // Only update active usage for ensureReady calls
+    if (activeUse) {
+        usage.lastUsedFrame = m_currentFrame;
+        usage.isActivelyUsed = true;
+        SPDLOG_DEBUG("Asset {} actively used in frame {}", handle, m_currentFrame);
+    }
+}
+
+void AssetManager::resetActiveUsageFlags() {
+    for (auto& [key, info] : m_assetUsage) {
+        info.isActivelyUsed = false;
+    }
+}
+
 bool AssetManager::ensureLoaded(const AssetHandle handle) {
     if (m_markedForRemoval.count(handle)) {
         m_markedForRemoval.erase(handle);
@@ -172,7 +194,8 @@ bool AssetManager::ensureLoaded(const AssetHandle handle) {
         }
     }
 
-    updateLastUsed(handle);
+    // Update usage info - not actively using the asset, just loading it
+    updateUsageInfo(handle, false);
     return true;
 }
 
@@ -189,7 +212,19 @@ bool AssetManager::ensureReady(const AssetHandle handle) {
 
     // Check if the asset is already ready
     if (handler->isAssetReady(handle.filename)) {
-        updateLastUsed(handle);
+        // Mark as actively used because ensureReady was called
+        updateUsageInfo(handle, true);
+
+        // IMPORTANT FIX: Even if the asset is ready, we need to mark its dependencies as used
+        std::string cacheKey = createCacheKey(handle);
+        auto depIt = m_assetDependencies.find(cacheKey);
+        if (depIt != m_assetDependencies.end()) {
+            for (const auto& dep : depIt->second) {
+                // Mark all dependencies as used, not just UsageTime dependencies
+                updateUsageInfo(dep.handle, true);  // Mark dependency as actively used
+            }
+        }
+
         return true;
     }
 
@@ -207,15 +242,20 @@ bool AssetManager::ensureReady(const AssetHandle handle) {
         return false;
     }
 
-    // Check UsageTime dependencies to ensure they are ready
+    // Process ALL dependencies, not just UsageTime
     auto depIt = m_assetDependencies.find(cacheKey);
     if (depIt != m_assetDependencies.end()) {
         for (const auto& dep : depIt->second) {
+            // For UsageTime dependencies, ensure they are ready
             if (dep.type == DependencyType::UsageTime) {
                 if (!ensureReady(dep.handle)) {
                     SPDLOG_ERROR("Failed to prepare usage dependency {} for asset {}", dep.handle, handle);
                     return false;
                 }
+            }
+            // For other dependencies, at least mark them as actively used
+            else {
+                updateUsageInfo(dep.handle, true);  // Mark dependency as actively used
             }
         }
     }
@@ -236,8 +276,9 @@ bool AssetManager::ensureReady(const AssetHandle handle) {
         return false;
     }
 
-    updateLastUsed(handle);
-    SPDLOG_INFO("Asset {} is now ready", handle);
+    // Mark as actively used
+    updateUsageInfo(handle, true);
+    SPDLOG_INFO("Asset {} is now ready and actively used", handle);
     return true;
 }
 
@@ -262,7 +303,7 @@ void AssetManager::unloadAsset(const AssetHandle& handle) {
         m_assetDependencies.erase(cacheKey);
 
         // Remove from usage tracking
-        m_assetLastUsed.erase(cacheKey);
+        m_assetUsage.erase(cacheKey);
     }
     catch (const std::exception& e) {
         SPDLOG_ERROR("Exception during asset unloading: {} for asset {}", e.what(), handle);
@@ -277,22 +318,79 @@ void AssetManager::purgeUnusedAssets(float memoryThresholdPercentage, uint64_t a
     auto markIt = m_markedForRemoval.begin();
     while (markIt != m_markedForRemoval.end()) {
         const AssetHandle& handle = *markIt;
-        unloadAsset(handle);
+
+        // IMPORTANT FIX: Check if this asset is a dependency of any active asset
+        bool isDependencyOfActiveAsset = false;
+        std::string handleCacheKey = createCacheKey(handle);
+
+        // Check if any asset that depends on this one is active
+        for (const auto& [depCacheKey, deps] : m_assetDependencies) {
+            // Skip checking if we already know it's a dependency
+            if (isDependencyOfActiveAsset) break;
+
+            // Get usage info for the parent asset
+            auto usageIt = m_assetUsage.find(depCacheKey);
+            if (usageIt != m_assetUsage.end() && usageIt->second.isActivelyUsed) {
+                // If parent is active, check if this asset is one of its dependencies
+                for (const auto& dep : deps) {
+                    std::string depHandleCacheKey = createCacheKey(dep.handle);
+                    if (depHandleCacheKey == handleCacheKey) {
+                        isDependencyOfActiveAsset = true;
+                        SPDLOG_DEBUG("Asset {} is a dependency of active asset, skipping removal", handle);
+                        break;
+                    }
+                }
+            }
+        }
+
+        if (!isDependencyOfActiveAsset) {
+            unloadAsset(handle);
+        }
+        else {
+            // Don't unload, but remove from marked for removal list
+            SPDLOG_INFO("Asset {} is a dependency of an active asset, canceling removal", handle);
+        }
+
         markIt = m_markedForRemoval.erase(markIt);
+    }
+
+    // Build a set of assets that are dependencies of active assets
+    std::unordered_set<std::string> activeDependencies;
+    for (const auto& [cacheKey, usageInfo] : m_assetUsage) {
+        if (usageInfo.isActivelyUsed) {
+            // Add all dependencies of this active asset
+            auto depIt = m_assetDependencies.find(cacheKey);
+            if (depIt != m_assetDependencies.end()) {
+                for (const auto& dep : depIt->second) {
+                    std::string depCacheKey = createCacheKey(dep.handle);
+                    activeDependencies.insert(depCacheKey);
+                }
+            }
+        }
     }
 
     // Age-based unloading
     if (ageThresholdFrames > 0) {
         std::vector<AssetHandle> toUnload;
 
-        // Find assets older than the threshold
-        for (const auto& [cacheKey, lastUsed] : m_assetLastUsed) {
-            if (m_currentFrame - lastUsed > ageThresholdFrames) {
+        // Find assets older than the threshold by checking lastUsedFrame (not lastLoadedFrame)
+        for (const auto& [cacheKey, usageInfo] : m_assetUsage) {
+            uint64_t age = m_currentFrame - usageInfo.lastUsedFrame;
+
+            if (age > ageThresholdFrames) {
+                // Skip if this is a dependency of an active asset
+                if (activeDependencies.count(cacheKey) > 0) {
+                    SPDLOG_DEBUG("Skipping aged asset {} as it's a dependency of an active asset", cacheKey);
+                    continue;
+                }
+
                 // Extract type and filename from cache key
                 size_t separatorPos = cacheKey.find(':');
                 if (separatorPos != std::string::npos) {
                     AssetType type = static_cast<AssetType>(std::stoi(cacheKey.substr(0, separatorPos)));
                     std::string filename = cacheKey.substr(separatorPos + 1);
+                    SPDLOG_DEBUG("Asset {}:{} is aged (last used {} frames ago)",
+                        static_cast<int>(type), filename, age);
                     toUnload.emplace_back(type, filename);
                 }
             }
@@ -307,75 +405,102 @@ void AssetManager::purgeUnusedAssets(float memoryThresholdPercentage, uint64_t a
         }
     }
 
-    // Memory-based unloading
+    // Memory-based unloading (rest of the method remains unchanged)
     if (memoryThresholdPercentage > 0.0f) {
-        // Collect memory usage statistics
-        uint64_t totalVramUsed = 0;
-        uint64_t vramBudget = 0; // Get from VRAM handlers
+        // Get VRAM information from VramManager
+        uint64_t totalVramUsed = m_vramManager.getVramUsed();
+        uint64_t vramBudget = m_vramManager.getVramBudget();
+        float currentUsagePercentage = m_vramManager.getVramUsagePercentage();
 
-        // Collect all assets that can be unloaded
-        struct AssetInfo {
-            AssetHandle handle;
-            uint64_t size;
-            uint64_t lastUsed;
-            bool isVram;
-        };
-        std::vector<AssetInfo> assets;
+        SPDLOG_INFO("VRAM status: used={:.2f}MB, budget={:.2f}MB, usage={:.1f}%",
+            totalVramUsed / (1024.0f * 1024.0f), vramBudget / (1024.0f * 1024.0f), currentUsagePercentage);
 
-        // Gather statistics and collect assets
-        for (const auto& [type, handler] : m_handlers) {
-            bool isVram = handler->isInVram();
+        // Only unload if we're exceeding the threshold percentage
+        if (vramBudget > 0 && currentUsagePercentage > memoryThresholdPercentage * 100.0f) {
+            // Collect all assets that can be unloaded
+            struct AssetInfo {
+                AssetHandle handle;
+                uint64_t size;
+                uint64_t lastUsedFrame;
+                bool isVram;
+            };
+            std::vector<AssetInfo> assets;
 
-            // For each asset type, check ready assets
-            for (const auto& [cacheKey, lastUsed] : m_assetLastUsed) {
-                // Extract type and filename from cache key
-                size_t separatorPos = cacheKey.find(':');
-                if (separatorPos == std::string::npos) continue;
+            // Gather statistics and collect assets
+            for (const auto& [type, handler] : m_handlers) {
+                bool isVram = handler->isInVram();
 
-                AssetType assetType = static_cast<AssetType>(std::stoi(cacheKey.substr(0, separatorPos)));
-                if (assetType != type) continue;
+                for (const auto& [cacheKey, usageInfo] : m_assetUsage) {
+                    // Skip if this is a dependency of an active asset
+                    if (activeDependencies.count(cacheKey) > 0) {
+                        continue;
+                    }
 
-                std::string filename = cacheKey.substr(separatorPos + 1);
-                uint64_t size = handler->getAssetSize(filename);
+                    // Extract type and filename from cache key
+                    size_t separatorPos = cacheKey.find(':');
+                    if (separatorPos == std::string::npos) continue;
 
-                if (isVram) {
-                    totalVramUsed += size;
+                    AssetType assetType = static_cast<AssetType>(std::stoi(cacheKey.substr(0, separatorPos)));
+                    if (assetType != type) continue;
+
+                    std::string filename = cacheKey.substr(separatorPos + 1);
+                    uint64_t size = handler->getAssetSize(filename);
+
+                    assets.push_back({
+                        AssetHandle(type, filename),
+                        size,
+                        usageInfo.lastUsedFrame,  // Use lastUsedFrame for prioritization
+                        isVram
+                        });
+                }
+            }
+
+            // Sort assets by last used frame (oldest first)
+            std::sort(assets.begin(), assets.end(), [](const auto& a, const auto& b) {
+                return a.lastUsedFrame < b.lastUsedFrame;
+                });
+
+            // Calculate target usage
+            uint64_t targetUsage = static_cast<uint64_t>(vramBudget * (memoryThresholdPercentage));
+            uint64_t needToFree = (totalVramUsed > targetUsage) ? (totalVramUsed - targetUsage) : 0;
+
+            if (needToFree > 0) {
+                uint64_t freedMemory = 0;
+                size_t unloadedCount = 0;
+
+                SPDLOG_INFO("Memory threshold exceeded. Need to free {:.2f} MB to reach target of {:.1f}%",
+                    needToFree / (1024.0f * 1024.0f),
+                    memoryThresholdPercentage * 100.0f);
+
+                for (const auto& asset : assets) {
+                    if (!asset.isVram) continue;
+                    if (freedMemory >= needToFree) break;
+
+                    // Skip currently active assets
+                    std::string assetKey = createCacheKey(asset.handle);
+                    auto usageIt = m_assetUsage.find(assetKey);
+                    if (usageIt != m_assetUsage.end() && usageIt->second.isActivelyUsed) {
+                        SPDLOG_DEBUG("Skipping active asset {} during VRAM cleanup", asset.handle);
+                        continue;
+                    }
+
+                    unloadAsset(asset.handle);
+                    freedMemory += asset.size;
+                    unloadedCount++;
                 }
 
-                assets.push_back({
-                    AssetHandle(type, filename),
-                    size,
-                    lastUsed,
-                    isVram
-                    });
+                if (unloadedCount > 0) {
+                    SPDLOG_INFO("VRAM cleanup: unloaded {} assets, freed {:.2f} MB",
+                        unloadedCount, freedMemory / (1024.0f * 1024.0f));
+                }
+            }
+            else {
+                SPDLOG_INFO("Memory threshold not exceeded, no assets to unload");
             }
         }
-
-        // Sort assets by last used time (oldest first)
-        std::sort(assets.begin(), assets.end(), [](const auto& a, const auto& b) {
-            return a.lastUsed < b.lastUsed;
-            });
-
-        // If VRAM usage exceeds threshold, unload assets
-        if (vramBudget > 0 && totalVramUsed > vramBudget * memoryThresholdPercentage) {
-            uint64_t targetUsage = vramBudget * memoryThresholdPercentage;
-            uint64_t freedMemory = 0;
-            size_t unloadedCount = 0;
-
-            for (const auto& asset : assets) {
-                if (!asset.isVram) continue;
-                if (totalVramUsed <= targetUsage) break;
-
-                unloadAsset(asset.handle);
-                totalVramUsed -= asset.size;
-                freedMemory += asset.size;
-                unloadedCount++;
-            }
-
-            if (unloadedCount > 0) {
-                SPDLOG_INFO("VRAM cleanup: unloaded {} assets, freed {} bytes",
-                    unloadedCount, freedMemory);
-            }
+        else {
+            SPDLOG_INFO("Current VRAM usage {:.1f}% is below threshold {:.1f}%, skipping memory-based unloading",
+                currentUsagePercentage, memoryThresholdPercentage * 100.0f);
         }
     }
 }
@@ -392,21 +517,34 @@ void AssetManager::releaseAsset(const AssetHandle& handle) {
         std::string cacheKey = createCacheKey(handle);
         m_assetCache.erase(cacheKey);
         m_assetDependencies.erase(cacheKey);
-        m_assetLastUsed.erase(cacheKey);
+        m_assetUsage.erase(cacheKey);
     }
 }
 
 void AssetManager::advanceFrame() {
     ++m_currentFrame;
 
-    // Periodic cleanup can be performed here
-    // For example, every 100 frames
-    if (m_currentFrame % 100 == 0) {
-        purgeUnusedAssets(0.8f, 300);
-    }
+    resetActiveUsageFlags();
+    purgeUnusedAssets(0.8f, 10000);
 }
 
-void AssetManager::updateLastUsed(const AssetHandle& handle) {
-    std::string cacheKey = createCacheKey(handle);
-    m_assetLastUsed[cacheKey] = m_currentFrame;
+bool AssetManager::isActiveDependency(const AssetHandle& handle) const {
+    std::string handleCacheKey = createCacheKey(handle);
+
+    // Check all active assets
+    for (const auto& [cacheKey, usageInfo] : m_assetUsage) {
+        if (usageInfo.isActivelyUsed) {
+            // Check if handle is a dependency of this active asset
+            auto depIt = m_assetDependencies.find(cacheKey);
+            if (depIt != m_assetDependencies.end()) {
+                for (const auto& dep : depIt->second) {
+                    if (createCacheKey(dep.handle) == handleCacheKey) {
+                        return true;
+                    }
+                }
+            }
+        }
+    }
+
+    return false;
 }

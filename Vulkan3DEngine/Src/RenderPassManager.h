@@ -81,10 +81,10 @@ public:
     RenderPassManager& operator=(const RenderPassManager&) = delete;
 
     // Get or create a render pass with the specified configuration
-    RenderPassHandle getOrCreate(const RenderPassConfig& config);
+    RenderPassHandle acquireRenderPass(const RenderPassConfig& config);
 
     // Get an existing render pass by handle
-    VkRenderPass get(RenderPassHandle handle) const;
+    VkRenderPass getRenderPass(RenderPassHandle handle) const;
 
     // Check if handle is valid
     bool isValid(RenderPassHandle handle) const;

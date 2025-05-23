@@ -80,7 +80,7 @@ void DescriptorSetStage::processMeshOrder(std::shared_ptr<MeshRenderOrder> order
 
     // Assign material descriptor set
     if (order->materialHandle) {
-        order->materialDescriptorSet = m_materialManager.getMaterialDescriptorSet(order->materialHandle);
+        order->materialDescriptorSetHandle = m_materialManager.getMaterialDescriptorSet(order->materialHandle);
     }
 }
 
@@ -95,7 +95,8 @@ void DescriptorSetStage::createGlobalDescriptorSet(std::shared_ptr<MeshRenderOrd
             m_layoutManager.get(shaderResources.descriptorLayouts.at(0));
 
         // Allocate descriptor set using allocator
-        VkDescriptorSet globalDescriptorSet = m_descriptorAllocator.allocate(globalSetLayout);
+        DescriptorSetHandle globalDescriptorSetHandle = m_descriptorAllocator.acquireDescriptorSet(globalSetLayout);
+		VkDescriptorSet globalDescriptorSet = m_descriptorAllocator.getDescriptorSet(globalDescriptorSetHandle);
 
         if (globalDescriptorSet != VK_NULL_HANDLE) {
             // Prepare descriptor writer
@@ -121,7 +122,7 @@ void DescriptorSetStage::createGlobalDescriptorSet(std::shared_ptr<MeshRenderOrd
             m_writer.updateSet(m_renderer.vulkanContext().logical().get(), globalDescriptorSet);
 
             // Store descriptor set in render order
-            order->globalDescriptorSet = globalDescriptorSet;
+            order->globalDescriptorSetHandle = globalDescriptorSetHandle;
             SPDLOG_DEBUG("Created global descriptor set");
         }
         else {
@@ -144,7 +145,8 @@ void DescriptorSetStage::createObjectDescriptorSet(std::shared_ptr<MeshRenderOrd
             m_layoutManager.get(shaderResources.descriptorLayouts.at(1));
 
         // Allocate descriptor set using allocator
-        VkDescriptorSet objectDescriptorSet = m_descriptorAllocator.allocate(objectSetLayout);
+        DescriptorSetHandle objectDescriptorSetHandle = m_descriptorAllocator.acquireDescriptorSet(objectSetLayout);
+        VkDescriptorSet objectDescriptorSet = m_descriptorAllocator.getDescriptorSet(objectDescriptorSetHandle);
 
         if (objectDescriptorSet != VK_NULL_HANDLE) {
             // Prepare descriptor writer
@@ -170,7 +172,7 @@ void DescriptorSetStage::createObjectDescriptorSet(std::shared_ptr<MeshRenderOrd
             m_writer.updateSet(m_renderer.vulkanContext().logical().get(), objectDescriptorSet);
 
             // Store descriptor set in render order
-            order->objectDescriptorSet = objectDescriptorSet;
+            order->objectDescriptorSetHandle = objectDescriptorSetHandle;
             SPDLOG_DEBUG("Created object descriptor set");
         }
         else {

@@ -10,7 +10,9 @@ AssetSystem::AssetSystem(Renderer& renderer)
     SPDLOG_DEBUG("Creating AssetSystem");
 
     // Create the asset manager
-    m_assetManager = std::make_unique<AssetManager>();
+    m_assetManager = std::make_unique<AssetManager>(
+        m_renderer.vramManager()
+    );
 
     // Create asset handlers
     m_shaderManager = std::make_shared<ShaderManager>(

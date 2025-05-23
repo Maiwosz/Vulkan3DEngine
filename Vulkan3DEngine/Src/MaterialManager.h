@@ -40,7 +40,7 @@ public:
     // Additional public interface for MaterialHandle-based access
     Material* getMaterial(MaterialHandle handle);
     const Material* getMaterial(MaterialHandle handle) const;
-    VkDescriptorSet getMaterialDescriptorSet(MaterialHandle handle);
+    DescriptorSetHandle getMaterialDescriptorSet(MaterialHandle handle);
 
     // Convert AssetLib parameter to Material parameter
     Material::ParamValue convertParameter(

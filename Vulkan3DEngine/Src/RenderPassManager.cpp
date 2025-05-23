@@ -47,7 +47,7 @@ RenderPassManager::~RenderPassManager() {
     cleanup();
 }
 
-RenderPassHandle RenderPassManager::getOrCreate(const RenderPassConfig& config) {
+RenderPassHandle RenderPassManager::acquireRenderPass(const RenderPassConfig& config) {
     // Check if we already have a render pass with this configuration
     auto configIt = m_configToHandle.find(config);
     if (configIt != m_configToHandle.end()) {
@@ -58,7 +58,7 @@ RenderPassHandle RenderPassManager::getOrCreate(const RenderPassConfig& config) 
     return createRenderPass(config);
 }
 
-VkRenderPass RenderPassManager::get(RenderPassHandle handle) const {
+VkRenderPass RenderPassManager::getRenderPass(RenderPassHandle handle) const {
     auto it = m_renderPasses.find(handle);
     if (it == m_renderPasses.end()) {
         throw std::runtime_error("Invalid render pass handle: " + std::to_string(handle.id));

@@ -1,35 +1,52 @@
 #include "DescriptorAllocator.h"
 #include "Prerequisites.h"
 
-DescriptorAllocator::DescriptorAllocator(const LogicalDevice& device, const PoolConfig& config):
-	m_device(device), m_config(config), m_nextSetCount(config.initialSets) 
+DescriptorAllocator::DescriptorAllocator(const LogicalDevice& device, const PoolConfig& config) :
+    m_device(device), m_config(config), m_nextSetCount(config.initialSets), m_nextHandleId(1)
 {
     m_readyPools.push_back(getPool());
 }
 
-void DescriptorAllocator::reset() {
-    for (auto pool : m_readyPools) {
-        vkResetDescriptorPool(m_device.get(), pool, 0);
+DescriptorSetHandle DescriptorAllocator::acquireDescriptorSet(VkDescriptorSetLayout layout) {
+    // Próbuj znaleźć reużywalny deskryptor
+    DescriptorSetHandle handle = findReusableDescriptorSet(layout);
+    if (handle.isValid()) {
+        m_descriptorSets[handle.id - 1].inUse = true;
+        return handle;
     }
-    for (auto pool : m_fullPools) {
-        vkResetDescriptorPool(m_device.get(), pool, 0);
-        m_readyPools.push_back(pool);
-    }
-    m_fullPools.clear();
+
+    // Stwórz nowy jeśli nie ma dostępnego
+    return createNewDescriptorSet(layout);
 }
 
-void DescriptorAllocator::destroy() {
-    for (auto pool : m_readyPools) {
-        vkDestroyDescriptorPool(m_device.get(), pool, nullptr);
-    }
-    for (auto pool : m_fullPools) {
-        vkDestroyDescriptorPool(m_device.get(), pool, nullptr);
-    }
-    m_readyPools.clear();
-    m_fullPools.clear();
+void DescriptorAllocator::releaseDescriptorSet(DescriptorSetHandle handle) {
+    if (!handle.isValid() || handle.id > m_descriptorSets.size()) return;
+
+    auto& entry = m_descriptorSets[handle.id - 1];
+    if (!entry.inUse) return;
+
+    entry.inUse = false;
+    m_reusableSets[entry.layout].push(handle);
 }
 
-VkDescriptorSet DescriptorAllocator::allocate(VkDescriptorSetLayout layout) {
+VkDescriptorSet DescriptorAllocator::getDescriptorSet(DescriptorSetHandle handle) const {
+    if (!handle.isValid() || handle.id > m_descriptorSets.size()) {
+        return VK_NULL_HANDLE;
+    }
+    return m_descriptorSets[handle.id - 1].descriptorSet;
+}
+
+DescriptorSetHandle DescriptorAllocator::findReusableDescriptorSet(VkDescriptorSetLayout layout) {
+    auto& queue = m_reusableSets[layout];
+    if (!queue.empty()) {
+        DescriptorSetHandle handle = queue.front();
+        queue.pop();
+        return handle;
+    }
+    return DescriptorSetHandle{};
+}
+
+DescriptorSetHandle DescriptorAllocator::createNewDescriptorSet(VkDescriptorSetLayout layout) {
     VkDescriptorPool pool = getPool();
 
     VkDescriptorSetAllocateInfo allocInfo = {
@@ -50,7 +67,54 @@ VkDescriptorSet DescriptorAllocator::allocate(VkDescriptorSetLayout layout) {
     }
 
     m_readyPools.push_back(pool);
-    return descriptorSet;
+
+    // Stwórz nowy uchwyt
+    DescriptorSetHandle handle{ m_nextHandleId++ };
+
+    // Rozszerz wektor jeśli potrzeba
+    if (m_descriptorSets.size() < handle.id) {
+        m_descriptorSets.resize(handle.id);
+    }
+
+    m_descriptorSets[handle.id - 1] = {
+        .descriptorSet = descriptorSet,
+        .layout = layout,
+        .sourcePool = pool,
+        .inUse = true
+    };
+
+    return handle;
+}
+
+void DescriptorAllocator::reset() {
+    // Resetuj wszystkie pule
+    for (auto pool : m_readyPools) {
+        vkResetDescriptorPool(m_device.get(), pool, 0);
+    }
+    for (auto pool : m_fullPools) {
+        vkResetDescriptorPool(m_device.get(), pool, 0);
+        m_readyPools.push_back(pool);
+    }
+    m_fullPools.clear();
+
+    // Wyczyść wszystkie uchwyty i kolejki
+    m_descriptorSets.clear();
+    m_reusableSets.clear();
+    m_nextHandleId = 1;
+}
+
+// Pozostałe metody bez zmian
+void DescriptorAllocator::destroy() {
+    for (auto pool : m_readyPools) {
+        vkDestroyDescriptorPool(m_device.get(), pool, nullptr);
+    }
+    for (auto pool : m_fullPools) {
+        vkDestroyDescriptorPool(m_device.get(), pool, nullptr);
+    }
+    m_readyPools.clear();
+    m_fullPools.clear();
+    m_descriptorSets.clear();
+    m_reusableSets.clear();
 }
 
 VkResult DescriptorAllocator::createPool(uint32_t setCount, VkDescriptorPool* outPool) const {

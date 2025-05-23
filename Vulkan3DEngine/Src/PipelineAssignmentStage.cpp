@@ -214,7 +214,7 @@ GraphicsPipelineConfig PipelineAssignmentStage::createPipelineConfig(
         VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
 
     // Set render pass - be explicit and validate
-    VkRenderPass renderPass = m_renderPassManager.get(renderPassHandle);
+    VkRenderPass renderPass = m_renderPassManager.getRenderPass(renderPassHandle);
     if (renderPass == VK_NULL_HANDLE) {
         SPDLOG_ERROR("Invalid render pass handle in pipeline config");
     }

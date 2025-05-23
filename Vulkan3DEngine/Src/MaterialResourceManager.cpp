@@ -169,7 +169,7 @@ void MaterialResourceManager::updateUniformBufferFromParameters(
     }
 }
 
-VkDescriptorSet MaterialResourceManager::createMaterialDescriptorSet(
+DescriptorSetHandle MaterialResourceManager::createMaterialDescriptorSet(
     ShaderHandle shaderHandle,
     UniformBufferHandle uboHandle,
     const std::vector<Material::Parameter>& parameters
@@ -181,28 +181,28 @@ VkDescriptorSet MaterialResourceManager::createMaterialDescriptorSet(
     auto layoutIt = resources.descriptorLayouts.find(ShaderLib::CUSTOM_DESCRIPTOR_SET);
     if (layoutIt == resources.descriptorLayouts.end()) {
         SPDLOG_WARN("No descriptor layout found for set 2 in shader");
-        return VK_NULL_HANDLE;
+        return DescriptorSetHandle();
     }
 
     // Get the descriptor layout
     VkDescriptorSetLayout layout = m_descriptorLayoutManager.get(layoutIt->second);
     if (layout == VK_NULL_HANDLE) {
         SPDLOG_WARN("Invalid descriptor layout for set 2");
-        return VK_NULL_HANDLE;
+        return DescriptorSetHandle();
     }
 
     // Allocate descriptor set
-    VkDescriptorSet descriptorSet = m_descriptorAllocator.allocate(layout);
-    if (descriptorSet == VK_NULL_HANDLE) {
+    DescriptorSetHandle descriptorSetHandle = m_descriptorAllocator.acquireDescriptorSet(layout);
+    if (!descriptorSetHandle) {
         SPDLOG_ERROR("Failed to allocate descriptor set for material");
-        return VK_NULL_HANDLE;
+        return DescriptorSetHandle();
     }
 
     // Get UBO buffer for binding
     Buffer* uboBuffer = m_uniformBufferManager.getBuffer(uboHandle);
     if (!uboBuffer) {
         SPDLOG_ERROR("Uniform buffer not found");
-        return descriptorSet; // Return incomplete descriptor set
+        return descriptorSetHandle; // Return incomplete descriptor set
     }
 
     // Create descriptor writer to update the set
@@ -243,10 +243,16 @@ VkDescriptorSet MaterialResourceManager::createMaterialDescriptorSet(
             VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER);
     }
 
+    VkDescriptorSet descriptorSet = m_descriptorAllocator.getDescriptorSet(descriptorSetHandle);
+    if (descriptorSet == VK_NULL_HANDLE) {
+        SPDLOG_ERROR("Failed to get descriptor set from handle");
+        return DescriptorSetHandle();
+    }
+
     // Update the descriptor set
     writer.updateSet(m_device.get(), descriptorSet);
 
-    return descriptorSet;
+    return descriptorSetHandle;
 }
 
 bool MaterialResourceManager::updateTextureBinding(
@@ -276,8 +282,14 @@ bool MaterialResourceManager::updateTextureBinding(
         VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER
     );
 
+    VkDescriptorSet descriptorSet = m_descriptorAllocator.getDescriptorSet(resources.descriptorSet);
+    if (descriptorSet == VK_NULL_HANDLE) {
+        SPDLOG_ERROR("Invalid descriptor set handle");
+        return false;
+    }
+
     // Update descriptor set
-    writer.updateSet(m_device.get(), resources.descriptorSet);
+    writer.updateSet(m_device.get(), descriptorSet);
 
     return true;
 }

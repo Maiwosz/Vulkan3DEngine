@@ -195,7 +195,7 @@ void Renderer::createMainRenderPass() {
     renderPassConfig.depthAttachmentIndex = 2;                    // Depth attachment index
 
     // Create/retrieve the render pass
-    m_mainRenderPassHandle = m_renderPassManager->getOrCreate(renderPassConfig);
+    m_mainRenderPassHandle = m_renderPassManager->acquireRenderPass(renderPassConfig);
 }
 
 // Also update the recreateRenderResources method to handle the multisampled color attachment

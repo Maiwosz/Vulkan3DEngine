@@ -36,7 +36,7 @@ private:
     RenderPassManager& m_renderPassManager;
     PipelineManager& m_pipelineManager;
     MeshManager& m_meshManager;
-
+    DescriptorAllocator& m_descriptorAllocator;
 
     AttachmentHandle m_depthAttachmentHandle;
     RenderPassHandle m_mainRenderPassHandle;

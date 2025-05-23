@@ -12,10 +12,11 @@
 #include <queue>
 #include <any>
 #include <set>
+#include "VramManager.h"
 
 class AssetManager {
 public:
-    explicit AssetManager();
+    explicit AssetManager(VramManager& vramManager);
     ~AssetManager();
 
     // Register a handler for a specific asset type
@@ -62,6 +63,7 @@ public:
     }
 
 private:
+    VramManager& m_vramManager;
     AssetLoader m_assetLoader;
     uint64_t m_currentFrame = 0;
 
@@ -75,7 +77,12 @@ private:
     std::unordered_set<AssetHandle> m_markedForRemoval;
 
     // Asset usage tracking
-    std::unordered_map<std::string, uint64_t> m_assetLastUsed;
+    struct AssetUsageInfo {
+        uint64_t lastUsedFrame;     // Frame when the asset was last actively used (ensureReady)
+        uint64_t lastLoadedFrame;   // Frame when the asset was last loaded/referenced (ensureLoaded)
+        bool isActivelyUsed;        // Whether it was used in the current frame
+    };
+    std::unordered_map<std::string, AssetUsageInfo> m_assetUsage;
 
     // Dependency tracking
     std::unordered_map<std::string, std::vector<AssetDependency>> m_assetDependencies;
@@ -87,7 +94,7 @@ private:
     std::string createCacheKey(const AssetHandle& handle) const;
 
     // Updates the last used timestamp for an asset
-    void updateLastUsed(const AssetHandle& handle);
+    void updateUsageInfo(const AssetHandle& handle, bool activeUse);
 
     // Gets the handler for a specific asset type
     std::shared_ptr<IAssetHandler> getHandler(AssetType type) const;
@@ -97,4 +104,9 @@ private:
 
     // Check for cyclic dependencies
     bool detectCyclicDependency(const std::string& assetKey) const;
+
+    // Reset active usage flags at the beginning of each frame
+    void resetActiveUsageFlags();
+
+    bool isActiveDependency(const AssetHandle& handle) const;
 };

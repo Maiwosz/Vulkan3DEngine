@@ -42,12 +42,11 @@ public:
     // Uniform buffer stage
     UniformBufferHandle globalUBOHandle;
     UniformBufferHandle objectUBOHandle;
-    UniformBufferHandle materialUBOHandle;
 
     // Descriptor sets stage
-    VkDescriptorSet globalDescriptorSet = VK_NULL_HANDLE;
-    VkDescriptorSet objectDescriptorSet = VK_NULL_HANDLE;
-    VkDescriptorSet materialDescriptorSet = VK_NULL_HANDLE;
+    DescriptorSetHandle globalDescriptorSetHandle;
+    DescriptorSetHandle objectDescriptorSetHandle;
+    DescriptorSetHandle materialDescriptorSetHandle;
 
     // Pipeline assignment stage
     PipelineHandle pipelineHandle;

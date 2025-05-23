@@ -73,7 +73,7 @@ bool MaterialManager::prepareAsset(const AssetHandle& handle, const AssetLib::As
 
         // Create material handle
         MaterialHandle materialHandle = createMaterial(handle, data, shader);
-        if (!materialHandle.isValid()) {
+        if (!materialHandle.isValid()) { 
             SPDLOG_ERROR("MaterialManager: Failed to create material {}", handle.filename);
             return false;
         }
@@ -233,12 +233,12 @@ const Material* MaterialManager::getMaterial(MaterialHandle handle) const {
     return (it != m_materials.end() && it->second.isReady) ? it->second.material.get() : nullptr;
 }
 
-VkDescriptorSet MaterialManager::getMaterialDescriptorSet(MaterialHandle handle) {
+DescriptorSetHandle MaterialManager::getMaterialDescriptorSet(MaterialHandle handle) {
     auto it = m_materials.find(handle);
     if (it != m_materials.end() && it->second.isReady) {
         return it->second.resources.descriptorSet;
     }
-    return VK_NULL_HANDLE;
+    return DescriptorSetHandle();
 }
 
 MaterialHandle MaterialManager::createMaterial(

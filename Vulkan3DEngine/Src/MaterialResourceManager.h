@@ -17,7 +17,7 @@ class MaterialResourceManager {
 public:
     struct MaterialResources {
         UniformBufferHandle uniformBuffer; // UBO handle
-        VkDescriptorSet descriptorSet;     // Material's descriptor set (set 2)
+        DescriptorSetHandle descriptorSet; // Material's descriptor set (set 2)
     };
 
     MaterialResourceManager(
@@ -62,7 +62,7 @@ private:
         const std::vector<Material::Parameter>& parameters
     );
 
-    VkDescriptorSet createMaterialDescriptorSet(
+    DescriptorSetHandle createMaterialDescriptorSet(
         ShaderHandle shaderHandle,
         UniformBufferHandle uboHandle,
         const std::vector<Material::Parameter>& parameters

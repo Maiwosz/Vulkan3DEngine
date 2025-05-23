@@ -127,7 +127,7 @@ void FrameBufferManager::cleanup() {
 
 FrameBufferHandle FrameBufferManager::createFrameBuffer(const FrameBufferConfig& config) {
     // Verify the render pass is valid
-    VkRenderPass renderPass = m_renderPassManager.get(config.renderPassHandle);
+    VkRenderPass renderPass = m_renderPassManager.getRenderPass(config.renderPassHandle);
     if (renderPass == VK_NULL_HANDLE) {
         // Invalid render pass
         return FrameBufferHandle(0);

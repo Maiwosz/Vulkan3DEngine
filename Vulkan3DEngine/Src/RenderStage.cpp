@@ -16,11 +16,12 @@ RenderStage::RenderStage(Renderer& renderer, AssetSystem& assetSystem)
     m_meshManager(assetSystem.meshManager()),
     m_depthAttachmentHandle(renderer.depthAttachmentHandle()),
     m_msColorAttachmentHandle(renderer.msColorAttachmentHandle()),
-    m_mainRenderPassHandle(renderer.renderPass()) {
+    m_mainRenderPassHandle(renderer.renderPass()),
+    m_descriptorAllocator(renderer.descriptorAllocator()) {
     SPDLOG_INFO("RenderStage initialized");
 }
 
-void RenderStage::process(std::shared_ptr<RenderOrder> order) {
+void RenderStage::process(std::shared_ptr<RenderOrder> order) { 
     // Add the render order to the current frame's collection
     m_frameManager.getCurrentFrame().renderOrders.push_back(order);
     SPDLOG_DEBUG("RenderOrder added: type={}", static_cast<int>(order->getType()));
@@ -175,7 +176,7 @@ void RenderStage::executeRenderPass() {
     // Begin render pass
     VkRenderPassBeginInfo renderPassInfo{};
     renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
-    renderPassInfo.renderPass = m_renderPassManager.get(m_mainRenderPassHandle);
+    renderPassInfo.renderPass = m_renderPassManager.getRenderPass(m_mainRenderPassHandle);
     renderPassInfo.framebuffer = m_framebufferManager.get(framebufferHandle);
     renderPassInfo.renderArea.offset = { 0, 0 };
     renderPassInfo.renderArea.extent = m_swapChain.getSwapChainExtent();
@@ -279,6 +280,7 @@ void RenderStage::executeRenderPass() {
     SPDLOG_DEBUG("Advanced to next frame");
 }
 
+
 void RenderStage::executeRenderCommands(
     VkCommandBuffer commandBuffer,
     uint32_t imageIndex,
@@ -323,56 +325,59 @@ void RenderStage::executeRenderCommands(
             vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
             SPDLOG_DEBUG("Viewport and scissor set: {}x{}", viewport.width, viewport.height);
 
-            // Bind descriptor sets
-            if (meshOrder->globalDescriptorSet != VK_NULL_HANDLE) {
+            // Bind descriptor sets using handles
+            if (meshOrder->globalDescriptorSetHandle.isValid()) {
+                VkDescriptorSet globalDescSet = m_descriptorAllocator.getDescriptorSet(meshOrder->globalDescriptorSetHandle);
                 vkCmdBindDescriptorSets(
                     commandBuffer,
                     VK_PIPELINE_BIND_POINT_GRAPHICS,
                     pipeline->getLayout(),
                     0, // First set
                     1, // Set count
-                    &meshOrder->globalDescriptorSet,
+                    &globalDescSet,
                     0, nullptr
                 );
-                SPDLOG_DEBUG("Global descriptor set bound: {:#x}",
-                    reinterpret_cast<uint64_t>(meshOrder->globalDescriptorSet));
+                SPDLOG_DEBUG("Global descriptor set bound, handle ID: {}",
+                    meshOrder->globalDescriptorSetHandle.id);
             }
             else {
-                SPDLOG_WARN("Global descriptor set is NULL");
+                SPDLOG_WARN("Global descriptor set handle is invalid");
             }
 
-            if (meshOrder->objectDescriptorSet != VK_NULL_HANDLE) {
+            if (meshOrder->objectDescriptorSetHandle.isValid()) {
+                VkDescriptorSet objectDescSet = m_descriptorAllocator.getDescriptorSet(meshOrder->objectDescriptorSetHandle);
                 vkCmdBindDescriptorSets(
                     commandBuffer,
                     VK_PIPELINE_BIND_POINT_GRAPHICS,
                     pipeline->getLayout(),
                     1, // Second set
                     1, // Set count
-                    &meshOrder->objectDescriptorSet,
+                    &objectDescSet,
                     0, nullptr
                 );
-                SPDLOG_DEBUG("Object descriptor set bound: {:#x}",
-                    reinterpret_cast<uint64_t>(meshOrder->objectDescriptorSet));
+                SPDLOG_DEBUG("Object descriptor set bound, handle ID: {}",
+                    meshOrder->objectDescriptorSetHandle.id);
             }
             else {
-                SPDLOG_WARN("Object descriptor set is NULL");
+                SPDLOG_WARN("Object descriptor set handle is invalid");
             }
 
-            if (meshOrder->materialDescriptorSet != VK_NULL_HANDLE) {
+            if (meshOrder->materialDescriptorSetHandle.isValid()) {
+                VkDescriptorSet materialDescSet = m_descriptorAllocator.getDescriptorSet(meshOrder->materialDescriptorSetHandle);
                 vkCmdBindDescriptorSets(
                     commandBuffer,
                     VK_PIPELINE_BIND_POINT_GRAPHICS,
                     pipeline->getLayout(),
                     2, // Third set
                     1, // Set count
-                    &meshOrder->materialDescriptorSet,
+                    &materialDescSet,
                     0, nullptr
                 );
-                SPDLOG_DEBUG("Material descriptor set bound: {:#x}",
-                    reinterpret_cast<uint64_t>(meshOrder->materialDescriptorSet));
+                SPDLOG_DEBUG("Material descriptor set bound, handle ID: {}",
+                    meshOrder->materialDescriptorSetHandle.id);
             }
             else {
-                SPDLOG_WARN("Material descriptor set is NULL");
+                SPDLOG_WARN("Material descriptor set handle is invalid");
             }
 
             // Bind vertex and index buffers
