@@ -1,10 +1,11 @@
-#include "MaterialResourceManager.h"
+#include "MaterialResourceFactory.h"
 #include <stdexcept>
 #include <cassert>
 #include "ImageSamplerUtils.h"
 #include <UboDefinitions.h>
+#include <spdlog/spdlog.h>
 
-MaterialResourceManager::MaterialResourceManager(
+MaterialResourceFactory::MaterialResourceFactory(
     const LogicalDevice& device,
     ShaderManager& shaderManager,
     ImageSamplerManager& samplerManager,
@@ -13,42 +14,27 @@ MaterialResourceManager::MaterialResourceManager(
     DescriptorLayoutManager& descriptorLayoutManager,
     TextureManager& textureManager
 )
-    :m_device(device),
+    : m_device(device),
     m_shaderManager(shaderManager),
     m_samplerManager(samplerManager),
     m_uniformBufferManager(uniformBufferManager),
     m_descriptorAllocator(descriptorAllocator),
     m_descriptorLayoutManager(descriptorLayoutManager),
-    m_textureManager(textureManager){
+    m_textureManager(textureManager) {
 }
 
-MaterialResourceManager::~MaterialResourceManager() {
-    // Resources are managed through MaterialManager, so we don't need to clean up here
-}
-
-MaterialResourceManager::MaterialResources MaterialResourceManager::createMaterialResources(
+SmartHandle<DescriptorSetHandle, VkDescriptorSet> MaterialResourceFactory::createMaterialDescriptorSet(
     ShaderHandle shaderHandle,
     const std::vector<Material::Parameter>& parameters
 ) {
-    MaterialResources resources;
-
     // Create uniform buffer
-    resources.uniformBuffer = createMaterialUniformBuffer(shaderHandle, parameters);
+    auto uboHandle = createMaterialUniformBuffer(shaderHandle, parameters);
 
     // Create descriptor set
-    resources.descriptorSet = createMaterialDescriptorSet(shaderHandle, resources.uniformBuffer, parameters);
-
-    return resources;
+    return createDescriptorSetInternal(shaderHandle, uboHandle, parameters);
 }
 
-void MaterialResourceManager::destroyMaterialResources(const MaterialResources& resources) {
-    // Release uniform buffer
-    m_uniformBufferManager.releaseBuffer(resources.uniformBuffer);
-
-    // Note: Descriptor sets will be freed when the allocator is destroyed
-}
-
-UniformBufferHandle MaterialResourceManager::createMaterialUniformBuffer(
+SmartHandle<UniformBufferHandle, Buffer> MaterialResourceFactory::createMaterialUniformBuffer(
     ShaderHandle shaderHandle,
     const std::vector<Material::Parameter>& parameters
 ) {
@@ -67,11 +53,11 @@ UniformBufferHandle MaterialResourceManager::createMaterialUniformBuffer(
     // If no UBO found, return invalid handle
     if (!uboInfo) {
         SPDLOG_WARN("No uniform buffer found in set 2 binding 0 for shader used by material");
-        return UniformBufferHandle(0);
+        return SmartHandle<UniformBufferHandle, Buffer>();
     }
 
-    // Create the buffer
-    UniformBufferHandle uboHandle = m_uniformBufferManager.acquireBuffer(*uboInfo);
+    // Create the buffer using smart handle
+    auto uboHandle = m_uniformBufferManager.acquireSmartBuffer(*uboInfo);
 
     // Update buffer with parameter values
     updateUniformBufferFromParameters(uboHandle, *uboInfo, parameters);
@@ -79,8 +65,8 @@ UniformBufferHandle MaterialResourceManager::createMaterialUniformBuffer(
     return uboHandle;
 }
 
-void MaterialResourceManager::updateUniformBufferFromParameters(
-    UniformBufferHandle uboHandle,
+void MaterialResourceFactory::updateUniformBufferFromParameters(
+    const SmartHandle<UniformBufferHandle, Buffer>& uboHandle,
     const ShaderLib::UniformBufferObject& uboInfo,
     const std::vector<Material::Parameter>& parameters
 ) {
@@ -102,17 +88,20 @@ void MaterialResourceManager::updateUniformBufferFromParameters(
             std::visit([&](const auto& value) {
                 using T = std::decay_t<decltype(value)>;
 
-                // Skip TextureParam
+                // Skip TextureParam - not stored in UBO
                 if constexpr (std::is_same_v<T, Material::TextureParam>) {
                     return;
                 }
 
-                // Get size based on the type
+                // Get size based on the type using UniformTypeTraits
                 uint32_t size = 0;
 
-                // Use UniformTypeTraits when possible to get size information
                 if constexpr (std::is_same_v<T, bool>) {
+                    // Convert bool to uint32_t for shader compatibility
+                    uint32_t boolVal = value ? 1 : 0;
                     size = ShaderLib::UniformTypeTraits<bool>::size;
+                    m_uniformBufferManager.updateBuffer(uboHandle.handle(), &boolVal, size, variable.offset);
+                    return;
                 }
                 else if constexpr (std::is_same_v<T, float>) {
                     size = ShaderLib::UniformTypeTraits<float>::size;
@@ -162,16 +151,16 @@ void MaterialResourceManager::updateUniformBufferFromParameters(
 
                 // Update the buffer directly using the value
                 if (size > 0) {
-                    m_uniformBufferManager.updateBuffer(uboHandle, &value, size, variable.offset);
+                    m_uniformBufferManager.updateBuffer(uboHandle.handle(), &value, size, variable.offset);
                 }
                 }, param->value);
         }
     }
 }
 
-DescriptorSetHandle MaterialResourceManager::createMaterialDescriptorSet(
+SmartHandle<DescriptorSetHandle, VkDescriptorSet> MaterialResourceFactory::createDescriptorSetInternal(
     ShaderHandle shaderHandle,
-    UniformBufferHandle uboHandle,
+    const SmartHandle<UniformBufferHandle, Buffer>& uboHandle,
     const std::vector<Material::Parameter>& parameters
 ) {
     // Get shader resources to access the descriptor set layout
@@ -181,36 +170,23 @@ DescriptorSetHandle MaterialResourceManager::createMaterialDescriptorSet(
     auto layoutIt = resources.descriptorLayouts.find(ShaderLib::CUSTOM_DESCRIPTOR_SET);
     if (layoutIt == resources.descriptorLayouts.end()) {
         SPDLOG_WARN("No descriptor layout found for set 2 in shader");
-        return DescriptorSetHandle();
+        return SmartHandle<DescriptorSetHandle, VkDescriptorSet>();
     }
 
     // Get the descriptor layout
     VkDescriptorSetLayout layout = m_descriptorLayoutManager.get(layoutIt->second);
     if (layout == VK_NULL_HANDLE) {
         SPDLOG_WARN("Invalid descriptor layout for set 2");
-        return DescriptorSetHandle();
+        return SmartHandle<DescriptorSetHandle, VkDescriptorSet>();
     }
 
-    // Allocate descriptor set
-    DescriptorSetHandle descriptorSetHandle = m_descriptorAllocator.acquireDescriptorSet(layout);
-    if (!descriptorSetHandle) {
-        SPDLOG_ERROR("Failed to allocate descriptor set for material");
-        return DescriptorSetHandle();
+    // Create descriptor writer
+    DescriptorWriter writer(m_device, m_samplerManager, m_uniformBufferManager, m_descriptorAllocator);
+
+    // Bind UBO to binding 0 if valid
+    if (uboHandle.isValid()) {
+        writer.writeUniformBuffer(0, uboHandle);
     }
-
-    // Get UBO buffer for binding
-    Buffer* uboBuffer = m_uniformBufferManager.getBuffer(uboHandle);
-    if (!uboBuffer) {
-        SPDLOG_ERROR("Uniform buffer not found");
-        return descriptorSetHandle; // Return incomplete descriptor set
-    }
-
-    // Create descriptor writer to update the set
-    DescriptorWriter writer;
-
-    // Bind UBO to binding 0
-    const auto& bufferInfo = m_uniformBufferManager.getBufferInfo(uboHandle);
-    writer.writeBuffer(0, uboBuffer->get(), bufferInfo.size, 0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER);
 
     // Bind textures to their respective bindings
     for (const auto& param : parameters) {
@@ -226,123 +202,22 @@ DescriptorSetHandle MaterialResourceManager::createMaterialDescriptorSet(
         }
 
         // Check if texture is loaded
-        if (!textureParam->textureHandle) {
+        if (!textureParam->textureHandle.isValid()) {
             SPDLOG_WARN("Texture not loaded for parameter {}", param.name);
             continue;
         }
 
         // Get image view from texture manager
-		VkImageView imageView = m_textureManager.getImageView(textureParam->textureHandle);
+        VkImageView imageView = m_textureManager.getImageView(textureParam->textureHandle);
         if (imageView == VK_NULL_HANDLE) {
             SPDLOG_WARN("Invalid image view for texture parameter {}", param.name);
             continue;
         }
 
-        // Write image descriptor to set
-        writer.writeImage(param.binding, imageView, textureParam->sampler,
-            VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER);
+        // Write combined image sampler to descriptor set
+        writer.writeCombinedImageSampler(param.binding, imageView, textureParam->samplerHandle);
     }
 
-    VkDescriptorSet descriptorSet = m_descriptorAllocator.getDescriptorSet(descriptorSetHandle);
-    if (descriptorSet == VK_NULL_HANDLE) {
-        SPDLOG_ERROR("Failed to get descriptor set from handle");
-        return DescriptorSetHandle();
-    }
-
-    // Update the descriptor set
-    writer.updateSet(m_device.get(), descriptorSet);
-
-    return descriptorSetHandle;
-}
-
-bool MaterialResourceManager::updateTextureBinding(
-    const MaterialResources& resources,
-    ShaderHandle shaderHandle,
-    const std::string& paramName,
-    int paramBinding,
-    TextureHandle textureHandle,
-    VkSampler sampler
-) {
-
-    // Create image view for the texture
-    VkImageView imageView = m_textureManager.getImageView(textureHandle);
-
-    if (imageView == VK_NULL_HANDLE) {
-        SPDLOG_ERROR("Failed to create image view for texture");
-        return false;
-    }
-
-    // Create descriptor writer and update only the specific binding
-    DescriptorWriter writer;
-    writer.writeImage(
-        paramBinding,
-        imageView,
-        sampler,
-        VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-        VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER
-    );
-
-    VkDescriptorSet descriptorSet = m_descriptorAllocator.getDescriptorSet(resources.descriptorSet);
-    if (descriptorSet == VK_NULL_HANDLE) {
-        SPDLOG_ERROR("Invalid descriptor set handle");
-        return false;
-    }
-
-    // Update descriptor set
-    writer.updateSet(m_device.get(), descriptorSet);
-
-    return true;
-}
-
-bool MaterialResourceManager::updateUniformParameter(
-    const MaterialResources& resources,
-    ShaderHandle shaderHandle,
-    const std::string& paramName,
-    const Material::ParamValue& value
-) {
-    // Get shader metadata
-    const auto& metadata = m_shaderManager.getShaderMetadata(shaderHandle);
-
-    // Look for the UBO in the shader metadata
-    for (const auto& ubo : metadata.customUBOs) {
-        if (ubo.set == ShaderLib::CUSTOM_DESCRIPTOR_SET && ubo.binding == 0) {
-            // Find the variable in UBO
-            for (const auto& var : ubo.variables) {
-                if (var.name == paramName) {
-                    // Update the variable in UBO using visit pattern
-                    std::visit([&](const auto& val) {
-                        using T = std::decay_t<decltype(val)>;
-
-                        // Skip TextureParam
-                        if constexpr (std::is_same_v<T, Material::TextureParam>) {
-                            return;
-                        }
-
-                        if constexpr (std::is_same_v<T, bool>) {
-                            uint32_t boolVal = val ? 1 : 0;
-                            m_uniformBufferManager.updateBuffer(
-                                resources.uniformBuffer,
-                                &boolVal,
-                                sizeof(uint32_t),
-                                var.offset
-                            );
-                            return;
-                        }
-
-                        // Otherwise use the value directly
-                        m_uniformBufferManager.updateBuffer(
-                            resources.uniformBuffer,
-                            &val,
-                            sizeof(T),
-                            var.offset
-                        );
-                        }, value);
-                    return true;
-                }
-            }
-            break;
-        }
-    }
-
-    return false;
+    // Create descriptor set with all bindings
+    return writer.createDescriptorSet(layout);
 }

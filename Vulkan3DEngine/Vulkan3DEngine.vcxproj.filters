@@ -236,8 +236,8 @@
     <ClCompile Include="Src\LoggerConfig.cpp">
       <Filter>Engine\LoggerConfig</Filter>
     </ClCompile>
-    <ClCompile Include="Src\MaterialResourceManager.cpp">
-      <Filter>Engine\AssetSystem\AssetManager\AssetHandlers\MaterialManager\MaterialResourceManager</Filter>
+    <ClCompile Include="Src\MaterialResourceFactory.cpp">
+      <Filter>Engine\AssetSystem\AssetManager\AssetHandlers\MaterialManager\MaterialResourceFactory</Filter>
     </ClCompile>
     <ClCompile Include="Src\TextureManager.cpp">
       <Filter>Engine\AssetSystem\AssetManager\AssetHandlers\TextureManager</Filter>
@@ -540,11 +540,8 @@
     <ClInclude Include="Src\LoggerConfig.h">
       <Filter>Engine\LoggerConfig</Filter>
     </ClInclude>
-    <ClInclude Include="Src\Handle.h">
-      <Filter>Engine</Filter>
-    </ClInclude>
-    <ClInclude Include="Src\MaterialResourceManager.h">
-      <Filter>Engine\AssetSystem\AssetManager\AssetHandlers\MaterialManager\MaterialResourceManager</Filter>
+    <ClInclude Include="Src\MaterialResourceFactory.h">
+      <Filter>Engine\AssetSystem\AssetManager\AssetHandlers\MaterialManager\MaterialResourceFactory</Filter>
     </ClInclude>
     <ClInclude Include="Src\TextureManager.h">
       <Filter>Engine\AssetSystem\AssetManager\AssetHandlers\TextureManager</Filter>
@@ -560,6 +557,15 @@
     </ClInclude>
     <ClInclude Include="Src\AssetSystem.h">
       <Filter>Engine\AssetSystem</Filter>
+    </ClInclude>
+    <ClInclude Include="Src\ISmartHandleManager.h">
+      <Filter>Engine\ResourceManager</Filter>
+    </ClInclude>
+    <ClInclude Include="Src\Handle.h">
+      <Filter>Engine\ResourceManager</Filter>
+    </ClInclude>
+    <ClInclude Include="Src\IResourceManager.h">
+      <Filter>Engine\ResourceManager</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
@@ -793,9 +799,6 @@
     <Filter Include="Engine\AssetSystem\AssetManager\AssetHandlers\MaterialManager\Material">
       <UniqueIdentifier>{c9815ef4-15ce-4b11-bbea-1f3dba77ede4}</UniqueIdentifier>
     </Filter>
-    <Filter Include="Engine\AssetSystem\AssetManager\AssetHandlers\MaterialManager\MaterialResourceManager">
-      <UniqueIdentifier>{b10e81d0-7145-4fb2-bcb8-c240e1bbcf0b}</UniqueIdentifier>
-    </Filter>
     <Filter Include="Engine\AssetSystem\AssetManager\AssetHandlers\TextureManager">
       <UniqueIdentifier>{6c158321-f629-42c8-9575-11a75750bbb3}</UniqueIdentifier>
     </Filter>
@@ -822,6 +825,12 @@
     </Filter>
     <Filter Include="Engine\Renderer\ShaderModuleManager\ShaderModule">
       <UniqueIdentifier>{73f3a81a-7cd0-4e0c-82b8-9b6ac6429520}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Engine\ResourceManager">
+      <UniqueIdentifier>{5587388f-a680-462a-a8b3-96c6b546d75f}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Engine\AssetSystem\AssetManager\AssetHandlers\MaterialManager\MaterialResourceFactory">
+      <UniqueIdentifier>{b10e81d0-7145-4fb2-bcb8-c240e1bbcf0b}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
 </Project>

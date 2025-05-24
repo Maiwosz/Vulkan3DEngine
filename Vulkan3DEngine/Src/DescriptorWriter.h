@@ -1,17 +1,61 @@
 #pragma once
 #include <cstdint>
 #include <vector>
-#include <deque>
 #include <vulkan/vulkan.h>
+#include "LogicalDevice.h"
+#include "UniformBufferManager.h"
+#include "ImageSamplerManager.h"
+#include "DescriptorAllocator.h"
+#include "ISmartHandleManager.h"
+#include "Handle.h"
 
 class DescriptorWriter {
 public:
-    void writeImage(int binding, VkImageView image, VkSampler sampler, VkImageLayout layout, VkDescriptorType type);
-    void writeBuffer(int binding, VkBuffer buffer, size_t size, size_t offset, VkDescriptorType type);
+    DescriptorWriter(const LogicalDevice& device,
+        ImageSamplerManager& samplerManager,
+        UniformBufferManager& uniformBufferManager,
+        DescriptorAllocator& descriptorAllocator);
+
+    // Write uniform buffer to binding
+    void writeUniformBuffer(int binding, SmartHandle<UniformBufferHandle, Buffer> uniformBuffer);
+
+    // Write combined image sampler to binding
+    void writeCombinedImageSampler(int binding, VkImageView imageView, SamplerHandle sampler);
+
+    // Write separate texture and sampler
+    void writeTexture(int binding, VkImageView imageView);
+    void writeSampler(int binding, SamplerHandle sampler);
+
+    // Clear all pending writes
     void clear();
-    void updateSet(VkDevice device, VkDescriptorSet set);
+
+    // Create descriptor set with current bindings and return smart handle
+    SmartHandle<DescriptorSetHandle, VkDescriptorSet> createDescriptorSet(VkDescriptorSetLayout layout);
+
 private:
-    std::deque<VkDescriptorImageInfo> imageInfos;
-    std::deque<VkDescriptorBufferInfo> bufferInfos;
-    std::vector<VkWriteDescriptorSet> writes;
+    struct UniformBufferBinding {
+        int binding;
+        SmartHandle<UniformBufferHandle, Buffer> uniformBuffer;
+    };
+
+    struct ImageBinding {
+        int binding;
+        VkImageView imageView;
+        SamplerHandle sampler;
+        VkDescriptorType type;
+    };
+
+    struct SamplerBinding {
+        int binding;
+        SamplerHandle sampler;
+    };
+
+    const LogicalDevice& m_device;
+    ImageSamplerManager& m_samplerManager;
+    UniformBufferManager& m_uniformBufferManager;
+    DescriptorAllocator& m_descriptorAllocator;
+
+    std::vector<UniformBufferBinding> m_uniformBufferBindings;
+    std::vector<ImageBinding> m_imageBindings;
+    std::vector<SamplerBinding> m_samplerBindings;
 };

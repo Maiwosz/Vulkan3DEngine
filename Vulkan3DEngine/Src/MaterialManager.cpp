@@ -19,8 +19,8 @@ MaterialManager::MaterialManager(
     m_samplerManager(samplerManager),
     m_textureManager(textureManager) {
 
-    // Create the resource manager
-    m_resourceManager = std::make_unique<MaterialResourceManager>(
+    // Create the resource factory
+    m_resourceFactory = std::make_unique<MaterialResourceFactory>(
         device,
         shaderManager,
         samplerManager,
@@ -32,13 +32,7 @@ MaterialManager::MaterialManager(
 }
 
 MaterialManager::~MaterialManager() {
-    // Release all material resources
-    for (auto& [handle, materialData] : m_materials) {
-        if (materialData.isReady) {
-            m_resourceManager->destroyMaterialResources(materialData.resources);
-        }
-    }
-
+    // Smart handles will automatically clean up descriptor sets
     // Clean up all materials
     m_materials.clear();
     m_filenameToHandle.clear();
@@ -73,7 +67,7 @@ bool MaterialManager::prepareAsset(const AssetHandle& handle, const AssetLib::As
 
         // Create material handle
         MaterialHandle materialHandle = createMaterial(handle, data, shader);
-        if (!materialHandle.isValid()) { 
+        if (!materialHandle.isValid()) {
             SPDLOG_ERROR("MaterialManager: Failed to create material {}", handle.filename);
             return false;
         }
@@ -97,12 +91,6 @@ bool MaterialManager::prepareAsset(const AssetHandle& handle, const AssetLib::As
         // Update texture handles after textures are loaded
         updateTextureHandles(materialHandle, manager);
 
-        // Create material resources
-        materialData.resources = m_resourceManager->createMaterialResources(
-            materialData.material->shader(),
-            materialData.material->parameters()
-        );
-
         materialData.isReady = true;
 
         SPDLOG_DEBUG("MaterialManager: Successfully prepared material {}", handle.filename);
@@ -123,9 +111,7 @@ void MaterialManager::unloadAsset(const std::string& filename) {
 
         auto materialIt = m_materials.find(handle);
         if (materialIt != m_materials.end()) {
-            if (materialIt->second.isReady) {
-                m_resourceManager->destroyMaterialResources(materialIt->second.resources);
-            }
+            // Smart handles will automatically clean up when MaterialData is destroyed
             m_materials.erase(materialIt);
         }
 
@@ -184,7 +170,7 @@ std::vector<AssetDependency> MaterialManager::getDependencies(const AssetHandle&
 
                         dependencies.push_back({
                             AssetHandle(AssetType::Texture, textureFilename),
-                            DependencyType::UsageTime,  // Textures must be prepared before material is prepared
+                            DependencyType::UsageTime,
                             textureConfig
                             });
                     }
@@ -233,12 +219,54 @@ const Material* MaterialManager::getMaterial(MaterialHandle handle) const {
     return (it != m_materials.end() && it->second.isReady) ? it->second.material.get() : nullptr;
 }
 
-DescriptorSetHandle MaterialManager::getMaterialDescriptorSet(MaterialHandle handle) {
+SmartHandle<DescriptorSetHandle, VkDescriptorSet> MaterialManager::getDescriptorSet(MaterialHandle handle) {
     auto it = m_materials.find(handle);
-    if (it != m_materials.end() && it->second.isReady) {
-        return it->second.resources.descriptorSet;
+    if (it == m_materials.end() || !it->second.isReady) {
+        SPDLOG_WARN("MaterialManager: Invalid or not ready material handle {}", handle.id);
+        return SmartHandle<DescriptorSetHandle, VkDescriptorSet>();
     }
-    return DescriptorSetHandle();
+
+    MaterialData& materialData = it->second;
+
+    // Check if we already have a valid descriptor set
+    if (materialData.descriptorSetValid && materialData.descriptorSet.isValid()) {
+        return materialData.descriptorSet;
+    }
+
+    // Create new descriptor set
+    try {
+        materialData.descriptorSet = m_resourceFactory->createMaterialDescriptorSet(
+            materialData.material->shader(),
+            materialData.material->parameters()
+        );
+
+        if (materialData.descriptorSet.isValid()) {
+            materialData.descriptorSetValid = true;
+            SPDLOG_DEBUG("MaterialManager: Created descriptor set for material {}",
+                materialData.material->name());
+        }
+        else {
+            SPDLOG_ERROR("MaterialManager: Failed to create descriptor set for material {}",
+                materialData.material->name());
+        }
+
+        return materialData.descriptorSet;
+    }
+    catch (const std::exception& e) {
+        SPDLOG_ERROR("MaterialManager: Exception while creating descriptor set for material {}: {}",
+            materialData.material->name(), e.what());
+        return SmartHandle<DescriptorSetHandle, VkDescriptorSet>();
+    }
+}
+
+void MaterialManager::invalidateDescriptorSet(MaterialHandle handle) {
+    auto it = m_materials.find(handle);
+    if (it != m_materials.end()) {
+        it->second.descriptorSetValid = false;
+        // The old descriptor set will be automatically cleaned up by smart handle
+        // when it goes out of scope or when no more references exist
+        SPDLOG_DEBUG("MaterialManager: Invalidated descriptor set for material handle {}", handle.id);
+    }
 }
 
 MaterialHandle MaterialManager::createMaterial(
@@ -332,7 +360,7 @@ Material::ParamValue MaterialManager::convertParameter(
 
             // Create sampler configuration based on the material's sampler description
             SamplerConfig samplerConfig = ImageSamplerUtils::createSamplerConfig(assetParam.samplerDesc);
-            textureParam.sampler = m_samplerManager.getSampler(samplerConfig);
+            textureParam.samplerHandle = m_samplerManager.acquireSampler(samplerConfig);
 
             return textureParam;
         }
@@ -465,12 +493,4 @@ uint32_t MaterialManager::findBindingForParameter(
     // If not found, log warning and return default binding
     SPDLOG_WARN("Could not find binding for parameter '{}', using default binding 0", paramName);
     return 0;
-}
-
-MaterialResourceManager::MaterialResources* MaterialManager::getOrCreateMaterialResources(MaterialHandle handle) {
-    auto it = m_materials.find(handle);
-    if (it != m_materials.end() && it->second.isReady) {
-        return &it->second.resources;
-    }
-    return nullptr;
 }

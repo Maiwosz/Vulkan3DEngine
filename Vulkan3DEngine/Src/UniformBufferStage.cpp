@@ -60,9 +60,9 @@ void UniformBufferStage::processMeshOrder(std::shared_ptr<MeshRenderOrder> order
         return;
     }
 
-    // Create and update object UBO
-    UniformBufferHandle objectUboHandle = m_uniformBufferManager.acquireBuffer(ShaderLib::OBJECT_UBO);
-    if (objectUboHandle) {
+    // Create and update object UBO using SmartHandle
+    auto smartObjectUbo = m_uniformBufferManager.acquireSmartBuffer(ShaderLib::OBJECT_UBO);
+    if (smartObjectUbo.isValid()) {
         ShaderLib::ObjectUBOData objectUboData;
 
         auto& transformComponent = m_registry.getComponent<TransformComponent>(order->entity);
@@ -71,13 +71,14 @@ void UniformBufferStage::processMeshOrder(std::shared_ptr<MeshRenderOrder> order
         objectUboData.model = transformComponent.getModelMatrix();
 
         // Update buffer with data
-        m_uniformBufferManager.updateBuffer(objectUboHandle, &objectUboData, sizeof(objectUboData));
+        m_uniformBufferManager.updateBuffer(smartObjectUbo.handle(), &objectUboData, sizeof(objectUboData));
 
-        // Store the handle in the order for later use
-        order->objectUBOHandle = objectUboHandle;
+        // Store the SmartHandle in the order - automatic cleanup when order is destroyed
+        order->objectUBOHandle = smartObjectUbo;
+
+        SPDLOG_DEBUG("Created and updated object UBO for entity");
     }
     else {
         SPDLOG_WARN("Failed to create object uniform buffer");
     }
 }
-

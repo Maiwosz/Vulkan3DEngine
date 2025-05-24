@@ -327,7 +327,7 @@ void RenderStage::executeRenderCommands(
 
             // Bind descriptor sets using handles
             if (meshOrder->globalDescriptorSetHandle.isValid()) {
-                VkDescriptorSet globalDescSet = m_descriptorAllocator.getDescriptorSet(meshOrder->globalDescriptorSetHandle);
+                VkDescriptorSet globalDescSet = m_descriptorAllocator.getDescriptorSet(meshOrder->globalDescriptorSetHandle.handle());
                 vkCmdBindDescriptorSets(
                     commandBuffer,
                     VK_PIPELINE_BIND_POINT_GRAPHICS,
@@ -338,14 +338,14 @@ void RenderStage::executeRenderCommands(
                     0, nullptr
                 );
                 SPDLOG_DEBUG("Global descriptor set bound, handle ID: {}",
-                    meshOrder->globalDescriptorSetHandle.id);
+                    meshOrder->globalDescriptorSetHandle.handle().id);
             }
             else {
                 SPDLOG_WARN("Global descriptor set handle is invalid");
             }
 
             if (meshOrder->objectDescriptorSetHandle.isValid()) {
-                VkDescriptorSet objectDescSet = m_descriptorAllocator.getDescriptorSet(meshOrder->objectDescriptorSetHandle);
+                VkDescriptorSet objectDescSet = m_descriptorAllocator.getDescriptorSet(meshOrder->objectDescriptorSetHandle.handle());
                 vkCmdBindDescriptorSets(
                     commandBuffer,
                     VK_PIPELINE_BIND_POINT_GRAPHICS,
@@ -356,14 +356,14 @@ void RenderStage::executeRenderCommands(
                     0, nullptr
                 );
                 SPDLOG_DEBUG("Object descriptor set bound, handle ID: {}",
-                    meshOrder->objectDescriptorSetHandle.id);
+                    meshOrder->objectDescriptorSetHandle.handle().id);
             }
             else {
                 SPDLOG_WARN("Object descriptor set handle is invalid");
             }
 
             if (meshOrder->materialDescriptorSetHandle.isValid()) {
-                VkDescriptorSet materialDescSet = m_descriptorAllocator.getDescriptorSet(meshOrder->materialDescriptorSetHandle);
+                VkDescriptorSet materialDescSet = m_descriptorAllocator.getDescriptorSet(meshOrder->materialDescriptorSetHandle.handle());
                 vkCmdBindDescriptorSets(
                     commandBuffer,
                     VK_PIPELINE_BIND_POINT_GRAPHICS,
@@ -374,7 +374,7 @@ void RenderStage::executeRenderCommands(
                     0, nullptr
                 );
                 SPDLOG_DEBUG("Material descriptor set bound, handle ID: {}",
-                    meshOrder->materialDescriptorSetHandle.id);
+                    meshOrder->materialDescriptorSetHandle.handle().id);
             }
             else {
                 SPDLOG_WARN("Material descriptor set handle is invalid");

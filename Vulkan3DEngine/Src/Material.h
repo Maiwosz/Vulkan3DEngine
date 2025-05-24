@@ -21,7 +21,7 @@ public:
     struct TextureParam {
         AssetHandle handle;
         TextureHandle textureHandle;
-        VkSampler sampler;
+        SamplerHandle samplerHandle;
         AssetLib::ColorSpace colorSpace = AssetLib::ColorSpace::SRGB;
     };
 

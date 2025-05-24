@@ -8,7 +8,7 @@ DescriptorSetStage::DescriptorSetStage(
     AssetSystem& assetSystem
 )
     : m_renderer(renderer),
-	m_assetSystem(assetSystem),
+    m_assetSystem(assetSystem),
     m_shaderManager(assetSystem.shaderManager()),
     m_materialManager(assetSystem.materialManager()),
     m_uniformBufferManager(renderer.uniformBufferManager()),
@@ -16,7 +16,10 @@ DescriptorSetStage::DescriptorSetStage(
     m_vramManager(renderer.vramManager()),
     m_layoutManager(renderer.descriptorLayoutManager()),
     m_samplerManager(m_renderer.imageSamplerManager()),
-    m_writer()
+    m_writer(renderer.vulkanContext().logical(),
+        m_samplerManager,
+        m_uniformBufferManager,
+        m_descriptorAllocator)
 {
     SPDLOG_INFO("Initializing DescriptorSetStage");
 }
@@ -65,7 +68,6 @@ void DescriptorSetStage::processMeshOrder(std::shared_ptr<MeshRenderOrder> order
     if (material) {
         shaderHandle = material->shader();
     }
-        
 
     if (!shaderHandle) {
         SPDLOG_ERROR("Invalid shader handle for mesh render order");
@@ -78,9 +80,13 @@ void DescriptorSetStage::processMeshOrder(std::shared_ptr<MeshRenderOrder> order
     // Create object descriptor set
     createObjectDescriptorSet(order, shaderHandle);
 
-    // Assign material descriptor set
+    // Assign material descriptor set - assuming MaterialManager returns SmartHandle
     if (order->materialHandle) {
-        order->materialDescriptorSetHandle = m_materialManager.getMaterialDescriptorSet(order->materialHandle);
+        // If MaterialManager doesn't support SmartHandle yet, this might need adjustment
+        auto materialDescriptorSet = m_materialManager.getDescriptorSet(order->materialHandle);
+        if (materialDescriptorSet.isValid()) {
+            order->materialDescriptorSetHandle = materialDescriptorSet;
+        }
     }
 }
 
@@ -88,49 +94,38 @@ void DescriptorSetStage::createGlobalDescriptorSet(std::shared_ptr<MeshRenderOrd
     // Get shader resources (descriptor layouts, pipeline layout)
     const ShaderResources& shaderResources = m_shaderManager.getShaderResources(shader);
 
-    // Check if we have a layout for global descriptor set (set=1)
+    // Check if we have a layout for global descriptor set (set=0)
     if (shaderResources.descriptorLayouts.count(0) > 0) {
-        // Get descriptor set layout for set=1
+        // Get descriptor set layout for set=0
         VkDescriptorSetLayout globalSetLayout =
             m_layoutManager.get(shaderResources.descriptorLayouts.at(0));
 
-        // Allocate descriptor set using allocator
-        DescriptorSetHandle globalDescriptorSetHandle = m_descriptorAllocator.acquireDescriptorSet(globalSetLayout);
-		VkDescriptorSet globalDescriptorSet = m_descriptorAllocator.getDescriptorSet(globalDescriptorSetHandle);
+        // Clear writer for new descriptor set
+        m_writer.clear();
 
-        if (globalDescriptorSet != VK_NULL_HANDLE) {
-            // Prepare descriptor writer
-            m_writer.clear();
-
-            // Write global UBO to descriptor set if available
-            if (order->globalUBOHandle) {
-                Buffer* globalBuffer = m_uniformBufferManager.getBuffer(order->globalUBOHandle);
-                if (globalBuffer) {
-                    m_writer.writeBuffer(0, globalBuffer->get(), globalBuffer->getSize(), 0,
-                        VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER);
-                    SPDLOG_DEBUG("Added global UBO to global descriptor set at binding 0");
-                }
-                else {
-                    SPDLOG_WARN("Invalid global UBO buffer");
-                }
-            }
-            else {
-                SPDLOG_WARN("Missing global UBO handle in render order");
-            }
-
-            // Update descriptor set
-            m_writer.updateSet(m_renderer.vulkanContext().logical().get(), globalDescriptorSet);
-
-            // Store descriptor set in render order
-            order->globalDescriptorSetHandle = globalDescriptorSetHandle;
-            SPDLOG_DEBUG("Created global descriptor set");
+        // Write global UBO to descriptor set if available
+        if (order->globalUBOHandle.isValid()) {
+            m_writer.writeUniformBuffer(0, order->globalUBOHandle);
+            SPDLOG_DEBUG("Added global UBO to global descriptor set at binding 0");
         }
         else {
-            SPDLOG_ERROR("Failed to allocate global descriptor set");
+            SPDLOG_WARN("Missing valid global UBO handle in render order");
+        }
+
+        // Create descriptor set using writer - this returns SmartHandle automatically
+        auto smartGlobalDescriptorSet = m_writer.createDescriptorSet(globalSetLayout);
+
+        if (smartGlobalDescriptorSet.isValid()) {
+            // Store SmartHandle in render order - automatic cleanup when order is destroyed
+            order->globalDescriptorSetHandle = smartGlobalDescriptorSet;
+            SPDLOG_DEBUG("Created global descriptor set with SmartHandle");
+        }
+        else {
+            SPDLOG_ERROR("Failed to create global descriptor set");
         }
     }
     else {
-        SPDLOG_DEBUG("No descriptor layout found for global set (set=1)");
+        SPDLOG_DEBUG("No descriptor layout found for global set (set=0)");
     }
 }
 
@@ -144,43 +139,31 @@ void DescriptorSetStage::createObjectDescriptorSet(std::shared_ptr<MeshRenderOrd
         VkDescriptorSetLayout objectSetLayout =
             m_layoutManager.get(shaderResources.descriptorLayouts.at(1));
 
-        // Allocate descriptor set using allocator
-        DescriptorSetHandle objectDescriptorSetHandle = m_descriptorAllocator.acquireDescriptorSet(objectSetLayout);
-        VkDescriptorSet objectDescriptorSet = m_descriptorAllocator.getDescriptorSet(objectDescriptorSetHandle);
+        // Clear writer for new descriptor set
+        m_writer.clear();
 
-        if (objectDescriptorSet != VK_NULL_HANDLE) {
-            // Prepare descriptor writer
-            m_writer.clear();
-
-            // Write object UBO to descriptor set if available
-            if (order->objectUBOHandle) {
-                Buffer* objectBuffer = m_uniformBufferManager.getBuffer(order->objectUBOHandle);
-                if (objectBuffer) {
-                    m_writer.writeBuffer(0, objectBuffer->get(), objectBuffer->getSize(), 0,
-                        VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER);
-                    SPDLOG_DEBUG("Added object UBO to object descriptor set at binding 0");
-                }
-                else {
-                    SPDLOG_WARN("Invalid object UBO buffer");
-                }
-            }
-            else {
-                SPDLOG_WARN("Missing object UBO handle in render order");
-            }
-
-            // Update descriptor set
-            m_writer.updateSet(m_renderer.vulkanContext().logical().get(), objectDescriptorSet);
-
-            // Store descriptor set in render order
-            order->objectDescriptorSetHandle = objectDescriptorSetHandle;
-            SPDLOG_DEBUG("Created object descriptor set");
+        // Write object UBO to descriptor set if available
+        if (order->objectUBOHandle.isValid()) {
+            m_writer.writeUniformBuffer(0, order->objectUBOHandle);
+            SPDLOG_DEBUG("Added object UBO to object descriptor set at binding 0");
         }
         else {
-            SPDLOG_ERROR("Failed to allocate object descriptor set");
+            SPDLOG_WARN("Missing valid object UBO handle in render order");
+        }
+
+        // Create descriptor set using writer - this returns SmartHandle automatically
+        auto smartObjectDescriptorSet = m_writer.createDescriptorSet(objectSetLayout);
+
+        if (smartObjectDescriptorSet.isValid()) {
+            // Store SmartHandle in render order - automatic cleanup when order is destroyed
+            order->objectDescriptorSetHandle = smartObjectDescriptorSet;
+            SPDLOG_DEBUG("Created object descriptor set with SmartHandle");
+        }
+        else {
+            SPDLOG_ERROR("Failed to create object descriptor set");
         }
     }
     else {
         SPDLOG_DEBUG("No descriptor layout found for object set (set=1)");
     }
 }
-

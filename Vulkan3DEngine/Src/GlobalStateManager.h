@@ -3,6 +3,7 @@
 #include <vector>
 #include "RenderOrder.h"
 #include "Handle.h"
+#include "ISmartHandleManager.h"
 #include <vulkan/vulkan.h>
 
 // Forward declarations
@@ -12,6 +13,7 @@ class UniformBufferManager;
 class DescriptorAllocator;
 class DescriptorLayoutManager;
 class LogicalDevice;
+class Buffer;
 
 class GlobalStateManager {
 public:
@@ -23,7 +25,8 @@ public:
     // Process light data and add to lights list
     void processLight(std::shared_ptr<LightRenderOrder> light);
 
-    UniformBufferHandle createGlobalUniformBuffer();
+    // Create global uniform buffer with smart handle
+    SmartHandle<UniformBufferHandle, Buffer> createGlobalUniformBuffer();
 
     // Build global data (uniform buffer, descriptor set)
     void buildGlobalData();
@@ -34,10 +37,11 @@ public:
     // Reset state for next frame
     void reset();
 
-    // Accessors
-    std::shared_ptr<CameraRenderOrder> getActiveCamera() const { return m_activeCamera; }
-    const std::vector<std::shared_ptr<LightRenderOrder>>& getLights() const { return m_lights; }
-    UniformBufferHandle getGlobalUBO() const { return m_globalUBO; }
+    // Accessor
+    SmartHandle<DescriptorSetHandle, VkDescriptorSet> getGlobalDescriptorSet() const { return m_globalDescriptorSet; }
+
+    // Check if global data is ready
+    bool hasValidGlobalData() const { return m_globalUBO.isValid() && m_globalDescriptorSet.isValid(); }
 
 private:
     Registry& m_registry;
@@ -46,11 +50,15 @@ private:
     DescriptorLayoutManager& m_descriptorLayoutManager;
     const LogicalDevice& m_device;
 
-    // Global state data
+    // Global state data - używamy SmartHandle dla automatycznego zarządzania
     std::shared_ptr<CameraRenderOrder> m_activeCamera;
     std::vector<std::shared_ptr<LightRenderOrder>> m_lights;
-    UniformBufferHandle m_globalUBO;
+    SmartHandle<UniformBufferHandle, Buffer> m_globalUBO;
+    SmartHandle<DescriptorSetHandle, VkDescriptorSet> m_globalDescriptorSet;
 
     // Flags to track state
     bool m_globalDataBuilt = false;
+
+    // Helper method to create global descriptor set
+    SmartHandle<DescriptorSetHandle, VkDescriptorSet> createGlobalDescriptorSet();
 };

@@ -1,27 +1,29 @@
 #pragma once
 #include <unordered_map>
 #include <vector>
-#include <memory>
 #include <deque>
 #include <mutex>
 #include "VramManager.h"
 #include "ShaderLib.h"
 #include "Buffer.h"
 #include "Handle.h"
+#include "ISmartHandleManager.h"
 
 struct UniformBufferInfo {
     VramHandle vramHandle;
     std::string name;
     uint32_t size;
-    bool isInUse;
+    bool inUse;
+    uint32_t referenceCount;
     std::vector<ShaderLib::UniformVariable> variables;
 };
 
-class UniformBufferManager {
+class UniformBufferManager : public ISmartHandleManager<UniformBufferHandle, Buffer> {
 public:
     explicit UniformBufferManager(VramManager& vramManager);
     ~UniformBufferManager();
 
+    // Publiczny interfejs do ręcznego zarządzania
     UniformBufferHandle acquireBuffer(const ShaderLib::UniformBufferObject& uboInfo);
     void releaseBuffer(UniformBufferHandle handle);
     void updateBuffer(UniformBufferHandle handle, const void* data, uint32_t size, uint32_t offset = 0);
@@ -45,18 +47,22 @@ public:
         SPDLOG_WARN("Variable '{}' not found in uniform buffer", variableName);
     }
 
-    bool isBufferValid(UniformBufferHandle handle) const;
+    // Smart handle support - publiczny factory method
+    SmartHandle<UniformBufferHandle, Buffer> acquireSmartBuffer(const ShaderLib::UniformBufferObject& uboInfo);
+
+    // IResourceManager interface implementation
+    Buffer* getResource(UniformBufferHandle handle) override;
+    bool isValid(UniformBufferHandle handle) const override;
+    void releaseResource(UniformBufferHandle handle) override;
+    void addReference(UniformBufferHandle handle) override;
+    void removeReference(UniformBufferHandle handle) override;
+
+    void cleanupUnusedBuffers(uint64_t timeThreshold = 0);
 
     const UniformBufferInfo& getBufferInfo(UniformBufferHandle handle) const;
     UniformBufferInfo& getBufferInfo(UniformBufferHandle handle);
 
-    Buffer* getBuffer(UniformBufferHandle handle);
-
-    void cleanupUnusedBuffers(uint64_t timeThreshold = 0);
-
 private:
-    UniformBufferHandle createBuffer(const ShaderLib::UniformBufferObject& uboInfo);
-
     struct BufferPoolKey {
         std::string name;
         uint32_t size;
@@ -72,9 +78,16 @@ private:
         }
     };
 
+    // Prywatne metody zarządzania buforami
+    UniformBufferHandle createNewBuffer(const ShaderLib::UniformBufferObject& uboInfo);
+    UniformBufferHandle findReusableBuffer(const ShaderLib::UniformBufferObject& uboInfo);
+
     std::unordered_map<BufferPoolKey, std::deque<UniformBufferHandle>, BufferPoolKeyHash> m_bufferPool;
     std::unordered_map<UniformBufferHandle, UniformBufferInfo> m_buffers;
     VramManager& m_vramManager;
-    uint32_t m_nextHandle = 1;
+    uint32_t m_nextHandleId;
     std::mutex m_poolMutex;
+
+    // Cache dla getResource (żeby zwrócić wskaźnik)
+    mutable std::unordered_map<UniformBufferHandle, Buffer*> m_resourceCache;
 };

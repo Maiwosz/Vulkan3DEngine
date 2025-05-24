@@ -1,32 +1,35 @@
 #include "DescriptorAllocator.h"
 #include "Prerequisites.h"
 
+// Static member definition
+const DescriptorAllocator::DescriptorResources DescriptorAllocator::s_emptyResources;
+
 DescriptorAllocator::DescriptorAllocator(const LogicalDevice& device, const PoolConfig& config) :
     m_device(device), m_config(config), m_nextSetCount(config.initialSets), m_nextHandleId(1)
 {
     m_readyPools.push_back(getPool());
 }
 
+// Enhanced public interface
 DescriptorSetHandle DescriptorAllocator::acquireDescriptorSet(VkDescriptorSetLayout layout) {
+    return acquireDescriptorSet(layout, DescriptorResources{});
+}
+
+DescriptorSetHandle DescriptorAllocator::acquireDescriptorSet(VkDescriptorSetLayout layout, const DescriptorResources& resources) {
     // Próbuj znaleźć reużywalny deskryptor
     DescriptorSetHandle handle = findReusableDescriptorSet(layout);
     if (handle.isValid()) {
         m_descriptorSets[handle.id - 1].inUse = true;
+        m_descriptorSets[handle.id - 1].resources = resources; // Copy resources
         return handle;
     }
 
     // Stwórz nowy jeśli nie ma dostępnego
-    return createNewDescriptorSet(layout);
+    return createNewDescriptorSet(layout, resources);
 }
 
 void DescriptorAllocator::releaseDescriptorSet(DescriptorSetHandle handle) {
-    if (!handle.isValid() || handle.id > m_descriptorSets.size()) return;
-
-    auto& entry = m_descriptorSets[handle.id - 1];
-    if (!entry.inUse) return;
-
-    entry.inUse = false;
-    m_reusableSets[entry.layout].push(handle);
+    releaseResource(handle);
 }
 
 VkDescriptorSet DescriptorAllocator::getDescriptorSet(DescriptorSetHandle handle) const {
@@ -36,6 +39,133 @@ VkDescriptorSet DescriptorAllocator::getDescriptorSet(DescriptorSetHandle handle
     return m_descriptorSets[handle.id - 1].descriptorSet;
 }
 
+// Resource management methods
+void DescriptorAllocator::bindUniformBuffer(DescriptorSetHandle handle, SmartHandle<UniformBufferHandle, Buffer> buffer) {
+    if (!handle.isValid() || handle.id > m_descriptorSets.size()) return;
+
+    auto& entry = m_descriptorSets[handle.id - 1];
+    if (!entry.inUse) return;
+
+    entry.resources.uniformBuffers.push_back(std::move(buffer));
+}
+
+void DescriptorAllocator::bindSampler(DescriptorSetHandle handle, SamplerHandle sampler) {
+    if (!handle.isValid() || handle.id > m_descriptorSets.size()) return;
+
+    auto& entry = m_descriptorSets[handle.id - 1];
+    if (!entry.inUse) return;
+
+    entry.resources.samplers.push_back(sampler);
+}
+
+void DescriptorAllocator::bindResources(DescriptorSetHandle handle, const DescriptorResources& resources) {
+    if (!handle.isValid() || handle.id > m_descriptorSets.size()) return;
+
+    auto& entry = m_descriptorSets[handle.id - 1];
+    if (!entry.inUse) return;
+
+    entry.resources = resources;
+}
+
+const DescriptorAllocator::DescriptorResources& DescriptorAllocator::getDescriptorResources(DescriptorSetHandle handle) const {
+    if (!handle.isValid() || handle.id > m_descriptorSets.size()) {
+        return s_emptyResources;
+    }
+
+    const auto& entry = m_descriptorSets[handle.id - 1];
+    if (!entry.inUse) {
+        return s_emptyResources;
+    }
+
+    return entry.resources;
+}
+
+DescriptorAllocator::DescriptorResources& DescriptorAllocator::getDescriptorResources(DescriptorSetHandle handle) {
+    if (!handle.isValid() || handle.id > m_descriptorSets.size()) {
+        // Return a reference to a temporary that will be destroyed, but this is an error case anyway
+        static DescriptorResources emptyResources;
+        emptyResources.clear(); // Ensure it's empty
+        return emptyResources;
+    }
+
+    auto& entry = m_descriptorSets[handle.id - 1];
+    if (!entry.inUse) {
+        static DescriptorResources emptyResources;
+        emptyResources.clear();
+        return emptyResources;
+    }
+
+    return entry.resources;
+}
+
+// IResourceManager interface implementation - WSZYSTKIE metody wymagane
+VkDescriptorSet* DescriptorAllocator::getResource(DescriptorSetHandle handle) {
+    if (!handle.isValid() || handle.id > m_descriptorSets.size()) {
+        return nullptr;
+    }
+
+    // Aktualizuj cache i zwróć wskaźnik
+    VkDescriptorSet descriptorSet = m_descriptorSets[handle.id - 1].descriptorSet;
+    m_resourceCache[handle] = descriptorSet;
+    return &m_resourceCache[handle];
+}
+
+bool DescriptorAllocator::isValid(DescriptorSetHandle handle) const {
+    if (!handle.isValid() || handle.id > m_descriptorSets.size()) {
+        return false;
+    }
+    return m_descriptorSets[handle.id - 1].inUse;
+}
+
+void DescriptorAllocator::releaseResource(DescriptorSetHandle handle) {
+    if (!handle.isValid() || handle.id > m_descriptorSets.size()) return;
+
+    auto& entry = m_descriptorSets[handle.id - 1];
+    if (!entry.inUse) return;
+
+    // Zwolnij tylko jeśli nie ma aktywnych referencji
+    if (entry.referenceCount == 0) {
+        entry.inUse = false;
+        entry.resources.clear(); // Clear bound resources - this will automatically release smart handles
+        m_reusableSets[entry.layout].push(handle);
+        m_resourceCache.erase(handle);
+    }
+}
+
+void DescriptorAllocator::addReference(DescriptorSetHandle handle) {
+    if (!handle.isValid() || handle.id > m_descriptorSets.size()) return;
+
+    auto& entry = m_descriptorSets[handle.id - 1];
+    entry.referenceCount++;
+}
+
+void DescriptorAllocator::removeReference(DescriptorSetHandle handle) {
+    if (!handle.isValid() || handle.id > m_descriptorSets.size()) return;
+
+    auto& entry = m_descriptorSets[handle.id - 1];
+    if (entry.referenceCount > 0) {
+        entry.referenceCount--;
+
+        // Jeśli licznik referencji spadł do 0 i zasób jest w użyciu, zwróć do puli
+        if (entry.referenceCount == 0 && entry.inUse) {
+            entry.inUse = false;
+            entry.resources.clear(); // Clear bound resources
+            m_reusableSets[entry.layout].push(handle);
+            m_resourceCache.erase(handle);
+        }
+    }
+}
+
+SmartHandle<DescriptorSetHandle, VkDescriptorSet> DescriptorAllocator::acquireSmartDescriptorSet(VkDescriptorSetLayout layout) {
+    return acquireSmartDescriptorSet(layout, DescriptorResources{});
+}
+
+SmartHandle<DescriptorSetHandle, VkDescriptorSet> DescriptorAllocator::acquireSmartDescriptorSet(VkDescriptorSetLayout layout, const DescriptorResources& resources) {
+    DescriptorSetHandle handle = acquireDescriptorSet(layout, resources);
+    return createSmartHandle(handle);
+}
+
+// Prywatne metody implementacyjne
 DescriptorSetHandle DescriptorAllocator::findReusableDescriptorSet(VkDescriptorSetLayout layout) {
     auto& queue = m_reusableSets[layout];
     if (!queue.empty()) {
@@ -47,6 +177,10 @@ DescriptorSetHandle DescriptorAllocator::findReusableDescriptorSet(VkDescriptorS
 }
 
 DescriptorSetHandle DescriptorAllocator::createNewDescriptorSet(VkDescriptorSetLayout layout) {
+    return createNewDescriptorSet(layout, DescriptorResources{});
+}
+
+DescriptorSetHandle DescriptorAllocator::createNewDescriptorSet(VkDescriptorSetLayout layout, const DescriptorResources& resources) {
     VkDescriptorPool pool = getPool();
 
     VkDescriptorSetAllocateInfo allocInfo = {
@@ -80,7 +214,9 @@ DescriptorSetHandle DescriptorAllocator::createNewDescriptorSet(VkDescriptorSetL
         .descriptorSet = descriptorSet,
         .layout = layout,
         .sourcePool = pool,
-        .inUse = true
+        .inUse = true,
+        .referenceCount = 0,
+        .resources = resources // Copy the provided resources
     };
 
     return handle;
@@ -98,12 +234,12 @@ void DescriptorAllocator::reset() {
     m_fullPools.clear();
 
     // Wyczyść wszystkie uchwyty i kolejki
-    m_descriptorSets.clear();
+    m_descriptorSets.clear(); // This will automatically clear all bound resources
     m_reusableSets.clear();
+    m_resourceCache.clear();
     m_nextHandleId = 1;
 }
 
-// Pozostałe metody bez zmian
 void DescriptorAllocator::destroy() {
     for (auto pool : m_readyPools) {
         vkDestroyDescriptorPool(m_device.get(), pool, nullptr);
@@ -113,8 +249,9 @@ void DescriptorAllocator::destroy() {
     }
     m_readyPools.clear();
     m_fullPools.clear();
-    m_descriptorSets.clear();
+    m_descriptorSets.clear(); // This will automatically clear all bound resources
     m_reusableSets.clear();
+    m_resourceCache.clear();
 }
 
 VkResult DescriptorAllocator::createPool(uint32_t setCount, VkDescriptorPool* outPool) const {

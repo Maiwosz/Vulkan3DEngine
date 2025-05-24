@@ -52,12 +52,33 @@ public:
     ImageSampler(const LogicalDevice& device, const SamplerConfig& config);
     ~ImageSampler();
 
+    // Delete copy constructor and assignment operator
     ImageSampler(const ImageSampler&) = delete;
     ImageSampler& operator=(const ImageSampler&) = delete;
 
-    VkSampler handle() const { return m_sampler; }
+    // Add move constructor and assignment operator
+    ImageSampler(ImageSampler&& other) noexcept
+        : m_device(other.m_device), m_sampler(other.m_sampler) {
+        other.m_sampler = VK_NULL_HANDLE;
+    }
+
+    ImageSampler& operator=(ImageSampler&& other) noexcept {
+        if (this != &other) {
+            // Clean up current resource
+            if (m_sampler != VK_NULL_HANDLE) {
+                vkDestroySampler(m_device.get(), m_sampler, nullptr);
+            }
+
+            // Move from other
+            m_sampler = other.m_sampler;
+            other.m_sampler = VK_NULL_HANDLE;
+        }
+        return *this;
+    }
+
+    VkSampler get() const { return m_sampler; }
 
 private:
     const LogicalDevice& m_device;
-    VkSampler m_sampler;
+    VkSampler m_sampler = VK_NULL_HANDLE;
 };

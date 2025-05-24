@@ -3,7 +3,7 @@
 #include <algorithm>
 
 UniformBufferManager::UniformBufferManager(VramManager& vramManager)
-    : m_vramManager(vramManager) {
+    : m_vramManager(vramManager), m_nextHandleId(1) {
 }
 
 UniformBufferManager::~UniformBufferManager() {
@@ -12,10 +12,11 @@ UniformBufferManager::~UniformBufferManager() {
     }
     m_buffers.clear();
     m_bufferPool.clear();
+    m_resourceCache.clear();
 }
 
-UniformBufferHandle UniformBufferManager::createBuffer(const ShaderLib::UniformBufferObject& uboInfo) {
-    UniformBufferHandle handle(m_nextHandle++);
+UniformBufferHandle UniformBufferManager::createNewBuffer(const ShaderLib::UniformBufferObject& uboInfo) {
+    UniformBufferHandle handle(m_nextHandleId++);
 
     VramHandle vramHandle = m_vramManager.createBuffer(
         uboInfo.size,
@@ -34,7 +35,8 @@ UniformBufferHandle UniformBufferManager::createBuffer(const ShaderLib::UniformB
     bufferInfo.vramHandle = vramHandle;
     bufferInfo.name = uboInfo.name;
     bufferInfo.size = uboInfo.size;
-    bufferInfo.isInUse = true;
+    bufferInfo.inUse = true;
+    bufferInfo.referenceCount = 0;
     bufferInfo.variables = uboInfo.variables;
 
     m_buffers[handle] = std::move(bufferInfo);
@@ -42,46 +44,69 @@ UniformBufferHandle UniformBufferManager::createBuffer(const ShaderLib::UniformB
     return handle;
 }
 
-UniformBufferHandle UniformBufferManager::acquireBuffer(const ShaderLib::UniformBufferObject& uboInfo) {
-    std::lock_guard<std::mutex> lock(m_poolMutex);
-
+UniformBufferHandle UniformBufferManager::findReusableBuffer(const ShaderLib::UniformBufferObject& uboInfo) {
     BufferPoolKey key{ uboInfo.name, uboInfo.size };
-    auto& bufferPool = m_bufferPool[key];
+    auto it = m_bufferPool.find(key);
 
-    if (!bufferPool.empty()) {
-        UniformBufferHandle handle = bufferPool.front();
-        bufferPool.pop_front();
+    if (it != m_bufferPool.end() && !it->second.empty()) {
+        UniformBufferHandle handle = it->second.front();
+        it->second.pop_front();
 
         auto& bufferInfo = m_buffers[handle];
-        bufferInfo.isInUse = true;
+        bufferInfo.inUse = true;
 
         SPDLOG_DEBUG("Reusing existing uniform buffer '{}' from pool", uboInfo.name);
         return handle;
     }
 
-    SPDLOG_DEBUG("No available buffer in pool for '{}', creating new", uboInfo.name);
-    return createBuffer(uboInfo);
+    return UniformBufferHandle(0); // Invalid handle
+}
+
+UniformBufferHandle UniformBufferManager::acquireBuffer(const ShaderLib::UniformBufferObject& uboInfo) {
+    std::lock_guard<std::mutex> lock(m_poolMutex);
+
+    // Najpierw sprawdź czy można użyć istniejącego bufora z puli
+    UniformBufferHandle handle = findReusableBuffer(uboInfo);
+
+    if (!handle.isValid()) {
+        // Jeśli nie ma dostępnego bufora w puli, utwórz nowy
+        SPDLOG_DEBUG("No available buffer in pool for '{}', creating new", uboInfo.name);
+        handle = createNewBuffer(uboInfo);
+    }
+
+    return handle;
 }
 
 void UniformBufferManager::releaseBuffer(UniformBufferHandle handle) {
     std::lock_guard<std::mutex> lock(m_poolMutex);
 
-    if (!isBufferValid(handle)) {
+    if (!isValid(handle)) {
         SPDLOG_WARN("Attempted to release invalid buffer handle: {}", handle.id);
         return;
     }
 
     auto& bufferInfo = m_buffers[handle];
-    bufferInfo.isInUse = false;
+
+    // Sprawdź czy bufor nie ma referencji ze smart handle'ów
+    if (bufferInfo.referenceCount > 0) {
+        SPDLOG_WARN("Attempted to release buffer '{}' with {} active references",
+            bufferInfo.name, bufferInfo.referenceCount);
+        return;
+    }
+
+    bufferInfo.inUse = false;
 
     BufferPoolKey key{ bufferInfo.name, bufferInfo.size };
     m_bufferPool[key].push_back(handle);
+
+    // Wyczyść cache
+    m_resourceCache.erase(handle);
 
     SPDLOG_DEBUG("Released uniform buffer '{}' back to pool", bufferInfo.name);
 }
 
 void UniformBufferManager::updateBuffer(UniformBufferHandle handle, const void* data, uint32_t size, uint32_t offset) {
-    if (!isBufferValid(handle)) {
+    if (!isValid(handle)) {
         SPDLOG_WARN("Attempted to update invalid buffer handle: {}", handle.id);
         return;
     }
@@ -111,8 +136,74 @@ void UniformBufferManager::updateBuffer(UniformBufferHandle handle, const void* 
     }
 }
 
-bool UniformBufferManager::isBufferValid(UniformBufferHandle handle) const {
-    return m_buffers.find(handle) != m_buffers.end();
+SmartHandle<UniformBufferHandle, Buffer> UniformBufferManager::acquireSmartBuffer(const ShaderLib::UniformBufferObject& uboInfo) {
+    UniformBufferHandle handle = acquireBuffer(uboInfo);
+    return createSmartHandle(handle);
+}
+
+// IResourceManager interface implementation
+Buffer* UniformBufferManager::getResource(UniformBufferHandle handle) {
+    auto cacheIt = m_resourceCache.find(handle);
+    if (cacheIt != m_resourceCache.end()) {
+        return cacheIt->second;
+    }
+
+    if (!isValid(handle)) {
+        return nullptr;
+    }
+
+    Buffer* buffer = m_vramManager.getResource<Buffer>(m_buffers[handle].vramHandle);
+    if (buffer) {
+        m_resourceCache[handle] = buffer;
+    }
+
+    return buffer;
+}
+
+bool UniformBufferManager::isValid(UniformBufferHandle handle) const {
+    return handle.isValid() && m_buffers.find(handle) != m_buffers.end();
+}
+
+void UniformBufferManager::releaseResource(UniformBufferHandle handle) {
+    releaseBuffer(handle);
+}
+
+void UniformBufferManager::addReference(UniformBufferHandle handle) {
+    std::lock_guard<std::mutex> lock(m_poolMutex);
+
+    if (isValid(handle)) {
+        m_buffers[handle].referenceCount++;
+        SPDLOG_DEBUG("Added reference to buffer '{}', ref count: {}",
+            m_buffers[handle].name, m_buffers[handle].referenceCount);
+    }
+}
+
+void UniformBufferManager::removeReference(UniformBufferHandle handle) {
+    std::lock_guard<std::mutex> lock(m_poolMutex);
+
+    if (!isValid(handle)) {
+        return;
+    }
+
+    auto& bufferInfo = m_buffers[handle];
+    if (bufferInfo.referenceCount > 0) {
+        bufferInfo.referenceCount--;
+        SPDLOG_DEBUG("Removed reference from buffer '{}', ref count: {}",
+            bufferInfo.name, bufferInfo.referenceCount);
+
+        // Jeśli spadła liczba referencji do 0 i bufor jest w użyciu, zwróć go do puli
+        if (bufferInfo.referenceCount == 0 && bufferInfo.inUse) {
+            bufferInfo.inUse = false;
+
+            BufferPoolKey key{ bufferInfo.name, bufferInfo.size };
+            m_bufferPool[key].push_back(handle);
+
+            // Wyczyść cache
+            m_resourceCache.erase(handle);
+
+            SPDLOG_DEBUG("Buffer '{}' returned to pool due to zero references", bufferInfo.name);
+        }
+    }
 }
 
 const UniformBufferInfo& UniformBufferManager::getBufferInfo(UniformBufferHandle handle) const {
@@ -133,15 +224,6 @@ UniformBufferInfo& UniformBufferManager::getBufferInfo(UniformBufferHandle handl
     return it->second;
 }
 
-Buffer* UniformBufferManager::getBuffer(UniformBufferHandle handle) {
-    if (!isBufferValid(handle)) {
-        SPDLOG_WARN("Attempted to get buffer from invalid handle: {}", handle.id);
-        return nullptr;
-    }
-
-    return m_vramManager.getResource<Buffer>(m_buffers[handle].vramHandle);
-}
-
 void UniformBufferManager::cleanupUnusedBuffers(uint64_t timeThreshold) {
     std::lock_guard<std::mutex> lock(m_poolMutex);
 
@@ -156,6 +238,9 @@ void UniformBufferManager::cleanupUnusedBuffers(uint64_t timeThreshold) {
             for (size_t i = 0; i < buffersToRemove; ++i) {
                 UniformBufferHandle handle = pool.back();
                 pool.pop_back();
+
+                // Wyczyść cache
+                m_resourceCache.erase(handle);
 
                 m_vramManager.freeResource(m_buffers[handle].vramHandle);
                 m_buffers.erase(handle);

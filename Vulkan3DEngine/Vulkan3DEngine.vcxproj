@@ -174,7 +174,7 @@
     <ClCompile Include="Src\AssetSystem.cpp" />
     <ClCompile Include="Src\ShaderManager.cpp" />
     <ClCompile Include="Src\AssetResolutionStage.cpp" />
-    <ClCompile Include="Src\MaterialResourceManager.cpp" />
+    <ClCompile Include="Src\MaterialResourceFactory.cpp" />
     <ClCompile Include="Src\LoggerConfig.cpp" />
     <ClCompile Include="Src\LuaBindingsRegistry.cpp" />
     <ClCompile Include="Src\LuaBindingsSpdlog.cpp" />
@@ -258,10 +258,12 @@
     <ClInclude Include="..\Libs\imgui\imstb_rectpack.h" />
     <ClInclude Include="..\Libs\imgui\imstb_textedit.h" />
     <ClInclude Include="..\Libs\imgui\imstb_truetype.h" />
+    <ClInclude Include="Src\IResourceManager.h" />
+    <ClInclude Include="Src\ISmartHandleManager.h" />
     <ClInclude Include="Src\AssetSystem.h" />
     <ClInclude Include="Src\ShaderManager.h" />
     <ClInclude Include="Src\IAssetHandler.h" />
-    <ClInclude Include="Src\MaterialResourceManager.h" />
+    <ClInclude Include="Src\MaterialResourceFactory.h" />
     <ClInclude Include="Src\Handle.h" />
     <ClInclude Include="Src\LoggerConfig.h" />
     <ClInclude Include="Src\LuaBindingsRegistry.h" />

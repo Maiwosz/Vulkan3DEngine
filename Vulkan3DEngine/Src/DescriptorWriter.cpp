@@ -1,55 +1,174 @@
 #include "DescriptorWriter.h"
+#include <deque>
 
-void DescriptorWriter::writeImage(int binding, VkImageView image, VkSampler sampler, VkImageLayout layout, VkDescriptorType type)
+DescriptorWriter::DescriptorWriter(const LogicalDevice& device,
+    ImageSamplerManager& samplerManager,
+    UniformBufferManager& uniformBufferManager,
+    DescriptorAllocator& descriptorAllocator)
+    : m_device(device)
+    , m_samplerManager(samplerManager)
+    , m_uniformBufferManager(uniformBufferManager)
+    , m_descriptorAllocator(descriptorAllocator)
 {
-    VkDescriptorImageInfo& info = imageInfos.emplace_back(VkDescriptorImageInfo{
-        .sampler = sampler,
-        .imageView = image,
-        .imageLayout = layout
-        });
-
-    VkWriteDescriptorSet write = { .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET };
-
-    write.dstBinding = binding;
-    write.dstSet = VK_NULL_HANDLE; //left empty for now until we need to write it
-    write.descriptorCount = 1;
-    write.descriptorType = type;
-    write.pImageInfo = &info;
-
-    writes.push_back(write);
 }
 
-void DescriptorWriter::writeBuffer(int binding, VkBuffer buffer, size_t size, size_t offset, VkDescriptorType type)
+void DescriptorWriter::writeUniformBuffer(int binding, SmartHandle<UniformBufferHandle, Buffer> uniformBuffer)
 {
-    VkDescriptorBufferInfo& info = bufferInfos.emplace_back(VkDescriptorBufferInfo{
-        .buffer = buffer,
-        .offset = offset,
-        .range = size
+    m_uniformBufferBindings.push_back({
+        .binding = binding,
+        .uniformBuffer = std::move(uniformBuffer)
         });
+}
 
-    VkWriteDescriptorSet write = { .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET };
+void DescriptorWriter::writeCombinedImageSampler(int binding, VkImageView imageView, SamplerHandle sampler)
+{
+    m_imageBindings.push_back({
+        .binding = binding,
+        .imageView = imageView,
+        .sampler = sampler,
+        .type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER
+        });
+}
 
-    write.dstBinding = binding;
-    write.dstSet = VK_NULL_HANDLE; //left empty for now until we need to write it
-    write.descriptorCount = 1;
-    write.descriptorType = type;
-    write.pBufferInfo = &info;
+void DescriptorWriter::writeTexture(int binding, VkImageView imageView)
+{
+    m_imageBindings.push_back({
+        .binding = binding,
+        .imageView = imageView,
+        .sampler = SamplerHandle{}, // Invalid handle for texture-only binding
+        .type = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE
+        });
+}
 
-    writes.push_back(write);
+void DescriptorWriter::writeSampler(int binding, SamplerHandle sampler)
+{
+    m_samplerBindings.push_back({
+        .binding = binding,
+        .sampler = sampler
+        });
 }
 
 void DescriptorWriter::clear()
 {
-    imageInfos.clear();
-    writes.clear();
-    bufferInfos.clear();
+    m_uniformBufferBindings.clear();
+    m_imageBindings.clear();
+    m_samplerBindings.clear();
 }
 
-void DescriptorWriter::updateSet(VkDevice device, VkDescriptorSet set)
+SmartHandle<DescriptorSetHandle, VkDescriptorSet> DescriptorWriter::createDescriptorSet(VkDescriptorSetLayout layout)
 {
-    for (VkWriteDescriptorSet& write : writes) {
-        write.dstSet = set;
+    // Prepare resources that will be bound to the descriptor set
+    DescriptorAllocator::DescriptorResources resources;
+
+    // Collect all uniform buffer smart handles
+    for (const auto& binding : m_uniformBufferBindings) {
+        resources.uniformBuffers.push_back(binding.uniformBuffer);
     }
 
-    vkUpdateDescriptorSets(device, (uint32_t)writes.size(), writes.data(), 0, nullptr);
+    // Collect all sampler handles (from both image bindings and separate sampler bindings)
+    for (const auto& binding : m_imageBindings) {
+        if (binding.sampler.isValid()) {
+            resources.samplers.push_back(binding.sampler);
+        }
+    }
+    for (const auto& binding : m_samplerBindings) {
+        resources.samplers.push_back(binding.sampler);
+    }
+
+    // Create descriptor set with bound resources
+    auto smartDescriptorSet = m_descriptorAllocator.acquireSmartDescriptorSet(layout, resources);
+
+    if (!smartDescriptorSet) {
+        return smartDescriptorSet; // Return invalid handle on failure
+    }
+
+    // Now write the actual descriptor data
+    std::deque<VkDescriptorImageInfo> imageInfos;
+    std::deque<VkDescriptorBufferInfo> bufferInfos;
+    std::vector<VkWriteDescriptorSet> writes;
+
+    // Write uniform buffers
+    for (const auto& binding : m_uniformBufferBindings) {
+        if (binding.uniformBuffer && binding.uniformBuffer.get()) {
+            VkDescriptorBufferInfo& bufferInfo = bufferInfos.emplace_back(VkDescriptorBufferInfo{
+                .buffer = binding.uniformBuffer.get()->get(),
+                .offset = 0,
+                .range = VK_WHOLE_SIZE
+                });
+
+            VkWriteDescriptorSet write = {
+                .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+                .dstSet = *smartDescriptorSet.get(),
+                .dstBinding = static_cast<uint32_t>(binding.binding),
+                .dstArrayElement = 0,
+                .descriptorCount = 1,
+                .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+                .pBufferInfo = &bufferInfo
+            };
+
+            writes.push_back(write);
+        }
+    }
+
+    // Write images (combined image samplers or separate textures)
+    for (const auto& binding : m_imageBindings) {
+        VkSampler samplerVk = VK_NULL_HANDLE;
+        if (binding.sampler.isValid()) {
+            ImageSampler* samplerResource = m_samplerManager.getResource(binding.sampler);
+            if (samplerResource) {
+                samplerVk = samplerResource->get();
+            }
+        }
+
+        VkDescriptorImageInfo& imageInfo = imageInfos.emplace_back(VkDescriptorImageInfo{
+            .sampler = samplerVk,
+            .imageView = binding.imageView,
+            .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
+            });
+
+        VkWriteDescriptorSet write = {
+            .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+            .dstSet = *smartDescriptorSet.get(),
+            .dstBinding = static_cast<uint32_t>(binding.binding),
+            .dstArrayElement = 0,
+            .descriptorCount = 1,
+            .descriptorType = binding.type,
+            .pImageInfo = &imageInfo
+        };
+
+        writes.push_back(write);
+    }
+
+    // Write separate samplers
+    for (const auto& binding : m_samplerBindings) {
+        if (binding.sampler.isValid()) {
+            ImageSampler* samplerResource = m_samplerManager.getResource(binding.sampler);
+            if (samplerResource) {
+                VkDescriptorImageInfo& imageInfo = imageInfos.emplace_back(VkDescriptorImageInfo{
+                    .sampler = samplerResource->get(),
+                    .imageView = VK_NULL_HANDLE,
+                    .imageLayout = VK_IMAGE_LAYOUT_UNDEFINED
+                    });
+
+                VkWriteDescriptorSet write = {
+                    .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+                    .dstSet = *smartDescriptorSet.get(),
+                    .dstBinding = static_cast<uint32_t>(binding.binding),
+                    .dstArrayElement = 0,
+                    .descriptorCount = 1,
+                    .descriptorType = VK_DESCRIPTOR_TYPE_SAMPLER,
+                    .pImageInfo = &imageInfo
+                };
+
+                writes.push_back(write);
+            }
+        }
+    }
+
+    // Update descriptor set
+    if (!writes.empty()) {
+        vkUpdateDescriptorSets(m_device.get(), static_cast<uint32_t>(writes.size()), writes.data(), 0, nullptr);
+    }
+
+    return smartDescriptorSet;
 }

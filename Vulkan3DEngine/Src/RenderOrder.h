@@ -5,8 +5,12 @@
 #include <memory>
 #include <variant>
 #include "Handle.h"
+#include "ISmartHandleManager.h"
 #include <vulkan/vulkan.h>
 #include <spdlog/spdlog.h>
+
+// Forward declarations
+class Buffer;
 
 enum class RenderOrderType {
     Mesh,
@@ -39,17 +43,33 @@ public:
     MeshHandle meshHandle;
     MaterialHandle materialHandle;
 
-    // Uniform buffer stage
-    UniformBufferHandle globalUBOHandle;
-    UniformBufferHandle objectUBOHandle;
+    // Uniform buffer stage - używamy SmartHandle dla automatycznego zarządzania
+    SmartHandle<UniformBufferHandle, Buffer> globalUBOHandle;
+    SmartHandle<UniformBufferHandle, Buffer> objectUBOHandle;
 
-    // Descriptor sets stage
-    DescriptorSetHandle globalDescriptorSetHandle;
-    DescriptorSetHandle objectDescriptorSetHandle;
-    DescriptorSetHandle materialDescriptorSetHandle;
+    // Descriptor sets stage - używamy SmartHandle dla automatycznego zarządzania  
+    SmartHandle<DescriptorSetHandle, VkDescriptorSet> globalDescriptorSetHandle;
+    SmartHandle<DescriptorSetHandle, VkDescriptorSet> objectDescriptorSetHandle;
+    SmartHandle<DescriptorSetHandle, VkDescriptorSet> materialDescriptorSetHandle;
 
     // Pipeline assignment stage
     PipelineHandle pipelineHandle;
+
+    // Metody pomocnicze do sprawdzania ważności zasobów
+    bool hasValidGlobalUBO() const { return globalUBOHandle.isValid(); }
+    bool hasValidObjectUBO() const { return objectUBOHandle.isValid(); }
+    bool hasValidGlobalDescriptorSet() const { return globalDescriptorSetHandle.isValid(); }
+    bool hasValidObjectDescriptorSet() const { return objectDescriptorSetHandle.isValid(); }
+    bool hasValidMaterialDescriptorSet() const { return materialDescriptorSetHandle.isValid(); }
+
+    // Metoda do sprawdzenia czy wszystkie krytyczne zasoby są dostępne
+    bool isReadyForRendering() const {
+        return meshHandle.isValid() &&
+            materialHandle.isValid() &&
+            pipelineHandle.isValid() &&
+            hasValidGlobalUBO() &&
+            hasValidObjectUBO();
+    }
 };
 
 class LightRenderOrder : public RenderOrder {

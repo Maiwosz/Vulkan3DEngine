@@ -36,11 +36,11 @@ void GlobalStateManager::processLight(std::shared_ptr<LightRenderOrder> light) {
         light->entity.id);
 }
 
-// Create global uniform buffer with camera and light data
-UniformBufferHandle GlobalStateManager::createGlobalUniformBuffer() {
+// Create global uniform buffer with camera and light data - zwraca SmartHandle
+SmartHandle<UniformBufferHandle, Buffer> GlobalStateManager::createGlobalUniformBuffer() {
     if (!m_activeCamera) {
         SPDLOG_WARN("No active camera available to create global uniform buffer");
-        return UniformBufferHandle();
+        return SmartHandle<UniformBufferHandle, Buffer>(); // Return invalid smart handle
     }
 
     // Get entity references from render orders
@@ -107,15 +107,56 @@ UniformBufferHandle GlobalStateManager::createGlobalUniformBuffer() {
     globalUboData.activePointLights = pointLightCount;
     globalUboData.activeSpotLights = spotLightCount;
 
-    // Create and update uniform buffer
-    UniformBufferHandle globalUboHandle = m_uniformBufferManager.acquireBuffer(ShaderLib::GLOBAL_UBO);
-    m_uniformBufferManager.updateBuffer(globalUboHandle, &globalUboData, sizeof(ShaderLib::GlobalUBOData));
+    // Create and update uniform buffer using SmartHandle
+    auto globalUboHandle = m_uniformBufferManager.acquireSmartBuffer(ShaderLib::GLOBAL_UBO);
+    if (globalUboHandle.isValid()) {
+        m_uniformBufferManager.updateBuffer(globalUboHandle.handle(), &globalUboData, sizeof(ShaderLib::GlobalUBOData));
+        SPDLOG_DEBUG("Created global uniform buffer with {} point lights", pointLightCount);
+    }
+    else {
+        SPDLOG_ERROR("Failed to create global uniform buffer");
+        return SmartHandle<UniformBufferHandle, Buffer>(); // Return invalid smart handle
+    }
 
-    SPDLOG_DEBUG("Created global uniform buffer with {} point lights", pointLightCount);
-
-    // Store the handle for later use
+    // Store the smart handle for later use
     m_globalUBO = globalUboHandle;
     return globalUboHandle;
+}
+
+SmartHandle<DescriptorSetHandle, VkDescriptorSet> GlobalStateManager::createGlobalDescriptorSet() {
+    if (!m_globalUBO.isValid()) {
+        SPDLOG_WARN("Cannot create global descriptor set without valid global UBO");
+        return SmartHandle<DescriptorSetHandle, VkDescriptorSet>();
+    }
+
+    try {
+        // Get global descriptor set layout
+        VkDescriptorSetLayout globalLayout = m_descriptorLayoutManager.getBuiltInVkLayout(DescriptorLayoutManager::BuiltInLayout::Global);
+        if (globalLayout == VK_NULL_HANDLE) {
+            SPDLOG_ERROR("Global descriptor set layout not found");
+            return SmartHandle<DescriptorSetHandle, VkDescriptorSet>();
+        }
+
+        // Create resources for descriptor set
+        DescriptorAllocator::DescriptorResources resources;
+        resources.uniformBuffers.push_back(m_globalUBO);
+
+        // Acquire smart descriptor set with resources
+        auto descriptorSet = m_descriptorAllocator.acquireSmartDescriptorSet(globalLayout, resources);
+
+        if (descriptorSet.isValid()) {
+            SPDLOG_DEBUG("Created global descriptor set successfully");
+        }
+        else {
+            SPDLOG_ERROR("Failed to create global descriptor set");
+        }
+
+        return descriptorSet;
+    }
+    catch (const std::exception& e) {
+        SPDLOG_ERROR("Exception while creating global descriptor set: {}", e.what());
+        return SmartHandle<DescriptorSetHandle, VkDescriptorSet>();
+    }
 }
 
 void GlobalStateManager::buildGlobalData() {
@@ -129,11 +170,31 @@ void GlobalStateManager::buildGlobalData() {
         return;
     }
 
-    // Create uniform buffer and descriptor set
-    createGlobalUniformBuffer();
+    try {
+        // Create uniform buffer and descriptor set using SmartHandle
+        auto globalUbo = createGlobalUniformBuffer();
+        if (!globalUbo.isValid()) {
+            SPDLOG_ERROR("Failed to create global uniform buffer");
+            return;
+        }
 
-    m_globalDataBuilt = true;
-    SPDLOG_DEBUG("Global data built successfully");
+        auto globalDescriptorSet = createGlobalDescriptorSet();
+        if (!globalDescriptorSet.isValid()) {
+            SPDLOG_ERROR("Failed to create global descriptor set");
+            return;
+        }
+
+        // Store the smart handles
+        m_globalUBO = globalUbo;
+        m_globalDescriptorSet = globalDescriptorSet;
+
+        m_globalDataBuilt = true;
+        SPDLOG_DEBUG("Global data built successfully with SmartHandle");
+    }
+    catch (const std::exception& e) {
+        SPDLOG_ERROR("Exception while building global data: {}", e.what());
+        m_globalDataBuilt = false;
+    }
 }
 
 void GlobalStateManager::applyGlobalDataToMesh(std::shared_ptr<MeshRenderOrder> mesh) {
@@ -142,8 +203,14 @@ void GlobalStateManager::applyGlobalDataToMesh(std::shared_ptr<MeshRenderOrder> 
         buildGlobalData();
     }
 
-    // Set global UBO and descriptor set on the mesh
+    if (!hasValidGlobalData()) {
+        SPDLOG_ERROR("Cannot apply invalid global data to mesh");
+        return;
+    }
+
+    // Set global SmartHandle references on the mesh - SmartHandle automatycznie zarządza referencjami
     mesh->globalUBOHandle = m_globalUBO;
+    mesh->globalDescriptorSetHandle = m_globalDescriptorSet;
 
     SPDLOG_DEBUG("Applied global data to mesh, entity: {}", mesh->entity.id);
 }
@@ -151,8 +218,12 @@ void GlobalStateManager::applyGlobalDataToMesh(std::shared_ptr<MeshRenderOrder> 
 void GlobalStateManager::reset() {
     m_activeCamera = nullptr;
     m_lights.clear();
-    m_globalUBO = UniformBufferHandle(); // reset to invalid
+
+    // SmartHandle automatycznie zwolni zasoby gdy zostaną zresetowane
+    m_globalUBO.reset();
+    m_globalDescriptorSet.reset();
+
     m_globalDataBuilt = false;
 
-    SPDLOG_DEBUG("Global state manager reset for next frame");
+    SPDLOG_DEBUG("Global state manager reset for next frame - SmartHandle automatically released resources");
 }

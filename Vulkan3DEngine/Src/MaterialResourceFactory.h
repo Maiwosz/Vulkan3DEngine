@@ -7,69 +7,46 @@
 #include "UniformBufferManager.h"
 #include "DescriptorAllocator.h"
 #include "DescriptorWriter.h"
-#include <memory>
-#include <unordered_map>
-#include <vector>
-#include <string>
 #include "TextureManager.h"
+#include <memory>
 
-class MaterialResourceManager {
+class MaterialResourceFactory {
 public:
-    struct MaterialResources {
-        UniformBufferHandle uniformBuffer; // UBO handle
-        DescriptorSetHandle descriptorSet; // Material's descriptor set (set 2)
-    };
-
-    MaterialResourceManager(
+    MaterialResourceFactory(
         const LogicalDevice& device,
         ShaderManager& shaderManager,
         ImageSamplerManager& samplerManager,
         UniformBufferManager& uniformBufferManager,
         DescriptorAllocator& descriptorAllocator,
         DescriptorLayoutManager& descriptorLayoutManager,
-		TextureManager& textureManager
+        TextureManager& textureManager
     );
-    ~MaterialResourceManager();
 
-    MaterialResources createMaterialResources(
+    ~MaterialResourceFactory() = default;
+
+    // Create new material descriptor set (UBO + textures)
+    SmartHandle<DescriptorSetHandle, VkDescriptorSet> createMaterialDescriptorSet(
         ShaderHandle shaderHandle,
         const std::vector<Material::Parameter>& parameters
     );
-
-    void destroyMaterialResources(const MaterialResources& resources);
-
-    bool updateTextureBinding(
-        const MaterialResources& resources,
-        ShaderHandle shaderHandle,
-        const std::string& paramName,
-        int paramBinding,
-        TextureHandle textureHandle,
-        VkSampler sampler
-    );
-
-    bool updateUniformParameter(
-        const MaterialResources& resources,
-        ShaderHandle shaderHandle,
-        const std::string& paramName,
-        const Material::ParamValue& value
-    );
-
-    const UniformBufferManager& getUniformBufferManager() const { return m_uniformBufferManager; }
 
 private:
-    UniformBufferHandle createMaterialUniformBuffer(
+    // Create UBO for material parameters
+    SmartHandle<UniformBufferHandle, Buffer> createMaterialUniformBuffer(
         ShaderHandle shaderHandle,
         const std::vector<Material::Parameter>& parameters
     );
 
-    DescriptorSetHandle createMaterialDescriptorSet(
+    // Create descriptor set with UBO and textures
+    SmartHandle<DescriptorSetHandle, VkDescriptorSet> createDescriptorSetInternal(
         ShaderHandle shaderHandle,
-        UniformBufferHandle uboHandle,
+        const SmartHandle<UniformBufferHandle, Buffer>& uboHandle,
         const std::vector<Material::Parameter>& parameters
     );
 
+    // Update UBO with parameter values
     void updateUniformBufferFromParameters(
-        UniformBufferHandle uboHandle,
+        const SmartHandle<UniformBufferHandle, Buffer>& uboHandle,
         const ShaderLib::UniformBufferObject& uboInfo,
         const std::vector<Material::Parameter>& parameters
     );
