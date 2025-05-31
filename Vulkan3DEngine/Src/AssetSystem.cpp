@@ -51,11 +51,11 @@ AssetSystem::~AssetSystem()
 {
     SPDLOG_DEBUG("Destroying AssetSystem");
     // Close in reverse order of creation
-    m_assetManager.reset();
     m_materialManager.reset();
     m_textureManager.reset();
     m_meshManager.reset();
     m_shaderManager.reset();
+    m_assetManager.reset();
 }
 
 void AssetSystem::advanceFrame()

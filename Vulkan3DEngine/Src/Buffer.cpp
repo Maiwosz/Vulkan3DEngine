@@ -1,14 +1,12 @@
 #include "Buffer.h"
 #include <stdexcept>
-#include <cstring>
-#include <utility>
+#include <string>
 
-Buffer::Buffer() = default;
-
-Buffer::Buffer(Buffer&& other) noexcept :
-    AllocatedResource(std::move(other)),
-    m_buffer(std::exchange(other.m_buffer, VK_NULL_HANDLE)),
-    m_size(std::exchange(other.m_size, 0)) {
+Buffer::Buffer(Buffer&& other) noexcept
+    : AllocatedResource(std::move(other))
+    , m_buffer(std::exchange(other.m_buffer, VK_NULL_HANDLE))
+    , m_size(std::exchange(other.m_size, 0))
+    , m_usage(std::exchange(other.m_usage, 0)) {
 }
 
 Buffer& Buffer::operator=(Buffer&& other) noexcept {
@@ -16,28 +14,17 @@ Buffer& Buffer::operator=(Buffer&& other) noexcept {
         AllocatedResource::operator=(std::move(other));
         m_buffer = std::exchange(other.m_buffer, VK_NULL_HANDLE);
         m_size = std::exchange(other.m_size, 0);
+        m_usage = std::exchange(other.m_usage, 0);
     }
     return *this;
 }
 
-void Buffer::destroyResourceImpl() {
-    if (m_buffer != VK_NULL_HANDLE) {
-        vmaDestroyBuffer(m_allocator, m_buffer, m_allocation);
-        m_buffer = VK_NULL_HANDLE;
-        m_allocation = nullptr;
+Buffer Buffer::create(VmaAllocator allocator, VkDeviceSize size,
+    VkBufferUsageFlags usage, VmaMemoryUsage memoryUsage,
+    VkMemoryPropertyFlags requiredFlags) {
+    if (size == 0) {
+        throw std::runtime_error("Buffer size cannot be zero");
     }
-}
-
-Buffer Buffer::create(
-    VmaAllocator allocator,
-    VkDeviceSize size,
-    VkBufferUsageFlags usage,
-    VmaMemoryUsage memoryUsage,
-    VkMemoryPropertyFlags requiredFlags)
-{
-    Buffer buffer;
-    buffer.m_allocator = allocator;
-    buffer.m_size = size;
 
     VkBufferCreateInfo bufferInfo{};
     bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
@@ -49,61 +36,50 @@ Buffer Buffer::create(
     allocInfo.usage = memoryUsage;
     allocInfo.requiredFlags = requiredFlags;
 
-    VkResult result = vmaCreateBuffer(
-        allocator,
-        &bufferInfo,
-        &allocInfo,
-        &buffer.m_buffer,
-        &buffer.m_allocation,
-        nullptr
-    );
+    Buffer buffer;
+    VkResult result = vmaCreateBuffer(allocator, &bufferInfo, &allocInfo,
+        &buffer.m_buffer, &buffer.m_allocation, nullptr);
 
     if (result != VK_SUCCESS) {
-        throw std::runtime_error("Failed to create buffer with VMA");
+        throw std::runtime_error("Failed to create buffer: " + std::to_string(result));
     }
 
-    // Pobierz rzeczywisty rozmiar alokacji
-    VmaAllocationInfo vmaAllocInfo;
-    vmaGetAllocationInfo(allocator, buffer.m_allocation, &vmaAllocInfo);
-    buffer.m_allocatedSize = vmaAllocInfo.size;
+    buffer.initializeAllocation(allocator, buffer.m_allocation);
+    buffer.m_size = size;
+    buffer.m_usage = usage;
 
     return buffer;
 }
 
 Buffer Buffer::createStaging(VmaAllocator allocator, VkDeviceSize size) {
-    return create(
-        allocator,
-        size,
-        VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+    return create(allocator, size, VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
         VMA_MEMORY_USAGE_CPU_TO_GPU,
-        VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT
-    );
+        VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
 }
 
 Buffer Buffer::createVertex(VmaAllocator allocator, VkDeviceSize size) {
-    return create(
-        allocator,
-        size,
+    return create(allocator, size,
         VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
-        VMA_MEMORY_USAGE_GPU_ONLY
-    );
+        VMA_MEMORY_USAGE_GPU_ONLY);
 }
 
 Buffer Buffer::createIndex(VmaAllocator allocator, VkDeviceSize size) {
-    return create(
-        allocator,
-        size,
+    return create(allocator, size,
         VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
-        VMA_MEMORY_USAGE_GPU_ONLY
-    );
+        VMA_MEMORY_USAGE_GPU_ONLY);
 }
 
 Buffer Buffer::createUniform(VmaAllocator allocator, VkDeviceSize size) {
-    return create(
-        allocator,
-        size,
-        VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
+    return create(allocator, size, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
         VMA_MEMORY_USAGE_CPU_TO_GPU,
-        VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT
-    );
+        VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+}
+
+void Buffer::destroyResource() {
+    if (m_buffer != VK_NULL_HANDLE && m_allocator) {
+        vmaDestroyBuffer(m_allocator, m_buffer, m_allocation);
+        m_buffer = VK_NULL_HANDLE;
+        m_size = 0;
+        m_usage = 0;
+    }
 }

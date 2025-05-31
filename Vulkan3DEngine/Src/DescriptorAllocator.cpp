@@ -10,6 +10,10 @@ DescriptorAllocator::DescriptorAllocator(const LogicalDevice& device, const Pool
     m_readyPools.push_back(getPool());
 }
 
+DescriptorAllocator::~DescriptorAllocator() {
+    destroy();
+}
+
 // Enhanced public interface
 DescriptorSetHandle DescriptorAllocator::acquireDescriptorSet(VkDescriptorSetLayout layout) {
     return acquireDescriptorSet(layout, DescriptorResources{});
@@ -222,36 +226,95 @@ DescriptorSetHandle DescriptorAllocator::createNewDescriptorSet(VkDescriptorSetL
     return handle;
 }
 
-void DescriptorAllocator::reset() {
-    // Resetuj wszystkie pule
+void DescriptorAllocator::destroy() {
+    // Sprawdź czy już nie został zniszczony
+    if (m_readyPools.empty() && m_fullPools.empty() && m_descriptorSets.empty()) {
+        return; // Już zniszczony
+    }
+
+    // 1. Jawnie zwolnij wszystkie aktywne descriptor sety i ich zasoby
+    for (auto& entry : m_descriptorSets) {
+        if (entry.inUse || entry.referenceCount > 0) {
+            // Wymuś zwolnienie wszystkich bound resources (smart handles)
+            // To powinno automatycznie zmniejszyć reference count w innych managerach
+            entry.resources.clear();
+
+            // Wyzeruj wszystkie flagi i liczniki
+            entry.referenceCount = 0;
+            entry.inUse = false;
+            entry.descriptorSet = VK_NULL_HANDLE;
+            entry.layout = VK_NULL_HANDLE;
+            entry.sourcePool = VK_NULL_HANDLE;
+        }
+    }
+
+    // 2. Wyczyść wszystkie struktury danych PRZED zniszczeniem pul
+    m_descriptorSets.clear();
+    m_reusableSets.clear();
+    m_resourceCache.clear();
+
+    // 3. Resetuj pule przed ich zniszczeniem (opcjonalne, ale bezpieczniejsze)
     for (auto pool : m_readyPools) {
-        vkResetDescriptorPool(m_device.get(), pool, 0);
+        if (pool != VK_NULL_HANDLE) {
+            vkResetDescriptorPool(m_device.get(), pool, 0);
+        }
     }
     for (auto pool : m_fullPools) {
-        vkResetDescriptorPool(m_device.get(), pool, 0);
-        m_readyPools.push_back(pool);
+        if (pool != VK_NULL_HANDLE) {
+            vkResetDescriptorPool(m_device.get(), pool, 0);
+        }
+    }
+
+    // 4. Zniszcz wszystkie pule
+    for (auto pool : m_readyPools) {
+        if (pool != VK_NULL_HANDLE) {
+            vkDestroyDescriptorPool(m_device.get(), pool, nullptr);
+        }
+    }
+    for (auto pool : m_fullPools) {
+        if (pool != VK_NULL_HANDLE) {
+            vkDestroyDescriptorPool(m_device.get(), pool, nullptr);
+        }
+    }
+
+    // 5. Wyczyść kolekcje pul
+    m_readyPools.clear();
+    m_fullPools.clear();
+
+    // 6. Reset wszystkich liczników
+    m_nextHandleId = 1;
+    m_nextSetCount = m_config.initialSets;
+}
+
+void DescriptorAllocator::reset() {
+    // 1. Najpierw wyczyść wszystkie bound resources
+    for (auto& entry : m_descriptorSets) {
+        if (entry.inUse) {
+            entry.resources.clear(); // Zwolni smart handles
+            entry.referenceCount = 0;
+            entry.inUse = false;
+        }
+    }
+
+    // 2. Resetuj wszystkie pule
+    for (auto pool : m_readyPools) {
+        if (pool != VK_NULL_HANDLE) {
+            vkResetDescriptorPool(m_device.get(), pool, 0);
+        }
+    }
+    for (auto pool : m_fullPools) {
+        if (pool != VK_NULL_HANDLE) {
+            vkResetDescriptorPool(m_device.get(), pool, 0);
+            m_readyPools.push_back(pool);
+        }
     }
     m_fullPools.clear();
 
-    // Wyczyść wszystkie uchwyty i kolejki
-    m_descriptorSets.clear(); // This will automatically clear all bound resources
+    // 3. Wyczyść wszystkie uchwyty i kolejki
+    m_descriptorSets.clear();
     m_reusableSets.clear();
     m_resourceCache.clear();
     m_nextHandleId = 1;
-}
-
-void DescriptorAllocator::destroy() {
-    for (auto pool : m_readyPools) {
-        vkDestroyDescriptorPool(m_device.get(), pool, nullptr);
-    }
-    for (auto pool : m_fullPools) {
-        vkDestroyDescriptorPool(m_device.get(), pool, nullptr);
-    }
-    m_readyPools.clear();
-    m_fullPools.clear();
-    m_descriptorSets.clear(); // This will automatically clear all bound resources
-    m_reusableSets.clear();
-    m_resourceCache.clear();
 }
 
 VkResult DescriptorAllocator::createPool(uint32_t setCount, VkDescriptorPool* outPool) const {

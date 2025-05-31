@@ -19,6 +19,7 @@ public:
     VkDevice get() const { return m_device; }
     VkQueue getQueue(QueueType type) const;
     uint32_t getQueueFamilyIndex(QueueType type) const;
+    LogicalDevice::QueueType getQueueTypeFromFamilyIndex(uint32_t familyIndex) const;
 private:
     VkDevice m_device;
     VkQueue m_graphicsQueue;

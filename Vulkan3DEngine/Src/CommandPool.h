@@ -5,14 +5,14 @@
 
 class CommandBuffer;
 
-class CommandPool {
+class CommandPool : public std::enable_shared_from_this<CommandPool> {
 public:
     CommandPool(VkDevice device, uint32_t queueFamilyIndex, VkQueue queue);
     ~CommandPool();
 
     VkCommandPool get() const { return m_pool; }
     VkDevice getDevice() const { return m_device; }
-    VkQueue getQueue() const { return m_queue; } 
+    VkQueue getQueue() const { return m_queue; }
     uint32_t getQueueFamilyIndex() const { return m_queueFamilyIndex; }
 
     std::unique_ptr<CommandBuffer> beginSingleTimeCommands();

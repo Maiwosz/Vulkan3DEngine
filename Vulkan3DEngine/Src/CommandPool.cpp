@@ -3,7 +3,7 @@
 #include <stdexcept>
 
 CommandPool::CommandPool(VkDevice device, uint32_t queueFamilyIndex, VkQueue queue)
-	: m_device(device), m_queueFamilyIndex(queueFamilyIndex), m_queue(queue) 
+    : m_device(device), m_queueFamilyIndex(queueFamilyIndex), m_queue(queue)
 {
     VkCommandPoolCreateInfo poolInfo{};
     poolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
@@ -20,7 +20,7 @@ CommandPool::~CommandPool() {
 std::unique_ptr<CommandBuffer> CommandPool::beginSingleTimeCommands() {
     std::lock_guard<std::mutex> lock(m_mutex);
 
-    auto cmd = std::make_unique<CommandBuffer>(*this);
+    auto cmd = std::make_unique<CommandBuffer>(shared_from_this());
     cmd->begin(VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
     return cmd;
 }

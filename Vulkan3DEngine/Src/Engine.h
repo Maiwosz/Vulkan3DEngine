@@ -59,4 +59,6 @@ private:
     float m_deltaTime = 0.0f;
     float m_totalTime = 0.0f;
     uint32_t m_frameCount = 0;
+
+    bool m_isShutdown = false;
 };

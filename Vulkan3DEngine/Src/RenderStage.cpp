@@ -102,11 +102,12 @@ void RenderStage::executeRenderPass() {
         }
 
         // Submit transfer commands
+        VkSemaphore signalSemaphore = currentFrame.transferFinished;
         currentFrame.transferCommandBuffer->submit(
             m_vulkanContext.logical().getQueue(LogicalDevice::QueueType::Transfer),
             {}, // No wait semaphores
             {}, // No wait stages
-            { currentFrame.transferFinished }, // Signal transfer finished semaphore
+            std::span<const VkSemaphore>(&signalSemaphore, 1), // Signal transfer finished semaphore
             VK_NULL_HANDLE // No fence needed, we'll wait for render fence later
         );
     }
@@ -196,20 +197,20 @@ void RenderStage::executeRenderPass() {
         m_swapChain.getSwapChainExtent().height);
 
     vkCmdBeginRenderPass(
-        currentFrame.graphicsCommandBuffer->get(),
+        currentFrame.graphicsCommandBuffer.get()->handle(),
         &renderPassInfo,
         VK_SUBPASS_CONTENTS_INLINE
     );
 
     // Execute rendering commands for all collected render orders
     executeRenderCommands(
-        currentFrame.graphicsCommandBuffer->get(),
+        currentFrame.graphicsCommandBuffer.get()->handle(),
         imageIndex,
         currentFrame.renderOrders
     );
 
     // End render pass
-    vkCmdEndRenderPass(currentFrame.graphicsCommandBuffer->get());
+    vkCmdEndRenderPass(currentFrame.graphicsCommandBuffer.get()->handle());
     SPDLOG_DEBUG("Render pass ended");
 
     // Make sure we end the graphics command buffer only if it's still recording

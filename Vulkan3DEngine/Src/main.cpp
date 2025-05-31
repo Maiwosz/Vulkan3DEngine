@@ -43,6 +43,8 @@ int main() {
         SPDLOG_INFO("Entering main loop");
         engine.run();
 
+        spdlog::set_default_logger(preinit_logger);
+
         SPDLOG_DEBUG("Stopping editor...");
         editor.stop();
     }

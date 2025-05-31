@@ -1,46 +1,24 @@
 #include "AllocatedResource.h"
 #include <stdexcept>
+#include <cstring>
+#include <spdlog/spdlog.h>
 
-AllocatedResource::~AllocatedResource() {
-    if (m_allocator != VK_NULL_HANDLE && m_allocation != nullptr) {
-        destroyResource();
-    }
-}
-
-AllocatedResource::AllocatedResource(AllocatedResource&& other) noexcept {
-    *this = std::move(other);
+AllocatedResource::AllocatedResource(AllocatedResource&& other) noexcept
+    : m_allocator(std::exchange(other.m_allocator, VK_NULL_HANDLE))
+    , m_allocation(std::exchange(other.m_allocation, nullptr))
+    , m_allocatedSize(std::exchange(other.m_allocatedSize, 0))
+    , m_mappedData(std::exchange(other.m_mappedData, nullptr)) {
 }
 
 AllocatedResource& AllocatedResource::operator=(AllocatedResource&& other) noexcept {
     if (this != &other) {
-        if (m_allocator && m_allocation) {
-            destroyResource();
-        }
-
-        m_allocator = other.m_allocator;
-        m_allocation = other.m_allocation;
-        m_mappedData = other.m_mappedData;
-        m_allocatedSize = other.m_allocatedSize;
-
-        other.m_allocator = VK_NULL_HANDLE;
-        other.m_allocation = nullptr;
-        other.m_mappedData = nullptr;
-        other.m_allocatedSize = 0;
+        cleanup();
+        m_allocator = std::exchange(other.m_allocator, VK_NULL_HANDLE);
+        m_allocation = std::exchange(other.m_allocation, nullptr);
+        m_allocatedSize = std::exchange(other.m_allocatedSize, 0);
+        m_mappedData = std::exchange(other.m_mappedData, nullptr);
     }
     return *this;
-}
-
-void AllocatedResource::destroyResource() {
-    if (m_allocator != VK_NULL_HANDLE) {
-        // Allow derived classes to handle their specific resource cleanup
-        destroyResourceImpl();
-    }
-
-    // Reset common state
-    m_allocation = nullptr;
-    m_allocator = VK_NULL_HANDLE;
-    m_mappedData = nullptr;
-    m_allocatedSize = 0;
 }
 
 void* AllocatedResource::map() {
@@ -52,10 +30,12 @@ void* AllocatedResource::map() {
         vmaGetMemoryTypeProperties(m_allocator, allocInfo.memoryType, &memFlags);
 
         if (!(memFlags & VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT)) {
-            throw std::runtime_error("Trying to map non-host-visible memory");
+            throw std::runtime_error("Cannot map non-host-visible memory");
         }
 
-        vmaMapMemory(m_allocator, m_allocation, &m_mappedData);
+        if (vmaMapMemory(m_allocator, m_allocation, &m_mappedData) != VK_SUCCESS) {
+            throw std::runtime_error("Failed to map memory");
+        }
     }
     return m_mappedData;
 }
@@ -67,37 +47,53 @@ void AllocatedResource::unmap() {
     }
 }
 
-bool AllocatedResource::isMapped() const {
-    return m_mappedData != nullptr;
-}
-
-VkDeviceSize AllocatedResource::getAllocatedSize() const {
-    return m_allocatedSize;
-}
-
-void AllocatedResource::copyData(const void* data, VkDeviceSize size)
-{
-    if (!m_allocator || !m_allocation) {
-        throw std::runtime_error("Cannot copy data: resource is not properly initialized");
-    }
-
+void AllocatedResource::copyData(const void* data, VkDeviceSize size) {
+    if (!data || size == 0) return;
     if (size > m_allocatedSize) {
-        throw std::runtime_error("Cannot copy data: size exceeds allocated memory");
+        throw std::runtime_error("Data size exceeds allocated memory");
     }
 
-    if (isMapped()) {
-        throw std::runtime_error("Cannot copy data: resource is already mapped");
-    }
-
+    bool wasMapped = isMapped();
     void* mapped = map();
-    if (!mapped) {
-        throw std::runtime_error("Failed to map memory for data copy");
-    }
+    std::memcpy(mapped, data, size);
 
-    memcpy(mapped, data, size);
-    unmap();
+    if (!wasMapped) {
+        unmap();
+    }
 }
 
-void AllocatedResource::destroy() {
-    destroyResource();
+void AllocatedResource::initializeAllocation(VmaAllocator allocator, VmaAllocation allocation) {
+    m_allocator = allocator;
+    m_allocation = allocation;
+
+    if (allocation) {
+        VmaAllocationInfo allocInfo;
+        vmaGetAllocationInfo(allocator, allocation, &allocInfo);
+        m_allocatedSize = allocInfo.size;
+    }
+}
+
+void AllocatedResource::cleanup() {
+    if (m_allocator && m_allocation) {
+        unmap();
+
+        // Additional safety check - verify allocator is still valid
+        // This helps catch cases where allocator was destroyed before resource cleanup
+        try {
+            destroyResource();
+        }
+        catch (const std::exception& e) {
+            // Log the error but don't rethrow to avoid double-destruction issues
+            // This can happen if VMA allocator was destroyed before individual resources
+            SPDLOG_ERROR("Error during resource cleanup (allocator may be invalid): {}", e.what());
+        }
+    }
+    reset();
+}
+
+void AllocatedResource::reset() {
+    m_allocator = VK_NULL_HANDLE;
+    m_allocation = nullptr;
+    m_allocatedSize = 0;
+    m_mappedData = nullptr;
 }

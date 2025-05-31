@@ -34,8 +34,8 @@ FrameManager::FrameManager(
         frame.inFlightFence = m_syncManager.acquireFence(true); // Fence starts signaled
 
         // Acquire command buffers
-        frame.graphicsCommandBuffer = m_cmdBufferManager.acquireBuffer(graphicsConfig);
-        frame.transferCommandBuffer = m_cmdBufferManager.acquireBuffer(transferConfig);
+        frame.graphicsCommandBuffer = m_cmdBufferManager.acquireSmartBuffer(graphicsConfig);
+        frame.transferCommandBuffer = m_cmdBufferManager.acquireSmartBuffer(transferConfig);
 
         // Begin command buffers
         frame.graphicsCommandBuffer->begin(VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
@@ -46,13 +46,7 @@ FrameManager::FrameManager(
 
 FrameManager::~FrameManager() {
     for (auto& frame : m_frames) {
-        // Release command buffers
-        if (frame.graphicsCommandBuffer) {
-            m_cmdBufferManager.releaseBuffer(std::move(frame.graphicsCommandBuffer));
-        }
-        if (frame.transferCommandBuffer) {
-            m_cmdBufferManager.releaseBuffer(std::move(frame.transferCommandBuffer));
-        }
+		// Smart handles will automatically release command buffers
 
         // Release synchronization resources
         m_syncManager.releaseSemaphore(frame.imageAvailable);
@@ -65,4 +59,31 @@ void FrameManager::clearCurrentFrameOrders()
 {
     m_frames[m_currentFrame].renderOrders.clear();
     m_frames[m_currentFrame].hasTransferCommands = false;
+}
+
+void FrameManager::waitForAllFrames() {
+    // Zbierz wszystkie fence'y które nie są VK_NULL_HANDLE
+    std::vector<VkFence> activeFences;
+    activeFences.reserve(m_maxFrames);
+
+    for (const auto& frame : m_frames) {
+        if (frame.inFlightFence != VK_NULL_HANDLE) {
+            activeFences.push_back(frame.inFlightFence);
+        }
+    }
+
+    // Jeśli mamy aktywne fence'y, czekaj na wszystkie naraz
+    if (!activeFences.empty()) {
+        VkResult result = vkWaitForFences(
+            m_vulkanContext.logical().get(),
+            static_cast<uint32_t>(activeFences.size()),
+            activeFences.data(),
+            VK_TRUE,  // waitAll = true - czekaj na wszystkie fence'y
+            UINT64_MAX  // timeout - czekaj nieskończenie długo
+        );
+
+        if (result != VK_SUCCESS) {
+            throw std::runtime_error("Failed to wait for frame fences during cleanup");
+        }
+    }
 }

@@ -14,8 +14,6 @@ PipelineHandle PipelineManager::createGraphicsPipeline(const GraphicsPipelineCon
     // Check if we already have this pipeline configuration
     auto cacheIt = m_pipelineCache.find(config);
     if (cacheIt != m_pipelineCache.end()) {
-        // Update usage tracking
-        updateLastUsed(cacheIt->second);
         return cacheIt->second;
     }
 
@@ -35,28 +33,7 @@ PipelineHandle PipelineManager::createGraphicsPipeline(const GraphicsPipelineCon
     m_pipelines[handle] = std::make_unique<Pipeline>(m_device, vkPipeline, pipelineLayout);
     m_pipelineCache[config] = handle;
 
-    // Update usage tracking
-    updateLastUsed(handle);
-
     return handle;
-}
-
-void PipelineManager::destroy(PipelineHandle handle) {
-    if (!isValid(handle)) return;
-
-    // Find the config corresponding to this handle
-    for (auto it = m_pipelineCache.begin(); it != m_pipelineCache.end(); ++it) {
-        if (it->second == handle) {
-            m_pipelineCache.erase(it);
-            break;
-        }
-    }
-
-    // Remove usage tracking
-    m_pipelineLastUsed.erase(handle);
-
-    // Remove the pipeline
-    m_pipelines.erase(handle);
 }
 
 Pipeline& PipelineManager::get(PipelineHandle handle) {
@@ -64,38 +41,11 @@ Pipeline& PipelineManager::get(PipelineHandle handle) {
         throw std::runtime_error("Invalid pipeline handle");
     }
 
-    // Update usage tracking
-    updateLastUsed(handle);
-
     return *m_pipelines[handle];
 }
 
 bool PipelineManager::isValid(PipelineHandle handle) const {
     return m_pipelines.find(handle) != m_pipelines.end();
-}
-
-void PipelineManager::advanceFrame() {
-    m_currentFrame++;
-}
-
-void PipelineManager::purgeUnusedPipelines(uint64_t ageThresholdFrames) {
-    std::vector<PipelineHandle> pipelinesToRemove;
-
-    // Find pipelines that haven't been used in a while
-    for (const auto& [handle, lastUsedFrame] : m_pipelineLastUsed) {
-        if (m_currentFrame - lastUsedFrame > ageThresholdFrames) {
-            pipelinesToRemove.push_back(handle);
-        }
-    }
-
-    // Remove the unused pipelines
-    for (const auto& handle : pipelinesToRemove) {
-        destroy(handle);
-    }
-}
-
-void PipelineManager::updateLastUsed(PipelineHandle handle) {
-    m_pipelineLastUsed[handle] = m_currentFrame;
 }
 
 VkPipeline PipelineManager::createVkPipeline(const GraphicsPipelineConfig& config, VkPipelineLayout layout) {

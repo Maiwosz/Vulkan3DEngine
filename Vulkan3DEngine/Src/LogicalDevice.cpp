@@ -84,3 +84,19 @@ uint32_t LogicalDevice::getQueueFamilyIndex(QueueType type) const {
         throw std::invalid_argument("Invalid QueueType");
     }
 }
+
+LogicalDevice::QueueType LogicalDevice::getQueueTypeFromFamilyIndex(uint32_t familyIndex) const {
+    // This is a simplified mapping - you might need to adjust based on your actual queue family setup
+    if (familyIndex == getQueueFamilyIndex(LogicalDevice::QueueType::Graphics)) {
+        return LogicalDevice::QueueType::Graphics;
+    }
+    else if (familyIndex == getQueueFamilyIndex(LogicalDevice::QueueType::Transfer)) {
+        return LogicalDevice::QueueType::Transfer;
+    }
+    else if (familyIndex == getQueueFamilyIndex(LogicalDevice::QueueType::Compute)) {
+        return LogicalDevice::QueueType::Compute;
+    }
+
+    // Default to Graphics if we can't determine
+    return LogicalDevice::QueueType::Graphics;
+}

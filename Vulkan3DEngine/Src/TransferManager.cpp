@@ -259,7 +259,7 @@ void TransferManager::executeTransfers(CommandBuffer& transferCmd, CommandBuffer
             copyRegion.size = request.size;
 
             vkCmdCopyBuffer(
-                transferCmd.get(),
+                transferCmd.handle(),
                 bufferStagingBuffer->get(),
                 destinationBuffer,
                 1,
@@ -349,7 +349,7 @@ void TransferManager::executeTransfers(CommandBuffer& transferCmd, CommandBuffer
                 preTransferBarrier.subresourceRange.layerCount = request.imageInfo.arrayLayers;
 
                 vkCmdPipelineBarrier(
-                    transferCmd.get(),
+                    transferCmd.handle(),
                     VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
                     VK_PIPELINE_STAGE_TRANSFER_BIT,
                     0,
@@ -386,7 +386,7 @@ void TransferManager::executeTransfers(CommandBuffer& transferCmd, CommandBuffer
 
                 // Record the copy command for this image
                 vkCmdCopyBufferToImage(
-                    transferCmd.get(),
+                    transferCmd.handle(),
                     imageStagingBuffer->get(),
                     destinationImage,
                     VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
@@ -419,7 +419,7 @@ void TransferManager::executeTransfers(CommandBuffer& transferCmd, CommandBuffer
                 postTransferBarrier.subresourceRange.layerCount = request.imageInfo.arrayLayers;
 
                 vkCmdPipelineBarrier(
-                    graphicsCmd.get(),
+                    graphicsCmd.handle(),
                     VK_PIPELINE_STAGE_TRANSFER_BIT,
                     VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
                     0,

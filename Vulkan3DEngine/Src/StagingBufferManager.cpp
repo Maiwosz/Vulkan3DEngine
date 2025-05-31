@@ -1,19 +1,39 @@
 #include "StagingBufferManager.h"
 #include <algorithm>
+#include <spdlog/spdlog.h>
 
 StagingBufferManager::StagingBufferManager(VmaAllocator allocator, const LogicalDevice& device)
     : m_allocator(allocator), m_device(device) {
 }
 
 StagingBufferManager::~StagingBufferManager() {
-    for (auto& buffer : m_availableBuffers) {
-        buffer.destroy();
+    std::lock_guard<std::mutex> lock(m_mutex);
+
+    // Log remaining buffers before cleanup
+    if (!m_availableBuffers.empty() || !m_inUseBuffers.empty()) {
+        size_t availableCount = m_availableBuffers.size();
+        size_t inUseCount = 0;
+        for (const auto& [fence, buffers] : m_inUseBuffers) {
+            inUseCount += buffers.size();
+        }
+        SPDLOG_DEBUG("StagingBufferManager::~StagingBufferManager() - Cleaning up {} available and {} in-use buffers",
+            availableCount, inUseCount);
     }
-    for (auto& [fence, buffers] : m_inUseBuffers) {
-        for (auto& buffer : buffers) {
-            buffer.destroy();
+
+    // Wait for all fences if possible
+    for (const auto& [fence, buffers] : m_inUseBuffers) {
+        VkResult status = vkGetFenceStatus(m_device.get(), fence);
+        if (status == VK_NOT_READY) {
+            SPDLOG_WARN("StagingBufferManager::~StagingBufferManager() - Fence still active, waiting...");
+            vkWaitForFences(m_device.get(), 1, &fence, VK_TRUE, UINT64_MAX);
         }
     }
+
+    // Clear all buffers
+    m_availableBuffers.clear();
+    m_inUseBuffers.clear();
+
+    SPDLOG_DEBUG("StagingBufferManager destroyed");
 }
 
 Buffer* StagingBufferManager::requestBuffer(VkDeviceSize size, VkFence fence) {

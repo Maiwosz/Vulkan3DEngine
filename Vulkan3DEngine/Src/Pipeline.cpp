@@ -12,5 +12,5 @@ m_pipelineLayout(layout)
 
 Pipeline::~Pipeline() {
     vkDestroyPipeline(m_device.get(), m_pipeline, nullptr);
-    vkDestroyPipelineLayout(m_device.get(), m_pipelineLayout, nullptr);
+    //vkDestroyPipelineLayout(m_device.get(), m_pipelineLayout, nullptr);
 }

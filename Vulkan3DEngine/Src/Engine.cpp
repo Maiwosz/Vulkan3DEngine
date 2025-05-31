@@ -68,7 +68,18 @@ void Engine::initialize(const char* title) {
 }
 
 void Engine::shutdown() {
+    if (m_isShutdown) {
+        return; // Already shut down
+    }
+
     SPDLOG_INFO("Initiating engine shutdown");
+    m_isShutdown = true;
+
+    if (m_renderer) {
+        m_renderer->frameManager().waitForAllFrames();
+        m_renderer->waitIdle();
+        m_renderer->commandBufferManager().cleanup();
+    }
 
     SPDLOG_DEBUG("Destroying scene...");
     m_scene.reset();
@@ -92,8 +103,10 @@ void Engine::shutdown() {
     m_window.reset();
 
     SPDLOG_INFO("=== Engine shutdown complete ===");
-    spdlog::default_logger()->flush();
-    spdlog::shutdown();
+    if (spdlog::default_logger()) {
+        spdlog::default_logger()->flush();
+        spdlog::shutdown();
+    }
 }
 
 void Engine::update() {
@@ -142,4 +155,6 @@ void Engine::run() {
     }
 
     SPDLOG_INFO("Main loop terminated (processed {} frames)", m_frameCount);
+
+    shutdown();
 }

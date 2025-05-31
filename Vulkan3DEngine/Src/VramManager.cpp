@@ -14,9 +14,7 @@ VramManager::VramManager(
     m_frameManager(frameManager),
     m_cmdBufferManager(cmdBufferManager),
     m_syncResourceManager(syncResourceManager),
-    m_allocator(createVmaAllocator(context)),
-    m_stagingManager(m_allocator, context.logical()),
-    m_transferManager(context, frameManager, syncResourceManager, m_stagingManager)
+    m_allocator(createVmaAllocator(context))
 {
     // Verify allocator was created successfully
     assert(m_allocator != VK_NULL_HANDLE && "VMA allocator creation failed");
@@ -27,6 +25,21 @@ VramManager::VramManager(
         throw std::runtime_error("VMA allocator initialization failed");
     }
 
+    // Create managers after allocator is successfully created
+    try {
+        m_stagingManager = std::make_unique<StagingBufferManager>(m_allocator, context.logical());
+        m_transferManager = std::make_unique<TransferManager>(context, frameManager, syncResourceManager, *m_stagingManager);
+    }
+    catch (const std::exception& e) {
+        SPDLOG_ERROR("Failed to initialize managers: {}", e.what());
+        // Clean up allocator if manager creation fails
+        if (m_allocator != VK_NULL_HANDLE) {
+            vmaDestroyAllocator(m_allocator);
+            m_allocator = VK_NULL_HANDLE;
+        }
+        throw;
+    }
+
     // Log total VRAM available
     uint64_t vramBudget = getVramBudget();
     SPDLOG_INFO("VramManager initialized with {:.2f} MB total VRAM", vramBudget / (1024.0f * 1024.0f));
@@ -34,14 +47,56 @@ VramManager::VramManager(
 
 VramManager::~VramManager() {
     uint64_t vramUsed = getVramUsed();
-    if (vramUsed > 0) {
+    size_t resourceCount = m_resources.size();
+
+    if (vramUsed > 0 || resourceCount > 0) {
         SPDLOG_WARN("VramManager destroyed with {:.2f} MB VRAM still in use ({} resources remaining)",
-            vramUsed / (1024.0f * 1024.0f), m_resources.size());
+            vramUsed / (1024.0f * 1024.0f), resourceCount);
+
+        // Log details about remaining resources
+        for (const auto& [id, resource] : m_resources) {
+            uint64_t size = 0;
+            if (const Buffer* buffer = std::get_if<Buffer>(&resource)) {
+                size = buffer->getAllocatedSize();
+                SPDLOG_WARN("  - Remaining Buffer: handle={}, size={:.2f} KB", id, size / 1024.0f);
+            }
+            else if (const Image* image = std::get_if<Image>(&resource)) {
+                size = image->getAllocatedSize();
+                SPDLOG_WARN("  - Remaining Image: handle={}, size={:.2f} KB, external={}",
+                    id, size / 1024.0f, image->isExternalResource());
+            }
+        }
     }
 
+    // Wait for any pending transfers to complete FIRST
+    SPDLOG_DEBUG("VramManager::~VramManager() - Waiting for device idle");
+    if (m_context.logical().get() != VK_NULL_HANDLE) {
+        vkDeviceWaitIdle(m_context.logical().get());
+    }
+
+    // Destroy TransferManager first (it may depend on staging manager)
+    if (m_transferManager) {
+        SPDLOG_DEBUG("VramManager::~VramManager() - Destroying TransferManager");
+        m_transferManager.reset();
+    }
+
+    // Clean up staging buffers while VMA allocator is still valid
+    if (m_stagingManager) {
+        SPDLOG_DEBUG("VramManager::~VramManager() - Reclaiming staging buffers");
+        m_stagingManager->reclaimBuffers();
+
+        SPDLOG_DEBUG("VramManager::~VramManager() - Destroying StagingBufferManager");
+        m_stagingManager.reset();
+    }
+
+    // CRITICAL: Clear all resources BEFORE destroying VMA allocator
+    // This ensures that Buffer/Image destructors can properly call vmaDestroyBuffer/vmaDestroyImage
+    SPDLOG_DEBUG("VramManager::~VramManager() - Cleaning up {} remaining resources", m_resources.size());
     m_resources.clear();
 
-    if (m_allocator) {
+    // Destroy VMA allocator LAST - after all resources have been cleaned up
+    if (m_allocator != VK_NULL_HANDLE) {
+        SPDLOG_DEBUG("VramManager::~VramManager() - Destroying VMA allocator");
         vmaDestroyAllocator(m_allocator);
         m_allocator = VK_NULL_HANDLE;
     }
@@ -96,11 +151,16 @@ VramHandle VramManager::createBuffer(const Graphics::BufferCreateInfo& info, con
         throw std::runtime_error("Cannot create buffer with null VMA allocator");
     }
 
+    if (!m_transferManager) {
+        SPDLOG_ERROR("TransferManager is not available");
+        throw std::runtime_error("TransferManager is not available");
+    }
+
     const auto vkUsage = convertBufferUsage(info.usage);
     Buffer buffer = Buffer::create(m_allocator, info.size, vkUsage, VMA_MEMORY_USAGE_AUTO);
 
     if (initialData) {
-        m_transferManager.queueBufferTransfer(&buffer, initialData, info.size);
+        m_transferManager->queueBufferTransfer(&buffer, initialData, info.size);
     }
 
     VramHandle handle{ m_nextId++ };
@@ -131,6 +191,11 @@ VramHandle VramManager::createImage(
         throw std::runtime_error("Cannot create image with null VMA allocator");
     }
 
+    if (!m_transferManager) {
+        SPDLOG_ERROR("TransferManager is not available");
+        throw std::runtime_error("TransferManager is not available");
+    }
+
     VkImageCreateInfo vkImageInfo = { VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO };
     vkImageInfo.imageType = VK_IMAGE_TYPE_2D;
     vkImageInfo.format = convertImageFormat(info.format);
@@ -157,7 +222,7 @@ VramHandle VramManager::createImage(
         Image image = Image::create(m_allocator, vkImageInfo, VMA_MEMORY_USAGE_AUTO);
 
         if (initialData) {
-            m_transferManager.queueImageTransfer(&image, initialData, vkImageInfo, mipLevels);
+            m_transferManager->queueImageTransfer(&image, initialData, vkImageInfo, mipLevels);
         }
 
         VramHandle handle{ m_nextId++ };
@@ -189,6 +254,11 @@ VramHandle VramManager::createBuffer(
         throw std::runtime_error("Buffer size cannot be zero");
     }
 
+    if (!m_stagingManager) {
+        SPDLOG_ERROR("StagingBufferManager is not available");
+        throw std::runtime_error("StagingBufferManager is not available");
+    }
+
     // Tworzenie głównego bufora
     VmaAllocationCreateInfo allocInfo = {};
 
@@ -212,7 +282,7 @@ VramHandle VramManager::createBuffer(
             VkFence fence = m_syncResourceManager.acquireFence(false);
 
             // 2. Pobierz wskaźnik do bufora staging - zmiana zgodnie z nowym API
-            Buffer* staging = m_stagingManager.requestBuffer(size, fence);
+            Buffer* staging = m_stagingManager->requestBuffer(size, fence);
 
             // 3. Skopiuj dane do staging buffer
             staging->copyData(initialData, size);
@@ -223,14 +293,14 @@ VramHandle VramManager::createBuffer(
                 .level = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
                 .usageFlags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT
             };
-            auto cmdBuffer = m_cmdBufferManager.acquireBuffer(cmdConfig);
+            SmartCommandBufferHandle cmdBuffer = m_cmdBufferManager.acquireSmartBuffer(cmdConfig);
 
             // 5. Nagrywanie komend
             cmdBuffer->begin(VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
 
             VkBufferCopy copyRegion{ 0, 0, size };
             vkCmdCopyBuffer(
-                cmdBuffer->get(),
+                *cmdBuffer.get(),
                 staging->get(),  // Używamy operatora -> zamiast . ponieważ mamy wskaźnik
                 buffer.get(),
                 1,
@@ -240,7 +310,7 @@ VramHandle VramManager::createBuffer(
             cmdBuffer->end();
 
             // 6. Submisja
-            VkCommandBuffer commandBufferHandle = cmdBuffer->get();
+            VkCommandBuffer commandBufferHandle = cmdBuffer.get()->handle();
             VkSubmitInfo submitInfo{};
             submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
             submitInfo.commandBufferCount = 1;
@@ -252,11 +322,11 @@ VramHandle VramManager::createBuffer(
             vkWaitForFences(m_context.logical().get(), 1, &fence, VK_TRUE, UINT64_MAX);
 
             // 8. Zwrot zasobów
-            m_cmdBufferManager.releaseBuffer(std::move(cmdBuffer));
+            // SmartCommandBufferHandle will automatically release the command buffer
             m_syncResourceManager.releaseFence(fence);
 
             // 9. Zwolnij bufory dla zakończonych płotków
-            m_stagingManager.reclaimBuffers();
+            m_stagingManager->reclaimBuffers();
 
             SPDLOG_DEBUG("Immediate buffer transfer completed for buffer of size {:.2f} KB", size / 1024.0f);
         }
@@ -294,6 +364,11 @@ VramHandle VramManager::createImage(
         throw std::runtime_error("Image dimensions cannot be zero");
     }
 
+    if (!m_stagingManager) {
+        SPDLOG_ERROR("StagingBufferManager is not available");
+        throw std::runtime_error("StagingBufferManager is not available");
+    }
+
     // Tworzenie głównego obrazu
     VmaAllocationCreateInfo allocInfo = {};
     allocInfo.usage = VMA_MEMORY_USAGE_AUTO;
@@ -312,7 +387,7 @@ VramHandle VramManager::createImage(
         VkFence fence = m_syncResourceManager.acquireFence(false);
 
         // 2. Pobierz wskaźnik do bufora staging - zmiana zgodnie z nowym API
-        Buffer* staging = m_stagingManager.requestBuffer(imageSize, fence);
+        Buffer* staging = m_stagingManager->requestBuffer(imageSize, fence);
 
         // 3. Skopiuj dane do bufora staging
         staging->copyData(initialData, imageSize);
@@ -323,7 +398,7 @@ VramHandle VramManager::createImage(
             .level = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
             .usageFlags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT
         };
-        auto cmdBuffer = m_cmdBufferManager.acquireBuffer(cmdConfig);
+        SmartCommandBufferHandle cmdBuffer = m_cmdBufferManager.acquireSmartBuffer(cmdConfig);
 
         // 5. Nagrywanie komend
         cmdBuffer->begin(VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
@@ -343,7 +418,7 @@ VramHandle VramManager::createImage(
         region.imageExtent = imageInfo.extent;
 
         vkCmdCopyBufferToImage(
-            cmdBuffer->get(),
+            *cmdBuffer.get(),
             staging->get(),
             image.get(),
             VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
@@ -363,7 +438,7 @@ VramHandle VramManager::createImage(
         cmdBuffer->end();
 
         // 6. Submisja
-        VkCommandBuffer commandBufferHandle = cmdBuffer->get();
+        VkCommandBuffer commandBufferHandle = cmdBuffer.get()->handle();
         VkSubmitInfo submitInfo{};
         submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
         submitInfo.commandBufferCount = 1;
@@ -375,11 +450,11 @@ VramHandle VramManager::createImage(
         vkWaitForFences(m_context.logical().get(), 1, &fence, VK_TRUE, UINT64_MAX);
 
         // 8. Zwrot zasobów
-        m_cmdBufferManager.releaseBuffer(std::move(cmdBuffer));
+        // SmartCommandBufferHandle will automatically release the command buffer
         m_syncResourceManager.releaseFence(fence);
 
         // 9. Zwolnij bufory dla zakończonych płotków
-        m_stagingManager.reclaimBuffers();
+        m_stagingManager->reclaimBuffers();
 
         SPDLOG_DEBUG("Immediate image transfer completed for image of size {:.2f} KB", imageSize / 1024.0f);
     }
@@ -398,53 +473,52 @@ VramHandle VramManager::createImage(
 }
 
 void VramManager::freeResource(VramHandle handle) {
+    spdlog::debug("VramManager::freeResource() - START - handle: {}", handle.id);
+
     if (!handle.isValid()) {
-        SPDLOG_WARN("Attempted to free invalid resource handle");
-        return; // Ignoruj nieprawidłowe uchwyty
+        spdlog::warn("VramManager::freeResource() - Attempted to free invalid resource handle");
+        return;
     }
 
     auto it = m_resources.find(handle.id);
     if (it == m_resources.end()) {
-        SPDLOG_WARN("Attempted to free non-existent resource: handle={}", handle.id);
-        return; // Zasób już został zwolniony
+        spdlog::debug("VramManager::freeResource() - Resource already freed or never existed: handle={}", handle.id);
+        return; // Don't log as warning - this is normal for double-free protection
     }
 
     uint64_t resourceSize = getResourceSize(handle);
+    spdlog::debug("VramManager::freeResource() - Found resource: handle={}, size={:.2f} KB",
+        handle.id, resourceSize / 1024.0f);
 
-    // Obsłuż specjalny przypadek obrazów zewnętrznych
+    // Handle external images specially
     if (std::holds_alternative<Image>(it->second)) {
         Image& img = std::get<Image>(it->second);
+        spdlog::debug("VramManager::freeResource() - Resource is Image, isExternal: {}", img.isExternalResource());
 
         if (img.isExternalResource()) {
-            SPDLOG_DEBUG("Freeing external image resource: handle={}", handle.id);
-            // 1. Wykonaj barierę końcową jeśli potrzebna
-            // 2. Usuń tylko referencję, nie niszcz VkImage
-            // 3. Wyczyść stan w managera
+            spdlog::debug("VramManager::freeResource() - Freeing external image resource: handle={}", handle.id);
             m_resources.erase(it);
+            spdlog::debug("VramManager::freeResource() - External image freed successfully");
             return;
         }
     }
 
-    // Standardowe zwalnianie zasobów
-    if (std::holds_alternative<Image>(it->second)) {
-        Image& img = std::get<Image>(it->second);
-        // Ewentualne dodatkowe przygotowanie obrazu
-        SPDLOG_DEBUG("Freeing image resource: handle={}, size={:.2f} KB",
-            handle.id, resourceSize / 1024.0f);
+    // Standard resource cleanup
+    try {
+        m_resources.erase(it); // This triggers the destructor
+        spdlog::debug("VramManager::freeResource() - Resource erased successfully");
     }
-    else if (std::holds_alternative<Buffer>(it->second)) {
-        Buffer& buf = std::get<Buffer>(it->second);
-        // Ewentualne dodatkowe przygotowanie bufora
-        SPDLOG_DEBUG("Freeing buffer resource: handle={}, size={:.2f} KB",
-            handle.id, resourceSize / 1024.0f);
+    catch (const std::exception& e) {
+        spdlog::error("VramManager::freeResource() - Exception during resource destruction: {}", e.what());
+        throw;
     }
-
-    m_resources.erase(it); // Wyzwala destruktor zasobu
 
     // Log VRAM status after freeing
     float usagePercent = getVramUsagePercentage();
-    SPDLOG_INFO("Resource freed: handle={}, size={:.2f} KB, VRAM usage={:.1f}%",
+    spdlog::info("VramManager::freeResource() - Resource freed: handle={}, size={:.2f} KB, VRAM usage={:.1f}%",
         handle.id, resourceSize / 1024.0f, usagePercent);
+
+    spdlog::debug("VramManager::freeResource() - END");
 }
 
 VramHandle VramManager::registerExternalImage(

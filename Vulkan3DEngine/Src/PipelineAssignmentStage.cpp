@@ -16,8 +16,7 @@ PipelineAssignmentStage::PipelineAssignmentStage(Renderer& renderer, AssetSystem
 }
 
 PipelineAssignmentStage::~PipelineAssignmentStage() {
-    SPDLOG_INFO("Destroying PipelineAssignmentStage, clearing pipeline cache");
-    clearCache();
+    SPDLOG_INFO("Destroying PipelineAssignmentStage");
 }
 
 void PipelineAssignmentStage::process(std::shared_ptr<RenderOrder> order) {
@@ -83,33 +82,20 @@ PipelineHandle PipelineAssignmentStage::getPipelineForMaterialAndMesh(
         return PipelineHandle{};
     }
 
-    // Create a key for the cache
-    MaterialMeshPipelineKey key{ materialHandle, mesh->attributes };
-
-    // Check if we already have a pipeline for this combination
-    auto it = m_pipelineCache.find(key);
-    if (it != m_pipelineCache.end() && it->second.renderPassHandle == renderPassHandle) {
-        // Return cached pipeline
-        return it->second.pipelineHandle;
-    }
-
-    SPDLOG_INFO("Creating new pipeline for material '{}' and mesh attributes {}",
+    SPDLOG_DEBUG("Creating pipeline for material '{}' and mesh attributes {}",
         material->name(), mesh->attributes);
 
-    // Create a new pipeline configuration
+    // Create a pipeline configuration
     GraphicsPipelineConfig config = createPipelineConfig(materialHandle, *mesh, renderPassHandle);
 
-    // Create the pipeline
+    // Let PipelineManager handle creation and caching
     PipelineHandle pipelineHandle = m_pipelineManager.createGraphicsPipeline(config);
 
-    if (!pipelineHandle.id != 0) {
+    if (pipelineHandle.id == 0) {
         SPDLOG_ERROR("Failed to create graphics pipeline for material '{}' and mesh attributes {}",
             material->name(), mesh->attributes);
         return PipelineHandle{};
     }
-
-    // Cache the result
-    m_pipelineCache[key] = { pipelineHandle, renderPassHandle };
 
     return pipelineHandle;
 }
@@ -313,17 +299,4 @@ VertexInputConfig PipelineAssignmentStage::createVertexInputConfig(const Mesh& m
     }
 
     return config;
-}
-
-void PipelineAssignmentStage::clearCache() {
-    SPDLOG_INFO("Clearing pipeline cache with {} entries", m_pipelineCache.size());
-
-    // Destroy all pipelines in the cache
-    for (const auto& entry : m_pipelineCache) {
-        m_pipelineManager.destroy(entry.second.pipelineHandle);
-    }
-
-    // Clear the cache
-    m_pipelineCache.clear();
-    SPDLOG_INFO("Pipeline cache cleared successfully");
 }

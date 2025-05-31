@@ -39,6 +39,7 @@ public:
     };
 
     DescriptorAllocator(const LogicalDevice& device, const PoolConfig& config);
+    ~DescriptorAllocator();
     void reset();
     void destroy();
 

@@ -171,7 +171,7 @@ void TextureManager::clear() {
     // Destroy all textures
     for (auto& [id, info] : m_textures) {
         // Free VRAM resources
-        m_vramManager.freeResource(info.vramHandle);
+        m_vramManager.freeResource(info.vramHandle); 
         
         // Clean up Vulkan image view
         if (info.imageView != VK_NULL_HANDLE) {

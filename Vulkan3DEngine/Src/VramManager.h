@@ -66,8 +66,18 @@ public:
     uint64_t getVramBudget() const;
     float getVramUsagePercentage() const;
 
-    void reclaimStagingBuffers() { m_stagingManager.reclaimBuffers(); }
-    TransferManager& transferManager() { return m_transferManager; }
+    void reclaimStagingBuffers() {
+        if (m_stagingManager) {
+            m_stagingManager->reclaimBuffers();
+        }
+    }
+
+    TransferManager& transferManager() {
+        if (!m_transferManager) {
+            throw std::runtime_error("TransferManager is not available");
+        }
+        return *m_transferManager;
+    }
 
     VramHandle registerExternalImage(
         VkImage image,
@@ -78,8 +88,8 @@ public:
 
 private:
     VmaAllocator m_allocator = VK_NULL_HANDLE;
-    StagingBufferManager m_stagingManager;
-    TransferManager m_transferManager;
+    std::unique_ptr<StagingBufferManager> m_stagingManager;
+    std::unique_ptr<TransferManager> m_transferManager;
     
     VulkanContext& m_context;
     FrameManager& m_frameManager;

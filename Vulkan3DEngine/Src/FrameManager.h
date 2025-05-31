@@ -12,8 +12,8 @@ struct FrameData {
     VkSemaphore renderFinished;
     VkSemaphore transferFinished;
     VkFence inFlightFence;
-    std::unique_ptr<CommandBuffer> graphicsCommandBuffer;
-    std::unique_ptr<CommandBuffer> transferCommandBuffer;
+    SmartCommandBufferHandle graphicsCommandBuffer;
+    SmartCommandBufferHandle transferCommandBuffer;
     std::vector<std::shared_ptr<RenderOrder>> renderOrders;
     bool hasTransferCommands = false;
 };
@@ -32,6 +32,8 @@ public:
     void advanceFrame() { m_currentFrame = (m_currentFrame + 1) % m_maxFrames;}
 
     void clearCurrentFrameOrders();
+
+    void waitForAllFrames();
 
     VkSemaphore getImageAvailableSemaphore() const { return m_frames[m_currentFrame].imageAvailable; }
     VkSemaphore getRenderFinishedSemaphore() const { return m_frames[m_currentFrame].renderFinished; }

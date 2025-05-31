@@ -97,9 +97,41 @@ Renderer::Renderer(Window& window) : m_window(window) {
 
 Renderer::~Renderer() {
     // Wait for all operations to complete before destroying resources
-    vkDeviceWaitIdle(m_vulkanContext->logical().get());
+    if (m_vulkanContext && m_vulkanContext->logical().get() != VK_NULL_HANDLE) {
+        vkDeviceWaitIdle(m_vulkanContext->logical().get());
+    }
 
-    // Automatic resource cleanup by unique_ptr in reverse order of initialization
+    // Reset frame manager to ensure no pending frames hold references
+    if (m_frameManager) {
+        m_frameManager->waitForAllFrames();
+    }
+
+    // Now destroy managers in proper order
+    // Destroy high-level managers first
+    m_frameManager.reset();
+    m_commandBufferManager.reset();
+
+    // Destroy rendering resources
+    m_framebufferManager.reset();
+    m_pipelineManager.reset();
+    m_renderPassManager.reset();
+    m_pipelineLayoutManager.reset();
+    m_descriptorAllocator.reset();
+    m_descriptorLayoutManager.reset();
+    m_shaderModuleManager.reset();
+
+    // Destroy resource managers
+    m_attachmentManager.reset();
+    m_samplerManager.reset();
+    m_uniformBufferManager.reset();
+    m_swapChain.reset();
+
+    // Destroy core managers
+    m_vramManager.reset();
+    m_syncResourceManager.reset();
+
+    // Finally destroy the Vulkan context
+    m_vulkanContext.reset();
 }
 
 void Renderer::createMainRenderPass() {
