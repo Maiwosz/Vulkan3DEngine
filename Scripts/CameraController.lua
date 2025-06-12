@@ -78,8 +78,9 @@ end
 
 -- Obsługa ruchu myszą
 local function processMouseInput(self, deltaTime)
-    if Input.isMouseButtonHeld(MouseButton.Right) then
-        local mouseDelta = Input.getMouseDelta()
+    local isRightPressed = Input.isMouseHeld(Input.MouseButton.Right)
+    local mouseDelta = Input.getMouseDelta()   
+    if isRightPressed then
         if mouseDelta.x ~= 0 or mouseDelta.y ~= 0 then
             -- Aktualizacja rotacji
             self.yaw = (self.yaw - mouseDelta.x * self.config.mouseSensitivity) % 360.0
@@ -95,8 +96,8 @@ end
 -- Obsługa scrolla myszy
 local function processMouseScroll(self)
     local scroll = Input.getMouseScrollDelta()
-    if scroll ~= 0 then
-        self.config.moveSpeed = clamp(self.config.moveSpeed + scroll * 0.5, 1.0, 20.0)
+    if scroll.y ~= 0 then
+        self.config.moveSpeed = clamp(self.config.moveSpeed + scroll.y * 0.5, 1.0, 20.0)
     end
 end
 
@@ -129,10 +130,10 @@ function OnUpdate(self, deltaTime)
     movementState.down     = Input.isKeyHeld(Input.KEY_LEFT_CONTROL) or Input.isKeyHeld(Input.KEY_RIGHT_CONTROL)
 
     -- Aktualizacja kursora
-    if Input.isMouseButtonHeld(MouseButton.Right) then
-        Input.setCursorMode(CursorMode.Disabled)
+    if Input.isMouseHeld(Input.MouseButton.Right) then
+        Input.setCursorMode(Input.CursorMode.Disabled)
     else
-        Input.setCursorMode(CursorMode.Normal)
+        Input.setCursorMode(Input.CursorMode.Normal)
     end
 
     processMouseInput(self, deltaTime)
@@ -141,5 +142,5 @@ function OnUpdate(self, deltaTime)
 end
 
 function OnDestroy(self)
-    Input.setCursorMode(CursorMode.Normal)
+    Input.setCursorMode(Input.CursorMode.Normal)
 end

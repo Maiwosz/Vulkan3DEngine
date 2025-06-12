@@ -49,25 +49,6 @@ VramManager::~VramManager() {
     uint64_t vramUsed = getVramUsed();
     size_t resourceCount = m_resources.size();
 
-    if (vramUsed > 0 || resourceCount > 0) {
-        SPDLOG_WARN("VramManager destroyed with {:.2f} MB VRAM still in use ({} resources remaining)",
-            vramUsed / (1024.0f * 1024.0f), resourceCount);
-
-        // Log details about remaining resources
-        for (const auto& [id, resource] : m_resources) {
-            uint64_t size = 0;
-            if (const Buffer* buffer = std::get_if<Buffer>(&resource)) {
-                size = buffer->getAllocatedSize();
-                SPDLOG_WARN("  - Remaining Buffer: handle={}, size={:.2f} KB", id, size / 1024.0f);
-            }
-            else if (const Image* image = std::get_if<Image>(&resource)) {
-                size = image->getAllocatedSize();
-                SPDLOG_WARN("  - Remaining Image: handle={}, size={:.2f} KB, external={}",
-                    id, size / 1024.0f, image->isExternalResource());
-            }
-        }
-    }
-
     // Wait for any pending transfers to complete FIRST
     SPDLOG_DEBUG("VramManager::~VramManager() - Waiting for device idle");
     if (m_context.logical().get() != VK_NULL_HANDLE) {
@@ -87,6 +68,25 @@ VramManager::~VramManager() {
 
         SPDLOG_DEBUG("VramManager::~VramManager() - Destroying StagingBufferManager");
         m_stagingManager.reset();
+    }
+
+    if (vramUsed > 0 || resourceCount > 0) {
+        SPDLOG_WARN("VramManager destroyed with {:.2f} MB VRAM still in use ({} resources remaining)",
+            vramUsed / (1024.0f * 1024.0f), resourceCount);
+
+        // Log details about remaining resources
+        for (const auto& [id, resource] : m_resources) {
+            uint64_t size = 0;
+            if (const Buffer* buffer = std::get_if<Buffer>(&resource)) {
+                size = buffer->getAllocatedSize();
+                SPDLOG_WARN("  - Remaining Buffer: handle={}, size={:.2f} KB", id, size / 1024.0f);
+            }
+            else if (const Image* image = std::get_if<Image>(&resource)) {
+                size = image->getAllocatedSize();
+                SPDLOG_WARN("  - Remaining Image: handle={}, size={:.2f} KB, external={}",
+                    id, size / 1024.0f, image->isExternalResource());
+            }
+        }
     }
 
     // CRITICAL: Clear all resources BEFORE destroying VMA allocator

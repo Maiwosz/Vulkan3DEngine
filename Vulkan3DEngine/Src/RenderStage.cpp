@@ -5,7 +5,8 @@
 #include "Engine.h"
 
 RenderStage::RenderStage(Renderer& renderer, AssetSystem& assetSystem)
-    : m_vulkanContext(renderer.vulkanContext()),
+    : m_renderer(renderer),
+    m_vulkanContext(renderer.vulkanContext()),
     m_frameManager(renderer.frameManager()),
     m_vramManager(renderer.vramManager()),
     m_swapChain(renderer.swapChain()),
@@ -21,7 +22,7 @@ RenderStage::RenderStage(Renderer& renderer, AssetSystem& assetSystem)
     SPDLOG_INFO("RenderStage initialized");
 }
 
-void RenderStage::process(std::shared_ptr<RenderOrder> order) { 
+void RenderStage::process(std::shared_ptr<RenderOrder> order) {
     // Add the render order to the current frame's collection
     m_frameManager.getCurrentFrame().renderOrders.push_back(order);
     SPDLOG_DEBUG("RenderOrder added: type={}", static_cast<int>(order->getType()));
@@ -53,6 +54,13 @@ void RenderStage::executeRenderPass() {
     // Now that we've waited for the fence, we can safely reset it
     vkResetFences(m_vulkanContext.logical().get(), 1, &inFlightFence);
     SPDLOG_DEBUG("Fence reset");
+
+    // Zwolnij framebuffer z poprzedniej klatki jeśli istnieje
+    if (currentFrame.framebufferHandle.id != 0) {
+        SPDLOG_DEBUG("Releasing previous frame's framebuffer handle: {}", currentFrame.framebufferHandle.id);
+        m_framebufferManager.removeReference(currentFrame.framebufferHandle);
+        currentFrame.framebufferHandle = FrameBufferHandle(0); // Reset handle
+    }
 
     // Reset command buffers after fence wait
     if (currentFrame.graphicsCommandBuffer) {
@@ -124,14 +132,60 @@ void RenderStage::executeRenderPass() {
     );
     SPDLOG_INFO("Acquired swapchain image: index={}, result={}", imageIndex, static_cast<int>(result));
 
-    // Handle swapchain recreation
+    // Handle swapchain recreation - FIXED DEADLOCK ISSUE
     if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR) {
         SPDLOG_WARN("Swapchain out of date or suboptimal, recreating");
-        // Make sure we end command buffers before returning
+
+        // Properly end command buffers before recreating swapchain
         if (currentFrame.graphicsCommandBuffer && currentFrame.graphicsCommandBuffer->isRecording()) {
             currentFrame.graphicsCommandBuffer->end();
         }
-        m_swapChain.recreateSwapChain();
+        if (currentFrame.transferCommandBuffer && currentFrame.transferCommandBuffer->isRecording()) {
+            currentFrame.transferCommandBuffer->end();
+        }
+
+        // Clear render orders before returning
+        currentFrame.renderOrders.clear();
+        currentFrame.hasTransferCommands = false;
+
+        // CRITICAL FIX: Signal the fence before returning to prevent deadlock
+        // This ensures the next frame won't wait indefinitely
+        SPDLOG_DEBUG("Signaling fence before swapchain recreation to prevent deadlock");
+
+        // First check if fence is already signaled
+        VkResult fenceStatus = vkGetFenceStatus(m_vulkanContext.logical().get(), inFlightFence);
+        if (fenceStatus == VK_NOT_READY) {
+            // Submit an empty command buffer to signal the fence
+            auto tempCmdBuffer = currentFrame.graphicsCommandBuffer.get();
+            if (!tempCmdBuffer->isRecording()) {
+                tempCmdBuffer->begin(VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
+            }
+            tempCmdBuffer->end();
+
+            // Submit with fence to signal it
+            tempCmdBuffer->submit(
+                m_vulkanContext.logical().getQueue(LogicalDevice::QueueType::Graphics),
+                {}, // No wait semaphores
+                {}, // No wait stages  
+                {}, // No signal semaphores
+                inFlightFence // Signal this fence
+            );
+
+            SPDLOG_DEBUG("Empty command buffer submitted to signal fence");
+        }
+
+        // Wait for queues to be idle
+        vkQueueWaitIdle(m_vulkanContext.logical().getQueue(LogicalDevice::QueueType::Graphics));
+        vkQueueWaitIdle(m_vulkanContext.logical().getQueue(LogicalDevice::QueueType::Transfer));
+
+        // Now safely recreate the swapchain
+        m_renderer.recreateSwapChain();
+        m_depthAttachmentHandle = m_renderer.depthAttachmentHandle(); // Refresh depth attachment handle
+        m_msColorAttachmentHandle = m_renderer.msColorAttachmentHandle(); // Refresh MSAA color attachment handle
+        m_mainRenderPassHandle = m_renderer.renderPass(); // Refresh main render pass handle
+
+        // Advance frame counter to keep synchronization consistent
+        m_frameManager.advanceFrame();
         return;
     }
     else if (result != VK_SUCCESS) {
@@ -140,6 +194,26 @@ void RenderStage::executeRenderPass() {
         if (currentFrame.graphicsCommandBuffer && currentFrame.graphicsCommandBuffer->isRecording()) {
             currentFrame.graphicsCommandBuffer->end();
         }
+        if (currentFrame.transferCommandBuffer && currentFrame.transferCommandBuffer->isRecording()) {
+            currentFrame.transferCommandBuffer->end();
+        }
+
+        // Signal fence before throwing to prevent deadlock on next call
+        VkResult fenceStatus = vkGetFenceStatus(m_vulkanContext.logical().get(), inFlightFence);
+        if (fenceStatus == VK_NOT_READY) {
+            // Signal fence to prevent deadlock
+            auto tempCmdBuffer = currentFrame.graphicsCommandBuffer.get();
+            if (!tempCmdBuffer->isRecording()) {
+                tempCmdBuffer->begin(VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
+            }
+            tempCmdBuffer->end();
+            tempCmdBuffer->submit(
+                m_vulkanContext.logical().getQueue(LogicalDevice::QueueType::Graphics),
+                {}, {}, {}, inFlightFence
+            );
+            vkQueueWaitIdle(m_vulkanContext.logical().getQueue(LogicalDevice::QueueType::Graphics));
+        }
+
         throw std::runtime_error("Failed to acquire swap chain image!");
     }
 
@@ -153,8 +227,7 @@ void RenderStage::executeRenderPass() {
         m_swapChain.getSwapChainExtent(),
         VK_IMAGE_LAYOUT_UNDEFINED,
         VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
-        AttachmentType::Resolve, // Changed from Color to Resolve
-        "SwapchainImage_" + std::to_string(imageIndex)
+        AttachmentType::Resolve
     );
     SPDLOG_DEBUG("Created swapchain attachment handle: {}", swapchainAttachmentHandle.id);
 
@@ -167,18 +240,22 @@ void RenderStage::executeRenderPass() {
     SPDLOG_DEBUG("Using MSAA color attachment handle: {}", m_msColorAttachmentHandle.id);
     SPDLOG_DEBUG("Using depth attachment handle: {}", m_depthAttachmentHandle.id);
 
-    FrameBufferHandle framebufferHandle = m_framebufferManager.getOrCreate(
+    // Acquire framebuffer i zapisz handle w current frame
+    FrameBufferHandle framebufferHandle = m_framebufferManager.acquireFrameBuffer(
         m_mainRenderPassHandle,
         framebufferAttachments,
         m_swapChain.getSwapChainExtent()
     );
+
+    // Zapisz handle w current frame do późniejszego zwolnienia
+    currentFrame.framebufferHandle = framebufferHandle;
     SPDLOG_DEBUG("Using framebuffer handle: {}", framebufferHandle.id);
 
     // Begin render pass
     VkRenderPassBeginInfo renderPassInfo{};
     renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
-    renderPassInfo.renderPass = m_renderPassManager.getRenderPass(m_mainRenderPassHandle);
-    renderPassInfo.framebuffer = m_framebufferManager.get(framebufferHandle);
+    renderPassInfo.renderPass = *m_renderPassManager.getResource(m_mainRenderPassHandle);
+    renderPassInfo.framebuffer = m_framebufferManager.getResource(framebufferHandle)->frameBuffer;
     renderPassInfo.renderArea.offset = { 0, 0 };
     renderPassInfo.renderArea.extent = m_swapChain.getSwapChainExtent();
 
@@ -218,7 +295,6 @@ void RenderStage::executeRenderPass() {
         currentFrame.graphicsCommandBuffer->end();
     }
 
-    // Rest of the method remains unchanged...
     // Prepare wait semaphores and stages
     std::vector<VkSemaphore> waitSemaphores = {
         m_frameManager.getImageAvailableSemaphore()  // Always wait for image to be available
@@ -253,6 +329,7 @@ void RenderStage::executeRenderPass() {
 
         // Clear render orders for next frame
         currentFrame.renderOrders.clear();
+        currentFrame.hasTransferCommands = false;
 
         // Advance to the next frame
         m_frameManager.advanceFrame();
@@ -264,9 +341,27 @@ void RenderStage::executeRenderPass() {
     result = m_swapChain.presentImage(imageIndex, m_frameManager.getRenderFinishedSemaphore());
     SPDLOG_INFO("Present result: {}", static_cast<int>(result));
 
+    // Handle swapchain recreation after present - ALSO FIXED
     if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR) {
         SPDLOG_WARN("Swapchain out of date or suboptimal after present, recreating");
-        m_swapChain.recreateSwapChain();
+
+        // Clear render orders before recreation
+        currentFrame.renderOrders.clear();
+        currentFrame.hasTransferCommands = false;
+
+        // Wait for queues instead of calling waitForAllFrames
+        vkQueueWaitIdle(m_vulkanContext.logical().getQueue(LogicalDevice::QueueType::Graphics));
+        vkQueueWaitIdle(m_vulkanContext.logical().getQueue(LogicalDevice::QueueType::Transfer));
+
+        // Safely recreate swapchain
+        m_renderer.recreateSwapChain();
+        m_depthAttachmentHandle = m_renderer.depthAttachmentHandle(); // Refresh depth attachment handle
+        m_msColorAttachmentHandle = m_renderer.msColorAttachmentHandle(); // Refresh MSAA color attachment handle
+        m_mainRenderPassHandle = m_renderer.renderPass(); // Refresh main render pass handle
+
+        // Advance frame counter
+        m_frameManager.advanceFrame();
+        return;
     }
     else if (result != VK_SUCCESS) {
         SPDLOG_ERROR("Failed to present swap chain image! Result: {}", static_cast<int>(result));
@@ -275,12 +370,12 @@ void RenderStage::executeRenderPass() {
 
     // Clear render orders for next frame
     currentFrame.renderOrders.clear();
+    currentFrame.hasTransferCommands = false;
 
     // Advance to the next frame
     m_frameManager.advanceFrame();
     SPDLOG_DEBUG("Advanced to next frame");
 }
-
 
 void RenderStage::executeRenderCommands(
     VkCommandBuffer commandBuffer,

@@ -57,6 +57,9 @@ private:
         SmartHandle<DescriptorSetHandle, VkDescriptorSet> descriptorSet;
         bool descriptorSetValid;
 
+        // Track sampler handles for dirty checking
+        std::vector<SamplerHandle> samplerHandles;
+
         MaterialData() : estimatedSize(0), isReady(false), descriptorSetValid(false) {}
     };
 
@@ -79,6 +82,7 @@ private:
     );
 
     void updateTextureHandles(MaterialHandle materialHandle, AssetManager& manager);
+    void collectSamplerHandles(MaterialHandle materialHandle);
 
     // Convert AssetLib parameter to Material parameter
     Material::ParamValue convertParameter(

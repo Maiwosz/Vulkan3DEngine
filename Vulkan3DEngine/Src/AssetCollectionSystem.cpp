@@ -2,7 +2,7 @@
 
 void AssetCollectionSystem::update(ContextType& context) {
     auto& registry = context.getRegistry();
-    AssetManager& assetManager = Engine::get().assetManager();
+    AssetManager& assetManager = Engine::get().assetSystem().assetManager();
 
     std::unordered_set<AssetHandle> assetsToLoad;
 

@@ -1,5 +1,7 @@
 #pragma once
 #include <sol/sol.hpp>
+#include "Engine.h"
+#include "InputSystem.h"
 
 namespace LuaBindings {
     // Register input system functionality

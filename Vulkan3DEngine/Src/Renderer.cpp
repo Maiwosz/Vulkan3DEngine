@@ -4,7 +4,7 @@
 #include "Engine.h"
 #include "GraphicsTypes.h"
 
-Renderer::Renderer(Window& window) : m_window(window) {
+Renderer::Renderer(Settings& settings, Window& window) :m_settings(settings), m_window(window) {
     try {
         // Configure instance
         Instance::Config instanceConfig;
@@ -53,8 +53,15 @@ Renderer::Renderer(Window& window) : m_window(window) {
             m_vulkanContext->logical(),
             *m_vramManager
         );
+        SamplerSettings samplerSettings;
+        samplerSettings.textureFiltering = m_settings.getTextureFiltering();
+        samplerSettings.mipmapMode = m_settings.getMipmapMode();
+        samplerSettings.maxAnisotropy = m_settings.getCurrentAnisotropyValue();
+        samplerSettings.anisotropySupported = m_settings.getHardwareLimits().anisotropySupported;
+
         m_samplerManager = std::make_unique<ImageSamplerManager>(
-            m_vulkanContext->logical()
+            m_vulkanContext->logical(),
+            samplerSettings
         );
         m_attachmentManager = std::make_unique<AttachmentManager>(
             m_vulkanContext->logical(),
@@ -134,9 +141,131 @@ Renderer::~Renderer() {
     m_vulkanContext.reset();
 }
 
-void Renderer::createMainRenderPass() {
+
+void Renderer::recreateSwapChain() {
+    SPDLOG_INFO("Starting swapchain recreation");
+
+    // First, wait for all queues to be idle - this is safer than waiting for fences
+    vkQueueWaitIdle(m_vulkanContext->logical().getQueue(LogicalDevice::QueueType::Graphics));
+    vkQueueWaitIdle(m_vulkanContext->logical().getQueue(LogicalDevice::QueueType::Transfer));
+
+    // Reset all frame command buffers to a clean state
+    m_frameManager->resetAllFrames();
+
+    // Now wait for device to be completely idle
+    vkDeviceWaitIdle(m_vulkanContext->logical().get());
+
+    SPDLOG_INFO("Device is idle, proceeding with swapchain recreation");
+
+    // Recreate the swap chain
+    m_swapChain->recreateSwapChain();
+
+    // Swap chain recreation affects attachments and render pass
+    recreateAttachments();
+    recreateRenderPass();
+
+    SPDLOG_INFO("Swapchain recreation completed successfully");
+}
+
+void Renderer::recreateAttachments() {
+    // Get current settings
     Settings& settings = Engine::get().settings();
     VkSampleCountFlagBits samples = Graphics::convertSampleCount(settings.getMsaaSamples());
+    VkExtent2D newExtent = m_swapChain->getSwapChainExtent();
+
+    // Release existing attachments
+    if (m_attachmentManager->isValid(m_msColorAttachmentHandle)) {
+        m_attachmentManager->releaseResource(m_msColorAttachmentHandle);
+    }
+    if (m_attachmentManager->isValid(m_depthAttachmentHandle)) {
+        m_attachmentManager->releaseResource(m_depthAttachmentHandle);
+    }
+
+    // Create new MSAA color attachment
+    AttachmentSpec msColorAttachmentSpec{
+        .format = m_swapChain->getImageFormat(),
+        .extent = newExtent,
+        .samples = samples,
+        .usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT,
+        .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
+        .finalLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+        .type = AttachmentType::Color
+    };
+
+    // Create new depth attachment
+    VkFormat depthFormat = m_vulkanContext->physical().findDepthFormat();
+    AttachmentSpec depthAttachmentSpec{
+        .format = depthFormat,
+        .extent = newExtent,
+        .samples = samples,
+        .usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT,
+        .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
+        .finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
+        .type = AttachmentType::Depth
+    };
+
+    // Acquire new attachments
+    m_msColorAttachmentHandle = m_attachmentManager->acquireAttachment(msColorAttachmentSpec);
+    m_depthAttachmentHandle = m_attachmentManager->acquireAttachment(depthAttachmentSpec);
+
+    // Notify framebuffer manager of the resize
+    m_framebufferManager->onResize(newExtent);
+}
+
+void Renderer::recreateRenderPass() {
+    // Get current settings
+    Settings& settings = Engine::get().settings();
+    VkSampleCountFlagBits samples = Graphics::convertSampleCount(settings.getMsaaSamples());
+
+    // Create new render pass configuration
+    RenderPassConfig renderPassConfig;
+
+    // MSAA color attachment description
+    RenderPassConfig::AttachmentDesc msColorAttachDesc{
+        .format = m_swapChain->getImageFormat(),
+        .samples = samples,
+        .loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
+        .storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
+        .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
+        .finalLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+        .type = AttachmentType::Color
+    };
+
+    // Resolve attachment description
+    RenderPassConfig::AttachmentDesc resolveAttachDesc{
+        .format = m_swapChain->getImageFormat(),
+        .samples = VK_SAMPLE_COUNT_1_BIT,
+        .loadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE,
+        .storeOp = VK_ATTACHMENT_STORE_OP_STORE,
+        .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
+        .finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
+        .type = AttachmentType::Resolve
+    };
+
+    // Depth attachment description
+    VkFormat depthFormat = m_vulkanContext->physical().findDepthFormat();
+    RenderPassConfig::AttachmentDesc depthAttachDesc{
+        .format = depthFormat,
+        .samples = samples,
+        .loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
+        .storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
+        .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
+        .finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
+        .type = AttachmentType::Depth
+    };
+
+    // Configure render pass
+    renderPassConfig.attachments = { msColorAttachDesc, resolveAttachDesc, depthAttachDesc };
+    renderPassConfig.colorAttachmentIndices = { 0 };
+    renderPassConfig.resolveAttachmentIndex = 1;
+    renderPassConfig.depthAttachmentIndex = 2;
+
+    // Recreate render pass with new configuration
+    m_renderPassManager->recreateRenderPass(m_mainRenderPassHandle, renderPassConfig);
+}
+
+void Renderer::createMainRenderPass() {
+    VkSampleCountFlagBits samples = Graphics::convertSampleCount(m_settings.getMsaaSamples());
 
     // Create a multisampled color attachment (not for presentation)
     AttachmentSpec msColorAttachmentSpec{
@@ -146,8 +275,7 @@ void Renderer::createMainRenderPass() {
         .usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT,
         .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
         .finalLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
-        .type = AttachmentType::Color,
-        .name = "MSAAColorAttachment"
+        .type = AttachmentType::Color
     };
 
     // Create a resolve attachment (for presentation, single sample)
@@ -158,8 +286,7 @@ void Renderer::createMainRenderPass() {
         .usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
         .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
         .finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
-        .type = AttachmentType::Resolve,
-        .name = "ResolveAttachment"
+        .type = AttachmentType::Resolve
     };
 
     // Create/retrieve a depth attachment
@@ -171,14 +298,13 @@ void Renderer::createMainRenderPass() {
         .usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT,
         .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
         .finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
-        .type = AttachmentType::Depth,
-        .name = "MainDepthAttachment"
+        .type = AttachmentType::Depth
     };
 
     // Create all attachments
-    m_msColorAttachmentHandle = m_attachmentManager->getOrCreate(msColorAttachmentSpec);
+    m_msColorAttachmentHandle = m_attachmentManager->acquireAttachment(msColorAttachmentSpec);
     // Note: Resolve attachment will typically come from the swapchain
-    m_depthAttachmentHandle = m_attachmentManager->getOrCreate(depthAttachmentSpec);
+    m_depthAttachmentHandle = m_attachmentManager->acquireAttachment(depthAttachmentSpec);
 
     // Configure render pass
     RenderPassConfig renderPassConfig;
@@ -228,56 +354,4 @@ void Renderer::createMainRenderPass() {
 
     // Create/retrieve the render pass
     m_mainRenderPassHandle = m_renderPassManager->acquireRenderPass(renderPassConfig);
-}
-
-// Also update the recreateRenderResources method to handle the multisampled color attachment
-
-void Renderer::recreateRenderResources() {
-    vkDeviceWaitIdle(m_vulkanContext->logical().get());
-
-    // Update MSAA sample count if needed
-    Settings& settings = Engine::get().settings();
-    VkSampleCountFlagBits samples = Graphics::convertSampleCount(settings.getMsaaSamples());
-
-    // Create a new multisampled color attachment
-    AttachmentSpec msColorAttachmentSpec{
-        .format = m_swapChain->getImageFormat(),
-        .extent = m_swapChain->getSwapChainExtent(),
-        .samples = samples,
-        .usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT,
-        .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
-        .finalLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
-        .type = AttachmentType::Color,
-        .name = "MSAAColorAttachment"
-    };
-
-    // Recreate depth attachment with new swapchain extent
-    VkFormat depthFormat = m_vulkanContext->physical().findDepthFormat();
-    AttachmentSpec depthAttachmentSpec{
-        .format = depthFormat,
-        .extent = m_swapChain->getSwapChainExtent(),
-        .samples = samples,
-        .usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT,
-        .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
-        .finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
-        .type = AttachmentType::Depth,
-        .name = "MainDepthAttachment"
-    };
-
-    // Destroy old attachments if they exist
-    if (m_attachmentManager->isValid(m_msColorAttachmentHandle)) {
-        m_attachmentManager->destroy(m_msColorAttachmentHandle);
-    }
-    if (m_attachmentManager->isValid(m_depthAttachmentHandle)) {
-        m_attachmentManager->destroy(m_depthAttachmentHandle);
-    }
-
-    // Create new attachments 
-    m_msColorAttachmentHandle = m_attachmentManager->getOrCreate(msColorAttachmentSpec);
-    m_depthAttachmentHandle = m_attachmentManager->getOrCreate(depthAttachmentSpec);
-
-    // Notify the framebuffer manager of resize
-    m_framebufferManager->onResize(m_swapChain->getSwapChainExtent());
-
-    // Main framebuffers will be recreated on-demand in drawFrame
 }

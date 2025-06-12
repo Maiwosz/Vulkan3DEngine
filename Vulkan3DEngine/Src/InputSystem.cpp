@@ -1,268 +1,281 @@
 #include "InputSystem.h"
 #include "Window.h"
 #include <iostream>
+#include <stdexcept>
 
-// Struktura pomocnicza do przechowywania danych wejściowych dla callbacków
-struct InputCallbackData {
-    InputSystem* inputSystem;
-    void* originalUserPointer;
-};
+// === CallbackManager Implementation ===
+InputSystem::CallbackManager::CallbackManager(GLFWwindow* window, InputSystem* inputSystem)
+    : m_window(window)
+    , m_originalUserPointer(glfwGetWindowUserPointer(window))
+{
+    if (!window) {
+        throw std::invalid_argument("GLFW window cannot be null");
+    }
 
-// Helper function to safely invoke events
-template <typename... Args>
-static void tryInvoke(std::shared_ptr<Event<Args...>> event, Args... args) {
-    if (event && event->isActive()) {
-        event->invoke(std::forward<Args>(args)...);
+    // Set InputSystem as user pointer for callbacks
+    glfwSetWindowUserPointer(window, inputSystem);
+
+    // Setup all callbacks
+    glfwSetKeyCallback(window, InputSystem::keyCallback);
+    glfwSetMouseButtonCallback(window, InputSystem::mouseButtonCallback);
+    glfwSetCursorPosCallback(window, InputSystem::cursorPositionCallback);
+    glfwSetScrollCallback(window, InputSystem::scrollCallback);
+    glfwSetCharCallback(window, InputSystem::charCallback);
+}
+
+InputSystem::CallbackManager::~CallbackManager() {
+    if (m_window) {
+        // Clear all callbacks first
+        glfwSetKeyCallback(m_window, nullptr);
+        glfwSetMouseButtonCallback(m_window, nullptr);
+        glfwSetCursorPosCallback(m_window, nullptr);
+        glfwSetScrollCallback(m_window, nullptr);
+        glfwSetCharCallback(m_window, nullptr);
+
+        // Restore original user pointer
+        glfwSetWindowUserPointer(m_window, m_originalUserPointer);
     }
 }
 
+// === InputSystem Implementation ===
 InputSystem::InputSystem(Window& window)
-    : m_window(window), m_glfwWindow(window.get()),
-    m_currentMousePosition(0.0f), m_previousMousePosition(0.0f),
-    m_mouseDelta(0.0f), m_mouseScrollDelta(0.0f)
+    : m_window(window)
+    , m_glfwWindow(window.get())
 {
-    // Ensure window is valid
     if (!m_glfwWindow) {
-        throw std::runtime_error("Invalid GLFW window handle in InputSystem constructor");
+        throw std::runtime_error("Invalid GLFW window handle provided to InputSystem");
     }
 
-    // Create events with shared exception handler
+    setupExceptionHandlers();
+    initializeMousePosition();
+
+    // Setup callbacks last to ensure everything is initialized
+    m_callbackManager = std::make_unique<CallbackManager>(m_glfwWindow, this);
+}
+
+InputSystem::~InputSystem() {
+    // CallbackManager will handle cleanup automatically via RAII
+}
+
+void InputSystem::update() {
+    // NAJPIERW oblicz delty na podstawie aktualnych wartości
+    m_mouseState.delta = m_mouseState.position - m_mouseState.previousPosition;
+    m_mouseState.scrollDelta = m_mouseState.scroll - m_mouseState.previousScroll;
+
+    // Aktualizuj stany klawiszy i myszy
+    updateKeyStates();
+    updateMouseStates();
+
+    // DOPIERO NA KOŃCU zapisz poprzednie wartości dla następnej klatki
+    m_mouseState.previousPosition = m_mouseState.position;
+    m_mouseState.previousScroll = m_mouseState.scroll;
+}
+
+// === Keyboard Query Methods ===
+bool InputSystem::isKeyPressed(int key) const {
+    auto it = m_keyStates.find(key);
+    if (it == m_keyStates.end()) return false;
+
+    return it->second.currentState && !it->second.previousState;
+}
+
+bool InputSystem::isKeyReleased(int key) const {
+    auto it = m_keyStates.find(key);
+    if (it == m_keyStates.end()) return false;
+
+    return !it->second.currentState && it->second.previousState;
+}
+
+bool InputSystem::isKeyHeld(int key) const {
+    auto it = m_keyStates.find(key);
+    return it != m_keyStates.end() && it->second.currentState;
+}
+
+InputSystem::KeyState InputSystem::getKeyState(int key) const {
+    auto it = m_keyStates.find(key);
+    if (it == m_keyStates.end()) {
+        return KeyState::Released;
+    }
+
+    const auto& info = it->second;
+
+    if (info.currentState && !info.previousState) {
+        return KeyState::Pressed;
+    }
+    else if (!info.currentState && info.previousState) {
+        return KeyState::Released;
+    }
+    else if (info.currentState) {
+        return KeyState::Held;
+    }
+
+    return KeyState::Released;
+}
+
+// === Mouse Query Methods ===
+bool InputSystem::isMousePressed(MouseButton button) const {
+    int buttonCode = static_cast<int>(button);
+    auto it = m_mouseButtonStates.find(buttonCode);
+    if (it == m_mouseButtonStates.end()) return false;
+
+    return it->second.currentState && !it->second.previousState;
+}
+
+bool InputSystem::isMouseReleased(MouseButton button) const {
+    int buttonCode = static_cast<int>(button);
+    auto it = m_mouseButtonStates.find(buttonCode);
+    if (it == m_mouseButtonStates.end()) return false;
+
+    return !it->second.currentState && it->second.previousState;
+}
+
+bool InputSystem::isMouseHeld(MouseButton button) const {
+    int buttonCode = static_cast<int>(button);
+    auto it = m_mouseButtonStates.find(buttonCode);
+    return it != m_mouseButtonStates.end() && it->second.currentState;
+}
+
+// === Cursor Control ===
+void InputSystem::setCursorMode(CursorMode mode) {
+    m_cursorMode = mode;
+    glfwSetInputMode(m_glfwWindow, GLFW_CURSOR, static_cast<int>(mode));
+}
+
+// === Utility Methods ===
+void InputSystem::clearStates() {
+    m_keyStates.clear();
+    m_mouseButtonStates.clear();
+    m_mouseState = MouseState{};
+}
+
+size_t InputSystem::getActiveKeyCount() const {
+    size_t count = 0;
+    for (const auto& [key, info] : m_keyStates) {
+        if (info.currentState) ++count;
+    }
+    return count;
+}
+
+size_t InputSystem::getActiveMouseButtonCount() const {
+    size_t count = 0;
+    for (const auto& [button, info] : m_mouseButtonStates) {
+        if (info.currentState) ++count;
+    }
+    return count;
+}
+
+// === Private Helper Methods ===
+void InputSystem::setupExceptionHandlers() {
     auto exceptionHandler = [](std::exception_ptr e) {
         try {
             if (e) std::rethrow_exception(e);
         }
         catch (const std::exception& ex) {
-            std::cerr << "Exception in input event handler: " << ex.what() << std::endl;
+            std::cerr << "Exception in InputSystem event: " << ex.what() << std::endl;
         }
         };
 
-    m_keyEvent = Event<int, KeyState>::create();
-    m_keyEvent->setExceptionHandler(exceptionHandler);
+    m_keyEvent.setExceptionHandler(exceptionHandler);
+    m_mouseButtonEvent.setExceptionHandler(exceptionHandler);
+    m_mouseMoveEvent.setExceptionHandler(exceptionHandler);
+    m_mouseScrollEvent.setExceptionHandler(exceptionHandler);
+    m_charEvent.setExceptionHandler(exceptionHandler);
+}
 
-    m_mouseButtonEvent = Event<MouseButton, bool>::create();
-    m_mouseButtonEvent->setExceptionHandler(exceptionHandler);
-
-    m_mouseMoveEvent = Event<glm::vec2>::create();
-    m_mouseMoveEvent->setExceptionHandler(exceptionHandler);
-
-    m_mouseScrollEvent = Event<float>::create();
-    m_mouseScrollEvent->setExceptionHandler(exceptionHandler);
-
-    // Initialize mouse position
+void InputSystem::initializeMousePosition() {
     double xpos, ypos;
     glfwGetCursorPos(m_glfwWindow, &xpos, &ypos);
-    m_currentMousePosition = m_previousMousePosition = glm::vec2(static_cast<float>(xpos), static_cast<float>(ypos));
-
-    // Setup callbacks after initializing everything else
-    setupCallbacks();
+    m_mouseState.position = glm::vec2(static_cast<float>(xpos), static_cast<float>(ypos));
 }
 
-InputSystem::~InputSystem() {
-    // Restore original window user pointer
-    if (m_glfwWindow && m_callbackDataPtr) {
-        auto* callbackData = static_cast<InputCallbackData*>(m_callbackDataPtr);
-        // Reset callbacks to prevent them from firing during destruction
-        glfwSetKeyCallback(m_glfwWindow, nullptr);
-        glfwSetMouseButtonCallback(m_glfwWindow, nullptr);
-        glfwSetCursorPosCallback(m_glfwWindow, nullptr);
-        glfwSetScrollCallback(m_glfwWindow, nullptr);
-
-        // Restore original user pointer
-        glfwSetWindowUserPointer(m_glfwWindow, callbackData->originalUserPointer);
-
-        delete callbackData;
-        m_callbackDataPtr = nullptr;
+void InputSystem::updateKeyStates() {
+    for (auto& [key, info] : m_keyStates) {
+        info.previousState = info.currentState;
     }
 }
 
-void InputSystem::update()
-{
-    // Update mouse delta
-    m_mouseDelta = m_currentMousePosition - m_previousMousePosition;
-
-    // Update previous states
-    m_previousKeyStates = m_currentKeyStates;
-    m_previousMouseButtonStates = m_currentMouseButtonStates;
-    m_previousMousePosition = m_currentMousePosition;
-
-    // Reset scroll delta each frame
-    m_mouseScrollDelta = 0.0f;
-}
-
-bool InputSystem::isKeyPressed(int key) const
-{
-    auto it = m_currentKeyStates.find(key);
-    auto prevIt = m_previousKeyStates.find(key);
-
-    return (it != m_currentKeyStates.end() && it->second) &&
-        (prevIt == m_previousKeyStates.end() || !prevIt->second);
-}
-
-bool InputSystem::isKeyReleased(int key) const
-{
-    auto it = m_currentKeyStates.find(key);
-    auto prevIt = m_previousKeyStates.find(key);
-
-    return (it == m_currentKeyStates.end() || !it->second) &&
-        (prevIt != m_previousKeyStates.end() && prevIt->second);
-}
-
-bool InputSystem::isKeyHeld(int key) const
-{
-    auto it = m_currentKeyStates.find(key);
-    return it != m_currentKeyStates.end() && it->second;
-}
-
-bool InputSystem::wasKeyPressed(int key) const
-{
-    auto prevIt = m_previousKeyStates.find(key);
-    return prevIt != m_previousKeyStates.end() && prevIt->second;
-}
-
-bool InputSystem::wasKeyReleased(int key) const
-{
-    auto prevIt = m_previousKeyStates.find(key);
-    return prevIt == m_previousKeyStates.end() || !prevIt->second;
-}
-
-bool InputSystem::isMouseButtonPressed(MouseButton button) const
-{
-    int buttonCode = static_cast<int>(button);
-    auto it = m_currentMouseButtonStates.find(buttonCode);
-    auto prevIt = m_previousMouseButtonStates.find(buttonCode);
-
-    return (it != m_currentMouseButtonStates.end() && it->second) &&
-        (prevIt == m_previousMouseButtonStates.end() || !prevIt->second);
-}
-
-bool InputSystem::isMouseButtonHeld(MouseButton button) const
-{
-    int buttonCode = static_cast<int>(button);
-    auto it = m_currentMouseButtonStates.find(buttonCode);
-    return it != m_currentMouseButtonStates.end() && it->second;
-}
-
-bool InputSystem::wasMouseButtonPressed(MouseButton button) const
-{
-    int buttonCode = static_cast<int>(button);
-    auto prevIt = m_previousMouseButtonStates.find(buttonCode);
-    return prevIt != m_previousMouseButtonStates.end() && prevIt->second;
-}
-
-bool InputSystem::wasMouseButtonReleased(MouseButton button) const
-{
-    int buttonCode = static_cast<int>(button);
-    auto prevIt = m_previousMouseButtonStates.find(buttonCode);
-    return prevIt == m_previousMouseButtonStates.end() || !prevIt->second;
-}
-
-glm::vec2 InputSystem::getMousePosition() const
-{
-    return m_currentMousePosition;
-}
-
-glm::vec2 InputSystem::getMouseDelta() const
-{
-    return m_mouseDelta;
-}
-
-float InputSystem::getMouseScrollDelta() const
-{
-    return m_mouseScrollDelta;
-}
-
-void InputSystem::setCursorMode(CursorMode mode) {
-    if (m_glfwWindow) {
-        glfwSetInputMode(m_glfwWindow, GLFW_CURSOR, static_cast<int>(mode));
+void InputSystem::updateMouseStates() {
+    for (auto& [button, info] : m_mouseButtonStates) {
+        info.previousState = info.currentState;
     }
 }
 
-void InputSystem::setupCallbacks()
-{
-    if (!m_glfwWindow) {
-        std::cerr << "Cannot set up input callbacks: window is null" << std::endl;
-        return;
-    }
-
-    // Get the current window user pointer (which is a Window*)
-    void* windowPtr = glfwGetWindowUserPointer(m_glfwWindow);
-
-    // Create new callback data that keeps track of the Window pointer
-    InputCallbackData* callbackData = new InputCallbackData{ this, windowPtr };
-    m_callbackDataPtr = callbackData;
-
-    // Replace the user pointer with our callback data
-    glfwSetWindowUserPointer(m_glfwWindow, callbackData);
-
-    // Set callbacks
-    glfwSetKeyCallback(m_glfwWindow, keyCallback);
-    glfwSetMouseButtonCallback(m_glfwWindow, mouseButtonCallback);
-    glfwSetCursorPosCallback(m_glfwWindow, cursorPositionCallback);
-    glfwSetScrollCallback(m_glfwWindow, scrollCallback);
-}
-
-void InputSystem::keyCallback(GLFWwindow* window, int key, int scancode, int action, int mods)
-{
-    auto* callbackData = static_cast<InputCallbackData*>(glfwGetWindowUserPointer(window));
-    if (!callbackData || !callbackData->inputSystem) return;
-
-    auto* input = callbackData->inputSystem;
+// === GLFW Callback Functions ===
+void InputSystem::keyCallback(GLFWwindow* window, int key, int scancode, int action, int mods) {
+    auto* input = getInputSystem(window);
+    if (!input) return;
 
     // Update key state
-    input->m_currentKeyStates[key] = (action != GLFW_RELEASE);
+    auto& keyInfo = input->m_keyStates[key];
+    keyInfo.currentState = (action != GLFW_RELEASE);
 
-    // Fire event
-    KeyState state;
+    // Determine key state for event
+    KeyState keyState;
     switch (action) {
-    case GLFW_PRESS:   state = KeyState::Pressed; break;
-    case GLFW_RELEASE: state = KeyState::Released; break;
-    case GLFW_REPEAT:  state = KeyState::Repeated; break;
-    default:           return;
+    case GLFW_PRESS:   keyState = KeyState::Pressed; break;
+    case GLFW_RELEASE: keyState = KeyState::Released; break;
+    case GLFW_REPEAT:  keyState = KeyState::Repeated; break;
+    default: return;
     }
 
-    tryInvoke(input->m_keyEvent, key, state);
+    keyInfo.lastEventState = keyState;
+
+    // Fire event
+    input->m_keyEvent.invoke(key, keyState);
 }
 
-void InputSystem::mouseButtonCallback(GLFWwindow* window, int button, int action, int mods)
-{
-    auto* callbackData = static_cast<InputCallbackData*>(glfwGetWindowUserPointer(window));
-    if (!callbackData || !callbackData->inputSystem) return;
-
-    auto* input = callbackData->inputSystem;
+void InputSystem::mouseButtonCallback(GLFWwindow* window, int button, int action, int mods) {
+    auto* input = getInputSystem(window);
+    if (!input) return;
 
     // Update button state
-    input->m_currentMouseButtonStates[button] = (action == GLFW_PRESS);
+    auto& buttonInfo = input->m_mouseButtonStates[button];
+    buttonInfo.currentState = (action == GLFW_PRESS);
 
     // Fire event
     MouseButton mouseButton = static_cast<MouseButton>(button);
     bool pressed = (action == GLFW_PRESS);
-    tryInvoke(input->m_mouseButtonEvent, mouseButton, pressed);
+    input->m_mouseButtonEvent.invoke(mouseButton, pressed);
 }
 
-void InputSystem::cursorPositionCallback(GLFWwindow* window, double xpos, double ypos)
-{
-    auto* callbackData = static_cast<InputCallbackData*>(glfwGetWindowUserPointer(window));
-    if (!callbackData || !callbackData->inputSystem) return;
+void InputSystem::cursorPositionCallback(GLFWwindow* window, double xpos, double ypos) {
+    auto* input = getInputSystem(window);
+    if (!input) return;
 
-    auto* input = callbackData->inputSystem;
+    glm::vec2 newPosition(static_cast<float>(xpos), static_cast<float>(ypos));
 
-    // Update mouse position
-    input->m_currentMousePosition = glm::vec2(static_cast<float>(xpos), static_cast<float>(ypos));
+    // Po prostu aktualizuj pozycję
+    input->m_mouseState.position = newPosition;
 
-    // Fire event
-    tryInvoke(input->m_mouseMoveEvent, input->m_currentMousePosition);
+    // Wyślij event z nową pozycją
+    input->m_mouseMoveEvent.invoke(newPosition);
 }
 
-void InputSystem::scrollCallback(GLFWwindow* window, double xoffset, double yoffset)
-{
-    auto* callbackData = static_cast<InputCallbackData*>(glfwGetWindowUserPointer(window));
-    if (!callbackData || !callbackData->inputSystem) return;
+void InputSystem::scrollCallback(GLFWwindow* window, double xoffset, double yoffset) {
+    auto* input = getInputSystem(window);
+    if (!input) return;
 
-    auto* input = callbackData->inputSystem;
+    // Aktualizuj scroll (akumuluj w ramach klatki)
+    input->m_mouseState.scroll += glm::vec2(
+        static_cast<float>(xoffset),
+        static_cast<float>(yoffset)
+    );
 
-    // Update scroll delta
-    input->m_mouseScrollDelta = static_cast<float>(yoffset);
+    // Wyślij event z deltą dla tego zdarzenia
+    glm::vec2 eventDelta(static_cast<float>(xoffset), static_cast<float>(yoffset));
+    input->m_mouseScrollEvent.invoke(eventDelta);
+}
 
-    // Fire event
-    tryInvoke(input->m_mouseScrollEvent, input->m_mouseScrollDelta);
+
+void InputSystem::charCallback(GLFWwindow* window, unsigned int codepoint) {
+    auto* input = getInputSystem(window);
+    if (!input) return;
+
+    // Fire character event for text input
+    input->m_charEvent.invoke(codepoint);
+}
+
+InputSystem* InputSystem::getInputSystem(GLFWwindow* window) {
+    if (!window) return nullptr;
+    return static_cast<InputSystem*>(glfwGetWindowUserPointer(window));
 }

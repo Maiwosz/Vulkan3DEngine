@@ -13,11 +13,11 @@ namespace LuaBindings {
             });
 
         engineNS.set_function("getDeltaTime", []() -> float {
-            return Engine::get().getDeltaTime();
+            return Engine::get().deltaTime();
             });
 
         engineNS.set_function("getTotalTime", []() -> float {
-            return Engine::get().getTotalTime();
+            return Engine::get().totalTime();
             });
 
     }

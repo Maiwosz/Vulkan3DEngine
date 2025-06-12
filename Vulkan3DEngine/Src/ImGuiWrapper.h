@@ -19,8 +19,8 @@ public:
     void render(VkCommandBuffer commandBuffer);
 
 private:
-    Window& r_window;
-    VulkanContext& r_context;
+    Window& m_window;
+    VulkanContext& m_context;
     VkDescriptorPool m_imguiPool = VK_NULL_HANDLE;
     bool m_initialized = false;
 

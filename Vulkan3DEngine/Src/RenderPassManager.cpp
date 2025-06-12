@@ -38,13 +38,18 @@ bool RenderPassConfig::operator==(const RenderPassConfig& other) const {
         resolveAttachmentIndex == other.resolveAttachmentIndex;
 }
 
-RenderPassManager::RenderPassManager(const LogicalDevice& logicalDevice) 
+RenderPassManager::RenderPassManager(const LogicalDevice& logicalDevice)
     : m_device(logicalDevice)
 {
 }
 
 RenderPassManager::~RenderPassManager() {
-    cleanup();
+    for (const auto& [handle, entry] : m_renderPasses) {
+        vkDestroyRenderPass(m_device.get(), entry.renderPass, nullptr);
+    }
+
+    m_renderPasses.clear();
+    m_configToHandle.clear();
 }
 
 RenderPassHandle RenderPassManager::acquireRenderPass(const RenderPassConfig& config) {
@@ -58,44 +63,89 @@ RenderPassHandle RenderPassManager::acquireRenderPass(const RenderPassConfig& co
     return createRenderPass(config);
 }
 
-VkRenderPass RenderPassManager::getRenderPass(RenderPassHandle handle) const {
+void RenderPassManager::recreateRenderPass(RenderPassHandle handle, const RenderPassConfig& newConfig) {
+    if (!isValid(handle)) {
+        throw std::runtime_error("Invalid render pass handle for recreation");
+    }
+
     auto it = m_renderPasses.find(handle);
     if (it == m_renderPasses.end()) {
-        throw std::runtime_error("Invalid render pass handle: " + std::to_string(handle.id));
+        throw std::runtime_error("Render pass handle not found");
     }
-    return it->second.renderPass;
+
+    // Remove old config mapping
+    auto configIt = m_configToHandle.find(it->second.config);
+    if (configIt != m_configToHandle.end()) {
+        m_configToHandle.erase(configIt);
+    }
+
+    // Destroy old render pass
+    vkDestroyRenderPass(m_device.get(), it->second.renderPass, nullptr);
+
+    // Create new render pass with new configuration
+    VkRenderPass newRenderPass = createVkRenderPass(newConfig);
+
+    // Update stored data
+    it->second.renderPass = newRenderPass;
+    it->second.config = newConfig;
+    m_configToHandle[newConfig] = handle;
+}
+
+VkRenderPass* RenderPassManager::getResource(RenderPassHandle handle) {
+    if (!handle.isValid()) {
+        return nullptr;
+    }
+
+    auto it = m_renderPasses.find(handle);
+    if (it == m_renderPasses.end()) {
+        return nullptr;
+    }
+
+    return &it->second.renderPass;
 }
 
 bool RenderPassManager::isValid(RenderPassHandle handle) const {
+    if (!handle.isValid()) {
+        return false;
+    }
+
     return m_renderPasses.find(handle) != m_renderPasses.end();
 }
 
-void RenderPassManager::destroy(RenderPassHandle handle) {
-    auto it = m_renderPasses.find(handle);
-    if (it == m_renderPasses.end()) {
-        return;
-    }
-
-    // Remove from config map
-    m_configToHandle.erase(it->second.config);
-
-    // Destroy the VkRenderPass
-    vkDestroyRenderPass(m_device.get(), it->second.renderPass, nullptr);
-
-    // Remove from handle map
-    m_renderPasses.erase(it);
+void RenderPassManager::releaseResource(RenderPassHandle handle) {
+    // No-op - render passes are kept until manager destruction
+    (void)handle; // Suppress unused parameter warning
 }
 
-void RenderPassManager::cleanup() {
-    for (const auto& [handle, entry] : m_renderPasses) {
-        vkDestroyRenderPass(m_device.get(), entry.renderPass, nullptr);
-    }
+void RenderPassManager::addReference(RenderPassHandle handle) {
+    // No-op - render passes are shared resources, no reference counting needed
+    // This manager keeps all render passes until destruction
+    (void)handle; // Suppress unused parameter warning
+}
 
-    m_renderPasses.clear();
-    m_configToHandle.clear();
+void RenderPassManager::removeReference(RenderPassHandle handle) {
+    // No-op - render passes are shared resources, no reference counting needed
+    // This manager keeps all render passes until destruction
+    (void)handle; // Suppress unused parameter warning
 }
 
 RenderPassHandle RenderPassManager::createRenderPass(const RenderPassConfig& config) {
+    // Create the Vulkan render pass using helper function
+    VkRenderPass renderPass = createVkRenderPass(config);
+
+    // Create a new handle
+    RenderPassHandle newHandle(m_nextHandleId++);
+
+    // Store the render pass
+    RenderPassEntry entry{ renderPass, config };
+    m_renderPasses[newHandle] = entry;
+    m_configToHandle[config] = newHandle;
+
+    return newHandle;
+}
+
+VkRenderPass RenderPassManager::createVkRenderPass(const RenderPassConfig& config)
+{
     // Verify we have at least one attachment
     if (config.attachments.empty()) {
         throw std::runtime_error("Cannot create render pass with no attachments");
@@ -197,13 +247,5 @@ RenderPassHandle RenderPassManager::createRenderPass(const RenderPassConfig& con
         throw std::runtime_error("Failed to create render pass");
     }
 
-    // Create a new handle
-    RenderPassHandle newHandle(m_nextHandleId++);
-
-    // Store the render pass
-    RenderPassEntry entry{ renderPass, config };
-    m_renderPasses[newHandle] = entry;
-    m_configToHandle[config] = newHandle;
-
-    return newHandle;
+    return renderPass; // zwróć utworzony VkRenderPass
 }

@@ -5,6 +5,8 @@
 #include <memory>
 #include <functional>
 #include "AttachmentManager.h"
+#include "Handle.h"
+#include "IResourceManager.h"
 
 // Forward declarations
 class LogicalDevice;
@@ -52,26 +54,7 @@ namespace std {
     };
 }
 
-// Handle for RenderPasses
-struct RenderPassHandle {
-    uint32_t id;
-
-    constexpr explicit RenderPassHandle(uint32_t id = 0) : id(id) {}
-
-    bool operator==(const RenderPassHandle&) const = default;
-    bool operator<(const RenderPassHandle& other) const { return id < other.id; }
-    explicit operator bool() const { return id != 0; }
-};
-
-namespace std {
-    template<> struct hash<RenderPassHandle> {
-        size_t operator()(const RenderPassHandle& handle) const {
-            return hash<uint32_t>()(handle.id);
-        }
-    };
-}
-
-class RenderPassManager {
+class RenderPassManager : public IResourceManager<RenderPassHandle, VkRenderPass> {
 public:
     RenderPassManager(const LogicalDevice& logicalDevice);
     ~RenderPassManager();
@@ -82,22 +65,22 @@ public:
 
     // Get or create a render pass with the specified configuration
     RenderPassHandle acquireRenderPass(const RenderPassConfig& config);
+    
+    // Recreate render pass with new configuration while keeping the same handle
+    void recreateRenderPass(RenderPassHandle handle, const RenderPassConfig& newConfig);
 
-    // Get an existing render pass by handle
-    VkRenderPass getRenderPass(RenderPassHandle handle) const;
-
-    // Check if handle is valid
-    bool isValid(RenderPassHandle handle) const;
-
-    // Destroy a specific render pass
-    void destroy(RenderPassHandle handle);
-
-    // Destroy all render passes
-    void cleanup();
+    // IResourceManager interface implementation
+    VkRenderPass* getResource(RenderPassHandle handle) override;
+    bool isValid(RenderPassHandle handle) const override;
+    void releaseResource(RenderPassHandle handle) override;
+    void addReference(RenderPassHandle handle) override;
+    void removeReference(RenderPassHandle handle) override;
 
 private:
     // Create a new render pass from a configuration
     RenderPassHandle createRenderPass(const RenderPassConfig& config);
+    // Helper function to create VkRenderPass from configuration
+    VkRenderPass createVkRenderPass(const RenderPassConfig& config);
 
     const LogicalDevice& m_device;
 

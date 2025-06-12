@@ -17,11 +17,12 @@
 #include "DescriptorLayoutManager.h"
 #include "ImageSamplerManager.h"
 #include "DescriptorAllocator.h"
+#include "Settings.h"
 
 class Renderer
 {
 public:
-    Renderer(Window& window);
+    Renderer(Settings& settings, Window& window);
     ~Renderer();
 
     void waitIdle() { vkDeviceWaitIdle(m_vulkanContext->logical().get()); }
@@ -43,11 +44,22 @@ public:
     PipelineManager& pipelineManager() { return *m_pipelineManager; }
     DescriptorAllocator& descriptorAllocator() { return *m_descriptorAllocator; }
 
-    RenderPassHandle renderPass() { return m_mainRenderPassHandle; }
+    //RenderPassHandle renderPass() { return m_mainRenderPassHandle; }
+    RenderPassHandle renderPass() {
+        SPDLOG_INFO("renderPass() called, m_mainRenderPassHandle.id = {}", m_mainRenderPassHandle.id);
+        RenderPassHandle result = m_mainRenderPassHandle;
+        SPDLOG_INFO("renderPass() returning, result.id = {}", result.id);
+        return result;
+    }
     AttachmentHandle depthAttachmentHandle() { return m_depthAttachmentHandle; }
     AttachmentHandle msColorAttachmentHandle() { return m_msColorAttachmentHandle; }
 
+    void recreateSwapChain();
+    void recreateRenderPass();
+    void recreateAttachments();
+
 private:
+	Settings& m_settings;
     Window& m_window;
     std::unique_ptr<VulkanContext> m_vulkanContext;
     std::unique_ptr<ShaderModuleManager> m_shaderModuleManager;
@@ -73,5 +85,4 @@ private:
 
     // Helper methods
     void createMainRenderPass();
-    void recreateRenderResources();
 };

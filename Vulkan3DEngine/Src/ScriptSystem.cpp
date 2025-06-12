@@ -43,7 +43,7 @@ void ScriptSystem::initialize() {
 
 void ScriptSystem::update(SystemContext<>& context) {
     auto& registry = context.getRegistry();
-    float deltaTime = Engine::get().getDeltaTime();
+    float deltaTime = Engine::get().deltaTime();
 
     // Get all entities with a ScriptComponent
     auto entities = registry.createView<ScriptComponent>();
@@ -51,7 +51,7 @@ void ScriptSystem::update(SystemContext<>& context) {
     if (entities.empty()) {
         // No script components found - log only once every few seconds
         static float lastLogTime = 0.0f;
-        float currentTime = Engine::get().getTotalTime();
+        float currentTime = Engine::get().totalTime();
         if (currentTime - lastLogTime > 5.0f) {
             SPDLOG_DEBUG("No script components in registry");
             lastLogTime = currentTime;

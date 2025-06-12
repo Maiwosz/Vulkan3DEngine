@@ -4,6 +4,7 @@
 #include <vector>
 #include <memory>
 #include "RenderOrder.h"
+#include "Handle.h"
 
 class RenderOrder;
 
@@ -16,6 +17,7 @@ struct FrameData {
     SmartCommandBufferHandle transferCommandBuffer;
     std::vector<std::shared_ptr<RenderOrder>> renderOrders;
     bool hasTransferCommands = false;
+	FrameBufferHandle framebufferHandle;
 };
 
 class FrameManager {
@@ -29,11 +31,21 @@ public:
     ~FrameManager();
 
     FrameData& getCurrentFrame() { return m_frames[m_currentFrame]; }
-    void advanceFrame() { m_currentFrame = (m_currentFrame + 1) % m_maxFrames;}
+    void advanceFrame() { m_currentFrame = (m_currentFrame + 1) % m_maxFrames; }
 
     void clearCurrentFrameOrders();
 
     void waitForAllFrames();
+
+    // Add method to reset a specific frame
+    void resetFrame(uint32_t frameIndex);
+
+    // Add method to reset all frames
+    void resetAllFrames() {
+        for (uint32_t i = 0; i < m_maxFrames; ++i) {
+            resetFrame(i);
+        }
+    }
 
     VkSemaphore getImageAvailableSemaphore() const { return m_frames[m_currentFrame].imageAvailable; }
     VkSemaphore getRenderFinishedSemaphore() const { return m_frames[m_currentFrame].renderFinished; }

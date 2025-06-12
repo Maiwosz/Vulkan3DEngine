@@ -91,6 +91,9 @@ bool MaterialManager::prepareAsset(const AssetHandle& handle, const AssetLib::As
         // Update texture handles after textures are loaded
         updateTextureHandles(materialHandle, manager);
 
+        // Collect sampler handles for dirty checking
+        collectSamplerHandles(materialHandle);
+
         materialData.isReady = true;
 
         SPDLOG_DEBUG("MaterialManager: Successfully prepared material {}", handle.filename);
@@ -228,8 +231,23 @@ SmartHandle<DescriptorSetHandle, VkDescriptorSet> MaterialManager::getDescriptor
 
     MaterialData& materialData = it->second;
 
-    // Check if we already have a valid descriptor set
-    if (materialData.descriptorSetValid && materialData.descriptorSet.isValid()) {
+    // Check if we have a valid descriptor set
+    bool needsRecreation = !materialData.descriptorSetValid || !materialData.descriptorSet.isValid();
+
+    // Check if any samplers are dirty
+    if (!needsRecreation) {
+        for (SamplerHandle samplerHandle : materialData.samplerHandles) {
+            if (m_samplerManager.isDirty(samplerHandle)) {
+                SPDLOG_DEBUG("MaterialManager: Sampler {} is dirty for material {}, recreating descriptor set",
+                    samplerHandle.id, materialData.material->name());
+                needsRecreation = true;
+                break;
+            }
+        }
+    }
+
+    // If descriptor set is valid and no samplers are dirty, return cached version
+    if (!needsRecreation) {
         return materialData.descriptorSet;
     }
 
@@ -242,6 +260,12 @@ SmartHandle<DescriptorSetHandle, VkDescriptorSet> MaterialManager::getDescriptor
 
         if (materialData.descriptorSet.isValid()) {
             materialData.descriptorSetValid = true;
+
+            // Clear dirty flags for all samplers
+            for (SamplerHandle samplerHandle : materialData.samplerHandles) {
+                m_samplerManager.clearDirty(samplerHandle);
+            }
+
             SPDLOG_DEBUG("MaterialManager: Created descriptor set for material {}",
                 materialData.material->name());
         }
@@ -462,6 +486,22 @@ void MaterialManager::updateTextureHandles(MaterialHandle materialHandle, AssetM
         }
     }
 }
+
+void MaterialManager::collectSamplerHandles(MaterialHandle materialHandle) {
+    auto& materialData = m_materials[materialHandle];
+    materialData.samplerHandles.clear();
+
+    // Collect all sampler handles from material parameters
+    for (const auto& param : materialData.material->parameters()) {
+        if (std::holds_alternative<Material::TextureParam>(param.value)) {
+            const auto& textureParam = std::get<Material::TextureParam>(param.value);
+            if (textureParam.samplerHandle.isValid()) {
+                materialData.samplerHandles.push_back(textureParam.samplerHandle);
+            }
+        }
+    }
+}
+
 
 uint32_t MaterialManager::findBindingForParameter(
     ShaderHandle shaderHandle,

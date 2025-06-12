@@ -38,5 +38,11 @@ VulkanContext::VulkanContext(
     float maxAnisotropy = m_physicalDevice.getMaxAnisotropy();
     bool anisotropySupported = m_physicalDevice.isAnisotropySupported();
 
-    Engine::get().settings().setHardwareLimits(maxMsaa, maxAnisotropy, anisotropySupported);
+	Settings::HardwareLimits limits = {
+		maxMsaa,
+		maxAnisotropy,
+		anisotropySupported
+	};
+
+    Engine::get().settings().setHardwareLimits(limits);
 }

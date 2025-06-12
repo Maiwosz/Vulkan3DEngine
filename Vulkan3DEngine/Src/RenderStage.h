@@ -27,6 +27,7 @@ public:
     void executeRenderPass();
 
 private:
+	Renderer& m_renderer;
     VulkanContext& m_vulkanContext;
     FrameManager& m_frameManager;
     VramManager& m_vramManager;

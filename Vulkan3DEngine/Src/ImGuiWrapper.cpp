@@ -11,8 +11,8 @@ ImGuiWrapper::ImGuiWrapper(
     uint32_t imageCount,
     VkSampleCountFlagBits msaaSamples
 ) 
-    : r_window(window),
-    r_context(context),
+    : m_window(window),
+    m_context(context),
     m_renderPass(renderPass),
     m_minImageCount(minImageCount),
     m_imageCount(imageCount),
@@ -39,17 +39,17 @@ void ImGuiWrapper::init() {
     io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;
     ImGui::StyleColorsDark();
 
-    // Inicjalizacja backendów
-    ImGui_ImplGlfw_InitForVulkan(r_window.get(), true);
+    // Inicjalizacja backendÃ³w
+    ImGui_ImplGlfw_InitForVulkan(m_window.get(), true);
 
     ImGui_ImplVulkan_InitInfo initInfo = {};
-    initInfo.Instance = r_context.instance().get();
-    initInfo.PhysicalDevice = r_context.physical().get();
-    initInfo.Device = r_context.logical().get();
+    initInfo.Instance = m_context.instance().get();
+    initInfo.PhysicalDevice = m_context.physical().get();
+    initInfo.Device = m_context.logical().get();
     
     // Pobieranie indeksu rodziny kolejek z LogicalDevice
-    initInfo.QueueFamily = r_context.logical().getQueueFamilyIndex(LogicalDevice::QueueType::Graphics);
-    initInfo.Queue = r_context.logical().getQueue(LogicalDevice::QueueType::Graphics);
+    initInfo.QueueFamily = m_context.logical().getQueueFamilyIndex(LogicalDevice::QueueType::Graphics);
+    initInfo.Queue = m_context.logical().getQueue(LogicalDevice::QueueType::Graphics);
     
     initInfo.DescriptorPool = m_imguiPool;
     initInfo.MinImageCount = m_minImageCount;
@@ -64,7 +64,7 @@ void ImGuiWrapper::init() {
 }
 
 void ImGuiWrapper::recreate() {
-    vkDeviceWaitIdle(r_context.logical().get());
+    vkDeviceWaitIdle(m_context.logical().get());
     shutdown();
     init();
 }
@@ -87,7 +87,7 @@ void ImGuiWrapper::createDescriptorPool() {
     pool_info.pPoolSizes = pool_sizes;
 
     VK_CHECK(vkCreateDescriptorPool(
-        r_context.logical().get(),
+        m_context.logical().get(),
         &pool_info,
         nullptr,
         &m_imguiPool
@@ -103,7 +103,7 @@ void ImGuiWrapper::shutdown() {
 
     if (m_imguiPool) {
         vkDestroyDescriptorPool(
-            r_context.logical().get(),
+            m_context.logical().get(),
             m_imguiPool,
             nullptr
         );

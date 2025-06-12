@@ -1,160 +1,244 @@
 #include "Engine.h"
 #include "LoggerConfig.h"
-#include <algorithm>
-#include <filesystem>
-#include <chrono>
-#include <iomanip>
 #include "Paths.h"
+#include <spdlog/spdlog.h>
+#include <filesystem>
+#include <thread>
+#include <stdexcept>
 
-void Engine::initialize(const char* title) {
-    std::filesystem::create_directories(LOGS_DIR);
+Engine& Engine::get() {
+    static Engine engine;
+    return engine;
+}
 
-    m_settings = std::make_unique<Settings>();
-    if (!m_settings->loadFromFile("settings.json")) {
-        // Na tym etapie logger jeszcze nie jest skonfigurowany
-        std::cerr << "Ostrzeżenie: Nie udało się załadować ustawień, używam domyślnej konfiguracji" << std::endl;
+Engine::~Engine() {
+    if (m_initialized) {
+        shutdown();
+    }
+}
+
+void Engine::initialize(const InitParams& params) {
+    if (m_initialized) {
+        SPDLOG_WARN("Engine already initialized");
+        return;
     }
 
     try {
-        LoggerConfig::LoggerOptions options;
-        options.loggerName = "ENGINE";
-        options.logDir = LOGS_DIR;
-        options.filePrefix = "engine_";
-        options.level = Settings::convertLogLevel(m_settings->getLogLevel());
-        options.maxOldLogFiles = 2;  // zachowaj 2 stare pliki + nowy
+        SPDLOG_INFO("Initializing Engine...");
 
-        auto logger = LoggerConfig::createLogger(options);
-        spdlog::set_default_logger(logger);
+        initializeLogging(params.logDir);
+        initializeComponents(params);
+        connectEventHandlers();
 
-        SPDLOG_INFO("Logger configured (level: {})",
-            spdlog::level::to_string_view(Settings::convertLogLevel(m_settings->getLogLevel())));
+        m_initialized = true;
+        SPDLOG_INFO("Engine initialization complete");
     }
-    catch (const std::exception& ex) {
-        std::cerr << "Logger configuration failed: " << ex.what() << std::endl;
-        throw std::runtime_error("Failed to initialize logger");
+    catch (const std::exception& e) {
+        SPDLOG_CRITICAL("Engine initialization failed: {}", e.what());
+        cleanupComponents();
+        throw;
+    }
+}
+
+void Engine::run() {
+    if (!m_initialized) {
+        throw std::runtime_error("Engine not initialized");
     }
 
-    SPDLOG_TRACE("Engine initialization started");
+    if (m_running) {
+        SPDLOG_WARN("Engine already running");
+        return;
+    }
 
-    // Initialize components
-    SPDLOG_DEBUG("Creating window: {}x{}",
-        m_settings->getCurrentResolutionDetails().width,
-        m_settings->getCurrentResolutionDetails().height);
-    m_window = std::make_unique<Window>(title, m_settings->getWindowMode(), m_settings->getResolution());
+    SPDLOG_INFO("Starting main loop");
 
-    SPDLOG_INFO("Initializing thread pool ({} workers)", std::thread::hardware_concurrency());
-    m_threadPool = std::make_unique<ThreadPool>(std::thread::hardware_concurrency());
+    m_running = true;
+    m_lastFrameTime = std::chrono::high_resolution_clock::now();
 
-    SPDLOG_DEBUG("Initializing input system");
-    m_inputSystem = std::make_unique<InputSystem>(*m_window);
+    try {
+        while (m_running && !m_window->shouldClose()) {
+            updateTiming();
+            update();
+            updateFPS();
+        }
+    }
+    catch (const std::exception& e) {
+        SPDLOG_ERROR("Error in main loop: {}", e.what());
+        m_running = false;
+        throw;
+    }
 
-    SPDLOG_INFO("Creating renderer");
-    m_renderer = std::make_unique<Renderer>(*m_window);
-
-    SPDLOG_DEBUG("Initializing asset system");
-    m_assetSystem = std::make_unique<AssetSystem>(*m_renderer);
-
-    SPDLOG_INFO("Preparing scene");
-    m_scene = std::make_unique<Scene>();
-
-    SPDLOG_INFO("Initializing Render System");
-    m_renderSystem = std::make_unique<RenderSystem>(
-        m_scene->registry(),
-        *m_assetSystem,
-        *m_renderer
-    );
-
-    SPDLOG_INFO("=== Engine ready ===");
+    SPDLOG_INFO("Main loop ended after {} frames", m_frameCount);
 }
 
 void Engine::shutdown() {
-    if (m_isShutdown) {
-        return; // Already shut down
+    if (!m_initialized) {
+        return;
     }
 
-    SPDLOG_INFO("Initiating engine shutdown");
-    m_isShutdown = true;
+    SPDLOG_INFO("Shutting down Engine...");
 
+    m_running = false;
+    m_shutdownRequested = true;
+
+    // Wait for renderer to finish current frame
     if (m_renderer) {
-        m_renderer->frameManager().waitForAllFrames();
         m_renderer->waitIdle();
-        m_renderer->commandBufferManager().cleanup();
     }
 
-    SPDLOG_DEBUG("Destroying scene...");
-    m_scene.reset();
+    // Cleanup in reverse order of initialization
+    cleanupComponents();
 
-    SPDLOG_DEBUG("Cleaning up render system...");
-    m_renderSystem.reset();
+    m_initialized = false;
+    SPDLOG_INFO("Engine shutdown complete");
 
-    SPDLOG_DEBUG("Cleaning up asset system...");
-    m_assetSystem.reset();
-
-    SPDLOG_INFO("Shutting down renderer...");
-    m_renderer.reset();
-
-    SPDLOG_DEBUG("Destroying input system...");
-    m_inputSystem.reset();
-
-    SPDLOG_DEBUG("Stopping thread pool...");
-    m_threadPool.reset();
-
-    SPDLOG_DEBUG("Closing window...");
-    m_window.reset();
-
-    SPDLOG_INFO("=== Engine shutdown complete ===");
+    // Flush and shutdown logging
     if (spdlog::default_logger()) {
         spdlog::default_logger()->flush();
         spdlog::shutdown();
     }
 }
 
+void Engine::initializeLogging(const std::string& logDir) {
+    std::filesystem::create_directories(logDir);
+
+    LoggerConfig::LoggerOptions options;
+    options.loggerName = "ENGINE";
+    options.logDir = logDir;
+    options.filePrefix = "engine_";
+    options.level = spdlog::level::info; // Default level, will be updated after settings load
+    options.maxOldLogFiles = 2;
+
+    auto logger = LoggerConfig::createLogger(options);
+    spdlog::set_default_logger(logger);
+}
+
+void Engine::initializeComponents(const InitParams& params) {
+    // Settings - must be first to configure other components
+    SPDLOG_DEBUG("Loading settings from '{}'", params.settingsFile);
+    m_settings = std::make_unique<Settings>();
+    if (!m_settings->load(params.settingsFile)) {
+        SPDLOG_WARN("Failed to load settings, using defaults");
+    }
+
+    // Update log level based on settings
+    spdlog::set_level(Settings::toSpdlogLevel(m_settings->getLogLevel()));
+    SPDLOG_INFO("Log level set to: {}", Settings::toString(m_settings->getLogLevel()));
+
+    // Window
+    SPDLOG_DEBUG("Creating window");
+    Window::CreateInfo windowInfo;
+    windowInfo.title = params.title;
+    windowInfo.mode = m_settings->getWindowMode();
+    windowInfo.resolution = m_settings->getResolution();
+    m_window = std::make_unique<Window>(windowInfo);
+
+    // Thread pool
+    if (params.enableThreadPool) {
+        size_t threadCount = params.threadCount;
+        if (threadCount == 0) {
+            threadCount = std::thread::hardware_concurrency();
+        }
+        SPDLOG_DEBUG("Creating thread pool with {} threads", threadCount);
+        m_threadPool = std::make_unique<ThreadPool>(threadCount);
+    }
+
+    // Input system
+    SPDLOG_DEBUG("Initializing input system");
+    m_inputSystem = std::make_unique<InputSystem>(*m_window);
+
+    // Renderer
+    SPDLOG_DEBUG("Creating renderer");
+    m_renderer = std::make_unique<Renderer>(*m_settings , *m_window);
+
+    // Asset system
+    SPDLOG_DEBUG("Initializing asset system");
+    m_assetSystem = std::make_unique<AssetSystem>(*m_renderer);
+
+    // Scene
+    SPDLOG_DEBUG("Creating scene");
+    m_scene = std::make_unique<Scene>();
+
+    // Render system
+    SPDLOG_DEBUG("Initializing render system");
+    m_renderSystem = std::make_unique<RenderSystem>(
+        m_scene->registry(),
+        *m_assetSystem,
+        *m_renderer
+    );
+}
+
+void Engine::connectEventHandlers() {
+    // Connect window close event to shutdown
+    m_windowCloseSubscription = m_window->onClose([this]() {
+        SPDLOG_INFO("Window close requested");
+        requestShutdown();
+        });
+
+    // Connect window to settings for automatic updates
+    m_window->connectToSettings(*m_settings);
+}
+
 void Engine::update() {
+    SPDLOG_TRACE("Frame {}: Delta={:.3f}ms", m_frameCount, m_deltaTime * 1000.0f);
+
+    // Poll window events
     m_window->pollEvents();
+
+    // Update input
     m_inputSystem->update();
+
+    // Update scene
     m_scene->update();
 
+    // Process rendering
     try {
         m_renderSystem->processOrders();
         m_renderSystem->renderFrame();
     }
     catch (const std::exception& e) {
         SPDLOG_ERROR("Render error: {}", e.what());
-    }
-
-    m_assetSystem->advanceFrame();
-}
-
-void Engine::run() {
-    m_running = true;
-    m_lastFrameTime = static_cast<float>(glfwGetTime());
-
-    SPDLOG_INFO("Starting main loop");
-    try {
-        while (m_running && !m_window->shouldClose()) {
-            try {
-                const float currentTime = static_cast<float>(glfwGetTime());
-                m_deltaTime = currentTime - m_lastFrameTime;
-                m_lastFrameTime = currentTime;
-                m_totalTime += m_deltaTime;
-                m_frameCount++;
-
-                SPDLOG_TRACE("Frame {} (Delta: {:.3f}ms)", m_frameCount, m_deltaTime * 1000.0f);
-                update();
-            }
-            catch (const std::exception& e) {
-                SPDLOG_ERROR("Error in frame {}: {}", m_frameCount, e.what());
-                m_renderer->waitIdle();
-            }
-        }
-    }
-    catch (const std::exception& e) {
-        SPDLOG_CRITICAL("Critical error in main loop: {}", e.what());
-        shutdown();
         throw;
     }
 
-    SPDLOG_INFO("Main loop terminated (processed {} frames)", m_frameCount);
+    // Advance asset system frame
+    m_assetSystem->advanceFrame();
 
-    shutdown();
+    m_frameCount++;
+}
+
+void Engine::updateTiming() {
+    auto currentTime = std::chrono::high_resolution_clock::now();
+    auto duration = std::chrono::duration_cast<std::chrono::microseconds>(
+        currentTime - m_lastFrameTime);
+
+    m_deltaTime = duration.count() / 1000000.0f;
+    m_totalTime += m_deltaTime;
+    m_lastFrameTime = currentTime;
+}
+
+void Engine::updateFPS() {
+    m_fpsUpdateTimer += m_deltaTime;
+    m_fpsFrameCount++;
+
+    if (m_fpsUpdateTimer >= FPS_UPDATE_INTERVAL) {
+        m_fps = m_fpsFrameCount / m_fpsUpdateTimer;
+        m_fpsUpdateTimer = 0.0f;
+        m_fpsFrameCount = 0;
+    }
+}
+
+void Engine::cleanupComponents() {
+    // Unsubscribe from events first
+    m_windowCloseSubscription.unsubscribe();
+
+    // Cleanup in reverse order
+    m_renderSystem.reset();
+    m_scene.reset();
+    m_assetSystem.reset();
+    m_renderer.reset();
+    m_inputSystem.reset();
+    m_window.reset();
+    m_threadPool.reset();
+    m_settings.reset();
 }

@@ -1,6 +1,8 @@
 #pragma once
 #include "VramManager.h"
 #include "Image.h"
+#include "IResourceManager.h"
+#include "Handle.h"
 #include <unordered_map>
 #include <memory>
 #include <string>
@@ -27,7 +29,6 @@ struct AttachmentSpec {
     VkImageLayout initialLayout;
     VkImageLayout finalLayout;
     AttachmentType type;
-    std::string name;  // Optional name for debugging
 
     bool operator==(const AttachmentSpec& other) const {
         return format == other.format &&
@@ -66,24 +67,6 @@ namespace std {
     };
 }
 
-struct AttachmentHandle {
-    uint32_t id;
-
-    constexpr explicit AttachmentHandle(uint32_t id = 0) : id(id) {}
-
-    bool operator==(const AttachmentHandle&) const = default;
-    bool operator<(const AttachmentHandle& other) const { return id < other.id; }
-    explicit operator bool() const { return id != 0; }
-};
-
-namespace std {
-    template<> struct hash<AttachmentHandle> {
-        size_t operator()(const AttachmentHandle& handle) const {
-            return hash<uint32_t>()(handle.id);
-        }
-    };
-}
-
 class Attachment {
 public:
     Attachment(VramHandle imageHandle, VkImageView imageView, const AttachmentSpec& spec)
@@ -105,7 +88,7 @@ private:
     AttachmentSpec m_spec;
 };
 
-class AttachmentManager {
+class AttachmentManager : public IResourceManager<AttachmentHandle, Attachment> {
 public:
     AttachmentManager(const LogicalDevice& device, VramManager& vramManager);
     ~AttachmentManager();
@@ -114,8 +97,16 @@ public:
     AttachmentManager(const AttachmentManager&) = delete;
     AttachmentManager& operator=(const AttachmentManager&) = delete;
 
+    // IResourceManager interface implementation
+    Attachment* getResource(AttachmentHandle handle) override;
+    bool isValid(AttachmentHandle handle) const override;
+    void releaseResource(AttachmentHandle handle) override;
+    void addReference(AttachmentHandle handle) override;
+    void removeReference(AttachmentHandle handle) override;
+
+    // AttachmentManager specific methods
     // Create or get an attachment based on specification
-    AttachmentHandle getOrCreate(const AttachmentSpec& spec);
+    AttachmentHandle acquireAttachment(const AttachmentSpec& spec);
 
     // Register an external image as an attachment (for swapchain images)
     AttachmentHandle registerExternalImage(
@@ -124,36 +115,26 @@ public:
         VkExtent2D extent,
         VkImageLayout initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
         VkImageLayout finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
-        AttachmentType type = AttachmentType::Color,
-        const std::string& name = "SwapchainAttachment");
-
-    // Get attachment by handle
-    const Attachment* get(AttachmentHandle handle) const;
-
-    // Check if handle is valid
-    bool isValid(AttachmentHandle handle) const;
-
-    // Destroy an attachment
-    void destroy(AttachmentHandle handle);
-
-    // Clean up all attachments
-    void cleanup();
-
-    // Get all attachments
-    const std::unordered_map<AttachmentHandle, std::unique_ptr<Attachment>>& getAllAttachments() const {
-        return m_attachments;
-    }
-
-    // Handle window resize events - recreate attachments as needed
-    void onResize(VkExtent2D newExtent);
+        AttachmentType type = AttachmentType::Color
+    );
 
 private:
+    struct AttachmentData {
+        std::unique_ptr<Attachment> attachment;
+        uint32_t referenceCount;
+
+        AttachmentData(std::unique_ptr<Attachment> att)
+            : attachment(std::move(att)), referenceCount(1) {
+        }
+    };
+
     // Create a new attachment from a specification
     AttachmentHandle createAttachment(const AttachmentSpec& spec);
 
     // Helper functions
     VkImageUsageFlags getDefaultUsageFlags(AttachmentType type) const;
     VkImageView createImageView(VramHandle imageHandle, const AttachmentSpec& spec);
+    void destroyAttachment(AttachmentHandle handle);
 
     const LogicalDevice& m_device;
     VramManager& m_vramManager;
@@ -161,8 +142,8 @@ private:
     // Maps from spec to handle for quick lookup
     std::unordered_map<AttachmentSpec, AttachmentHandle> m_specToHandle;
 
-    // Maps from handle to attachment objects
-    std::unordered_map<AttachmentHandle, std::unique_ptr<Attachment>> m_attachments;
+    // Maps from handle to attachment objects with reference counting
+    std::unordered_map<AttachmentHandle, AttachmentData> m_attachments;
 
     // Maps for keeping track of size-dependent attachments
     std::vector<AttachmentHandle> m_sizeDependent;

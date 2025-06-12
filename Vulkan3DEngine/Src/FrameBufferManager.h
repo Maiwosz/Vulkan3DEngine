@@ -5,6 +5,8 @@
 #include <memory>
 #include "RenderPassManager.h"
 #include "AttachmentManager.h"
+#include "IResourceManager.h"
+#include "Handle.h"
 
 // Forward declarations
 class LogicalDevice;
@@ -31,79 +33,64 @@ namespace std {
     };
 }
 
-// Handle for FrameBuffers
-struct FrameBufferHandle {
-    uint32_t id;
+// Wrapper for VkFramebuffer to be used as ResourceType
+struct FrameBufferResource {
+    VkFramebuffer frameBuffer;
+    FrameBufferConfig config;
+    uint32_t refCount = 0;
 
-    constexpr explicit FrameBufferHandle(uint32_t id = 0) : id(id) {}
-
-    bool operator==(const FrameBufferHandle&) const = default;
-    bool operator<(const FrameBufferHandle& other) const { return id < other.id; }
-    explicit operator bool() const { return id != 0; }
+    FrameBufferResource(VkFramebuffer fb, const FrameBufferConfig& cfg)
+        : frameBuffer(fb), config(cfg) {
+    }
 };
 
-namespace std {
-    template<> struct hash<FrameBufferHandle> {
-        size_t operator()(const FrameBufferHandle& handle) const {
-            return hash<uint32_t>()(handle.id);
-        }
-    };
-}
-
-class FrameBufferManager {
+class FrameBufferManager : public IResourceManager<FrameBufferHandle, FrameBufferResource> {
 public:
     FrameBufferManager(const LogicalDevice& logicalDevice,
-        const RenderPassManager& renderPassManager,
-        const AttachmentManager& attachmentManager);
+        RenderPassManager& renderPassManager,
+        AttachmentManager& attachmentManager);
     ~FrameBufferManager();
 
     // Delete copy constructors
     FrameBufferManager(const FrameBufferManager&) = delete;
     FrameBufferManager& operator=(const FrameBufferManager&) = delete;
 
-    // Get or create a framebuffer with the specified configuration
-    FrameBufferHandle getOrCreate(const FrameBufferConfig& config);
+    // IResourceManager interface implementation
+    FrameBufferResource* getResource(FrameBufferHandle handle) override;
+    bool isValid(FrameBufferHandle handle) const override;
+    void releaseResource(FrameBufferHandle handle) override;
+    void addReference(FrameBufferHandle handle) override;
+    void removeReference(FrameBufferHandle handle) override;
 
-    // Get or create a framebuffer using the render pass and attachments
-    FrameBufferHandle getOrCreate(RenderPassHandle renderPassHandle,
+    FrameBufferHandle acquireFrameBuffer(const FrameBufferConfig& config);
+    FrameBufferHandle acquireFrameBuffer(RenderPassHandle renderPassHandle,
         const std::vector<AttachmentHandle>& attachmentHandles,
         VkExtent2D extent);
 
-    // Get an existing framebuffer by handle
-    VkFramebuffer get(FrameBufferHandle handle) const;
-
-    // Check if handle is valid
-    bool isValid(FrameBufferHandle handle) const;
-
-    // Destroy a specific framebuffer
-    void destroy(FrameBufferHandle handle);
-
     // Handle window resize events - invalidate size-dependent framebuffers
     void onResize(VkExtent2D newExtent);
-
-    // Destroy all framebuffers
-    void cleanup();
-
 private:
     // Create a new framebuffer from a configuration
     FrameBufferHandle createFrameBuffer(const FrameBufferConfig& config);
 
+    // Internal destroy method
+    void destroyFrameBuffer(FrameBufferHandle handle);
+
     const LogicalDevice& m_device;
-    const RenderPassManager& m_renderPassManager;
-    const AttachmentManager& m_attachmentManager;
+    RenderPassManager& m_renderPassManager;
+    AttachmentManager& m_attachmentManager;
 
     // Map from configuration hash to framebuffer handle
     std::unordered_map<FrameBufferConfig, FrameBufferHandle> m_configToHandle;
 
-    // Map from handle to VkFramebuffer and its configuration
-    struct FrameBufferEntry {
-        VkFramebuffer frameBuffer;
-        FrameBufferConfig config;
-    };
-    std::unordered_map<FrameBufferHandle, FrameBufferEntry> m_frameBuffers;
+    // Map from handle to resource
+    std::unordered_map<FrameBufferHandle, std::unique_ptr<FrameBufferResource>> m_frameBuffers;
 
     // Keep track of size-dependent framebuffers
     std::vector<FrameBufferHandle> m_sizeDependent;
+
+    // Pula dostępnych framebufferów (gotowych do ponownego użycia)
+    std::unordered_map<FrameBufferConfig, std::vector<FrameBufferHandle>> m_availablePool;
 
     uint32_t m_nextHandleId = 1;
 };

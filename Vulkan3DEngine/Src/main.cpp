@@ -28,7 +28,7 @@ int main() {
 
     try {
         Engine& engine = Engine::get();
-        engine.initialize("Vulkan3DEngine"); // Engine logger configuration happens here
+        engine.initialize(); // Engine logger configuration happens here
 
         // Create editor with its own logger
         Editor editor(ASSETS_SRC, ASSETS_COMP);
