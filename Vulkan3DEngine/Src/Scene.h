@@ -25,6 +25,7 @@ private:
     Entity testEntity3;
     Entity testDirectionalLight;
     Entity testPointLight;
+    Entity testPointLight2;
     Entity testCamera;
     Entity testFloor;
     std::unique_ptr<Registry> m_registry;

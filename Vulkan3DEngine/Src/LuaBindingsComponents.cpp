@@ -25,7 +25,7 @@ namespace LuaBindings {
             "getRotation", &TransformComponent::getRotation,
             "setScale", [](TransformComponent& self, const glm::vec3& scale) { self.setScale(scale); },
             "getScale", &TransformComponent::getScale,
-            "getModelMatrix", &TransformComponent::getModelMatrix,
+            "getModelMatrix", &TransformComponent::getWorldMatrix,
             "getViewMatrix", &TransformComponent::getViewMatrix
         );
     }
@@ -95,8 +95,8 @@ namespace LuaBindings {
     void registerScriptComponent(sol::state& state) {
         state.new_usertype<ScriptComponent>("ScriptComponent",
             sol::constructors<ScriptComponent()>(),
-            "setScriptPath", &ScriptComponent::setScriptPath,
-            "getScriptPath", &ScriptComponent::getScriptPath
+            "setScriptPath", &ScriptComponent::setScript,
+            "getScriptPath", &ScriptComponent::getScript
         );
     }
 }

@@ -25,6 +25,8 @@ public:
     Renderer(Settings& settings, Window& window);
     ~Renderer();
 
+	void advanceFrame();
+
     void waitIdle() { vkDeviceWaitIdle(m_vulkanContext->logical().get()); }
 
     VulkanContext& vulkanContext() { return *m_vulkanContext; }

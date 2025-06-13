@@ -1,13 +1,16 @@
 #pragma once
 #include "System.h"
+#include "ISerializable.h"
 #include <unordered_map>
 #include <typeindex>
 #include <memory>
 #include <stdexcept>
 
-class SystemManager {
+class SystemManager : public ISerializable {
 public:
-    SystemManager(Registry& registry) : m_registry(registry) {}
+    SystemManager(Registry& registry) : m_registry(registry) {
+        initializeSystems();
+    }
 
     template<typename T>
     void registerSystem() {
@@ -18,6 +21,13 @@ public:
             throw std::runtime_error("System already registered");
         }
         m_systems[type] = std::make_unique<T>();
+        m_systemActive[type] = false; // Domyślnie nieaktywny
+    }
+
+    template<typename T>
+    void registerSystemActive() {
+        registerSystem<T>();
+        setSystemActive<T>(true);
     }
 
     template<typename T>
@@ -30,13 +40,48 @@ public:
         return static_cast<T&>(*it->second);
     }
 
+    template<typename T>
+    void setSystemActive(bool active) {
+        auto type = std::type_index(typeid(T));
+        if (m_systems.find(type) == m_systems.end()) {
+            throw std::runtime_error("System not registered");
+        }
+        m_systemActive[type] = active;
+    }
+
+    template<typename T>
+    bool isSystemActive() const {
+        auto type = std::type_index(typeid(T));
+        auto it = m_systemActive.find(type);
+        return it != m_systemActive.end() ? it->second : false;
+    }
+
     void updateAll() {
         for (auto& [type, system] : m_systems) {
-            system->update(*this, m_registry);
+            if (m_systemActive[type]) {
+                system->update(*this, m_registry);
+            }
         }
     }
 
+    // Dodatkowe metody użyteczne do debugowania
+    size_t getSystemCount() const { return m_systems.size(); }
+    size_t getActiveSystemCount() const {
+        size_t count = 0;
+        for (const auto& [type, active] : m_systemActive) {
+            if (active) count++;
+        }
+        return count;
+    }
+
+    // ISerializable implementation
+    json serialize() const override;
+    void deserialize(const json& j) override;
+
 private:
+    void initializeSystems(); // Implementacja w .cpp
+
     Registry& m_registry;
     std::unordered_map<std::type_index, std::unique_ptr<ISystem>> m_systems;
+    std::unordered_map<std::type_index, bool> m_systemActive;
 };

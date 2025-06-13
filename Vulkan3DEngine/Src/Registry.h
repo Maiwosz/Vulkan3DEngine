@@ -7,12 +7,14 @@
 #include "Entity.h"
 #include "Component.h"
 #include "SystemManager.h"
+#include "HierarchyManager.h"
 
 class SystemManager;
 
 class Registry {
 public:
-    SystemManager& getSystemManager() { return *m_systemManager; }
+    SystemManager& systems() { return *m_systemManager; }
+    HierarchyManager& hierarchy() { return m_hierarchyManager; }
 
     Registry();
 
@@ -31,7 +33,7 @@ public:
         }
 
         auto& pool = static_cast<ComponentPool<T>&>(*poolIt->second);
-        return pool.add(entity, T(std::forward<Args>(args)...));
+        return pool.add(entity, T(std::forward<Args>(args)...), *this);
     }
 
     template<typename T>
@@ -69,11 +71,33 @@ public:
         return result;
     }
 
+    // Metody pomocnicze dla hierarchii
+    void setParent(Entity child, Entity parent) {
+        m_hierarchyManager.setParent(child, parent);
+    }
+
+    void removeParent(Entity child) {
+        m_hierarchyManager.removeParent(child);
+    }
+
+    Entity getParent(Entity entity) const {
+        return m_hierarchyManager.getParent(entity);
+    }
+
+    const std::unordered_set<Entity>& getChildren(Entity entity) const {
+        return m_hierarchyManager.getChildren(entity);
+    }
+
+    bool hasParent(Entity entity) const {
+        return m_hierarchyManager.hasParent(entity);
+    }
+
 private:
     std::set<Entity> m_entities;
     std::set<Entity> m_freeEntities;
     uint32_t m_nextId_ = 1;
     std::unique_ptr<SystemManager> m_systemManager;
+    HierarchyManager m_hierarchyManager;
 
     struct IComponentPool {
         virtual ~IComponentPool() = default;
@@ -87,10 +111,11 @@ private:
         std::unordered_map<Entity, size_t> m_entityToIndex;
         std::unordered_map<size_t, Entity> m_indexToEntity;
 
-        T& add(Entity entity, T&& component) {
+        T& add(Entity entity, T&& component, Registry& registry) {
             static_assert(std::is_base_of_v<Component, T>,
                 "T must inherit from Component");
             component.entity = entity;
+            component.setRegistry(&registry);
             size_t index = m_components.size();
             m_entityToIndex[entity] = index;
             m_indexToEntity[index] = entity;

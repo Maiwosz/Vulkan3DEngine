@@ -68,7 +68,7 @@ void UniformBufferStage::processMeshOrder(std::shared_ptr<MeshRenderOrder> order
         auto& transformComponent = m_registry.getComponent<TransformComponent>(order->entity);
 
         // Fill object UBO data
-        objectUboData.model = transformComponent.getModelMatrix();
+        objectUboData.model = transformComponent.getWorldMatrix();
 
         // Update buffer with data
         m_uniformBufferManager.updateBuffer(smartObjectUbo.handle(), &objectUboData, sizeof(objectUboData));

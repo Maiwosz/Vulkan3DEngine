@@ -15,14 +15,12 @@
 Scene::Scene()
 {
     m_registry = std::make_unique<Registry>();
-    auto& systems = m_registry->getSystemManager();
-    systems.registerSystem<ScriptSystem>();
-    systems.registerSystem<AssetCollectionSystem>();
-    systems.registerSystem<MeshRenderSystem>();
-    systems.registerSystem<LightSystem>();
-    systems.registerSystem<CameraSystem>();
-
-    systems.getSystem<ScriptSystem>().initialize();
+    auto& systems = m_registry->systems();
+    systems.setSystemActive<ScriptSystem>(true);
+    systems.setSystemActive<AssetCollectionSystem>(true);
+    systems.setSystemActive<MeshRenderSystem>(true);
+    systems.setSystemActive<LightSystem>(true);
+    systems.setSystemActive<CameraSystem>(true);
 
     // Creating object with mesh
     testEntity = m_registry->create();
@@ -138,7 +136,7 @@ Scene::Scene()
 
         // Add light orbiter script
         auto& script = m_registry->addComponent<ScriptComponent>(testCamera);
-        script.setScriptPath("CameraController");
+        script.setScript("CameraController");
     }
 
     // Directional light
@@ -169,7 +167,22 @@ Scene::Scene()
 
         // Add light orbiter script
         auto& script = m_registry->addComponent<ScriptComponent>(testPointLight);
-        script.setScriptPath("LightOrbiter");
+        script.setScript("LightOrbiter");
+    }
+
+    testPointLight2 = m_registry->create();
+    {
+        auto& transform = m_registry->addComponent<TransformComponent>(testPointLight2);
+
+		m_registry->hierarchy().setParent(testPointLight2, testPointLight);
+
+        // Initial position (will be overridden by script)
+        transform.setLocalPosition(glm::vec3(20.0f, 0.0f, 0.0f));
+
+        // Add light component
+        auto& light = m_registry->addComponent<LightComponent>(testPointLight2, LightComponent::Type::Point);
+        light.setRadius(12.0f);
+        light.setColor(glm::vec4(1.0f, 0.0f, 0.0f, 1.0f));
     }
 }
 
@@ -180,5 +193,5 @@ Scene::~Scene()
 
 void Scene::update()
 {
-    m_registry->getSystemManager().updateAll();
+    m_registry->systems().updateAll();
 }

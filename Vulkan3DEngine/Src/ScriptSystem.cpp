@@ -10,18 +10,7 @@
 
 ScriptSystem::ScriptSystem() {
     m_luaState = std::make_unique<sol::state>();
-    SPDLOG_INFO("ScriptSystem constructed");
-}
 
-ScriptSystem::~ScriptSystem() {
-    // Call OnDestroy for all scripts
-    for (auto& [entity, scriptTable] : m_scriptInstances) {
-        callOnDestroy(entity, scriptTable);
-    }
-    m_scriptInstances.clear();
-}
-
-void ScriptSystem::initialize() {
     SPDLOG_DEBUG("Initializing ScriptSystem");
 
     // Open Lua libraries
@@ -39,6 +28,16 @@ void ScriptSystem::initialize() {
 
     SPDLOG_DEBUG("Current working directory: {}",
         std::filesystem::current_path().string());
+
+    SPDLOG_INFO("ScriptSystem constructed");
+}
+
+ScriptSystem::~ScriptSystem() {
+    // Call OnDestroy for all scripts
+    for (auto& [entity, scriptTable] : m_scriptInstances) {
+        callOnDestroy(entity, scriptTable);
+    }
+    m_scriptInstances.clear();
 }
 
 void ScriptSystem::update(SystemContext<>& context) {
@@ -66,7 +65,7 @@ void ScriptSystem::update(SystemContext<>& context) {
         // Initialize the script if not already initialized
         if (!script.isInitialized()) {
             SPDLOG_DEBUG("Initializing script for entity {}, path: {}",
-                entity.id, script.getScriptPath());
+                entity.id, script.getScript());
 
             if (loadScript(entity, script)) {
                 script.setInitialized(true);
@@ -117,7 +116,7 @@ void ScriptSystem::update(SystemContext<>& context) {
 
 
 bool ScriptSystem::loadScript(Entity entity, ScriptComponent& script) {
-    const std::string& path = script.getScriptPath();
+    const std::string& path = script.getScript();
     if (path.empty()) {
         SPDLOG_ERROR("Script path is empty for entity {}", entity.id);
         return false;

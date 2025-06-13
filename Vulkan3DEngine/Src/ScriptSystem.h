@@ -12,7 +12,6 @@ public:
     ScriptSystem();
     ~ScriptSystem();
 
-    void initialize();
     void update(SystemContext<>& context) override;
 
     // Add a getter for the Lua state to use in bindings

@@ -120,6 +120,19 @@ void FrameManager::resetFrame(uint32_t frameIndex) {
 
     auto& frame = m_frames[frameIndex];
 
+    if (frame.inFlightFence != VK_NULL_HANDLE) {
+        VkResult result = vkWaitForFences(
+            m_vulkanContext.logical().get(),
+            1,
+            &frame.inFlightFence,
+            VK_TRUE,
+            UINT64_MAX
+        );
+        if (result != VK_SUCCESS) {
+            SPDLOG_ERROR("Failed to wait for fence in resetFrame");
+        }
+    }
+
     // Clear render orders
     frame.renderOrders.clear();
     frame.hasTransferCommands = false;

@@ -185,7 +185,7 @@ void RenderStage::executeRenderPass() {
         m_mainRenderPassHandle = m_renderer.renderPass(); // Refresh main render pass handle
 
         // Advance frame counter to keep synchronization consistent
-        m_frameManager.advanceFrame();
+        m_renderer.advanceFrame();
         return;
     }
     else if (result != VK_SUCCESS) {
@@ -332,7 +332,7 @@ void RenderStage::executeRenderPass() {
         currentFrame.hasTransferCommands = false;
 
         // Advance to the next frame
-        m_frameManager.advanceFrame();
+        m_renderer.advanceFrame();
         return;
     }
 
@@ -360,7 +360,7 @@ void RenderStage::executeRenderPass() {
         m_mainRenderPassHandle = m_renderer.renderPass(); // Refresh main render pass handle
 
         // Advance frame counter
-        m_frameManager.advanceFrame();
+        m_renderer.advanceFrame();
         return;
     }
     else if (result != VK_SUCCESS) {
@@ -373,7 +373,7 @@ void RenderStage::executeRenderPass() {
     currentFrame.hasTransferCommands = false;
 
     // Advance to the next frame
-    m_frameManager.advanceFrame();
+    m_renderer.advanceFrame();
     SPDLOG_DEBUG("Advanced to next frame");
 }
 

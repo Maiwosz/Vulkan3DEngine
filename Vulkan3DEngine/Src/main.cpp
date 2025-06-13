@@ -1,7 +1,5 @@
-// main.cpp (updated)
 #include "Engine.h"
 #include "Editor.h"
-#define SPDLOG_ACTIVE_LEVEL SPDLOG_LEVEL_TRACE
 #include <spdlog/spdlog.h>
 #include <spdlog/sinks/stdout_color_sinks.h>
 #include <csignal>
@@ -28,7 +26,10 @@ int main() {
 
     try {
         Engine& engine = Engine::get();
-        engine.initialize(); // Engine logger configuration happens here
+		Engine::InitParams initParams;
+		initParams.title = "Vulkan3DEngine";
+		initParams.logDir = LOGS_DIR;
+        engine.initialize(initParams); // Engine logger configuration happens here
 
         // Create editor with its own logger
         Editor editor(ASSETS_SRC, ASSETS_COMP);

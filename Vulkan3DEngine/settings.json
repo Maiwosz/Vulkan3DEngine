@@ -1,9 +1,9 @@
 {
     "framesInFlight": 3,
-    "logLevel": 0,
+    "logLevel": 4,
     "msaaSamples": 4,
     "resolution": 3,
     "textureFiltering": 2,
-    "vsyncEnabled": true,
+    "vsyncEnabled": false,
     "windowMode": 0
 }

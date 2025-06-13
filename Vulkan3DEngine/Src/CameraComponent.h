@@ -1,5 +1,6 @@
 #pragma once
 #include "Component.h"
+#include "BinaryWriter.h"
 #include <glm/glm.hpp>
 
 struct TransformComponent;
@@ -32,7 +33,7 @@ public:
         incrementVersion();
     }
 
-    void setClippingPlanes(float nearPlane, float farPlane){
+    void setClippingPlanes(float nearPlane, float farPlane) {
         m_nearClip = nearPlane;
         m_farClip = farPlane;
         incrementVersion();
@@ -62,6 +63,75 @@ public:
             -m_orthographicSize, m_orthographicSize,
             m_nearClip, m_farClip
         );
+    }
+
+    // ISerializable implementation
+    json serialize() const override {
+        json j;
+        j["projectionType"] = (m_projectionType == ProjectionType::Perspective) ? "perspective" : "orthographic";
+        j["aspectRatio"] = m_aspectRatio;
+        j["verticalFOV"] = m_verticalFOV;
+        j["orthographicSize"] = m_orthographicSize;
+        j["nearClip"] = m_nearClip;
+        j["farClip"] = m_farClip;
+        return j;
+    }
+
+    void deserialize(const json& j) override {
+        if (j.contains("projectionType") && j["projectionType"].is_string()) {
+            std::string projType = j["projectionType"];
+            m_projectionType = (projType == "perspective") ? ProjectionType::Perspective : ProjectionType::Orthographic;
+        }
+        if (j.contains("aspectRatio") && j["aspectRatio"].is_number()) {
+            m_aspectRatio = j["aspectRatio"];
+        }
+        if (j.contains("verticalFOV") && j["verticalFOV"].is_number()) {
+            m_verticalFOV = j["verticalFOV"];
+        }
+        if (j.contains("orthographicSize") && j["orthographicSize"].is_number()) {
+            m_orthographicSize = j["orthographicSize"];
+        }
+        if (j.contains("nearClip") && j["nearClip"].is_number()) {
+            m_nearClip = j["nearClip"];
+        }
+        if (j.contains("farClip") && j["farClip"].is_number()) {
+            m_farClip = j["farClip"];
+        }
+        incrementVersion();
+    }
+
+    // IBinarySerializable implementation
+    std::vector<uint8_t> serializeBinary() const override {
+        BinaryWriter writer;
+
+        // Write projection type as uint8_t
+        writer.write(static_cast<uint8_t>(m_projectionType));
+
+        // Write camera parameters
+        writer.write(m_aspectRatio);
+        writer.write(m_verticalFOV);
+        writer.write(m_orthographicSize);
+        writer.write(m_nearClip);
+        writer.write(m_farClip);
+
+        return writer.getData();
+    }
+
+    size_t deserializeBinary(const uint8_t* data, size_t size) override {
+        BinaryReader reader(data, size);
+
+        uint8_t projType;
+        if (!reader.read(projType)) return 0;
+        m_projectionType = static_cast<ProjectionType>(projType);
+
+        if (!reader.read(m_aspectRatio)) return 0;
+        if (!reader.read(m_verticalFOV)) return 0;
+        if (!reader.read(m_orthographicSize)) return 0;
+        if (!reader.read(m_nearClip)) return 0;
+        if (!reader.read(m_farClip)) return 0;
+
+        incrementVersion();
+        return reader.getPosition();
     }
 
 private:

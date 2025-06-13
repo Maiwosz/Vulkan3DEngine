@@ -87,6 +87,7 @@ Renderer::Renderer(Settings& settings, Window& window) :m_settings(settings), m_
             { VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 4.0f }
         };
         allocConfig.growthFactor = 1.5f;
+		allocConfig.framesInFlight = m_settings.getFramesInFlight();
 
         m_descriptorAllocator = std::make_unique<DescriptorAllocator>(
             m_vulkanContext->logical(),
@@ -141,6 +142,12 @@ Renderer::~Renderer() {
     m_vulkanContext.reset();
 }
 
+void Renderer::advanceFrame()
+{
+	m_frameManager->advanceFrame();
+	m_descriptorAllocator->advanceFrame();
+}
+
 
 void Renderer::recreateSwapChain() {
     SPDLOG_INFO("Starting swapchain recreation");
@@ -148,6 +155,9 @@ void Renderer::recreateSwapChain() {
     // First, wait for all queues to be idle - this is safer than waiting for fences
     vkQueueWaitIdle(m_vulkanContext->logical().getQueue(LogicalDevice::QueueType::Graphics));
     vkQueueWaitIdle(m_vulkanContext->logical().getQueue(LogicalDevice::QueueType::Transfer));
+
+    // Wait for all frames to complete to ensure no descriptor sets are in use
+    m_frameManager->waitForAllFrames();
 
     // Reset all frame command buffers to a clean state
     m_frameManager->resetAllFrames();

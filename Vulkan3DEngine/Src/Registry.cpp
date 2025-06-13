@@ -19,9 +19,14 @@ Entity Registry::create() {
 
 void Registry::destroy(Entity entity) {
     if (m_entities.count(entity)) {
+        // Usuń z hierarchii przed usunięciem komponentów
+        m_hierarchyManager.removeEntity(entity);
+
+        // Usuń wszystkie komponenty
         for (auto& [type, pool] : m_componentPools) {
             pool->remove(entity);
         }
+
         m_entities.erase(entity);
         m_freeEntities.insert(entity);
     }

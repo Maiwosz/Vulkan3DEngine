@@ -47,7 +47,7 @@ namespace LuaBindings {
             [&state](Registry& reg, Entity e, const std::string& type, const std::string& path) -> sol::object {
                 if (type == "Script") {
                     auto& comp = reg.addComponent<ScriptComponent>(e);
-                    comp.setScriptPath(path);
+                    comp.setScript(path);
                     return sol::make_object(state, comp);
                 }
 

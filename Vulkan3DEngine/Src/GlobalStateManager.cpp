@@ -93,7 +93,7 @@ SmartHandle<UniformBufferHandle, Buffer> GlobalStateManager::createGlobalUniform
             globalUboData.pointLights[pointLightCount].radius = lightComponent.radius;
             globalUboData.pointLights[pointLightCount].color = lightComponent.color;
 
-            SPDLOG_DEBUG("Added point light to global UBO, entity: {}, position: ({}, {}, {}), radius: {}, color: ({}, {}, {}, {})",
+            SPDLOG_INFO("Added point light to global UBO, entity: {}, position: ({}, {}, {}), radius: {}, color: ({}, {}, {}, {})",
                 lightEntity.id,
                 lightTransform.getPosition().x, lightTransform.getPosition().y, lightTransform.getPosition().z,
                 lightComponent.radius,

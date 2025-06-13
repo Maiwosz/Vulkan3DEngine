@@ -25,6 +25,7 @@ public:
         uint32_t initialSets = 512;
         std::vector<PoolSizeRatio> ratios;
         float growthFactor = 1.5f;
+        uint32_t framesInFlight = 2; // Number of frames in flight for per-frame pools
     };
 
     // Structure to hold resources bound to a descriptor set
@@ -42,6 +43,12 @@ public:
     ~DescriptorAllocator();
     void reset();
     void destroy();
+
+    // Frame management
+    void advanceFrame();
+    void updateFramesInFlight(uint32_t newFrameCount);
+    uint32_t getCurrentFrameIndex() const { return m_currentFrameIndex; }
+    uint32_t getFramesInFlight() const { return m_config.framesInFlight; }
 
     // Enhanced interface with resource tracking
     DescriptorSetHandle acquireDescriptorSet(VkDescriptorSetLayout layout);
@@ -77,24 +84,43 @@ private:
         VkDescriptorPool sourcePool;
         bool inUse;
         uint32_t referenceCount;
+        uint32_t frameIndex; // Frame this descriptor set was allocated in
         DescriptorResources resources; // Resources bound to this descriptor set
+    };
+
+    // Per-frame pool management
+    struct FrameData {
+        std::vector<VkDescriptorPool> readyPools;
+        std::vector<VkDescriptorPool> fullPools;
+        std::unordered_map<VkDescriptorSetLayout, std::queue<DescriptorSetHandle>> reusableSets;
+        uint32_t nextSetCount;
+
+        FrameData() : nextSetCount(512) {}
     };
 
     // Prywatne metody zarządzania pulami
     VkResult createPool(uint32_t setCount, VkDescriptorPool* outPool) const;
-    VkDescriptorPool getPool();
+    VkDescriptorPool getPool(uint32_t frameIndex);
     uint32_t computeMinSetCount() const;
+    void resetFramePools(uint32_t frameIndex);
+    void destroyFramePools(uint32_t frameIndex);
 
     // Prywatne metody zarządzania uchwytami
     DescriptorSetHandle createNewDescriptorSet(VkDescriptorSetLayout layout);
     DescriptorSetHandle createNewDescriptorSet(VkDescriptorSetLayout layout, const DescriptorResources& resources);
-    DescriptorSetHandle findReusableDescriptorSet(VkDescriptorSetLayout layout);
+    DescriptorSetHandle findReusableDescriptorSet(VkDescriptorSetLayout layout, uint32_t frameIndex);
 
+    // Legacy pools (for backward compatibility)
     std::vector<VkDescriptorPool> m_fullPools;
     std::vector<VkDescriptorPool> m_readyPools;
+
     PoolConfig m_config;
     uint32_t m_nextSetCount;
     const LogicalDevice& m_device;
+
+    // Per-frame data
+    std::vector<FrameData> m_frameData;
+    uint32_t m_currentFrameIndex;
 
     // Struktury dla zarządzania uchwytami
     std::vector<DescriptorSetEntry> m_descriptorSets;
