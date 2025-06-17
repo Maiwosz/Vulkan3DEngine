@@ -79,7 +79,7 @@ public:
     void deserialize(const json& j) override;
 
 private:
-    void initializeSystems(); // Implementacja w .cpp
+    void initializeSystems();
 
     Registry& m_registry;
     std::unordered_map<std::type_index, std::unique_ptr<ISystem>> m_systems;

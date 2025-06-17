@@ -73,25 +73,45 @@ void Converter::Convert(const std::string& inputPath,
 {
     const std::string ext = inputPath.substr(inputPath.find_last_of(".") + 1);
 
-	AssetData asset;
+    AssetData asset;
 
-    if (ext == "png" || ext == "jpg" || ext == "tga") {
-        asset = ProcessTexture(inputPath, settings);
-    }
-    else if (ext == "obj") {
-        asset = ProcessMesh(inputPath, settings);
-    }
-    else if (ext == "mat") {
-        asset = ProcessMaterial(inputPath, settings);
-    }
-    else if (ext == "glsl") {
-        asset = Shader::ProcessShader(inputPath, settings);
-    }
-    else {
-        throw std::runtime_error("Unsupported file type: " + ext);
+    // Check texture extensions
+    for (const auto& texExt : TEXTURE_EXTENSIONS) {
+        if (ext == texExt) {
+            asset = ProcessTexture(inputPath, settings);
+            AssetLib::WriteAsset(outputPath, asset);
+            return;
+        }
     }
 
-	AssetLib::WriteAsset(outputPath, asset);
+    // Check mesh extensions
+    for (const auto& meshExt : MESH_EXTENSIONS) {
+        if (ext == meshExt) {
+            asset = ProcessMesh(inputPath, settings);
+            AssetLib::WriteAsset(outputPath, asset);
+            return;
+        }
+    }
+
+    // Check material extensions
+    for (const auto& matExt : MATERIAL_EXTENSIONS) {
+        if (ext == matExt) {
+            asset = ProcessMaterial(inputPath, settings);
+            AssetLib::WriteAsset(outputPath, asset);
+            return;
+        }
+    }
+
+    // Check shader extensions
+    for (const auto& shaderExt : SHADER_EXTENSIONS) {
+        if (ext == shaderExt) {
+            asset = Shader::ProcessShader(inputPath, settings);
+            AssetLib::WriteAsset(outputPath, asset);
+            return;
+        }
+    }
+
+    throw std::runtime_error("Unsupported file type: " + ext);
 }
 
 AssetData Converter::ProcessTexture(const std::string& inputPath, const Settings& settings)
@@ -788,3 +808,61 @@ void Converter::ValidateTextureDimensions(int width, int height) {
     }
 }
 
+std::vector<std::string_view> Converter::GetSupportedExtensions(AssetType type)
+{
+    std::vector<std::string_view> extensions;
+
+    switch (type) {
+    case AssetType::Texture:
+        extensions.insert(extensions.end(), TEXTURE_EXTENSIONS.begin(), TEXTURE_EXTENSIONS.end());
+        break;
+    case AssetType::Mesh:
+        extensions.insert(extensions.end(), MESH_EXTENSIONS.begin(), MESH_EXTENSIONS.end());
+        break;
+    case AssetType::Material:
+        extensions.insert(extensions.end(), MATERIAL_EXTENSIONS.begin(), MATERIAL_EXTENSIONS.end());
+        break;
+    case AssetType::Shader:
+        extensions.insert(extensions.end(), SHADER_EXTENSIONS.begin(), SHADER_EXTENSIONS.end());
+        break;
+    }
+
+    return extensions;
+}
+
+std::vector<std::string_view> Converter::GetAllSupportedExtensions()
+{
+    std::vector<std::string_view> allExtensions;
+
+    allExtensions.insert(allExtensions.end(), TEXTURE_EXTENSIONS.begin(), TEXTURE_EXTENSIONS.end());
+    allExtensions.insert(allExtensions.end(), MESH_EXTENSIONS.begin(), MESH_EXTENSIONS.end());
+    allExtensions.insert(allExtensions.end(), MATERIAL_EXTENSIONS.begin(), MATERIAL_EXTENSIONS.end());
+    allExtensions.insert(allExtensions.end(), SHADER_EXTENSIONS.begin(), SHADER_EXTENSIONS.end());
+
+    return allExtensions;
+}
+
+bool Converter::IsExtensionSupported(const std::string& extension)
+{
+    auto allExtensions = GetAllSupportedExtensions();
+    return std::find(allExtensions.begin(), allExtensions.end(), extension) != allExtensions.end();
+}
+
+AssetType Converter::GetAssetTypeFromExtension(const std::string& extension)
+{
+    // Check each type's extensions
+    for (const auto& ext : TEXTURE_EXTENSIONS) {
+        if (extension == ext) return AssetType::Texture;
+    }
+    for (const auto& ext : MESH_EXTENSIONS) {
+        if (extension == ext) return AssetType::Mesh;
+    }
+    for (const auto& ext : MATERIAL_EXTENSIONS) {
+        if (extension == ext) return AssetType::Material;
+    }
+    for (const auto& ext : SHADER_EXTENSIONS) {
+        if (extension == ext) return AssetType::Shader;
+    }
+
+    throw std::runtime_error("Unsupported extension: " + extension);
+}

@@ -4,7 +4,6 @@
 #include "Window.h"
 #include "InputSystem.h"
 #include "Renderer.h"
-#include "Scene.h"
 #include "ThreadPool.h"
 #include "AssetSystem.h"
 #include "RenderSystem.h"
@@ -19,6 +18,7 @@ class ThreadPool;
 class AssetSystem;
 class RenderSystem;
 class Scene;
+class Registry;
 
 class Engine {
 public:
@@ -53,6 +53,7 @@ public:
     ThreadPool& threadPool() const { return *m_threadPool; }
     AssetSystem& assetSystem() const { return *m_assetSystem; }
     RenderSystem& renderSystem() const { return *m_renderSystem; }
+    Registry& registry() const { return *m_registry; }
 
     // Time and frame info
     float deltaTime() const { return m_deltaTime; }
@@ -91,6 +92,7 @@ private:
     std::unique_ptr<ThreadPool> m_threadPool;
     std::unique_ptr<InputSystem> m_inputSystem;
     std::unique_ptr<Renderer> m_renderer;
+    std::unique_ptr<Registry> m_registry;
     std::unique_ptr<AssetSystem> m_assetSystem;
     std::unique_ptr<Scene> m_scene;
     std::unique_ptr<RenderSystem> m_renderSystem;

@@ -40,6 +40,9 @@ public:
     }
 
     // Getters
+    const char* getName() const override {
+        return "CameraComponent";
+    }
     ProjectionType getProjectionType() const { return m_projectionType; }
     float getAspectRatio() const { return m_aspectRatio; }
     float getVerticalFOV() const { return m_verticalFOV; }
@@ -98,40 +101,6 @@ public:
             m_farClip = j["farClip"];
         }
         incrementVersion();
-    }
-
-    // IBinarySerializable implementation
-    std::vector<uint8_t> serializeBinary() const override {
-        BinaryWriter writer;
-
-        // Write projection type as uint8_t
-        writer.write(static_cast<uint8_t>(m_projectionType));
-
-        // Write camera parameters
-        writer.write(m_aspectRatio);
-        writer.write(m_verticalFOV);
-        writer.write(m_orthographicSize);
-        writer.write(m_nearClip);
-        writer.write(m_farClip);
-
-        return writer.getData();
-    }
-
-    size_t deserializeBinary(const uint8_t* data, size_t size) override {
-        BinaryReader reader(data, size);
-
-        uint8_t projType;
-        if (!reader.read(projType)) return 0;
-        m_projectionType = static_cast<ProjectionType>(projType);
-
-        if (!reader.read(m_aspectRatio)) return 0;
-        if (!reader.read(m_verticalFOV)) return 0;
-        if (!reader.read(m_orthographicSize)) return 0;
-        if (!reader.read(m_nearClip)) return 0;
-        if (!reader.read(m_farClip)) return 0;
-
-        incrementVersion();
-        return reader.getPosition();
     }
 
 private:

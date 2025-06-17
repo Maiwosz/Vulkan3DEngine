@@ -8,6 +8,10 @@
 
 struct TransformComponent : public Component {
 public:
+    const char* getName() const override {
+        return "TransformComponent";
+    }
+
     // Global position setters/getters
     void setPosition(const glm::vec3& worldPosition) {
         if (!getRegistry() || !getRegistry()->hasParent(entity)) {
@@ -222,29 +226,6 @@ public:
             m_scale = glm::vec3(j["scale"][0], j["scale"][1], j["scale"][2]);
         }
         incrementVersion();
-    }
-
-    // IBinarySerializable implementation
-    std::vector<uint8_t> serializeBinary() const override {
-        BinaryWriter writer;
-
-        // Write position, rotation, and scale
-        writer.write(m_position);
-        writer.write(m_rotation);
-        writer.write(m_scale);
-
-        return writer.getData();
-    }
-
-    size_t deserializeBinary(const uint8_t* data, size_t size) override {
-        BinaryReader reader(data, size);
-
-        if (!reader.read(m_position)) return 0;
-        if (!reader.read(m_rotation)) return 0;
-        if (!reader.read(m_scale)) return 0;
-
-        incrementVersion();
-        return reader.getPosition();
     }
 
 private:

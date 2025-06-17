@@ -171,6 +171,10 @@
     <ClCompile Include="..\Libs\imgui\imgui_impl_vulkan.cpp" />
     <ClCompile Include="..\Libs\imgui\imgui_tables.cpp" />
     <ClCompile Include="..\Libs\imgui\imgui_widgets.cpp" />
+    <ClCompile Include="Src\Serializer.cpp" />
+    <ClCompile Include="Src\PrefabInstanceManager.cpp" />
+    <ClCompile Include="Src\PrefabManager.cpp" />
+    <ClCompile Include="Src\ComponentManager.cpp" />
     <ClCompile Include="Src\HierarchyManager.cpp" />
     <ClCompile Include="Src\AssetSystem.cpp" />
     <ClCompile Include="Src\ShaderManager.cpp" />
@@ -260,8 +264,12 @@
     <ClInclude Include="..\Libs\imgui\imstb_rectpack.h" />
     <ClInclude Include="..\Libs\imgui\imstb_textedit.h" />
     <ClInclude Include="..\Libs\imgui\imstb_truetype.h" />
+    <ClInclude Include="Src\Serializer.h" />
+    <ClInclude Include="Src\PrefabInstanceManager.h" />
+    <ClInclude Include="Src\PrefabManager.h" />
+    <ClInclude Include="Src\ComponentManager.h" />
+    <ClInclude Include="Src\ComponentsRegistry.h" />
     <ClInclude Include="Src\BinaryWriter.h" />
-    <ClInclude Include="Src\IBinarySerializable.h" />
     <ClInclude Include="Src\HierarchyManager.h" />
     <ClInclude Include="Src\ISerializable.h" />
     <ClInclude Include="Src\IResourceManager.h" />

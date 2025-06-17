@@ -1,6 +1,5 @@
 #pragma once
 #include <string>
-#include <unordered_map>
 #include <filesystem>
 #include <AssetLib.h>
 
@@ -18,13 +17,11 @@ public:
 
 private:
     void ProcessFile(const fs::path& sourcePath);
-    bool GetAssetType(const std::string& extension, AssetType& type) const;
     fs::path GetDestinationPath(const fs::path& sourcePath, AssetType type) const;
     bool NeedsConversion(const fs::path& sourcePath, const fs::path& destPath) const;
     std::string GetSourceFromMetadata(const fs::path& destPath) const;
 
     fs::path sourceDirectory;
     fs::path destinationDirectory;
-    std::unordered_map<std::string, AssetType> extensionMap;
     Editor& m_editor;
 };

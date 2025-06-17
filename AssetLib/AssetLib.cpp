@@ -184,12 +184,24 @@ namespace AssetLib {
 
             return param;
         }
+
+        json SerializePrefabInfo(const PrefabInfo& info) {
+            return {
+                {"entityCount", info.entityCount}
+            };
+        }
+
+        PrefabInfo DeserializePrefabInfo(const json& j) {
+            PrefabInfo info;
+            info.entityCount = j["entityCount"].get<uint32_t>();
+            return info;
+        }
     }
 
     bool ValidateHeader(const Header& header) {
         return header.magic == EXPECTED_MAGIC &&
             header.version <= CURRENT_VERSION &&
-            static_cast<uint8_t>(header.assetType) <= 3 &&
+            static_cast<uint8_t>(header.assetType) <= 4 &&
             static_cast<uint8_t>(header.compression) <= 1;
     }
 
@@ -480,6 +492,56 @@ namespace AssetLib {
         return { metadata, stages };
     }
 
+    AssetData WritePrefab(
+        const std::string& sourceName,
+        const PrefabInfo& info,
+        const nlohmann::json& prefabData,
+        CompressionType compression) {
+
+        AssetData asset;
+        asset.header.assetType = AssetType::Prefab;
+        asset.header.compression = compression;
+
+        // Serializacja JSON do string, potem do binary
+        std::string jsonString = prefabData.dump();
+        std::vector<uint8_t> jsonBytes(jsonString.begin(), jsonString.end());
+
+        asset.header.decompressedSize = jsonBytes.size();
+        asset.metadata["source"] = sourceName.empty() ? "generated_prefab" : sourceName;
+        asset.metadata["prefab"] = SerializePrefabInfo(info);
+        asset.compressedData = Compress(jsonBytes.data(), jsonBytes.size(), compression);
+
+        return asset;
+    }
+
+    std::pair<PrefabInfo, nlohmann::json> ReadPrefab(const AssetData& asset) {
+        if (asset.header.assetType != AssetType::Prefab) {
+            throw std::runtime_error("Not a prefab asset");
+        }
+
+        PrefabInfo info = DeserializePrefabInfo(asset.metadata["prefab"]);
+
+        std::vector<uint8_t> data;
+
+        // Sprawdź typ kompresji z nagłówka
+        if (asset.header.compression == CompressionType::None) {
+            data = asset.compressedData;
+        }
+        else if (asset.header.compression == CompressionType::LZ4) {
+            data = Decompress(asset.compressedData.data(),
+                asset.compressedData.size(),
+                asset.header.decompressedSize);
+        }
+        else {
+            throw std::runtime_error("Unsupported compression type in prefab");
+        }
+
+        // Konwertuj bajty z powrotem na string i parsuj JSON
+        std::string jsonString(data.begin(), data.end());
+        nlohmann::json prefabData = nlohmann::json::parse(jsonString);
+
+        return { info, prefabData };
+    }
 
     // Helper type conversion functions
     SamplerDescription::Filter ConvertSamplerFilter(const std::string& filter) {

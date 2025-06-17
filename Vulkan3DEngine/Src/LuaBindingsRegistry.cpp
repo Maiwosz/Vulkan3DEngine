@@ -11,7 +11,10 @@ namespace LuaBindings {
     void registerRegistry(sol::state& state) {
         auto registryType = state.new_usertype<Registry>("Registry",
             sol::no_constructor,
-            "create", &Registry::create,
+            "create", sol::overload(
+                static_cast<Entity(Registry::*)(Entity, const std::string&)>(&Registry::create),
+                static_cast<Entity(Registry::*)(const std::string&)>(&Registry::create)
+            ),
             "destroy", &Registry::destroy,
             "valid", &Registry::valid
         );

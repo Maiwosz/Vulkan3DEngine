@@ -33,6 +33,10 @@ struct LightComponent : public Component {
         }
     }
 
+    const char* getName() const override {
+        return "LightComponent";
+    }
+
     // Metody dla światła kierunkowego
     void setDirection(const glm::vec3& dir) {
         assert(type == Type::Directional && "Not a directional light");
@@ -124,49 +128,5 @@ struct LightComponent : public Component {
         }
 
         incrementVersion();
-    }
-
-    // IBinarySerializable implementation
-    std::vector<uint8_t> serializeBinary() const override {
-        BinaryWriter writer;
-
-        // Write light type
-        writer.write(static_cast<uint8_t>(type));
-
-        // Write color (vec4)
-        writer.write(color);
-
-        // Write type-specific data
-        if (type == Type::Directional) {
-            writer.write(direction);
-        }
-        else {
-            writer.write(radius);
-        }
-
-        return writer.getData();
-    }
-
-    size_t deserializeBinary(const uint8_t* data, size_t size) override {
-        BinaryReader reader(data, size);
-
-        uint8_t lightType;
-        if (!reader.read(lightType)) return 0;
-        type = static_cast<Type>(lightType);
-
-        if (!reader.read(color)) return 0;
-
-        // Read type-specific data
-        if (type == Type::Directional) {
-            if (!reader.read(direction)) return 0;
-            radius = 0.0f; // Reset unused field
-        }
-        else {
-            if (!reader.read(radius)) return 0;
-            direction = glm::vec3(0.0f); // Reset unused field
-        }
-
-        incrementVersion();
-        return reader.getPosition();
     }
 };

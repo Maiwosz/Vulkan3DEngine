@@ -1,11 +1,10 @@
 #pragma once
 #include "Entity.h"
 #include "ISerializable.h"
-#include "IBinarySerializable.h"
 
 class Registry; // Forward declaration
 
-class Component : public ISerializable, public IBinarySerializable {
+class Component : public ISerializable {
 public:
     virtual ~Component() = default;
     Entity entity;
@@ -17,6 +16,9 @@ public:
 
     // Publiczna metoda do ustawiania registry (używana przez Registry)
     void setRegistry(Registry* registry) { m_registry = registry; }
+
+    // Czysto wirtualna metoda do uzyskania nazwy komponentu
+    virtual const char* getName() const = 0;
 
 protected:
     void incrementVersion() { m_version++; }

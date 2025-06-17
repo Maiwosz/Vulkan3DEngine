@@ -5,6 +5,7 @@
 #include <filesystem>
 #include <thread>
 #include <stdexcept>
+#include "Scene.h"
 
 Engine& Engine::get() {
     static Engine engine;
@@ -151,18 +152,21 @@ void Engine::initializeComponents(const InitParams& params) {
     SPDLOG_DEBUG("Creating renderer");
     m_renderer = std::make_unique<Renderer>(*m_settings , *m_window);
 
+    SPDLOG_DEBUG("Creating registry");
+    m_registry = std::make_unique<Registry>();
+
     // Asset system
     SPDLOG_DEBUG("Initializing asset system");
     m_assetSystem = std::make_unique<AssetSystem>(*m_renderer);
 
     // Scene
     SPDLOG_DEBUG("Creating scene");
-    m_scene = std::make_unique<Scene>();
+    m_scene = std::make_unique<Scene>(*m_registry);
 
     // Render system
     SPDLOG_DEBUG("Initializing render system");
     m_renderSystem = std::make_unique<RenderSystem>(
-        m_scene->registry(),
+        *m_registry,
         *m_assetSystem,
         *m_renderer
     );
@@ -236,6 +240,7 @@ void Engine::cleanupComponents() {
     m_renderSystem.reset();
     m_scene.reset();
     m_assetSystem.reset();
+    m_registry.reset();
     m_renderer.reset();
     m_inputSystem.reset();
     m_window.reset();

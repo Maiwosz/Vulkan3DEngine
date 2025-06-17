@@ -25,12 +25,6 @@ int main() {
     SPDLOG_INFO("=== Launching application ===");
 
     try {
-        Engine& engine = Engine::get();
-		Engine::InitParams initParams;
-		initParams.title = "Vulkan3DEngine";
-		initParams.logDir = LOGS_DIR;
-        engine.initialize(initParams); // Engine logger configuration happens here
-
         // Create editor with its own logger
         Editor editor(ASSETS_SRC, ASSETS_COMP);
         SPDLOG_DEBUG("Created editor instance");
@@ -40,6 +34,12 @@ int main() {
         SPDLOG_INFO("Performing initial asset scan...");
         editor.assetWatcher().Run();
         SPDLOG_INFO("Initial asset scan completed");
+
+        Engine& engine = Engine::get();
+		Engine::InitParams initParams;
+		initParams.title = "Vulkan3DEngine";
+		initParams.logDir = LOGS_DIR;
+        engine.initialize(initParams); // Engine logger configuration happens here
 
         SPDLOG_INFO("Entering main loop");
         engine.run();

@@ -16,7 +16,8 @@ namespace AssetLib {
         Texture = 0,
         Mesh = 1,
         Material = 2,
-        Shader = 3
+        Shader = 3,
+        Prefab = 4
     };
 
     enum class CompressionType : uint8_t {
@@ -135,6 +136,14 @@ namespace AssetLib {
     };
 
     // =============================================
+    // Prefabs
+    // =============================================
+
+    struct PrefabInfo {
+        uint32_t entityCount;     // Liczba entity w prefabie
+    };
+
+    // =============================================
     // Wspólna struktura nagłówka
     // =============================================
     struct Header {
@@ -195,6 +204,20 @@ namespace AssetLib {
     std::tuple<ShaderLib::ShaderMetadata, std::vector<ShaderLib::CompiledStage>> ReadShader(const AssetData& asset);
 
     // =============================================
+    // Funkcje dla prefabów
+    // =============================================
+    // Tworzenie prefaba z danych JSON
+    AssetData WritePrefab(
+        const std::string& sourceName,  // Nazwa prefaba (zamiast ścieżki pliku)
+        const PrefabInfo& info,
+        const nlohmann::json& prefabData,
+        CompressionType compression = CompressionType::None  // JSON zwykle niekompresowany
+    );
+
+    // Odczyt prefaba
+    std::pair<PrefabInfo, nlohmann::json> ReadPrefab(const AssetData& asset);
+
+    // =============================================
     // Funkcje
     // =============================================
     std::vector<uint8_t> Compress(const void* data, size_t size, CompressionType compressionType, int compressionLevel = 1);
@@ -213,6 +236,7 @@ namespace AssetLib {
             case AssetType::Mesh:      return ".amsh";
             case AssetType::Material:  return ".amat";
             case AssetType::Shader:    return ".ashd";
+            case AssetType::Prefab:    return ".apfb";
             default:                   return "";
             }
         }

@@ -257,6 +257,18 @@
     <ClCompile Include="Src\HierarchyManager.cpp">
       <Filter>Engine\Scene\EntityComponentSystem\Registry\HierarchyManager</Filter>
     </ClCompile>
+    <ClCompile Include="Src\ComponentManager.cpp">
+      <Filter>Engine\Scene\EntityComponentSystem\Registry\ComponentManager</Filter>
+    </ClCompile>
+    <ClCompile Include="Src\PrefabManager.cpp">
+      <Filter>Engine\AssetSystem\AssetManager\AssetHandlers\PrefabManager</Filter>
+    </ClCompile>
+    <ClCompile Include="Src\PrefabInstanceManager.cpp">
+      <Filter>Engine\Scene\EntityComponentSystem\Registry\PrefabInstaceManager</Filter>
+    </ClCompile>
+    <ClCompile Include="Src\Serializer.cpp">
+      <Filter>Engine\Scene\EntityComponentSystem\Registry\Serializer</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Src\Prerequisites.h" />
@@ -294,13 +306,13 @@
       <Filter>Engine\Scene\EntityComponentSystem</Filter>
     </ClInclude>
     <ClInclude Include="Src\TransformComponent.h">
-      <Filter>Engine\Scene\EntityComponentSystem\Components</Filter>
+      <Filter>Engine\Scene\EntityComponentSystem\Registry\ComponentManager\Components</Filter>
     </ClInclude>
     <ClInclude Include="Src\MeshComponent.h">
-      <Filter>Engine\Scene\EntityComponentSystem\Components</Filter>
+      <Filter>Engine\Scene\EntityComponentSystem\Registry\ComponentManager\Components</Filter>
     </ClInclude>
     <ClInclude Include="Src\MaterialComponent.h">
-      <Filter>Engine\Scene\EntityComponentSystem\Components</Filter>
+      <Filter>Engine\Scene\EntityComponentSystem\Registry\ComponentManager\Components</Filter>
     </ClInclude>
     <ClInclude Include="Src\Component.h">
       <Filter>Engine\Scene\EntityComponentSystem</Filter>
@@ -315,10 +327,10 @@
       <Filter>Engine\Scene\EntityComponentSystem\Registry\SystemManager\Systems\MeshRenderSystem</Filter>
     </ClInclude>
     <ClInclude Include="Src\LightComponent.h">
-      <Filter>Engine\Scene\EntityComponentSystem\Components</Filter>
+      <Filter>Engine\Scene\EntityComponentSystem\Registry\ComponentManager\Components</Filter>
     </ClInclude>
     <ClInclude Include="Src\CameraComponent.h">
-      <Filter>Engine\Scene\EntityComponentSystem\Components</Filter>
+      <Filter>Engine\Scene\EntityComponentSystem\Registry\ComponentManager\Components</Filter>
     </ClInclude>
     <ClInclude Include="Src\CameraSystem.h">
       <Filter>Engine\Scene\EntityComponentSystem\Registry\SystemManager\Systems\CameraSystem</Filter>
@@ -517,7 +529,7 @@
       <Filter>Engine\RenderSystem\GlobalStateManager</Filter>
     </ClInclude>
     <ClInclude Include="Src\ScriptComponent.h">
-      <Filter>Engine\Scene\EntityComponentSystem\Components</Filter>
+      <Filter>Engine\Scene\EntityComponentSystem\Registry\ComponentManager\Components</Filter>
     </ClInclude>
     <ClInclude Include="Src\ScriptSystem.h">
       <Filter>Engine\Scene\EntityComponentSystem\Registry\SystemManager\Systems\ScriptSystem</Filter>
@@ -582,11 +594,23 @@
     <ClInclude Include="Src\ISerializable.h">
       <Filter>Engine\Scene\Serialization</Filter>
     </ClInclude>
-    <ClInclude Include="Src\IBinarySerializable.h">
-      <Filter>Engine\Scene\Serialization</Filter>
-    </ClInclude>
     <ClInclude Include="Src\BinaryWriter.h">
       <Filter>Engine\Scene\Serialization</Filter>
+    </ClInclude>
+    <ClInclude Include="Src\ComponentsRegistry.h">
+      <Filter>Engine\Scene\EntityComponentSystem\Registry\ComponentManager</Filter>
+    </ClInclude>
+    <ClInclude Include="Src\ComponentManager.h">
+      <Filter>Engine\Scene\EntityComponentSystem\Registry\ComponentManager</Filter>
+    </ClInclude>
+    <ClInclude Include="Src\PrefabManager.h">
+      <Filter>Engine\AssetSystem\AssetManager\AssetHandlers\PrefabManager</Filter>
+    </ClInclude>
+    <ClInclude Include="Src\PrefabInstanceManager.h">
+      <Filter>Engine\Scene\EntityComponentSystem\Registry\PrefabInstaceManager</Filter>
+    </ClInclude>
+    <ClInclude Include="Src\Serializer.h">
+      <Filter>Engine\Scene\EntityComponentSystem\Registry\Serializer</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
@@ -615,9 +639,6 @@
     </Filter>
     <Filter Include="Engine\Scene\EntityComponentSystem">
       <UniqueIdentifier>{d792f886-11a8-44bc-bfd2-f641cf6090dc}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Engine\Scene\EntityComponentSystem\Components">
-      <UniqueIdentifier>{2900095d-4825-4e4e-b4a6-58e3786e0c9e}</UniqueIdentifier>
     </Filter>
     <Filter Include="Engine\Scene\EntityComponentSystem\Registry">
       <UniqueIdentifier>{9dd751ea-fc9d-4ea4-9d37-90f3ac6c7643}</UniqueIdentifier>
@@ -858,6 +879,21 @@
     </Filter>
     <Filter Include="Engine\Scene\Serialization">
       <UniqueIdentifier>{031d59d5-7256-4ba5-8dbb-8b3263d0bfcc}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Engine\Scene\EntityComponentSystem\Registry\ComponentManager">
+      <UniqueIdentifier>{6586adb2-48b9-4248-8deb-f7f1d3c84454}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Engine\Scene\EntityComponentSystem\Registry\ComponentManager\Components">
+      <UniqueIdentifier>{2900095d-4825-4e4e-b4a6-58e3786e0c9e}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Engine\AssetSystem\AssetManager\AssetHandlers\PrefabManager">
+      <UniqueIdentifier>{4527cd69-2b16-4101-b77e-a3a3c54b8b7b}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Engine\Scene\EntityComponentSystem\Registry\PrefabInstaceManager">
+      <UniqueIdentifier>{074b3130-13df-4ef7-ab03-71399ae27f6a}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Engine\Scene\EntityComponentSystem\Registry\Serializer">
+      <UniqueIdentifier>{21a2e228-5592-4d06-ab05-0b040faed3da}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
 </Project>

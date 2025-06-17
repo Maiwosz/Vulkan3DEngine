@@ -20,10 +20,25 @@ private:
     AssetData ProcessTexture(const std::string& inputPath, const Settings& settings);
     AssetData ProcessMesh(const std::string& inputPath, const Settings& settings);
     AssetData ProcessMaterial(const std::string& inputPath, const Settings& settings);
-    
+
     static std::vector<uint8_t> CompressBC7(const uint8_t* rgba, uint32_t width, uint32_t height);
     static uint32_t PadToMultipleOf4(uint32_t value);
     static void ValidateTextureDimensions(int width, int height);
+
+    // =============================================
+    // Supported file extensions
+    // =============================================
+    static constexpr std::array<std::string_view, 3> TEXTURE_EXTENSIONS = { "png", "jpg", "tga" };
+    static constexpr std::array<std::string_view, 1> MESH_EXTENSIONS = { "obj" };
+    static constexpr std::array<std::string_view, 1> MATERIAL_EXTENSIONS = { "mat" };
+    static constexpr std::array<std::string_view, 1> SHADER_EXTENSIONS = { "glsl" };
+
+public:
+    // Utility functions for extensions
+    static std::vector<std::string_view> GetSupportedExtensions(AssetType type);
+    static std::vector<std::string_view> GetAllSupportedExtensions();
+    static bool IsExtensionSupported(const std::string& extension);
+    static AssetType GetAssetTypeFromExtension(const std::string& extension);
 };
 
 namespace {

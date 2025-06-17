@@ -16,14 +16,14 @@ AssetWatcher::AssetWatcher(const std::string& sourceDir, const std::string& dest
     m_editor.getLogger()->debug("AssetWatcher configured with:\nSource: {}\nDestination: {}",
         sourceDirectory.string(), destinationDirectory.string());
 
-    extensionMap = {
-        { ".png", AssetType::Texture },
-        { ".jpg", AssetType::Texture },
-        { ".tga", AssetType::Texture },
-        { ".obj", AssetType::Mesh },
-        { ".mat", AssetType::Material },
-        { ".glsl", AssetType::Shader }
-    };
+    // Log supported extensions for debugging
+    auto supportedExtensions = Converter::GetAllSupportedExtensions();
+    std::string extensionsStr;
+    for (const auto& ext : supportedExtensions) {
+        if (!extensionsStr.empty()) extensionsStr += ", ";
+        extensionsStr += std::string(ext);
+    }
+    m_editor.getLogger()->debug("Supported extensions: {}", extensionsStr);
 }
 
 void AssetWatcher::Run() {
@@ -60,13 +60,24 @@ void AssetWatcher::Run() {
 
 void AssetWatcher::ProcessFile(const fs::path& sourcePath) {
     std::string extension = sourcePath.extension().string();
+
+    // Remove the dot from extension for comparison
+    if (!extension.empty() && extension[0] == '.') {
+        extension = extension.substr(1);
+    }
+
+    // Convert to lowercase for case-insensitive comparison
     std::transform(extension.begin(), extension.end(), extension.begin(), ::tolower);
 
-    AssetType type;
-    if (!GetAssetType(extension, type)) {
-        m_editor.getLogger()->debug("Skipping unsupported file type: {}", sourcePath.string());
+    // Check if extension is supported using ConverterLib
+    if (!Converter::IsExtensionSupported(extension)) {
+        m_editor.getLogger()->debug("Skipping unsupported file type: {} (extension: {})",
+            sourcePath.string(), extension);
         return;
     }
+
+    // Get asset type from extension using ConverterLib
+    AssetType type = Converter::GetAssetTypeFromExtension(extension);
 
     fs::path destPath = GetDestinationPath(sourcePath, type);
     m_editor.getLogger()->debug("Checking: {} -> {}", sourcePath.string(), destPath.string());
@@ -92,15 +103,6 @@ void AssetWatcher::ProcessFile(const fs::path& sourcePath) {
     catch (const std::exception& e) {
         m_editor.getLogger()->error("Error converting {}: {}", sourcePath.string(), e.what());
     }
-}
-
-bool AssetWatcher::GetAssetType(const std::string& extension, AssetType& type) const {
-    auto it = extensionMap.find(extension);
-    if (it == extensionMap.end()) {
-        return false;
-    }
-    type = it->second;
-    return true;
 }
 
 fs::path AssetWatcher::GetDestinationPath(const fs::path& sourcePath, AssetType type) const {

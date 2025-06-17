@@ -15,12 +15,16 @@ class SystemManager;
 inline void registerAllSystems(SystemManager& manager) {
     // Systemy podstawowe - zawsze aktywne
     manager.registerSystemActive<AssetCollectionSystem>();
+    manager.registerSystemActive<MeshRenderSystem>();
+    manager.registerSystemActive<CameraSystem>();
+    manager.registerSystemActive<LightSystem>();
+    manager.registerSystemActive<ScriptSystem>();
 
     // Systemy opcjonalne - domyślnie nieaktywne  
-    manager.registerSystem<MeshRenderSystem>();
-    manager.registerSystem<CameraSystem>();
-    manager.registerSystem<LightSystem>();
-    manager.registerSystem<ScriptSystem>();
+    //manager.registerSystem<MeshRenderSystem>();
+    //manager.registerSystem<CameraSystem>();
+    //manager.registerSystem<LightSystem>();
+    //manager.registerSystem<ScriptSystem>();
 
     // === DODAJ NOWE SYSTEMY TUTAJ ===
     // manager.registerSystem<TwójNowySystem>();

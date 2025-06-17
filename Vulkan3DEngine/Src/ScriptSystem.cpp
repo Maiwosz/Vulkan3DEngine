@@ -186,7 +186,7 @@ bool ScriptSystem::loadScript(Entity entity, ScriptComponent& script) {
         env["self"] = scriptTable;
 
         // Add additional helpful globals for the script
-        env["registry"] = &Engine::get().scene().registry();
+        env["registry"] = &Engine::get().registry();
 
         // Execute the script file in this environment
         SPDLOG_DEBUG("Loading script: {}", absolutePath);

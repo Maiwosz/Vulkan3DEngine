@@ -50,7 +50,7 @@ void Editor::configureLogger() {
         options.loggerName = "EDITOR";
         options.logDir = LOGS_DIR;
         options.filePrefix = "editor_";
-        options.level = spdlog::level::info;
+        options.level = spdlog::level::debug;
         options.maxOldLogFiles = 2;
 
         m_logger = LoggerConfig::createLogger(options);

@@ -9,7 +9,7 @@ namespace LuaBindings {
 
         // Register core engine functions
         engineNS.set_function("getRegistry", []() -> Registry& {
-            return Engine::get().scene().registry();
+            return Engine::get().registry();
             });
 
         engineNS.set_function("getDeltaTime", []() -> float {

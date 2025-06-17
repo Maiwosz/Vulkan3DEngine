@@ -23,6 +23,7 @@ namespace fmt {
             case AssetType::Texture: typeStr = "Texture"; break;
             case AssetType::Shader: typeStr = "Shader"; break;
             case AssetType::Material: typeStr = "Material"; break;
+            case AssetType::Prefab: typeStr = "Prefab"; break;
             default: break;
             }
             return fmt::format_to(ctx.out(), "{}:{}", typeStr, handle.filename);

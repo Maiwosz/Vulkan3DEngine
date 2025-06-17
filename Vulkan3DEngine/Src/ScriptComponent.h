@@ -7,7 +7,11 @@
 
 struct ScriptComponent : public Component {
 public:
-    // Set the script path - the file will be loaded when the script is initialized
+    const char* getName() const override {
+        return "ScriptComponent";
+    }
+
+    // Set the script name - the file will be loaded when the script is initialized
     void setScript(const std::string& path) {
         m_scriptPath = path;
         incrementVersion();
@@ -77,33 +81,6 @@ public:
             m_table = nullptr;
             incrementVersion();
         }
-    }
-
-    // IBinarySerializable implementation
-    std::vector<uint8_t> serializeBinary() const override {
-        BinaryWriter writer;
-
-        // Write script path
-        writer.write(m_scriptPath);
-
-        // Note: We don't serialize runtime state (initialized flag, lua state, table)
-        // as they are runtime-specific and will be recreated when the script is reloaded
-
-        return writer.getData();
-    }
-
-    size_t deserializeBinary(const uint8_t* data, size_t size) override {
-        BinaryReader reader(data, size);
-
-        if (!reader.read(m_scriptPath)) return 0;
-
-        // Reset runtime state - script will need to be reinitialized
-        m_initialized = false;
-        m_luaState = nullptr;
-        m_table = nullptr;
-
-        incrementVersion();
-        return reader.getPosition();
     }
 
 private:

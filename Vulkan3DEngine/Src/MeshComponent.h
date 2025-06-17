@@ -5,6 +5,10 @@
 
 struct MeshComponent : public Component {
 public:
+    const char* getName() const override {
+        return "MeshComponent";
+    }
+
     void setMesh(AssetHandle mesh) {
         m_mesh = mesh;
         incrementVersion();
@@ -29,35 +33,6 @@ public:
             m_mesh.filename = j["filename"];
             incrementVersion();
         }
-    }
-
-    // IBinarySerializable implementation
-    std::vector<uint8_t> serializeBinary() const override {
-        BinaryWriter writer;
-
-        // Write asset type
-        writer.write(static_cast<uint32_t>(m_mesh.type));
-
-        // Write filename
-        writer.write(m_mesh.filename);
-
-        return writer.getData();
-    }
-
-    size_t deserializeBinary(const uint8_t* data, size_t size) override {
-        BinaryReader reader(data, size);
-
-        uint32_t assetType;
-        if (!reader.read(assetType)) return 0;
-
-        std::string filename;
-        if (!reader.read(filename)) return 0;
-
-        m_mesh.type = static_cast<AssetType>(assetType);
-        m_mesh.filename = filename;
-        incrementVersion();
-
-        return reader.getPosition();
     }
 
 private:

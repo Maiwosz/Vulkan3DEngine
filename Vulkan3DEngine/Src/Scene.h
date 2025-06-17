@@ -13,11 +13,10 @@
 
 class Scene {
 public:
-    Scene();
+    Scene(Registry& registry);
     ~Scene();
 
     void update();
-    Registry& registry() { return *m_registry; }
 
 private:
     Entity testEntity;
@@ -28,5 +27,5 @@ private:
     Entity testPointLight2;
     Entity testCamera;
     Entity testFloor;
-    std::unique_ptr<Registry> m_registry;
+    Registry& m_registry;
 };
