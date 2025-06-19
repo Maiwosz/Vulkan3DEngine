@@ -1,11 +1,14 @@
 #include "PrefabInstanceManager.h"
-#include "Registry.h"
+#include "EntityManager.h"
+#include "ComponentManager.h"
+#include "Serializer.h"
 #include "PrefabManager.h"
 #include <spdlog/spdlog.h>
-#include "Engine.h"
 
-PrefabInstanceManager::PrefabInstanceManager(Registry& registry)
-    : m_registry(registry) {
+PrefabInstanceManager::PrefabInstanceManager(EntityManager& entityManager, ComponentManager& componentManager,
+    Serializer& serializer, PrefabManager& prefabManager)
+    : m_entityManager(entityManager), m_componentManager(componentManager),
+    m_serializer(serializer), m_prefabManager(prefabManager) {
 }
 
 PrefabInstanceHandle PrefabInstanceManager::createInstance(PrefabHandle prefabHandle, Entity parent,
@@ -63,12 +66,12 @@ bool PrefabInstanceManager::destroyInstance(PrefabInstanceHandle instanceHandle)
     // Sort by hierarchy depth (children first)
     std::sort(entitiesToDestroy.begin(), entitiesToDestroy.end(),
         [this](Entity a, Entity b) {
-            return m_registry.getChildren(a).empty() && !m_registry.getChildren(b).empty();
+            return m_entityManager.getChildren(a).empty() && !m_entityManager.getChildren(b).empty();
         });
 
     for (Entity entity : entitiesToDestroy) {
-        if (m_registry.valid(entity)) {
-            m_registry.destroy(entity);
+        if (m_entityManager.valid(entity)) {
+            m_entityManager.destroy(entity);
         }
     }
 
@@ -112,8 +115,14 @@ bool PrefabInstanceManager::overrideComponent(PrefabInstanceHandle instanceHandl
     }
 
     // Check if entity has this component
-    if (!m_registry.getComponentPool(componentType) ||
-        !m_registry.getComponentPool(componentType)->hasEntity(entity)) {
+    if (!m_componentManager.isComponentRegistered(componentType)) {
+        SPDLOG_WARN("Component type {} is not registered", componentType);
+        return false;
+    }
+
+    // Check if entity has this component using serialization system
+    auto componentTypes = m_componentManager.getEntityComponentTypes(entity);
+    if (std::find(componentTypes.begin(), componentTypes.end(), componentType) == componentTypes.end()) {
         SPDLOG_WARN("Entity {} doesn't have component {}", entity.id, componentType);
         return false;
     }
@@ -194,7 +203,7 @@ bool PrefabInstanceManager::overrideAllComponents(PrefabInstanceHandle instanceH
     }
 
     // Get all component types for this entity
-    std::vector<std::string> componentTypes = m_registry.getEntityComponentTypes(entity);
+    std::vector<std::string> componentTypes = m_componentManager.getEntityComponentTypes(entity);
 
     // Mark all components as overridden
     auto& entityOverrides = instance.overriddenComponents[entity];
@@ -272,43 +281,17 @@ bool PrefabInstanceManager::syncWithPrefab(PrefabInstanceHandle instanceHandle) 
     }
 
     PrefabInstance& instance = it->second;
-
-    // Get the prefab data
-    const Prefab* prefab = Engine::get().assetSystem().prefabManager().getPrefab(instance.prefabHandle);
+    const Prefab* prefab = m_prefabManager.getPrefab(instance.prefabHandle);
     if (!prefab) {
         SPDLOG_ERROR("Prefab not found for sync operation");
         return false;
     }
 
-    // Create mapping from instance entities to prefab entities
-    // This is a simplified approach - in practice you might need more sophisticated mapping
+    // Przekaż prefab do buildEntityMapping
     std::unordered_map<Entity, Entity> instanceToPrefabMapping;
+    buildEntityMapping(instance.rootEntity, prefab->rootEntity, instanceToPrefabMapping, *prefab);
 
-    // For now we'll just sync the root entity and use hierarchy traversal
-    instanceToPrefabMapping[instance.rootEntity] = prefab->rootEntity;
-
-    // Build complete mapping by traversing both hierarchies in parallel
-    std::function<void(Entity, Entity)> buildMapping = [&](Entity instanceEnt, Entity prefabEnt) {
-        instanceToPrefabMapping[instanceEnt] = prefabEnt;
-
-        const auto& instanceChildren = m_registry.getChildren(instanceEnt);
-        const auto& prefabChildren = m_registry.getChildren(prefabEnt);
-
-        // Simple mapping - assumes children are in same order
-        // More sophisticated mapping would use names or other identifiers
-        auto instanceIt = instanceChildren.begin();
-        auto prefabIt = prefabChildren.begin();
-
-        while (instanceIt != instanceChildren.end() && prefabIt != prefabChildren.end()) {
-            buildMapping(*instanceIt, *prefabIt);
-            ++instanceIt;
-            ++prefabIt;
-        }
-        };
-
-    buildMapping(instance.rootEntity, prefab->rootEntity);
-
-    // Sync each entity
+    // Sync każdej entity
     bool allSynced = true;
     for (Entity instanceEntity : instance.entities) {
         auto mappingIt = instanceToPrefabMapping.find(instanceEntity);
@@ -330,30 +313,43 @@ bool PrefabInstanceManager::syncWithPrefab(PrefabInstanceHandle instanceHandle) 
 bool PrefabInstanceManager::restoreComponentFromPrefab(Entity entity, const std::string& componentType,
     PrefabHandle prefabHandle) {
     try {
-        const Prefab* prefab = Engine::get().assetSystem().prefabManager().getPrefab(prefabHandle);
+        const Prefab* prefab = m_prefabManager.getPrefab(prefabHandle);
         if (!prefab) {
             return false;
         }
 
-        // Find the corresponding prefab entity
-        // This is simplified - in practice you'd need proper entity mapping
-        Entity prefabEntity = prefab->rootEntity; // Simplified mapping
+        PrefabInstanceHandle instanceHandle = findInstanceByEntity(entity);
+        if (instanceHandle.id == 0) {
+            return false;
+        }
 
-        // Find prefab entity data
+        const PrefabInstance* instance = getInstance(instanceHandle);
+        if (!instance) {
+            return false;
+        }
+
+        // Przekaż prefab do buildEntityMapping
+        std::unordered_map<Entity, Entity> instanceToPrefabMapping;
+        buildEntityMapping(instance->rootEntity, prefab->rootEntity, instanceToPrefabMapping, *prefab);
+
+        auto mappingIt = instanceToPrefabMapping.find(entity);
+        if (mappingIt == instanceToPrefabMapping.end()) {
+            return false;
+        }
+
+        Entity prefabEntity = mappingIt->second;
         auto prefabEntityIt = prefab->entities.find(prefabEntity);
         if (prefabEntityIt == prefab->entities.end()) {
             return false;
         }
 
-        // Find component data in prefab
         const auto& components = prefabEntityIt->second.components;
         auto componentIt = components.find(componentType);
         if (componentIt == components.end()) {
             return false;
         }
 
-        // Deserialize component from prefab data
-        m_registry.serialization().deserializeComponent(entity, componentType, componentIt->second);
+        m_serializer.deserializeComponent(entity, componentType, componentIt->second);
         return true;
     }
     catch (const std::exception& e) {
@@ -362,10 +358,46 @@ bool PrefabInstanceManager::restoreComponentFromPrefab(Entity entity, const std:
     }
 }
 
+void PrefabInstanceManager::buildEntityMapping(Entity instanceRoot, Entity prefabRoot,
+    std::unordered_map<Entity, Entity>& mapping, const Prefab& prefab) {
+    mapping[instanceRoot] = prefabRoot;
+
+    // Pobierz dzieci z DANYCH PREFABA, nie z EntityManager
+    const auto& instanceChildren = m_entityManager.getChildren(instanceRoot);
+
+    // Znajdź dane prefab entity
+    auto prefabEntityIt = prefab.entities.find(prefabRoot);
+    if (prefabEntityIt == prefab.entities.end()) {
+        SPDLOG_ERROR("Prefab entity {} not found in prefab data", prefabRoot.id);
+        return;
+    }
+
+    const auto& prefabChildren = prefabEntityIt->second.children;  // ✅ Pobierz z danych prefaba!
+
+    // Lepsze mapowanie - na podstawie nazw lub pozycji w hierarchii
+    if (instanceChildren.size() != prefabChildren.size()) {
+        SPDLOG_WARN("Instance and prefab have different number of children ({} vs {})",
+            instanceChildren.size(), prefabChildren.size());
+    }
+
+    // Konwertuj unordered_set na vector dla stabilnej kolejności
+    std::vector<Entity> instanceChildrenVec(instanceChildren.begin(), instanceChildren.end());
+    std::vector<Entity> prefabChildrenVec(prefabChildren.begin(), prefabChildren.end());
+
+    // Sortuj po ID dla przewidywalnej kolejności (lub użyj nazw)
+    std::sort(instanceChildrenVec.begin(), instanceChildrenVec.end(),
+        [](Entity a, Entity b) { return a.id < b.id; });
+
+    size_t minSize = std::min(instanceChildrenVec.size(), prefabChildrenVec.size());
+    for (size_t i = 0; i < minSize; ++i) {
+        buildEntityMapping(instanceChildrenVec[i], prefabChildrenVec[i], mapping, prefab);
+    }
+}
+
 void PrefabInstanceManager::syncEntityWithPrefab(Entity instanceEntity, Entity prefabEntity,
     const PrefabInstance& instance) {
     try {
-        const Prefab* prefab = Engine::get().assetSystem().prefabManager().getPrefab(instance.prefabHandle);
+        const Prefab* prefab = m_prefabManager.getPrefab(instance.prefabHandle);
         if (!prefab) {
             return;
         }
@@ -388,7 +420,7 @@ void PrefabInstanceManager::syncEntityWithPrefab(Entity instanceEntity, Entity p
         for (const auto& [componentType, componentData] : prefabComponents) {
             if (overriddenComponents.find(componentType) == overriddenComponents.end()) {
                 // Component is not overridden, sync it
-                m_registry.serialization().deserializeComponent(instanceEntity, componentType, componentData);
+                m_serializer.deserializeComponent(instanceEntity, componentType, componentData);
             }
         }
     }
@@ -463,12 +495,9 @@ void PrefabInstanceManager::onEntityDestroyed(Entity entity) {
     }
 }
 
-// Rest of implementation remains the same...
 PrefabHandle PrefabInstanceManager::createPrefabFromEntity(Entity rootEntity) {
     try {
-        PrefabManager& prefabManager = Engine::get().assetSystem().prefabManager();
-
-        if (!m_registry.valid(rootEntity)) {
+        if (!m_entityManager.valid(rootEntity)) {
             SPDLOG_ERROR("Invalid root entity for prefab creation");
             return PrefabHandle{};
         }
@@ -476,38 +505,46 @@ PrefabHandle PrefabInstanceManager::createPrefabFromEntity(Entity rootEntity) {
         // Build prefab data structure
         Prefab prefabData;
         prefabData.rootEntity = rootEntity;
-        prefabData.entityCount = m_registry.countEntitiesInHierarchy(rootEntity);
+        prefabData.entityCount = m_entityManager.countEntitiesInHierarchy(rootEntity);
 
         // Collect all entities in hierarchy
         std::unordered_set<Entity> allEntities;
         collectEntitiesInHierarchy(rootEntity, allEntities);
 
-        // Build prefab entity data
+        // Build prefab entity data with proper hierarchy
         for (Entity entity : allEntities) {
             PrefabEntity entityData;
-            entityData.name = m_registry.getEntityName(entity);
+            entityData.name = m_entityManager.getEntityName(entity);
 
-            // Collect children
-            const auto& children = m_registry.getChildren(entity);
+            // Collect ONLY direct children (not all descendants)
+            const auto& children = m_entityManager.getChildren(entity);
             entityData.children.assign(children.begin(), children.end());
 
+            // Store parent information for non-root entities
+            if (entity != rootEntity && m_entityManager.hasParent(entity)) {
+                entityData.parent = m_entityManager.getParent(entity);
+            }
+            else {
+                entityData.parent = Entity(0); // Explicit default for root entity
+            }
+
             // Serialize all components
-            std::vector<std::string> componentTypes = m_registry.getEntityComponentTypes(entity);
+            std::vector<std::string> componentTypes = m_componentManager.getEntityComponentTypes(entity);
             for (const std::string& componentType : componentTypes) {
-                entityData.components[componentType] = m_registry.serialization().serializeComponent(entity, componentType);
+                entityData.components[componentType] = m_serializer.serializeComponent(entity, componentType);
             }
 
             prefabData.entities[entity] = std::move(entityData);
         }
 
         // Use entity name as filename
-        std::string filename = m_registry.getEntityName(rootEntity);
+        std::string filename = m_entityManager.getEntityName(rootEntity);
         if (filename.empty()) {
             filename = "Entity_" + std::to_string(rootEntity.id);
         }
 
         // Create prefab
-        PrefabHandle handle = prefabManager.createPrefab(prefabData, filename);
+        PrefabHandle handle = m_prefabManager.createPrefab(prefabData, filename);
 
         SPDLOG_INFO("Created prefab from entity: {}", filename);
         return handle;
@@ -518,7 +555,6 @@ PrefabHandle PrefabInstanceManager::createPrefabFromEntity(Entity rootEntity) {
     }
 }
 
-// Private helper methods remain the same...
 PrefabInstanceHandle PrefabInstanceManager::generateHandle() {
     return PrefabInstanceHandle(m_nextInstanceId++);
 }
@@ -526,7 +562,7 @@ PrefabInstanceHandle PrefabInstanceManager::generateHandle() {
 void PrefabInstanceManager::collectEntitiesInHierarchy(Entity entity, std::unordered_set<Entity>& entities) {
     entities.insert(entity);
 
-    const auto& children = m_registry.getChildren(entity);
+    const auto& children = m_entityManager.getChildren(entity);
     for (Entity child : children) {
         collectEntitiesInHierarchy(child, entities);
     }
@@ -535,7 +571,7 @@ void PrefabInstanceManager::collectEntitiesInHierarchy(Entity entity, std::unord
 Entity PrefabInstanceManager::instantiatePrefabInternal(PrefabHandle prefabHandle, Entity parent) {
     try {
         // Get prefab from PrefabManager
-        const Prefab* prefab = Engine::get().assetSystem().prefabManager().getPrefab(prefabHandle);
+        const Prefab* prefab = m_prefabManager.getPrefab(prefabHandle);
         if (!prefab) {
             SPDLOG_ERROR("Prefab not found for handle: {}", prefabHandle.id);
             return Entity(0);
@@ -544,40 +580,68 @@ Entity PrefabInstanceManager::instantiatePrefabInternal(PrefabHandle prefabHandl
         // Map old entity IDs to new ones
         std::unordered_map<Entity, Entity> entityMapping;
 
-        // Create all entities first
+        // Phase 1: Create all entities first (without hierarchy)
         for (const auto& [oldEntity, entityData] : prefab->entities) {
-            Entity newEntity = m_registry.create(Entity(0), entityData.name);
+            Entity newEntity = m_entityManager.create(entityData.name);
             entityMapping[oldEntity] = newEntity;
+            SPDLOG_DEBUG("Mapped prefab entity {} to new entity {}", oldEntity.id, newEntity.id);
         }
 
-        // Set up hierarchy and components
+        // Phase 2: Set up hierarchy using parent-child relationships from prefab
         for (const auto& [oldEntity, entityData] : prefab->entities) {
             Entity newEntity = entityMapping[oldEntity];
 
-            // Set parent if this is not the root entity
-            if (oldEntity != prefab->rootEntity) {
-                // Find parent in the prefab data
-                for (const auto& [potentialParent, parentData] : prefab->entities) {
-                    auto it = std::find(parentData.children.begin(), parentData.children.end(), oldEntity);
-                    if (it != parentData.children.end()) {
-                        Entity newParent = entityMapping[potentialParent];
-                        m_registry.setParent(newEntity, newParent);
-                        break;
-                    }
+            if (oldEntity == prefab->rootEntity) {
+                // Root entity - set provided parent if any
+                if (parent.id != 0 && m_entityManager.valid(parent)) {
+                    m_entityManager.setParent(newEntity, parent);
+                    SPDLOG_DEBUG("Set parent {} for root entity {}", parent.id, newEntity.id);
                 }
             }
-            else if (parent.id != 0) {
-                // This is the root entity and we have a specified parent
-                m_registry.setParent(newEntity, parent);
-            }
-
-            // Deserialize components
-            for (const auto& [componentType, componentData] : entityData.components) {
-                m_registry.serialization().deserializeComponent(newEntity, componentType, componentData);
+            else if (entityData.parent.id != 0) {
+                // Non-root entity with stored parent - find mapped parent
+                auto parentMappingIt = entityMapping.find(entityData.parent);
+                if (parentMappingIt != entityMapping.end()) {
+                    Entity newParent = parentMappingIt->second;
+                    if (m_entityManager.valid(newParent)) {
+                        m_entityManager.setParent(newEntity, newParent);
+                        SPDLOG_DEBUG("Set parent {} for entity {}", newParent.id, newEntity.id);
+                    }
+                    else {
+                        SPDLOG_WARN("Mapped parent entity {} is not valid for entity {}",
+                            newParent.id, newEntity.id);
+                    }
+                }
+                else {
+                    SPDLOG_WARN("Could not find mapping for parent entity {} of entity {}",
+                        entityData.parent.id, oldEntity.id);
+                }
             }
         }
 
+        // Phase 3: Deserialize components after hierarchy is set up
+        for (const auto& [oldEntity, entityData] : prefab->entities) {
+            Entity newEntity = entityMapping[oldEntity];
+
+            // Deserialize components
+            for (const auto& [componentType, componentData] : entityData.components) {
+                try {
+                    m_serializer.deserializeComponent(newEntity, componentType, componentData);
+                }
+                catch (const std::exception& e) {
+                    SPDLOG_ERROR("Failed to deserialize component {} for entity {}: {}",
+                        componentType, newEntity.id, e.what());
+                }
+            }
+        }
+
+        // Verify hierarchy was created correctly
         Entity newRootEntity = entityMapping[prefab->rootEntity];
+        if (!m_entityManager.valid(newRootEntity)) {
+            SPDLOG_ERROR("Root entity became invalid during instantiation");
+            return Entity(0);
+        }
+
         SPDLOG_DEBUG("Successfully instantiated prefab {} as entity {}", prefabHandle.id, newRootEntity.id);
         return newRootEntity;
     }

@@ -9,14 +9,14 @@ void AssetCollectionSystem::update(ContextType& context) {
     // Zbieranie assetów z komponentów materiałów
     auto materialEntities = registry.createView<MaterialComponent>();
     for (auto entity : materialEntities) {
-        auto& material = registry.getComponent<MaterialComponent>(entity);
+        auto& material = registry.components().getComponent<MaterialComponent>(entity);
         assetsToLoad.insert(material.getMaterial());
     }
 
     // Zbieranie assetów z komponentów meshów
     auto meshEntities = registry.createView<MeshComponent>();
     for (auto entity : meshEntities) {
-        auto& mesh = registry.getComponent<MeshComponent>(entity);
+        auto& mesh = registry.components().getComponent<MeshComponent>(entity);
         assetsToLoad.insert(mesh.getMesh());
     }
 

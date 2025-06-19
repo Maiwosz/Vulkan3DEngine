@@ -65,7 +65,7 @@ void UniformBufferStage::processMeshOrder(std::shared_ptr<MeshRenderOrder> order
     if (smartObjectUbo.isValid()) {
         ShaderLib::ObjectUBOData objectUboData;
 
-        auto& transformComponent = m_registry.getComponent<TransformComponent>(order->entity);
+        auto& transformComponent = m_registry.components().getComponent<TransformComponent>(order->entity);
 
         // Fill object UBO data
         objectUboData.model = transformComponent.getWorldMatrix();

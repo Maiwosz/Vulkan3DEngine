@@ -3,11 +3,12 @@
 #include <json.hpp>
 #include "Entity.h"
 
-class Registry;
+class ComponentManager;
+class EntityManager;
 
 class Serializer {
 public:
-    explicit Serializer(Registry& registry);
+    Serializer(EntityManager& entityManager, ComponentManager& componentManager);
 
     // Entity serialization
     nlohmann::json serializeEntity(Entity entity) const;
@@ -19,8 +20,9 @@ public:
 
     // Helper methods for prefab operations
     nlohmann::json serializeEntityHierarchy(Entity entity) const;
-    Entity deserializePrefabHierarchy(const nlohmann::json& hierarchyData, Entity parent);
+    Entity deserializePrefabHierarchy(const nlohmann::json& hierarchyData, Entity parent = Entity(0));
 
 private:
-    Registry& m_registry;
+    EntityManager& m_entityManager;
+    ComponentManager& m_componentManager;
 };

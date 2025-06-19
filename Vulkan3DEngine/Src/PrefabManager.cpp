@@ -164,6 +164,9 @@ nlohmann::json PrefabManager::serializePrefab(const Prefab& prefab) const {
         nlohmann::json entityJson;
         entityJson["name"] = entityData.name;
 
+        // Serialize parent information
+        entityJson["parent"] = entityData.parent.id;
+
         // Serialize children
         nlohmann::json childrenJson = nlohmann::json::array();
         for (Entity child : entityData.children) {
@@ -194,13 +197,22 @@ Prefab PrefabManager::deserializePrefab(const nlohmann::json& data) const {
         PrefabEntity entityData;
         entityData.name = entityJson["name"];
 
+        // Deserialize parent information
+        if (entityJson.contains("parent")) {
+            entityData.parent = Entity(entityJson["parent"]);
+        }
+
         // Deserialize children
-        for (const auto& childIdJson : entityJson["children"]) {
-            entityData.children.push_back(Entity(childIdJson));
+        if (entityJson.contains("children")) {
+            for (const auto& childIdJson : entityJson["children"]) {
+                entityData.children.push_back(Entity(childIdJson));
+            }
         }
 
         // Deserialize components
-        entityData.components = entityJson["components"];
+        if (entityJson.contains("components")) {
+            entityData.components = entityJson["components"];
+        }
 
         prefab.entities[entity] = std::move(entityData);
     }
@@ -209,11 +221,20 @@ Prefab PrefabManager::deserializePrefab(const nlohmann::json& data) const {
 }
 
 std::string PrefabManager::getPrefabFilePath(const std::string& filename) const {
-    std::string path = ASSETS_COMP;
-    path += "\\";
-    path += AssetLoader::GetAssetSubdirectory(AssetLib::AssetType::Prefab);
-    path += "\\";
-    path += filename;
-    path += AssetLib::Utilities::GetAssetExtension(AssetLib::AssetType::Prefab);
-    return path;
+    std::filesystem::path basePath = ASSETS_COMP;
+    std::filesystem::path scenesDir = AssetLoader::GetAssetSubdirectory(AssetLib::AssetType::Prefab);
+    std::string extension = std::string(AssetLib::Utilities::GetAssetExtension(AssetLib::AssetType::Prefab));
+
+    std::filesystem::path fullPath = basePath / scenesDir / (filename + extension);
+
+    // Upewnij się, że katalog istnieje
+    std::filesystem::path parentDir = fullPath.parent_path();
+    if (!std::filesystem::exists(parentDir)) {
+        std::error_code ec;
+        if (!std::filesystem::create_directories(parentDir, ec)) {
+            SPDLOG_ERROR("Failed to create directory {}: {}", parentDir.string(), ec.message());
+        }
+    }
+
+    return fullPath.string();
 }

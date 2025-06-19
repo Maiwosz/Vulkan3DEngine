@@ -17,7 +17,8 @@ namespace AssetLib {
         Mesh = 1,
         Material = 2,
         Shader = 3,
-        Prefab = 4
+        Prefab = 4,
+        Scene = 5
     };
 
     enum class CompressionType : uint8_t {
@@ -144,6 +145,15 @@ namespace AssetLib {
     };
 
     // =============================================
+    // Scenes
+    // =============================================
+
+    struct SceneInfo {
+        uint32_t entityCount;     // Liczba entity w scenie
+    };
+
+
+    // =============================================
     // Wspólna struktura nagłówka
     // =============================================
     struct Header {
@@ -218,6 +228,20 @@ namespace AssetLib {
     std::pair<PrefabInfo, nlohmann::json> ReadPrefab(const AssetData& asset);
 
     // =============================================
+    // Funkcje dla scen
+    // =============================================
+    // Tworzenie sceny z danych JSON
+    AssetData WriteScene(
+        const std::string& sourceName,  // Nazwa sceny
+        const SceneInfo& info,
+        const nlohmann::json& sceneData,
+        CompressionType compression = CompressionType::None
+    );
+
+    // Odczyt sceny
+    std::pair<SceneInfo, nlohmann::json> ReadScene(const AssetData& asset);
+
+    // =============================================
     // Funkcje
     // =============================================
     std::vector<uint8_t> Compress(const void* data, size_t size, CompressionType compressionType, int compressionLevel = 1);
@@ -237,6 +261,7 @@ namespace AssetLib {
             case AssetType::Material:  return ".amat";
             case AssetType::Shader:    return ".ashd";
             case AssetType::Prefab:    return ".apfb";
+            case AssetType::Scene:     return ".ascn";
             default:                   return "";
             }
         }

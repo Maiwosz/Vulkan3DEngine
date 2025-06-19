@@ -60,7 +60,7 @@ void ScriptSystem::update(SystemContext<>& context) {
 
     // First pass: Initialize scripts that haven't been initialized yet
     for (auto entity : entities) {
-        auto& script = registry.getComponent<ScriptComponent>(entity);
+        auto& script = registry.components().getComponent<ScriptComponent>(entity);
 
         // Initialize the script if not already initialized
         if (!script.isInitialized()) {
@@ -80,7 +80,7 @@ void ScriptSystem::update(SystemContext<>& context) {
 
     // Second pass: Call OnCreate for newly initialized scripts
     for (auto entity : m_createdScripts) {
-        if (registry.valid(entity) && registry.hasComponent<ScriptComponent>(entity)) {
+        if (registry.entities().valid(entity) && registry.components().hasComponent<ScriptComponent>(entity)) {
             auto scriptIt = m_scriptInstances.find(entity);
             if (scriptIt != m_scriptInstances.end()) {
                 callOnCreate(entity, scriptIt->second);
@@ -91,7 +91,7 @@ void ScriptSystem::update(SystemContext<>& context) {
 
     // Third pass: Call OnUpdate for all initialized scripts
     for (auto entity : entities) {
-        if (registry.valid(entity)) {
+        if (registry.entities().valid(entity)) {
             auto scriptIt = m_scriptInstances.find(entity);
             if (scriptIt != m_scriptInstances.end()) {
                 callOnUpdate(entity, scriptIt->second, deltaTime);
@@ -102,7 +102,7 @@ void ScriptSystem::update(SystemContext<>& context) {
     // Check for destroyed entities and call OnDestroy
     std::vector<Entity> toRemove;
     for (auto& [entity, scriptTable] : m_scriptInstances) {
-        if (!registry.valid(entity)) {
+        if (!registry.entities().valid(entity)) {
             callOnDestroy(entity, scriptTable);
             toRemove.push_back(entity);
         }

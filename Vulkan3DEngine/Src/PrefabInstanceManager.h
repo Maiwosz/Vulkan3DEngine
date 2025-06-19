@@ -10,6 +10,10 @@
 // Forward declarations
 class Registry;
 struct Prefab;
+class PrefabManager;
+class EntityManager;
+class ComponentManager;
+class Serializer;
 
 // Simple component override tracking
 struct ComponentOverride {
@@ -31,7 +35,8 @@ struct PrefabInstance {
 
 class PrefabInstanceManager {
 public:
-    explicit PrefabInstanceManager(Registry& registry);
+    explicit PrefabInstanceManager(EntityManager& entityManager, ComponentManager& componentManager,
+        Serializer& serializer, PrefabManager& prefabManager);
     ~PrefabInstanceManager() = default;
 
     // Instance creation
@@ -77,7 +82,11 @@ public:
     PrefabHandle createPrefabFromEntity(Entity rootEntity);
 
 private:
-    Registry& m_registry;
+    // Module references
+    EntityManager& m_entityManager;
+    ComponentManager& m_componentManager;
+    Serializer& m_serializer;
+    PrefabManager& m_prefabManager;
 
     // Instance storage
     std::unordered_map<uint32_t, PrefabInstance> m_instances;
@@ -95,5 +104,8 @@ private:
 
     // Copy-on-write helpers
     bool restoreComponentFromPrefab(Entity entity, const std::string& componentType, PrefabHandle prefabHandle);
+    void buildEntityMapping(Entity instanceRoot, Entity prefabRoot,
+        std::unordered_map<Entity, Entity>& mapping, const Prefab& prefab);
+
     void syncEntityWithPrefab(Entity instanceEntity, Entity prefabEntity, const PrefabInstance& instance);
 };

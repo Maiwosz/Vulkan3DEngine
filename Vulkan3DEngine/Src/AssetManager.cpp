@@ -24,6 +24,7 @@ namespace fmt {
             case AssetType::Shader: typeStr = "Shader"; break;
             case AssetType::Material: typeStr = "Material"; break;
             case AssetType::Prefab: typeStr = "Prefab"; break;
+            case AssetType::Scene: typeStr = "Scene"; break;
             default: break;
             }
             return fmt::format_to(ctx.out(), "{}:{}", typeStr, handle.filename);

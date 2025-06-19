@@ -141,6 +141,9 @@ std::string AssetLoader::GetAssetSubdirectory(AssetLib::AssetType type) {
     case AssetType::Prefab:
         result = "Prefabs";
         break;
+    case AssetType::Scene:
+        result = "Scenes";
+        break;
     default:
         result = "Unknown";
         SPDLOG_WARN("Unknown asset type: {}", static_cast<int>(type));

@@ -1,216 +1,205 @@
 #include "Registry.h"
+#include "SystemManager.h"
 #include <stdexcept>
+#include <algorithm>
 #include <spdlog/spdlog.h>
 
-Registry::Registry()
-    : m_systemManager(std::make_unique<SystemManager>(*this)),
-    m_componentManager(std::make_unique<ComponentManager>(*this)),
-    m_hierarchyManager(std::make_unique<HierarchyManager>()),
-    m_prefabInstanceManager(std::make_unique<PrefabInstanceManager>(*this)),
-    m_serializer(std::make_unique<Serializer>(*this))
-{
+Registry::Registry(AssetSystem& assetSystem) {
+    // Create modules in dependency order
+    m_systemManager = std::make_unique<SystemManager>(*this);
+    m_componentManager = std::make_unique<ComponentManager>(*this);
+    m_entityManager = std::make_unique<EntityManager>(*m_componentManager);
+    m_serializer = std::make_unique<Serializer>(*m_entityManager, *m_componentManager);
+    m_prefabInstanceManager = std::make_unique<PrefabInstanceManager>(
+        *m_entityManager,
+        *m_componentManager,
+        *m_serializer,
+        assetSystem.prefabManager()
+    );
+    m_sceneRegistry = std::make_unique<SceneRegistry>(
+        *m_entityManager,
+        *m_componentManager,
+        *m_serializer,
+        assetSystem.sceneManager()
+    );
 }
 
-Entity Registry::create(Entity parent, const std::string& name) {
-    Entity entity;
+// === PUBLIC API - Complex operations coordinated by Registry ===
 
-    if (!m_freeEntities.empty()) {
-        auto it = m_freeEntities.begin();
-        entity = *it;
-        m_freeEntities.erase(it);
-    }
-    else {
-        entity = Entity(m_nextId++);
-    }
-
-    m_entities.insert(entity);
-
-    // Ustaw nazwę dla entity
-    std::string finalName = name.empty() ? generateUniqueEntityName() : name;
-    if (entityNameExists(finalName)) {
-        finalName = generateUniqueEntityName(finalName);
-    }
-
-    m_entityNames[entity] = finalName;
-    m_nameToEntity[finalName] = entity;
-
-    if (parent.id != 0 && valid(parent)) {
-        setParent(entity, parent);
-    }
-
-    return entity;
+Entity Registry::create(const std::string& name) {
+    return m_entityManager->create(name);
 }
 
 void Registry::destroy(Entity entity) {
-    if (!m_entities.count(entity)) return;
-
-    // Check if entity can be destroyed (not part of locked prefab instance)
-    if (!m_prefabInstanceManager->canDestroyEntity(entity)) {
-        SPDLOG_WARN("Cannot destroy entity {} - it's part of a prefab instance", entity.id);
+    if (!canDestroyEntity(entity)) {
+        SPDLOG_WARN("Cannot destroy entity {} - validation failed", entity.id);
         return;
     }
 
-    // Notify prefab instance manager
+    // Notify prefab system about entity destruction
     m_prefabInstanceManager->onEntityDestroyed(entity);
 
-    // Usuń mapping nazwy
-    auto nameIt = m_entityNames.find(entity);
-    if (nameIt != m_entityNames.end()) {
-        m_nameToEntity.erase(nameIt->second);
-        m_entityNames.erase(nameIt);
-    }
-
-    m_hierarchyManager->removeEntity(entity);
-
-    for (auto& [type, pool] : m_componentPools) {
-        pool->remove(entity);
-    }
-
-    m_entities.erase(entity);
-    m_freeEntities.insert(entity);
+    // Destroy entity through EntityManager
+    m_entityManager->destroy(entity);
 }
 
 bool Registry::valid(Entity entity) const {
-    return m_entities.count(entity) > 0;
+    return m_entityManager->valid(entity);
 }
 
-std::string Registry::getEntityName(Entity entity) const {
-    auto it = m_entityNames.find(entity);
-    return (it != m_entityNames.end()) ? it->second : "";
-}
-
-void Registry::setEntityName(Entity entity, const std::string& name) {
-    if (!valid(entity)) return;
-
-    // Usuń stary mapping
-    auto oldNameIt = m_entityNames.find(entity);
-    if (oldNameIt != m_entityNames.end()) {
-        m_nameToEntity.erase(oldNameIt->second);
-    }
-
-    // Sprawdź czy nazwa już istnieje
-    std::string finalName = name;
-    if (entityNameExists(finalName)) {
-        finalName = generateUniqueEntityName(finalName);
-    }
-
-    // Ustaw nowy mapping
-    m_entityNames[entity] = finalName;
-    m_nameToEntity[finalName] = entity;
-}
-
-Entity Registry::findEntityByName(const std::string& name) const {
-    auto it = m_nameToEntity.find(name);
-    return (it != m_nameToEntity.end()) ? it->second : Entity(0);
-}
-
-bool Registry::entityNameExists(const std::string& name) const {
-    return m_nameToEntity.find(name) != m_nameToEntity.end();
-}
-
-// Hierarchy helpers
-void Registry::setParent(Entity child, Entity parent) {
-    m_hierarchyManager->setParent(child, parent);
-}
-
-void Registry::removeParent(Entity child) {
-    m_hierarchyManager->removeParent(child);
-}
-
-Entity Registry::getParent(Entity entity) const {
-    return m_hierarchyManager->getParent(entity);
-}
-
-const std::unordered_set<Entity>& Registry::getChildren(Entity entity) const {
-    return m_hierarchyManager->getChildren(entity);
-}
-
-bool Registry::hasParent(Entity entity) const {
-    return m_hierarchyManager->hasParent(entity);
-}
-
-// Entity operations
-Entity Registry::cloneEntity(Entity sourceEntity, Entity newParent, const std::string& name) {
-    if (!valid(sourceEntity)) {
+Entity Registry::cloneEntityHierarchy(Entity sourceEntity, Entity newParent, const std::string& name) {
+    if (!m_entityManager->valid(sourceEntity)) {
         return Entity(0);
     }
 
-    std::string baseName = name.empty() ? (getEntityName(sourceEntity) + "_Copy") : name;
-    Entity newEntity = create(newParent, baseName);
+    // Determine final name
+    std::string finalName = name;
+    if (finalName.empty()) {
+        std::string sourceName = m_entityManager->getEntityName(sourceEntity);
+        finalName = sourceName.empty() ? "Entity_Copy" : sourceName + "_Copy";
+    }
 
-    auto componentTypes = getEntityComponentTypes(sourceEntity);
+    // Create new entity
+    Entity newEntity = m_entityManager->create(finalName);
+
+    // Set parent if provided
+    if (newParent.id != 0 && m_entityManager->valid(newParent)) {
+        m_entityManager->setParent(newEntity, newParent);
+    }
+
+    // Copy all components using serialization
+    auto componentTypes = m_componentManager->getEntityComponentTypes(sourceEntity);
     for (const std::string& typeName : componentTypes) {
         auto componentData = m_serializer->serializeComponent(sourceEntity, typeName);
         m_serializer->deserializeComponent(newEntity, typeName, componentData);
+
+        // Set registry reference for the component
+        // This is handled automatically by addComponent, but for deserialized components we need to set it manually
+        // We'll need a way to get the component and set its registry - this could be added to ComponentManager
     }
 
-    const auto& children = getChildren(sourceEntity);
+    // Recursively clone children
+    const auto& children = m_entityManager->getChildren(sourceEntity);
     for (Entity child : children) {
-        cloneEntity(child, newEntity);
+        cloneEntityHierarchy(child, newEntity); // Recursive clone
     }
 
     return newEntity;
 }
 
-std::vector<std::string> Registry::getEntityComponentTypes(Entity entity) const {
-    std::vector<std::string> types;
+// Scene operations (facade)
+bool Registry::loadScene(const std::string& sceneName) {
+    return m_sceneRegistry->loadScene(sceneName);
+}
 
-    for (const auto& [typeIndex, pool] : m_componentPools) {
-        if (pool->hasEntity(entity)) {
-            try {
-                std::string typeName = m_componentManager->getComponentName(typeIndex);
-                types.push_back(typeName);
+bool Registry::saveScene(const std::string& sceneName) {
+    return m_sceneRegistry->saveScene(sceneName);
+}
+
+void Registry::clearScene() {
+    // Clear through scene registry to maintain consistency
+    m_sceneRegistry->loadScene(""); // Loading empty scene clears everything
+}
+
+std::string Registry::getCurrentSceneName() const {
+    return m_sceneRegistry->getCurrentSceneName();
+}
+
+bool Registry::hasCurrentScene() const {
+    return m_sceneRegistry->hasCurrentScene();
+}
+
+bool Registry::validateScene() const {
+    // Validate entity-component consistency
+    for (Entity entity : m_entityManager->getAllEntities()) {
+        if (!m_entityManager->valid(entity)) {
+            return false;
+        }
+
+        // Validate hierarchy consistency
+        if (m_entityManager->hasParent(entity)) {
+            Entity parent = m_entityManager->getParent(entity);
+            if (!m_entityManager->valid(parent)) {
+                return false;
             }
-            catch (const std::exception& e) {
-                SPDLOG_WARN("Failed to get component type name: {}", e.what());
+
+            const auto& parentChildren = m_entityManager->getChildren(parent);
+            if (parentChildren.find(entity) == parentChildren.end()) {
+                return false;
             }
         }
     }
 
-    return types;
+    return true;
 }
 
-bool Registry::hasAnyComponents(Entity entity) const {
-    for (const auto& [typeIndex, pool] : m_componentPools) {
-        if (pool->hasEntity(entity)) {
-            return true;
+// Entity naming facade
+std::string Registry::getEntityName(Entity entity) const {
+    return m_entityManager->getEntityName(entity);
+}
+
+void Registry::setEntityName(Entity entity, const std::string& name) {
+    m_entityManager->setEntityName(entity, name);
+}
+
+Entity Registry::findEntityByName(const std::string& name) const {
+    return m_entityManager->findEntityByName(name);
+}
+
+// Hierarchy facade
+void Registry::setParent(Entity child, Entity parent) {
+    m_entityManager->setParent(child, parent);
+}
+
+Entity Registry::getParent(Entity entity) const {
+    return m_entityManager->getParent(entity);
+}
+
+bool Registry::hasParent(Entity entity) const {
+    return m_entityManager->hasParent(entity);
+}
+
+const std::unordered_set<Entity>& Registry::getChildren(Entity entity) const {
+    return m_entityManager->getChildren(entity);
+}
+
+std::vector<Entity> Registry::getAllChildren(Entity entity) const {
+    return m_entityManager->getAllChildren(entity);
+}
+
+// Serialization facade
+nlohmann::json Registry::serializeEntity(Entity entity) const {
+    return m_serializer->serializeEntity(entity);
+}
+
+Entity Registry::deserializeEntity(const nlohmann::json& entityData, Entity parent) {
+    Entity entity = m_serializer->deserializeEntity(entityData, parent);
+
+    // Set registry reference for all components of the deserialized entity
+    // This would need to be handled by the serializer or component manager
+
+    return entity;
+}
+
+// === HELPER METHODS ===
+
+bool Registry::canDestroyEntity(Entity entity) const {
+    if (!m_entityManager->valid(entity)) {
+        return false;
+    }
+
+    // Check if entity is part of a locked prefab instance
+    if (m_prefabInstanceManager->isEntityPartOfInstance(entity)) {
+        return m_prefabInstanceManager->canDestroyEntity(entity);
+    }
+
+    return true;
+}
+
+void Registry::validateEntityDestruction(const std::vector<Entity>& entities) const {
+    for (Entity entity : entities) {
+        if (!canDestroyEntity(entity)) {
+            throw std::runtime_error("Cannot destroy entity " + std::to_string(entity.id));
         }
     }
-    return false;
-}
-
-// Private helper methods
-Registry::IComponentPool* Registry::getComponentPool(const std::string& componentTypeName) const {
-    try {
-        std::type_index typeIndex = m_componentManager->getComponentType(componentTypeName);
-        auto it = m_componentPools.find(typeIndex);
-        return (it != m_componentPools.end()) ? it->second.get() : nullptr;
-    }
-    catch (const std::exception&) {
-        return nullptr;
-    }
-}
-
-std::string Registry::generateUniqueEntityName(const std::string& baseName) const {
-    std::string base = baseName.empty() ? "Entity" : baseName;
-    std::string candidate = base;
-
-    int counter = 1;
-    while (entityNameExists(candidate)) {
-        candidate = base + "_" + std::to_string(counter);
-        counter++;
-    }
-
-    return candidate;
-}
-
-uint32_t Registry::countEntitiesInHierarchy(Entity rootEntity) const {
-    uint32_t count = 1; // Liczy root entity
-
-    const auto& children = getChildren(rootEntity);
-    for (Entity child : children) {
-        count += countEntitiesInHierarchy(child); // Rekurencyjnie liczy dzieci
-    }
-
-    return count;
 }

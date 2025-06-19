@@ -12,9 +12,11 @@
 #include "InputSystem.h"
 #include <spdlog/spdlog.h>
 
-Scene::Scene(Registry& registry):
+Scene::Scene(Registry& registry) :
     m_registry(registry)
 {
+
+    if (false) {
     // Creating object with mesh
     testEntity = m_registry.create();
     {
@@ -145,47 +147,56 @@ Scene::Scene(Registry& registry):
         light.setColor(directionalLightColor);
     }
 
-    // Point light with orbit script
- //   testPointLight = m_registry.create("testPointLight");
- //   {
- //       auto& transform = m_registry.addComponent<TransformComponent>(testPointLight);
+    //Point light with orbit script
+   // testPointLight = m_registry.create("testPointLight");
+   // {
+   //     auto& transform = m_registry.addComponent<TransformComponent>(testPointLight);
+   //
+   //     // Initial position (will be overridden by script)
+   //     transform.setPosition(glm::vec3(7.0f, 3.0f, 0.0f));
+   //
+   //     // Add light component
+   //     auto& light = m_registry.addComponent<LightComponent>(testPointLight, LightComponent::Type::Point);
+   //     light.setRadius(12.0f);
+   //     light.setColor(glm::vec4(1.0f, 1.0f, 1.0f, 1.0f));
+   //
+   //     // Add light orbiter script
+   //     auto& script = m_registry.addComponent<ScriptComponent>(testPointLight);
+   //     script.setScript("LightOrbiter");
+   // }
+   //
+   // testPointLight2 = m_registry.create();
+   // {
+   //     auto& transform = m_registry.addComponent<TransformComponent>(testPointLight2);
+   //
+   //	m_registry.setParent(testPointLight2, testPointLight);
+   //
+   //     // Initial position (will be overridden by script)
+   //     transform.setLocalPosition(glm::vec3(20.0f, 0.0f, 0.0f));
+   //
+   //     // Add light component
+   //     auto& light = m_registry.addComponent<LightComponent>(testPointLight2, LightComponent::Type::Point);
+   //     light.setRadius(12.0f);
+   //     light.setColor(glm::vec4(1.0f, 0.0f, 0.0f, 1.0f));
+   // }
+   //PrefabManager& prefabManager = Engine::get().assetSystem().prefabManager();
+   //PrefabHandle handle = m_registry.prefabs().createPrefabFromEntity(testPointLight);
+   //prefabManager.savePrefabToFile(handle);
 
- //       // Initial position (will be overridden by script)
- //       transform.setPosition(glm::vec3(7.0f, 3.0f, 0.0f));
 
- //       // Add light component
- //       auto& light = m_registry.addComponent<LightComponent>(testPointLight, LightComponent::Type::Point);
- //       light.setRadius(12.0f);
- //       light.setColor(glm::vec4(1.0f, 1.0f, 1.0f, 1.0f));
 
- //       // Add light orbiter script
- //       auto& script = m_registry.addComponent<ScriptComponent>(testPointLight);
- //       script.setScript("LightOrbiter");
- //   }
-
- //   testPointLight2 = m_registry.create();
- //   {
- //       auto& transform = m_registry.addComponent<TransformComponent>(testPointLight2);
-
-	//	m_registry.hierarchy().setParent(testPointLight2, testPointLight);
-
- //       // Initial position (will be overridden by script)
- //       transform.setLocalPosition(glm::vec3(20.0f, 0.0f, 0.0f));
-
- //       // Add light component
- //       auto& light = m_registry.addComponent<LightComponent>(testPointLight2, LightComponent::Type::Point);
- //       light.setRadius(12.0f);
- //       light.setColor(glm::vec4(1.0f, 0.0f, 0.0f, 1.0f));
- //   }
-	//PrefabManager& prefabManager = Engine::get().assetSystem().prefabManager();
-	//PrefabHandle handle = m_registry.prefabInstances().createPrefabFromEntity(testPointLight);
-	//prefabManager.savePrefabToFile(handle);
-
-	AssetHandle handle = AssetHandle(AssetLib::AssetType::Prefab, "testPointLight");
-	Engine::get().assetSystem().assetManager().ensureReady(handle);
+    AssetHandle handle = AssetHandle(AssetLib::AssetType::Prefab, "testPointLight");
+    Engine::get().assetSystem().assetManager().ensureReady(handle);
     PrefabManager& prefabManager = Engine::get().assetSystem().prefabManager();
-	PrefabHandle prefabHandle = prefabManager.getHandle<PrefabHandle>(handle.filename);
-    m_registry.prefabInstances().createInstance(prefabHandle);
+    PrefabHandle prefabHandle = prefabManager.getHandle<PrefabHandle>(handle.filename);
+    m_registry.prefabs().createInstance(prefabHandle);
+
+    m_registry.scenes().saveScene("testScene");
+    }
+
+    AssetHandle handle = AssetHandle(AssetLib::AssetType::Scene, "testScene");
+    Engine::get().assetSystem().assetManager().ensureReady(handle);
+    m_registry.loadScene(handle.filename);
 }
 
 Scene::~Scene()

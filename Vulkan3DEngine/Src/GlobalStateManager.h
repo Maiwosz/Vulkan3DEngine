@@ -6,6 +6,15 @@
 #include "ISmartHandleManager.h"
 #include <vulkan/vulkan.h>
 
+#include "Registry.h"
+#include "Renderer.h"
+#include "TransformComponent.h"
+#include "CameraComponent.h"
+#include "LightComponent.h"
+#include "DescriptorWriter.h"
+#include "DescriptorLayoutManager.h"
+#include "LogicalDevice.h"
+
 // Forward declarations
 class Registry;
 class Renderer;

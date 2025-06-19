@@ -28,7 +28,7 @@ int main() {
         // Create editor with its own logger
         Editor editor(ASSETS_SRC, ASSETS_COMP);
         SPDLOG_DEBUG("Created editor instance");
-        editor.start();
+        //editor.start();
 
         // Perform initial asset scan (now using editor's logger internally)
         SPDLOG_INFO("Performing initial asset scan...");
@@ -46,8 +46,8 @@ int main() {
 
         spdlog::set_default_logger(preinit_logger);
 
-        SPDLOG_DEBUG("Stopping editor...");
-        editor.stop();
+        //SPDLOG_DEBUG("Stopping editor...");
+        //editor.stop();
     }
     catch (const std::exception& e) {
         SPDLOG_CRITICAL("Critical error: {}", e.what());

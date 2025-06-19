@@ -254,8 +254,8 @@
     <ClCompile Include="Src\SystemManager.cpp">
       <Filter>Engine\Scene\EntityComponentSystem\Registry\SystemManager</Filter>
     </ClCompile>
-    <ClCompile Include="Src\HierarchyManager.cpp">
-      <Filter>Engine\Scene\EntityComponentSystem\Registry\HierarchyManager</Filter>
+    <ClCompile Include="Src\EntityManager.cpp">
+      <Filter>Engine\Scene\EntityComponentSystem\Registry\EntityManager</Filter>
     </ClCompile>
     <ClCompile Include="Src\ComponentManager.cpp">
       <Filter>Engine\Scene\EntityComponentSystem\Registry\ComponentManager</Filter>
@@ -268,6 +268,15 @@
     </ClCompile>
     <ClCompile Include="Src\Serializer.cpp">
       <Filter>Engine\Scene\EntityComponentSystem\Registry\Serializer</Filter>
+    </ClCompile>
+    <ClCompile Include="Src\SceneManager.cpp">
+      <Filter>Engine\AssetSystem\AssetManager\AssetHandlers\SceneManager</Filter>
+    </ClCompile>
+    <ClCompile Include="Src\SceneRegistry.cpp">
+      <Filter>Engine\Scene\EntityComponentSystem\Registry\SceneRegistry</Filter>
+    </ClCompile>
+    <ClCompile Include="Src\TransformComponent.cpp">
+      <Filter>Engine\Scene\EntityComponentSystem\Registry\ComponentManager\Components\TransformComponent</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -304,9 +313,6 @@
     </ClInclude>
     <ClInclude Include="Src\Entity.h">
       <Filter>Engine\Scene\EntityComponentSystem</Filter>
-    </ClInclude>
-    <ClInclude Include="Src\TransformComponent.h">
-      <Filter>Engine\Scene\EntityComponentSystem\Registry\ComponentManager\Components</Filter>
     </ClInclude>
     <ClInclude Include="Src\MeshComponent.h">
       <Filter>Engine\Scene\EntityComponentSystem\Registry\ComponentManager\Components</Filter>
@@ -588,8 +594,8 @@
     <ClInclude Include="Src\SystemsRegistry.h">
       <Filter>Engine\Scene\EntityComponentSystem\Registry\SystemManager</Filter>
     </ClInclude>
-    <ClInclude Include="Src\HierarchyManager.h">
-      <Filter>Engine\Scene\EntityComponentSystem\Registry\HierarchyManager</Filter>
+    <ClInclude Include="Src\EntityManager.h">
+      <Filter>Engine\Scene\EntityComponentSystem\Registry\EntityManager</Filter>
     </ClInclude>
     <ClInclude Include="Src\ISerializable.h">
       <Filter>Engine\Scene\Serialization</Filter>
@@ -611,6 +617,15 @@
     </ClInclude>
     <ClInclude Include="Src\Serializer.h">
       <Filter>Engine\Scene\EntityComponentSystem\Registry\Serializer</Filter>
+    </ClInclude>
+    <ClInclude Include="Src\SceneManager.h">
+      <Filter>Engine\AssetSystem\AssetManager\AssetHandlers\SceneManager</Filter>
+    </ClInclude>
+    <ClInclude Include="Src\SceneRegistry.h">
+      <Filter>Engine\Scene\EntityComponentSystem\Registry\SceneRegistry</Filter>
+    </ClInclude>
+    <ClInclude Include="Src\TransformComponent.h">
+      <Filter>Engine\Scene\EntityComponentSystem\Registry\ComponentManager\Components\TransformComponent</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
@@ -874,9 +889,6 @@
     <Filter Include="Engine\Scene\EntityComponentSystem\Registry\SystemManager\Systems\ScriptSystem\LuaBindings\Registry">
       <UniqueIdentifier>{e9f7c427-a2af-42a4-99ff-61a07eb3db69}</UniqueIdentifier>
     </Filter>
-    <Filter Include="Engine\Scene\EntityComponentSystem\Registry\HierarchyManager">
-      <UniqueIdentifier>{825eb168-d74d-4e94-9f6c-251588b1a9b4}</UniqueIdentifier>
-    </Filter>
     <Filter Include="Engine\Scene\Serialization">
       <UniqueIdentifier>{031d59d5-7256-4ba5-8dbb-8b3263d0bfcc}</UniqueIdentifier>
     </Filter>
@@ -894,6 +906,18 @@
     </Filter>
     <Filter Include="Engine\Scene\EntityComponentSystem\Registry\Serializer">
       <UniqueIdentifier>{21a2e228-5592-4d06-ab05-0b040faed3da}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Engine\AssetSystem\AssetManager\AssetHandlers\SceneManager">
+      <UniqueIdentifier>{75a3a772-8db5-4f42-994e-cfee70ff039a}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Engine\Scene\EntityComponentSystem\Registry\SceneRegistry">
+      <UniqueIdentifier>{aac6c32e-3dd6-4953-98c4-a9470d46f5d7}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Engine\Scene\EntityComponentSystem\Registry\EntityManager">
+      <UniqueIdentifier>{825eb168-d74d-4e94-9f6c-251588b1a9b4}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Engine\Scene\EntityComponentSystem\Registry\ComponentManager\Components\TransformComponent">
+      <UniqueIdentifier>{21cc2400-9f18-40be-b258-8966508d7727}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
 </Project>

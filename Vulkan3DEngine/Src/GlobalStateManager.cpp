@@ -1,14 +1,8 @@
 #include "GlobalStateManager.h"
-#include "Registry.h"
-#include "Renderer.h"
-#include "TransformComponent.h"
-#include "CameraComponent.h"
-#include "LightComponent.h"
+
 #include <spdlog/spdlog.h>
 #include <UBOStandardDefinitions.h>
-#include "DescriptorWriter.h"
-#include "DescriptorLayoutManager.h"
-#include "LogicalDevice.h"
+
 
 GlobalStateManager::GlobalStateManager(Registry& registry, Renderer& renderer)
     : m_registry(registry),

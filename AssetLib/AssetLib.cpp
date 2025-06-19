@@ -196,12 +196,24 @@ namespace AssetLib {
             info.entityCount = j["entityCount"].get<uint32_t>();
             return info;
         }
+
+        json SerializeSceneInfo(const SceneInfo& info) {
+            return {
+                {"entityCount", info.entityCount}
+            };
+        }
+
+        SceneInfo DeserializeSceneInfo(const json& j) {
+            SceneInfo info;
+            info.entityCount = j["entityCount"].get<uint32_t>();
+            return info;
+        }
     }
 
     bool ValidateHeader(const Header& header) {
         return header.magic == EXPECTED_MAGIC &&
             header.version <= CURRENT_VERSION &&
-            static_cast<uint8_t>(header.assetType) <= 4 &&
+            static_cast<uint8_t>(header.assetType) <= 5 &&
             static_cast<uint8_t>(header.compression) <= 1;
     }
 
@@ -541,6 +553,58 @@ namespace AssetLib {
         nlohmann::json prefabData = nlohmann::json::parse(jsonString);
 
         return { info, prefabData };
+    }
+
+    AssetData WriteScene(
+        const std::string& sourceName,
+        const SceneInfo& info,
+        const nlohmann::json& sceneData,
+        CompressionType compression) {
+
+        AssetData asset;
+        asset.header.assetType = AssetType::Scene;
+        asset.header.compression = compression;
+
+        // Serializacja JSON do string, potem do binary
+        std::string jsonString = sceneData.dump();
+        std::vector<uint8_t> jsonBytes(jsonString.begin(), jsonString.end());
+
+        asset.header.decompressedSize = jsonBytes.size();
+        asset.metadata["source"] = sourceName.empty() ? "generated_scene" : sourceName;
+        asset.metadata["scene"] = SerializeSceneInfo(info);
+
+        asset.compressedData = Compress(jsonBytes.data(), jsonBytes.size(), compression);
+
+        return asset;
+    }
+
+    std::pair<SceneInfo, nlohmann::json> ReadScene(const AssetData& asset) {
+        if (asset.header.assetType != AssetType::Scene) {
+            throw std::runtime_error("Not a scene asset");
+        }
+
+        SceneInfo info = DeserializeSceneInfo(asset.metadata["scene"]);
+
+        std::vector<uint8_t> data;
+
+        // Sprawdź typ kompresji z nagłówka
+        if (asset.header.compression == CompressionType::None) {
+            data = asset.compressedData;
+        }
+        else if (asset.header.compression == CompressionType::LZ4) {
+            data = Decompress(asset.compressedData.data(),
+                asset.compressedData.size(),
+                asset.header.decompressedSize);
+        }
+        else {
+            throw std::runtime_error("Unsupported compression type in scene");
+        }
+
+        // Konwertuj bajty z powrotem na string i parsuj JSON
+        std::string jsonString(data.begin(), data.end());
+        nlohmann::json sceneData = nlohmann::json::parse(jsonString);
+
+        return { info, sceneData };
     }
 
     // Helper type conversion functions

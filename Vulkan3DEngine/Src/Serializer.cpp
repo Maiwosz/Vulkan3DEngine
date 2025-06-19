@@ -1,24 +1,26 @@
 #include "Serializer.h"
-#include "Registry.h"
+#include "EntityManager.h"
+#include "ComponentManager.h"
 #include <stdexcept>
 #include <spdlog/spdlog.h>
 
-Serializer::Serializer(Registry& registry) : m_registry(registry) {
+Serializer::Serializer(EntityManager& entityManager, ComponentManager& componentManager)
+    : m_entityManager(entityManager), m_componentManager(componentManager) {
 }
 
 // Entity serialization
 nlohmann::json Serializer::serializeEntity(Entity entity) const {
-    if (!m_registry.valid(entity)) {
+    if (!m_entityManager.valid(entity)) {
         throw std::runtime_error("Invalid entity for serialization");
     }
 
     nlohmann::json result;
     result["id"] = entity.id;
-    result["name"] = m_registry.getEntityName(entity);
-    result["parent"] = m_registry.hasParent(entity) ? m_registry.getParent(entity).id : 0;
+    result["name"] = m_entityManager.getEntityName(entity);
+    result["parent"] = m_entityManager.hasParent(entity) ? m_entityManager.getParent(entity).id : 0;
 
     nlohmann::json componentsJson = nlohmann::json::array();
-    auto componentTypes = m_registry.getEntityComponentTypes(entity);
+    auto componentTypes = m_componentManager.getEntityComponentTypes(entity);
 
     for (const std::string& typeName : componentTypes) {
         nlohmann::json componentJson;
@@ -28,7 +30,7 @@ nlohmann::json Serializer::serializeEntity(Entity entity) const {
     }
     result["components"] = componentsJson;
 
-    const auto& children = m_registry.getChildren(entity);
+    const auto& children = m_entityManager.getChildren(entity);
     if (!children.empty()) {
         nlohmann::json childrenJson = nlohmann::json::array();
         for (Entity child : children) {
@@ -42,7 +44,12 @@ nlohmann::json Serializer::serializeEntity(Entity entity) const {
 
 Entity Serializer::deserializeEntity(const nlohmann::json& entityData, Entity parentEntity) {
     std::string entityName = entityData.contains("name") ? entityData["name"].get<std::string>() : "";
-    Entity newEntity = m_registry.create(parentEntity, entityName);
+    Entity newEntity = m_entityManager.create(entityName);
+
+    // Set parent if provided
+    if (parentEntity.id != 0 && m_entityManager.valid(parentEntity)) {
+        m_entityManager.setParent(newEntity, parentEntity);
+    }
 
     if (entityData.contains("components")) {
         for (const auto& componentJson : entityData["components"]) {
@@ -62,29 +69,18 @@ Entity Serializer::deserializeEntity(const nlohmann::json& entityData, Entity pa
 
 // Component serialization
 nlohmann::json Serializer::serializeComponent(Entity entity, const std::string& componentTypeName) const {
-    auto* pool = m_registry.getComponentPool(componentTypeName);
-    if (!pool) {
-        throw std::runtime_error("Component type not found: " + componentTypeName);
-    }
-    return pool->serializeComponent(entity);
+    return m_componentManager.serializeComponent(entity, componentTypeName);
 }
 
 void Serializer::deserializeComponent(Entity entity, const std::string& componentTypeName, const nlohmann::json& componentData) {
-    auto* pool = m_registry.getComponentPool(componentTypeName);
-    if (!pool) {
-        throw std::runtime_error("Component type not found: " + componentTypeName);
-    }
-    pool->deserializeComponent(entity, componentData, m_registry);
+    m_componentManager.deserializeComponent(entity, componentTypeName, componentData);
 }
 
 nlohmann::json Serializer::serializeEntityHierarchy(Entity entity) const {
     nlohmann::json result;
-
-    // Serializuj podstawowe dane entity
     result["entity"] = serializeEntity(entity);
 
-    // Serializuj dzieci rekurencyjnie
-    const auto& children = m_registry.getChildren(entity);
+    const auto& children = m_entityManager.getChildren(entity);
     if (!children.empty()) {
         nlohmann::json childrenArray = nlohmann::json::array();
         for (Entity child : children) {
@@ -97,10 +93,8 @@ nlohmann::json Serializer::serializeEntityHierarchy(Entity entity) const {
 }
 
 Entity Serializer::deserializePrefabHierarchy(const nlohmann::json& hierarchyData, Entity parent) {
-    // Deserializuj główne entity
     Entity newEntity = deserializeEntity(hierarchyData["entity"], parent);
 
-    // Deserializuj dzieci jeśli istnieją
     if (hierarchyData.contains("children")) {
         const auto& childrenArray = hierarchyData["children"];
         for (const auto& childData : childrenArray) {

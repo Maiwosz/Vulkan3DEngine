@@ -14,8 +14,9 @@
 // Prefab entity data - optimized for fast instantiation
 struct PrefabEntity {
     std::string name;
+    Entity parent = Entity(0);
     std::vector<Entity> children;
-    std::unordered_map<std::string, nlohmann::json> components; // componentType -> serialized data
+    std::unordered_map<std::string, nlohmann::json> components;
 };
 
 // Complete prefab data structure

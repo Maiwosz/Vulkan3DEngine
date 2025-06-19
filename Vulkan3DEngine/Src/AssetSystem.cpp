@@ -43,6 +43,8 @@ AssetSystem::AssetSystem(Renderer& renderer)
 
     m_prefabManager = std::make_shared<PrefabManager>();
 
+    m_sceneManager = std::make_shared<SceneManager>();
+
     // Register all handlers with the asset manager
     registerAssetHandlers();
 
@@ -58,6 +60,7 @@ AssetSystem::~AssetSystem()
     m_meshManager.reset();
     m_shaderManager.reset();
     m_prefabManager.reset();
+    m_sceneManager.reset();
     m_assetManager.reset();
 }
 
@@ -77,4 +80,5 @@ void AssetSystem::registerAssetHandlers()
     m_assetManager->registerHandler(AssetType::Shader, m_shaderManager);
     m_assetManager->registerHandler(AssetType::Material, m_materialManager);
     m_assetManager->registerHandler(AssetType::Prefab, m_prefabManager);
+    m_assetManager->registerHandler(AssetType::Scene, m_sceneManager);
 }

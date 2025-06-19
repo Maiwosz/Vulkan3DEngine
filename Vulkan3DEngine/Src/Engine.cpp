@@ -152,12 +152,12 @@ void Engine::initializeComponents(const InitParams& params) {
     SPDLOG_DEBUG("Creating renderer");
     m_renderer = std::make_unique<Renderer>(*m_settings , *m_window);
 
-    SPDLOG_DEBUG("Creating registry");
-    m_registry = std::make_unique<Registry>();
-
     // Asset system
     SPDLOG_DEBUG("Initializing asset system");
     m_assetSystem = std::make_unique<AssetSystem>(*m_renderer);
+
+    SPDLOG_DEBUG("Creating registry");
+    m_registry = std::make_unique<Registry>(*m_assetSystem);
 
     // Scene
     SPDLOG_DEBUG("Creating scene");

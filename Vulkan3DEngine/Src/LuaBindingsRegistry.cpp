@@ -12,7 +12,6 @@ namespace LuaBindings {
         auto registryType = state.new_usertype<Registry>("Registry",
             sol::no_constructor,
             "create", sol::overload(
-                static_cast<Entity(Registry::*)(Entity, const std::string&)>(&Registry::create),
                 static_cast<Entity(Registry::*)(const std::string&)>(&Registry::create)
             ),
             "destroy", &Registry::destroy,
@@ -35,15 +34,15 @@ namespace LuaBindings {
         registryType.set_function("addComponent", sol::overload(
             [&state](Registry& reg, Entity e, const std::string& type) -> sol::object {
                 if (type == "Transform")
-                    return sol::make_object(state, reg.addComponent<TransformComponent>(e));
+                    return sol::make_object(state, &reg.addComponent<TransformComponent>(e));
                 if (type == "Camera")
-                    return sol::make_object(state, reg.addComponent<CameraComponent>(e));
+                    return sol::make_object(state, &reg.addComponent<CameraComponent>(e));
                 if (type == "Light")
-                    return sol::make_object(state, reg.addComponent<LightComponent>(e));
+                    return sol::make_object(state, &reg.addComponent<LightComponent>(e));
                 if (type == "Material")
-                    return sol::make_object(state, reg.addComponent<MaterialComponent>(e));
+                    return sol::make_object(state, &reg.addComponent<MaterialComponent>(e));
                 if (type == "Mesh")
-                    return sol::make_object(state, reg.addComponent<MeshComponent>(e));
+                    return sol::make_object(state, &reg.addComponent<MeshComponent>(e));
 
                 return sol::nil;
             },
@@ -51,7 +50,7 @@ namespace LuaBindings {
                 if (type == "Script") {
                     auto& comp = reg.addComponent<ScriptComponent>(e);
                     comp.setScript(path);
-                    return sol::make_object(state, comp);
+                    return sol::make_object(state, &comp);
                 }
 
                 return sol::nil;
@@ -79,7 +78,7 @@ namespace LuaBindings {
 
         registryType.set_function("removeComponent", sol::overload(
             [](Registry& reg, Entity e, const std::string& type) {
-                if (type == "TransformComponent") reg.removeComponent<TransformComponent>(e);
+                if (type == "Transform") reg.removeComponent<TransformComponent>(e);
                 else if (type == "Camera") reg.removeComponent<CameraComponent>(e);
                 else if (type == "Light") reg.removeComponent<LightComponent>(e);
                 else if (type == "Material") reg.removeComponent<MaterialComponent>(e);
