@@ -3,10 +3,7 @@
 #include "Registry.h"
 #include "FrameManager.h"
 #include "Renderer.h"
-#include "ImGuiWrapper.h"
 #include "imgui.h"
-#include "imgui_impl_glfw.h"
-#include "imgui_impl_vulkan.h"
 
 EditorUI::EditorUI(Engine& engine)
     : m_engine(engine)
@@ -29,19 +26,6 @@ EditorUI::EditorUI(Engine& engine)
 
 EditorUI::~EditorUI() {
     m_logger->info("EditorUI destroyed");
-}
-
-void EditorUI::update() {
-    beginFrame();
-    renderWindows();
-    endFrame();
-}
-
-void EditorUI::beginFrame() {
-    // Start new ImGui frame
-    ImGui_ImplVulkan_NewFrame();
-    ImGui_ImplGlfw_NewFrame();
-    ImGui::NewFrame();
 }
 
 void EditorUI::renderWindows() {
@@ -101,27 +85,4 @@ void EditorUI::renderWindows() {
         }
     }
     ImGui::End();
-}
-
-void EditorUI::endFrame() {
-    // Get current frame's command buffer
-    auto& currentFrame = m_frameManager.getCurrentFrame();
-
-    if (currentFrame.graphicsCommandBuffer && currentFrame.graphicsCommandBuffer->isRecording()) {
-        // Render ImGui
-        ImGui::Render();
-
-        // Get the command buffer handle
-        VkCommandBuffer commandBuffer = currentFrame.graphicsCommandBuffer->handle();
-
-        // Render ImGui draw data to command buffer
-        m_engine.renderer().imguiWrapper().render(commandBuffer);
-
-        m_logger->debug("ImGui rendered to command buffer");
-    }
-    else {
-        m_logger->warn("Graphics command buffer not available for ImGui rendering");
-        // Still need to end the ImGui frame even if we can't render
-        ImGui::Render();
-    }
 }

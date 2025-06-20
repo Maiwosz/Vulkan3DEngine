@@ -14,17 +14,11 @@ public:
     explicit EditorUI(Engine& engine);
     ~EditorUI();
 
-    // Main update function - handles all UI logic and rendering
-    void update();
+    // Renders only ImGui commands - should be called from RenderStage callback
+    void renderWindows();
 
     // Window access
     HierarchyWindow& hierarchyWindow() { return *m_hierarchyWindow; }
-
-private:
-    void initializeImGui();
-    void beginFrame();
-    void endFrame();
-    void renderWindows();
 
 private:
     Engine& m_engine;

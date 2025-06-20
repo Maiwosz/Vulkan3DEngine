@@ -34,6 +34,12 @@ Editor::Editor(const std::string& sourceRelative, const std::string& destRelativ
     // Initialize EditorUI with engine reference
     m_editorUI = std::make_unique<EditorUI>(*m_engine);
 
+    m_engine->renderSystem().renderStage().setUIRenderCallback(
+        [this]() {
+            m_editorUI->renderWindows();
+        }
+    );
+
     m_logger->info("Editor initialized successfully");
 }
 

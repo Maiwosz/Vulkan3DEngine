@@ -39,6 +39,8 @@ public:
     // Reset the system for the next frame
     void prepareForNextFrame();
 
+	RenderStage& renderStage() { return *m_renderStage; }
+
     void reset();
 private:
     Settings& m_settings;

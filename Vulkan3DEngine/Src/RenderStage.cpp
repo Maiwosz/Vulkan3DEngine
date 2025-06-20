@@ -547,47 +547,13 @@ void RenderStage::renderUI(VkCommandBuffer commandBuffer) {
     ImGui_ImplGlfw_NewFrame();
     ImGui::NewFrame();
 
-    // Renderuj testowy UI
-    renderTestUI();
+    // Wywołaj callback jeśli został ustawiony
+    if (m_uiRenderCallback) {
+        m_uiRenderCallback();
+    }
 
     // Renderuj UI za pomocą ImGuiWrapper
     m_renderer.imguiWrapper().render(commandBuffer);
 
     SPDLOG_DEBUG("UI rendering completed");
-}
-
-void RenderStage::renderTestUI() {
-    // Testowe okno ImGui
-    ImGui::Begin("Test UI Window");
-    ImGui::Text("Hello from RenderStage!");
-    ImGui::Text("Application average %.3f ms/frame (%.1f FPS)",
-        1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
-
-    static float testValue = 0.0f;
-    ImGui::SliderFloat("Test Slider", &testValue, 0.0f, 1.0f);
-
-    static int counter = 0;
-    if (ImGui::Button("Test Button")) {
-        counter++;
-    }
-    ImGui::SameLine();
-    ImGui::Text("Counter: %d", counter);
-
-    // Wyświetl informacje o renderowaniu
-    auto& currentFrame = m_frameManager.getCurrentFrame();
-    size_t orderCount = currentFrame.renderOrders.size();
-    ImGui::Text("Render Orders: %zu", orderCount);
-    ImGui::Text("Frame Index: %u", m_frameManager.getCurrentFrameIndex());
-
-    ImGui::End();
-
-    // Dodatkowe małe okno z metrykami
-    ImGui::Begin("Metrics", nullptr, ImGuiWindowFlags_AlwaysAutoResize);
-    ImGui::Text("Vulkan Renderer Status");
-    ImGui::Separator();
-
-    VkExtent2D extent = m_swapChain.getSwapChainExtent();
-    ImGui::Text("Swapchain: %ux%u", extent.width, extent.height);
-
-    ImGui::End();
 }

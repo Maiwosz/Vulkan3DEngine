@@ -17,15 +17,19 @@
 #include "ImGuiWrapper.h"
 #include <memory>
 #include <vector>
+#include <functional>
 
 class RenderStage: public OrderProcessingStage {
 public:
+    using UIRenderCallback = std::function<void()>;
+
     RenderStage(Renderer& renderer, AssetSystem& assetSystem);
     ~RenderStage() = default;
 
     void process(std::shared_ptr<RenderOrder> order);
     void executeRenderPass();
 
+    void setUIRenderCallback(UIRenderCallback callback) { m_uiRenderCallback = callback; }
 private:
     // References to renderer components
     Renderer& m_renderer;
@@ -39,6 +43,9 @@ private:
     PipelineManager& m_pipelineManager;
     MeshManager& m_meshManager;
     DescriptorAllocator& m_descriptorAllocator;
+
+    // UI rendering callback
+    UIRenderCallback m_uiRenderCallback;
 
     // Render pass and attachment handles
     AttachmentHandle m_depthAttachmentHandle;
@@ -91,5 +98,4 @@ private:
 
     // UI rendering
     void renderUI(VkCommandBuffer commandBuffer);
-    void renderTestUI();
 };
