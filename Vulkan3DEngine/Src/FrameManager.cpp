@@ -24,6 +24,12 @@ m_maxFrames(maxFrames)
         VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT
     };
 
+    CommandBufferManager::Configuration imguiConfig{
+        LogicalDevice::QueueType::Graphics,
+        VK_COMMAND_BUFFER_LEVEL_PRIMARY,
+        VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT
+    };
+
     for (uint32_t i = 0; i < m_maxFrames; ++i) {
         auto& frame = m_frames[i];
 
@@ -36,10 +42,12 @@ m_maxFrames(maxFrames)
         // Acquire command buffers
         frame.graphicsCommandBuffer = m_cmdBufferManager.acquireSmartBuffer(graphicsConfig);
         frame.transferCommandBuffer = m_cmdBufferManager.acquireSmartBuffer(transferConfig);
+        frame.imguiCommandBuffer = m_cmdBufferManager.acquireSmartBuffer(imguiConfig);
 
         // Begin command buffers
         frame.graphicsCommandBuffer->begin(VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
         frame.transferCommandBuffer->begin(VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
+        // ImGui command buffer zostanie rozpoczęty gdy będzie potrzebny
         frame.hasTransferCommands = false;
     }
 }
@@ -151,6 +159,15 @@ void FrameManager::resetFrame(uint32_t frameIndex) {
             frame.transferCommandBuffer->end();
         }
         frame.transferCommandBuffer->reset();
+        frame.transferCommandBuffer->begin(VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
+    }
+
+    // Reset ImGui command buffer
+    if (frame.imguiCommandBuffer) {
+        if (frame.imguiCommandBuffer->isRecording()) {
+            frame.imguiCommandBuffer->end();
+        }
+        frame.imguiCommandBuffer->reset();
         frame.transferCommandBuffer->begin(VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
     }
 }

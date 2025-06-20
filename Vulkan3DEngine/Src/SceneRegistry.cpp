@@ -21,9 +21,6 @@ bool SceneRegistry::loadScene(const std::string& sceneName) {
         return false;
     }
 
-    // Clear current scene (destroys all entities)
-    clearCurrentScene();
-
     // Deserialize new scene
     if (!deserializeScene(sceneData)) {
         SPDLOG_ERROR("Failed to deserialize scene {}", sceneName);
@@ -132,20 +129,4 @@ bool SceneRegistry::deserializeScene(const nlohmann::json& sceneData) {
         SPDLOG_ERROR("Failed to deserialize scene: {}", e.what());
         return false;
     }
-}
-
-void SceneRegistry::clearCurrentScene() {
-    // Get all entities and destroy them
-    auto allEntities = m_entityManager.getAllEntities();
-    std::vector<Entity> entitiesToDestroy(allEntities.begin(), allEntities.end());
-
-    SPDLOG_INFO("Clearing scene - destroying {} entities", entitiesToDestroy.size());
-
-    for (Entity entity : entitiesToDestroy) {
-        if (m_entityManager.valid(entity)) {
-            m_entityManager.destroy(entity);
-        }
-    }
-
-    m_currentSceneName.clear();
 }

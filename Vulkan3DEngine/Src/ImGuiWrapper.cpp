@@ -6,14 +6,16 @@
 ImGuiWrapper::ImGuiWrapper(
     Window& window,
     VulkanContext& context,
-    VkRenderPass renderPass,
+    RenderPassHandle renderPassHandle,
+    RenderPassManager& renderPassManager,
     uint32_t minImageCount,
     uint32_t imageCount,
     VkSampleCountFlagBits msaaSamples
-) 
+)
     : m_window(window),
     m_context(context),
-    m_renderPass(renderPass),
+    m_renderPassHandle(renderPassHandle),
+    m_renderPassManager(renderPassManager),
     m_minImageCount(minImageCount),
     m_imageCount(imageCount),
     m_msaaSamples(msaaSamples)
@@ -25,6 +27,14 @@ ImGuiWrapper::~ImGuiWrapper() {
     shutdown();
 }
 
+VkRenderPass ImGuiWrapper::getCurrentRenderPass() const {
+    VkRenderPass* renderPassPtr = m_renderPassManager.getResource(m_renderPassHandle);
+    if (!renderPassPtr) {
+        throw std::runtime_error("Invalid render pass handle in ImGuiWrapper");
+    }
+    return *renderPassPtr;
+}
+
 void ImGuiWrapper::init() {
     if (m_initialized) return;
 
@@ -32,7 +42,7 @@ void ImGuiWrapper::init() {
 
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
-    
+
     // Konfiguracja IO
     ImGuiIO& io = ImGui::GetIO();
     io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
@@ -46,16 +56,16 @@ void ImGuiWrapper::init() {
     initInfo.Instance = m_context.instance().get();
     initInfo.PhysicalDevice = m_context.physical().get();
     initInfo.Device = m_context.logical().get();
-    
+
     // Pobieranie indeksu rodziny kolejek z LogicalDevice
     initInfo.QueueFamily = m_context.logical().getQueueFamilyIndex(LogicalDevice::QueueType::Graphics);
     initInfo.Queue = m_context.logical().getQueue(LogicalDevice::QueueType::Graphics);
-    
+
     initInfo.DescriptorPool = m_imguiPool;
     initInfo.MinImageCount = m_minImageCount;
     initInfo.ImageCount = m_imageCount;
     initInfo.MSAASamples = m_msaaSamples;
-    initInfo.RenderPass = m_renderPass;
+    initInfo.RenderPass = getCurrentRenderPass();  // Używamy aktualnego render passa
 
     ImGui_ImplVulkan_Init(&initInfo);
     ImGui_ImplVulkan_CreateFontsTexture();
@@ -66,7 +76,7 @@ void ImGuiWrapper::init() {
 void ImGuiWrapper::recreate() {
     vkDeviceWaitIdle(m_context.logical().get());
     shutdown();
-    init();
+    init();  // Automatycznie użyje aktualnego render passa
 }
 
 void ImGuiWrapper::render(VkCommandBuffer commandBuffer) {

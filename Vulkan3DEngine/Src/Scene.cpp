@@ -16,7 +16,7 @@ Scene::Scene(Registry& registry) :
     m_registry(registry)
 {
 
-    if (false) {
+    if (true) {
     // Creating object with mesh
     testEntity = m_registry.create();
     {

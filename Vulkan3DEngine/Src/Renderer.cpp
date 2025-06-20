@@ -97,6 +97,9 @@ Renderer::Renderer(Settings& settings, Window& window) :m_settings(settings), m_
         // Create main render pass
         createMainRenderPass();
 
+        // Create ImGui wrapper after render pass is created
+        createImGuiWrapper();
+
     }
     catch (const std::exception& e) {
         throw std::runtime_error("Renderer initialization failed: " + std::string(e.what()));
@@ -113,6 +116,8 @@ Renderer::~Renderer() {
     if (m_frameManager) {
         m_frameManager->waitForAllFrames();
     }
+
+    m_imguiWrapper.reset();
 
     // Now destroy managers in proper order
     // Destroy high-level managers first
@@ -173,6 +178,7 @@ void Renderer::recreateSwapChain() {
     // Swap chain recreation affects attachments and render pass
     recreateAttachments();
     recreateRenderPass();
+    m_imguiWrapper->recreate();
 
     SPDLOG_INFO("Swapchain recreation completed successfully");
 }
@@ -364,4 +370,20 @@ void Renderer::createMainRenderPass() {
 
     // Create/retrieve the render pass
     m_mainRenderPassHandle = m_renderPassManager->acquireRenderPass(renderPassConfig);
+}
+
+void Renderer::createImGuiWrapper() {
+    uint32_t imageCount = m_settings.getFramesInFlight();
+    uint32_t minImageCount = imageCount;
+    VkSampleCountFlagBits samples = Graphics::convertSampleCount(m_settings.getMsaaSamples());
+
+    m_imguiWrapper = std::make_unique<ImGuiWrapper>(
+        m_window,
+        *m_vulkanContext,
+        m_mainRenderPassHandle,
+        *m_renderPassManager,
+        minImageCount,
+        imageCount,
+        samples
+    );
 }

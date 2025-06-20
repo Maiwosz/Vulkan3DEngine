@@ -35,5 +35,4 @@ private:
     // Helper methods
     nlohmann::json serializeCurrentScene() const;
     bool deserializeScene(const nlohmann::json& sceneData);
-    void clearCurrentScene();
 };

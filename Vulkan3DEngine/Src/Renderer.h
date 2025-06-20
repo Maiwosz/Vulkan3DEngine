@@ -25,7 +25,7 @@ public:
     Renderer(Settings& settings, Window& window);
     ~Renderer();
 
-	void advanceFrame();
+    void advanceFrame();
 
     void waitIdle() { vkDeviceWaitIdle(m_vulkanContext->logical().get()); }
 
@@ -45,8 +45,8 @@ public:
     FrameBufferManager& framebufferManager() { return *m_framebufferManager; }
     PipelineManager& pipelineManager() { return *m_pipelineManager; }
     DescriptorAllocator& descriptorAllocator() { return *m_descriptorAllocator; }
+    ImGuiWrapper& imguiWrapper() { return *m_imguiWrapper; }  // Nowy getter
 
-    //RenderPassHandle renderPass() { return m_mainRenderPassHandle; }
     RenderPassHandle renderPass() {
         SPDLOG_INFO("renderPass() called, m_mainRenderPassHandle.id = {}", m_mainRenderPassHandle.id);
         RenderPassHandle result = m_mainRenderPassHandle;
@@ -61,7 +61,7 @@ public:
     void recreateAttachments();
 
 private:
-	Settings& m_settings;
+    Settings& m_settings;
     Window& m_window;
     std::unique_ptr<VulkanContext> m_vulkanContext;
     std::unique_ptr<ShaderModuleManager> m_shaderModuleManager;
@@ -79,6 +79,7 @@ private:
     std::unique_ptr<FrameBufferManager> m_framebufferManager;
     std::unique_ptr<PipelineManager> m_pipelineManager;
     std::unique_ptr<DescriptorAllocator> m_descriptorAllocator;
+    std::unique_ptr<ImGuiWrapper> m_imguiWrapper;
 
     // Main render pass and resources
     RenderPassHandle m_mainRenderPassHandle;
@@ -87,4 +88,5 @@ private:
 
     // Helper methods
     void createMainRenderPass();
+    void createImGuiWrapper();
 };

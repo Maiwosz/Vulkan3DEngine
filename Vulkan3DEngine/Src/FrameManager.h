@@ -15,9 +15,10 @@ struct FrameData {
     VkFence inFlightFence;
     SmartCommandBufferHandle graphicsCommandBuffer;
     SmartCommandBufferHandle transferCommandBuffer;
+    SmartCommandBufferHandle imguiCommandBuffer;
     std::vector<std::shared_ptr<RenderOrder>> renderOrders;
     bool hasTransferCommands = false;
-	FrameBufferHandle framebufferHandle;
+    FrameBufferHandle framebufferHandle;
 };
 
 class FrameManager {
@@ -51,7 +52,6 @@ public:
     VkSemaphore getRenderFinishedSemaphore() const { return m_frames[m_currentFrame].renderFinished; }
     VkSemaphore gettransferFinishedSemaphore() const { return m_frames[m_currentFrame].transferFinished; }
     VkFence getInFlightFence() const { return m_frames[m_currentFrame].inFlightFence; }
-
     uint32_t getCurrentFrameIndex() { return m_currentFrame; }
 
 private:

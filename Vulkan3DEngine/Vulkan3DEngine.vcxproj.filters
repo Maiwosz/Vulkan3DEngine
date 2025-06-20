@@ -48,7 +48,7 @@
       <Filter>Engine\Scene\EntityComponentSystem\Registry</Filter>
     </ClCompile>
     <ClCompile Include="Src\ImGuiWrapper.cpp">
-      <Filter>Editor\ImGuiWrapper</Filter>
+      <Filter>Engine\Renderer\ImGuiWrapper</Filter>
     </ClCompile>
     <ClCompile Include="Src\CommandBuffer.cpp">
       <Filter>Engine\Renderer\CommandBufferManager\CommandBuffer</Filter>
@@ -354,7 +354,7 @@
       <Filter>Engine\Scene\EntityComponentSystem\Registry\SystemManager</Filter>
     </ClInclude>
     <ClInclude Include="Src\ImGuiWrapper.h">
-      <Filter>Editor\ImGuiWrapper</Filter>
+      <Filter>Engine\Renderer\ImGuiWrapper</Filter>
     </ClInclude>
     <ClInclude Include="Src\CommandBuffer.h">
       <Filter>Engine\Renderer\CommandBufferManager\CommandBuffer</Filter>
@@ -760,9 +760,6 @@
     <Filter Include="Engine\Settings">
       <UniqueIdentifier>{44729301-b6f0-4f28-9279-57fd9a1e2b28}</UniqueIdentifier>
     </Filter>
-    <Filter Include="Editor\ImGuiWrapper">
-      <UniqueIdentifier>{771687ec-623b-4f20-99f4-8a37762989e3}</UniqueIdentifier>
-    </Filter>
     <Filter Include="Engine\Renderer\UniformBufferManager">
       <UniqueIdentifier>{f4f12b53-9db7-47a6-9c37-5077623ee1c0}</UniqueIdentifier>
     </Filter>
@@ -918,6 +915,9 @@
     </Filter>
     <Filter Include="Engine\Scene\EntityComponentSystem\Registry\ComponentManager\Components\TransformComponent">
       <UniqueIdentifier>{21cc2400-9f18-40be-b258-8966508d7727}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Engine\Renderer\ImGuiWrapper">
+      <UniqueIdentifier>{771687ec-623b-4f20-99f4-8a37762989e3}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
 </Project>

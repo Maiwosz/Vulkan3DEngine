@@ -34,6 +34,10 @@ public:
     void destroy(Entity entity);
     bool valid(Entity entity) const;
     Entity cloneEntityHierarchy(Entity sourceEntity, Entity newParent = Entity(0), const std::string& name = "");
+    void destroyAllEntities();
+
+    // Prefab opeations (facade)
+    void destroyAllPrefabInstances();
 
     // Scene operations (facade)
     bool loadScene(const std::string& sceneName);

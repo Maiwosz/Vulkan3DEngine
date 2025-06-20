@@ -36,10 +36,25 @@ void Registry::destroy(Entity entity) {
         return;
     }
 
-    // Notify prefab system about entity destruction
-    m_prefabInstanceManager->onEntityDestroyed(entity);
+    // Sprawdź czy entity jest korzeniem instancji prefaba
+    if (m_prefabInstanceManager->isEntityPartOfInstance(entity)) {
+        PrefabInstanceHandle instanceHandle = m_prefabInstanceManager->getInstanceForEntity(entity);
+        const PrefabInstance* instance = m_prefabInstanceManager->getInstance(instanceHandle);
 
-    // Destroy entity through EntityManager
+        if (instance && instance->rootEntity == entity) {
+            // Jeśli to korzeń instancji - zniszcz całą instancję
+            SPDLOG_INFO("Destroying prefab instance {} via root entity {}", instanceHandle.id, entity.id);
+            m_prefabInstanceManager->destroyInstance(instanceHandle);
+            return;
+        }
+        else {
+            // Jeśli to nie korzeń - nie pozwalaj na usunięcie
+            SPDLOG_WARN("Cannot destroy entity {} - it's part of prefab instance but not root", entity.id);
+            return;
+        }
+    }
+
+    // Standardowe usuwanie entity
     m_entityManager->destroy(entity);
 }
 
@@ -87,8 +102,34 @@ Entity Registry::cloneEntityHierarchy(Entity sourceEntity, Entity newParent, con
     return newEntity;
 }
 
+void Registry::destroyAllEntities() {
+    // Najpierw zniszcz wszystkie instancje prefabów (dla pewności)
+    auto allInstances = m_prefabInstanceManager->getAllInstances();
+    for (auto instanceHandle : allInstances) {
+        m_prefabInstanceManager->destroyInstance(instanceHandle);
+    }
+
+    // Następnie zniszcz wszystkie pozostałe entity
+    auto allEntities = m_entityManager->getAllEntities();
+    std::vector<Entity> entitiesToDestroy(allEntities.begin(), allEntities.end());
+
+    for (Entity entity : entitiesToDestroy) {
+        if (m_entityManager->valid(entity)) {
+            m_entityManager->destroy(entity);
+        }
+    }
+}
+
+void Registry::destroyAllPrefabInstances() {
+    auto allInstances = m_prefabInstanceManager->getAllInstances();
+    for (auto instanceHandle : allInstances) {
+        m_prefabInstanceManager->destroyInstance(instanceHandle);
+    }
+}
+
 // Scene operations (facade)
 bool Registry::loadScene(const std::string& sceneName) {
+    clearScene();
     return m_sceneRegistry->loadScene(sceneName);
 }
 
@@ -97,8 +138,11 @@ bool Registry::saveScene(const std::string& sceneName) {
 }
 
 void Registry::clearScene() {
-    // Clear through scene registry to maintain consistency
-    m_sceneRegistry->loadScene(""); // Loading empty scene clears everything
+    // Najpierw zniszcz wszystkie instancje prefabów
+    destroyAllPrefabInstances();
+
+    // Następnie zniszcz pozostałe entity
+    destroyAllEntities();
 }
 
 std::string Registry::getCurrentSceneName() const {
@@ -188,9 +232,15 @@ bool Registry::canDestroyEntity(Entity entity) const {
         return false;
     }
 
-    // Check if entity is part of a locked prefab instance
+    // Sprawdź czy entity jest częścią instancji prefaba
     if (m_prefabInstanceManager->isEntityPartOfInstance(entity)) {
-        return m_prefabInstanceManager->canDestroyEntity(entity);
+        PrefabInstanceHandle instanceHandle = m_prefabInstanceManager->getInstanceForEntity(entity);
+        const PrefabInstance* instance = m_prefabInstanceManager->getInstance(instanceHandle);
+
+        if (instance) {
+            // Można usunąć tylko korzeń instancji (co usuwa całą instancję)
+            return instance->rootEntity == entity;
+        }
     }
 
     return true;

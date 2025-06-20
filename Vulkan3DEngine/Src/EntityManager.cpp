@@ -257,12 +257,18 @@ void EntityManager::getAllChildrenRecursive(Entity entity, std::vector<Entity>& 
 }
 
 void EntityManager::removeFromHierarchy(Entity entity) {
-    // Get children and parent before removing entity
+    // Make a COPY of children before removing entity to avoid iterator invalidation
+    std::vector<Entity> childrenCopy;
     const auto& children = getChildren(entity);
+    childrenCopy.reserve(children.size());
+    for (Entity child : children) {
+        childrenCopy.push_back(child);
+    }
+
     Entity parent = hasParent(entity) ? getParent(entity) : Entity(0);
 
     // Reparent children to entity's parent (or make them roots)
-    for (Entity child : children) {
+    for (Entity child : childrenCopy) {  // Now safe to iterate
         removeParent(child);
         if (parent.id != 0) {
             setParent(child, parent);

@@ -55,7 +55,8 @@ public:
 
     // Entity management
     bool isEntityPartOfInstance(Entity entity) const;
-    bool canDestroyEntity(Entity entity) const; // Returns false if entity is part of locked instance
+    bool canDestroyEntity(Entity entity) const; // Returns false if entity is part of instance
+    bool isInstanceRoot(Entity entity) const;
     PrefabInstanceHandle getInstanceForEntity(Entity entity) const;
 
     // Component overrides - Copy-on-Write system

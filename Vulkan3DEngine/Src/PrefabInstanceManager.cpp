@@ -459,7 +459,26 @@ bool PrefabInstanceManager::isEntityPartOfInstance(Entity entity) const {
 }
 
 bool PrefabInstanceManager::canDestroyEntity(Entity entity) const {
-    return !isEntityPartOfInstance(entity);
+    if (!isEntityPartOfInstance(entity)) {
+        return true; // Entity nie jest częścią instancji - można usunąć
+    }
+
+    // Entity jest częścią instancji - można usunąć tylko jeśli to korzeń
+    return isInstanceRoot(entity);
+}
+
+bool PrefabInstanceManager::isInstanceRoot(Entity entity) const {
+    auto it = m_entityToInstance.find(entity);
+    if (it == m_entityToInstance.end()) {
+        return false;
+    }
+
+    auto instanceIt = m_instances.find(it->second.id);
+    if (instanceIt == m_instances.end()) {
+        return false;
+    }
+
+    return instanceIt->second.rootEntity == entity;
 }
 
 PrefabInstanceHandle PrefabInstanceManager::getInstanceForEntity(Entity entity) const {
