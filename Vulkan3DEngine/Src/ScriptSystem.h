@@ -2,17 +2,18 @@
 #include "System.h"
 #include "ScriptComponent.h"
 #include "TransformComponent.h"
-#include "Registry.h"
 #include <sol/sol.hpp>
 #include <unordered_map>
 #include <memory>
+#include <set>
 
 class ScriptSystem : public System<> {
 public:
-    ScriptSystem();
+    ScriptSystem() = default;
     ~ScriptSystem();
 
-    void update(SystemContext<>& context) override;
+    void initialize() override;
+    void update() override;
 
     // Add a getter for the Lua state to use in bindings
     sol::state* getLuaState() { return m_luaState.get(); }

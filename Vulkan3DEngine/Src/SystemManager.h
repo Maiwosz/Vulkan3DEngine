@@ -8,7 +8,8 @@
 
 class SystemManager : public ISerializable {
 public:
-    SystemManager(Registry& registry) : m_registry(registry) {
+    SystemManager(Registry& registry, Engine& engine)
+        : m_registry(registry), m_engine(engine) {
         initializeSystems();
     }
 
@@ -22,6 +23,9 @@ public:
         }
         m_systems[type] = std::make_unique<T>();
         m_systemActive[type] = false; // Domyślnie nieaktywny
+
+        // Wywołaj initialize dla nowo zarejestrowanego systemu
+        m_systems[type]->initialize(*this, m_registry, m_engine);
     }
 
     template<typename T>
@@ -59,7 +63,7 @@ public:
     void updateAll() {
         for (auto& [type, system] : m_systems) {
             if (m_systemActive[type]) {
-                system->update(*this, m_registry);
+                system->update();
             }
         }
     }
@@ -82,6 +86,7 @@ private:
     void initializeSystems();
 
     Registry& m_registry;
+    Engine& m_engine;
     std::unordered_map<std::type_index, std::unique_ptr<ISystem>> m_systems;
     std::unordered_map<std::type_index, bool> m_systemActive;
 };

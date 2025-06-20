@@ -13,6 +13,7 @@ public:
     VulkanContext(
         const Instance::Config& instanceConfig,
         const Window& window,
+        Settings& settings,
         const std::vector<const char*>& deviceExtensions = { VK_KHR_SWAPCHAIN_EXTENSION_NAME }
     );
 
@@ -26,6 +27,7 @@ public:
     bool debugPrintfEnabled() const { return m_instance.debugPrintfEnabled(); }
 
 private:
+    Settings& m_settings;
     Instance m_instance;
     Surface m_surface;
     PhysicalDevice m_physicalDevice;

@@ -1,12 +1,13 @@
 #include "Registry.h"
 #include "SystemManager.h"
+#include "Engine.h"
 #include <stdexcept>
 #include <algorithm>
 #include <spdlog/spdlog.h>
 
-Registry::Registry(AssetSystem& assetSystem) {
+Registry::Registry(Engine& engine) {
     // Create modules in dependency order
-    m_systemManager = std::make_unique<SystemManager>(*this);
+    m_systemManager = std::make_unique<SystemManager>(*this, engine);
     m_componentManager = std::make_unique<ComponentManager>(*this);
     m_entityManager = std::make_unique<EntityManager>(*m_componentManager);
     m_serializer = std::make_unique<Serializer>(*m_entityManager, *m_componentManager);
@@ -14,13 +15,13 @@ Registry::Registry(AssetSystem& assetSystem) {
         *m_entityManager,
         *m_componentManager,
         *m_serializer,
-        assetSystem.prefabManager()
+        engine.assetSystem().prefabManager()
     );
     m_sceneRegistry = std::make_unique<SceneRegistry>(
         *m_entityManager,
         *m_componentManager,
         *m_serializer,
-        assetSystem.sceneManager()
+        engine.assetSystem().sceneManager()
     );
 }
 

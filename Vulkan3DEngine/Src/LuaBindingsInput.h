@@ -5,5 +5,5 @@
 
 namespace LuaBindings {
     // Register input system functionality
-    void registerInputSystem(sol::state& state);
+    void registerInputSystem(sol::state& state, Engine& engine);
 }

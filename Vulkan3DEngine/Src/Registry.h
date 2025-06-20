@@ -22,10 +22,11 @@ class Serializer;
 class PrefabInstanceManager;
 class SceneRegistry;
 class AssetSystem;
+class Engine;
 
 class Registry {
 public:
-    Registry(AssetSystem& assetSystem);
+    Registry(Engine& engine);
 
     // === PUBLIC API - Complex operations coordinated by Registry ===
 

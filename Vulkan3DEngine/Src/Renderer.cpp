@@ -17,6 +17,7 @@ Renderer::Renderer(Settings& settings, Window& window) :m_settings(settings), m_
         m_vulkanContext = std::make_unique<VulkanContext>(
             instanceConfig,
             m_window,
+            m_settings,
             std::vector<const char*>{VK_KHR_SWAPCHAIN_EXTENSION_NAME}
         );
 
@@ -27,7 +28,7 @@ Renderer::Renderer(Settings& settings, Window& window) :m_settings(settings), m_
             *m_vulkanContext,
             *m_syncResourceManager,
             *m_commandBufferManager,
-            Engine::get().settings().getFramesInFlight()
+            m_settings.getFramesInFlight()
         );
         m_vramManager = std::make_unique<VramManager>(
             *m_vulkanContext,
@@ -51,7 +52,9 @@ Renderer::Renderer(Settings& settings, Window& window) :m_settings(settings), m_
             m_vulkanContext->surface(),
             m_vulkanContext->physical(),
             m_vulkanContext->logical(),
-            *m_vramManager
+            *m_vramManager,
+            window,
+            settings
         );
         SamplerSettings samplerSettings;
         samplerSettings.textureFiltering = m_settings.getTextureFiltering();
@@ -185,8 +188,7 @@ void Renderer::recreateSwapChain() {
 
 void Renderer::recreateAttachments() {
     // Get current settings
-    Settings& settings = Engine::get().settings();
-    VkSampleCountFlagBits samples = Graphics::convertSampleCount(settings.getMsaaSamples());
+    VkSampleCountFlagBits samples = Graphics::convertSampleCount(m_settings.getMsaaSamples());
     VkExtent2D newExtent = m_swapChain->getSwapChainExtent();
 
     // Release existing attachments
@@ -230,8 +232,7 @@ void Renderer::recreateAttachments() {
 
 void Renderer::recreateRenderPass() {
     // Get current settings
-    Settings& settings = Engine::get().settings();
-    VkSampleCountFlagBits samples = Graphics::convertSampleCount(settings.getMsaaSamples());
+    VkSampleCountFlagBits samples = Graphics::convertSampleCount(m_settings.getMsaaSamples());
 
     // Create new render pass configuration
     RenderPassConfig renderPassConfig;

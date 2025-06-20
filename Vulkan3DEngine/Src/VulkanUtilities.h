@@ -2,6 +2,7 @@
 #include "Prerequisites.h"
 #include <vulkan/vulkan.h>
 #include <vector>
+#include "Window.h"
 
 namespace VulkanUtils {
     bool hasStencilComponent(VkFormat format);
@@ -13,7 +14,7 @@ namespace VulkanUtils {
     void listAvailableExtensions();
     VkSurfaceFormatKHR chooseSwapSurfaceFormat(const std::vector<VkSurfaceFormatKHR>& availableFormats);
     VkPresentModeKHR chooseSwapPresentMode(const std::vector<VkPresentModeKHR>& availablePresentModes);
-    VkExtent2D chooseSwapExtent(const VkSurfaceCapabilitiesKHR& capabilities);
+    VkExtent2D chooseSwapExtent(const VkSurfaceCapabilitiesKHR& capabilities, GLFWwindow* window);
     bool checkDebugPrintfSupport(VkPhysicalDevice device);
     VkValidationFeaturesEXT createValidationFeaturesStruct();
 }

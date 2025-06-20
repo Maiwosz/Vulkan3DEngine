@@ -6,8 +6,10 @@
 VulkanContext::VulkanContext(
     const Instance::Config& instanceConfig,
     const Window& window,
+    Settings& settings,
     const std::vector<const char*>& deviceExtensions)
-    : m_instance(instanceConfig),
+    : m_settings(settings),
+    m_instance(instanceConfig),
     m_surface(m_instance.get(), window),
     m_physicalDevice(m_instance.get(), m_surface.get(), deviceExtensions),
     m_logicalDevice(m_physicalDevice, deviceExtensions, instanceConfig.enableDebugPrintf)
@@ -44,5 +46,5 @@ VulkanContext::VulkanContext(
 		anisotropySupported
 	};
 
-    Engine::get().settings().setHardwareLimits(limits);
+    m_settings.setHardwareLimits(limits);
 }

@@ -2,7 +2,7 @@
 #include <GLFW/glfw3.h>
 
 namespace LuaBindings {
-    void registerInputSystem(sol::state& state) {
+    void registerInputSystem(sol::state& state, Engine& engine) {
 
         // Create Input namespace in Lua
         auto inputNS = state.create_named_table("Input");
@@ -93,46 +93,46 @@ namespace LuaBindings {
         );
 
         // Register keyboard functions - using correct method names from InputSystem.h
-        inputNS.set_function("isKeyPressed", [](int key) -> bool {
-            return Engine::get().inputSystem().isKeyPressed(key);
+        inputNS.set_function("isKeyPressed", [&engine](int key) -> bool {
+            return engine.inputSystem().isKeyPressed(key);
             });
 
-        inputNS.set_function("isKeyReleased", [](int key) -> bool {
-            return Engine::get().inputSystem().isKeyReleased(key);
+        inputNS.set_function("isKeyReleased", [&engine](int key) -> bool {
+            return engine.inputSystem().isKeyReleased(key);
             });
 
-        inputNS.set_function("isKeyHeld", [](int key) -> bool {
-            return Engine::get().inputSystem().isKeyHeld(key);
+        inputNS.set_function("isKeyHeld", [&engine](int key) -> bool {
+            return engine.inputSystem().isKeyHeld(key);
             });
 
         // Register mouse functions - using correct method names from InputSystem.h
-        inputNS.set_function("isMousePressed", [](InputSystem::MouseButton button) -> bool {
-            return Engine::get().inputSystem().isMousePressed(button);
+        inputNS.set_function("isMousePressed", [&engine](InputSystem::MouseButton button) -> bool {
+            return engine.inputSystem().isMousePressed(button);
             });
 
-        inputNS.set_function("isMouseReleased", [](InputSystem::MouseButton button) -> bool {
-            return Engine::get().inputSystem().isMouseReleased(button);
+        inputNS.set_function("isMouseReleased", [&engine](InputSystem::MouseButton button) -> bool {
+            return engine.inputSystem().isMouseReleased(button);
             });
 
-        inputNS.set_function("isMouseHeld", [](InputSystem::MouseButton button) -> bool {
-            return Engine::get().inputSystem().isMouseHeld(button);
+        inputNS.set_function("isMouseHeld", [&engine](InputSystem::MouseButton button) -> bool {
+            return engine.inputSystem().isMouseHeld(button);
             });
 
-        inputNS.set_function("getMousePosition", []() -> glm::vec2 {
-            return Engine::get().inputSystem().getMousePosition();
+        inputNS.set_function("getMousePosition", [&engine]() -> glm::vec2 {
+            return engine.inputSystem().getMousePosition();
             });
 
-        inputNS.set_function("getMouseDelta", []() -> glm::vec2 {
-            return Engine::get().inputSystem().getMouseDelta();
+        inputNS.set_function("getMouseDelta", [&engine]() -> glm::vec2 {
+            return engine.inputSystem().getMouseDelta();
             });
 
         // Using getScrollDelta() which returns glm::vec2, accessing y component for vertical scroll
-        inputNS.set_function("getMouseScrollDelta", []() -> glm::vec2 {
-            return Engine::get().inputSystem().getScrollDelta();
+        inputNS.set_function("getMouseScrollDelta", [&engine]() -> glm::vec2 {
+            return engine.inputSystem().getScrollDelta();
             });
 
-        inputNS.set_function("setCursorMode", [](InputSystem::CursorMode mode) {
-            Engine::get().inputSystem().setCursorMode(mode);
+        inputNS.set_function("setCursorMode", [&engine](InputSystem::CursorMode mode) {
+            engine.inputSystem().setCursorMode(mode);
             });
     }
 }

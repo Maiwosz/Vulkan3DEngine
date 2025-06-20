@@ -13,7 +13,10 @@ public:
 		const Surface& surface,
 		const PhysicalDevice& physicalDevice,
 		const LogicalDevice& logicalDevice,
-		VramManager& vramManager);
+		VramManager& vramManager,
+		Window& window,
+		Settings& settings
+	);
 	~SwapChain();
 
 	VkSwapchainKHR get() const { return m_swapChain; }
@@ -35,10 +38,12 @@ private:
 	void registerImagesWithVramManager();
 	VkPresentModeKHR getVulkanPresentMode(const std::vector<VkPresentModeKHR>& availablePresentModes) const;
 
-	const PhysicalDevice& r_physicalDevice;
-	const LogicalDevice& r_logicalDevice;
-	const Surface& r_surface;
-	VramManager& r_vramManager;
+	const PhysicalDevice& m_physicalDevice;
+	const LogicalDevice& m_logicalDevice;
+	const Surface& m_surface;
+	Window& m_window;
+	Settings& m_settings;
+	VramManager& m_vramManager;
 	VkSwapchainKHR m_swapChain;
 
 	std::vector<VkImage> m_swapChainImages;

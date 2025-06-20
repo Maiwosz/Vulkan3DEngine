@@ -6,16 +6,18 @@ SwapChain::SwapChain(
     const Surface& surface,
     const PhysicalDevice& physicalDevice,
     const LogicalDevice& logicalDevice,
-    VramManager& vramManager
+    VramManager& vramManager,
+    Window& window,
+    Settings& settings
 ) :
-    r_surface(surface),
-    r_physicalDevice(physicalDevice),
-    r_logicalDevice(logicalDevice),
-    r_vramManager(vramManager)
+    m_surface(surface),
+    m_physicalDevice(physicalDevice),
+    m_logicalDevice(logicalDevice),
+    m_vramManager(vramManager),
+    m_window(window),
+    m_settings(settings)
 {
     try {
-        Settings& settings = Engine::get().settings();
-
         init();
         fmt::print("SwapChain created successfully\n");
     }
@@ -39,17 +41,17 @@ void SwapChain::init() {
 
 void SwapChain::createSwapChain()
 {
-    SwapChainSupportDetails swapChainSupport = PhysicalDevice::querySwapChainSupport(r_physicalDevice.get(), r_surface.get());
+    SwapChainSupportDetails swapChainSupport = PhysicalDevice::querySwapChainSupport(m_physicalDevice.get(), m_surface.get());
     VkSurfaceFormatKHR surfaceFormat = VulkanUtils::chooseSwapSurfaceFormat(swapChainSupport.formats);
 
     // Use presentation mode based on VSync setting
     VkPresentModeKHR presentMode = getVulkanPresentMode(swapChainSupport.presentModes);
 
     // SwapChain dimensions calculated as before
-    VkExtent2D extent = VulkanUtils::chooseSwapExtent(swapChainSupport.capabilities);
+    VkExtent2D extent = VulkanUtils::chooseSwapExtent(swapChainSupport.capabilities, m_window.get());
 
     // Use frames in flight from settings
-    uint32_t imageCount = Engine::get().settings().getFramesInFlight();
+    uint32_t imageCount = m_settings.getFramesInFlight();
 
     // Make sure image count is compatible with hardware capabilities
     if (imageCount < swapChainSupport.capabilities.minImageCount) {
@@ -63,7 +65,7 @@ void SwapChain::createSwapChain()
 
     VkSwapchainCreateInfoKHR createInfo{};
     createInfo.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
-    createInfo.surface = r_surface.get();
+    createInfo.surface = m_surface.get();
 
     createInfo.minImageCount = imageCount;
     createInfo.imageFormat = surfaceFormat.format;
@@ -72,7 +74,7 @@ void SwapChain::createSwapChain()
     createInfo.imageArrayLayers = 1;
     createInfo.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
 
-    QueueFamilyIndices indices = r_physicalDevice.findQueueFamilies();
+    QueueFamilyIndices indices = m_physicalDevice.findQueueFamilies();
     uint32_t queueFamilyIndices[] = { indices.graphicsFamily.value(), indices.presentFamily.value() };
 
     if (indices.graphicsFamily != indices.presentFamily) {
@@ -93,25 +95,25 @@ void SwapChain::createSwapChain()
 
     createInfo.oldSwapchain = VK_NULL_HANDLE;
 
-    if (vkCreateSwapchainKHR(r_logicalDevice.get(), &createInfo, nullptr, &m_swapChain) != VK_SUCCESS) {
+    if (vkCreateSwapchainKHR(m_logicalDevice.get(), &createInfo, nullptr, &m_swapChain) != VK_SUCCESS) {
         fmt::print("Failed to create swap chain!\n");
         throw std::runtime_error("failed to create swap chain!");
     }
 
-    vkGetSwapchainImagesKHR(r_logicalDevice.get(), m_swapChain, &imageCount, nullptr);
+    vkGetSwapchainImagesKHR(m_logicalDevice.get(), m_swapChain, &imageCount, nullptr);
     m_swapChainImages.resize(imageCount);
-    vkGetSwapchainImagesKHR(r_logicalDevice.get(), m_swapChain, &imageCount, m_swapChainImages.data());
+    vkGetSwapchainImagesKHR(m_logicalDevice.get(), m_swapChain, &imageCount, m_swapChainImages.data());
 
     m_swapChainImageFormat = surfaceFormat.format;
     m_swapChainExtent = extent;
 
     fmt::print("Swap chain created with {} images\n", imageCount);
-    fmt::print("VSync: {}\n", Engine::get().settings().isVsyncEnabled() ? "enabled" : "disabled");
+    fmt::print("VSync: {}\n", m_settings.isVsyncEnabled() ? "enabled" : "disabled");
 }
 
 VkPresentModeKHR SwapChain::getVulkanPresentMode(const std::vector<VkPresentModeKHR>& availablePresentModes) const {
     // If VSync is enabled, use FIFO (guaranteed)
-    if (Engine::get().settings().isVsyncEnabled()) {
+    if (m_settings.isVsyncEnabled()) {
         return VK_PRESENT_MODE_FIFO_KHR;
     }
 
@@ -139,7 +141,7 @@ VkResult SwapChain::acquireNextImage(
     uint64_t timeout)
 {
     VkResult result = vkAcquireNextImageKHR(
-        r_logicalDevice.get(),
+        m_logicalDevice.get(),
         m_swapChain,
         timeout,
         imageAvailableSemaphore,
@@ -166,7 +168,7 @@ VkResult SwapChain::presentImage(uint32_t imageIndex, VkSemaphore renderFinished
     presentInfo.pImageIndices = &imageIndex;
     presentInfo.pResults = nullptr;
 
-    VkResult result = vkQueuePresentKHR(r_logicalDevice.getQueue(LogicalDevice::QueueType::Present), &presentInfo);
+    VkResult result = vkQueuePresentKHR(m_logicalDevice.getQueue(LogicalDevice::QueueType::Present), &presentInfo);
 
     if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR) {
         recreateSwapChain();
@@ -177,7 +179,7 @@ VkResult SwapChain::presentImage(uint32_t imageIndex, VkSemaphore renderFinished
 
 void SwapChain::recreateSwapChain()
 {
-    vkDeviceWaitIdle(r_logicalDevice.get());
+    vkDeviceWaitIdle(m_logicalDevice.get());
     cleanupSwapChain();
 
     try {
@@ -194,16 +196,16 @@ void SwapChain::cleanupSwapChain()
 {
     for (auto handle : m_imageHandles) {
         if (handle.isValid()) {
-            r_vramManager.freeResource(handle);
+            m_vramManager.freeResource(handle);
         }
     }
     m_imageHandles.clear();
 
     for (auto imageView : m_swapChainImageViews) {
-        vkDestroyImageView(r_logicalDevice.get(), imageView, nullptr);
+        vkDestroyImageView(m_logicalDevice.get(), imageView, nullptr);
     }
 
-    vkDestroySwapchainKHR(r_logicalDevice.get(), m_swapChain, nullptr);
+    vkDestroySwapchainKHR(m_logicalDevice.get(), m_swapChain, nullptr);
 
     fmt::print("Swap chain cleaned up\n");
 }
@@ -227,7 +229,7 @@ void SwapChain::createImageViews() {
         viewInfo.subresourceRange.baseArrayLayer = 0;
         viewInfo.subresourceRange.layerCount = 1;
 
-        if (vkCreateImageView(r_logicalDevice.get(), &viewInfo, nullptr, &m_swapChainImageViews[i]) != VK_SUCCESS) {
+        if (vkCreateImageView(m_logicalDevice.get(), &viewInfo, nullptr, &m_swapChainImageViews[i]) != VK_SUCCESS) {
             fmt::print("Failed to create swap chain image view for image {}\n", i);
             throw std::runtime_error(fmt::format("Failed to create swap chain image view {}", i));
         }
@@ -240,7 +242,7 @@ void SwapChain::registerImagesWithVramManager() {
     m_imageHandles.resize(m_swapChainImages.size());
 
     for (size_t i = 0; i < m_swapChainImages.size(); i++) {
-        m_imageHandles[i] = r_vramManager.registerExternalImage(
+        m_imageHandles[i] = m_vramManager.registerExternalImage(
             m_swapChainImages[i],          // VkImage
             m_swapChainImageFormat,         // VkFormat
             m_swapChainExtent,              // VkExtent2D

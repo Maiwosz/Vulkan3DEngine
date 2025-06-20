@@ -7,11 +7,6 @@
 #include <stdexcept>
 #include "Scene.h"
 
-Engine& Engine::get() {
-    static Engine engine;
-    return engine;
-}
-
 Engine::~Engine() {
     if (m_initialized) {
         shutdown();
@@ -150,25 +145,26 @@ void Engine::initializeComponents(const InitParams& params) {
 
     // Renderer
     SPDLOG_DEBUG("Creating renderer");
-    m_renderer = std::make_unique<Renderer>(*m_settings , *m_window);
+    m_renderer = std::make_unique<Renderer>(*m_settings, *m_window);
 
     // Asset system
     SPDLOG_DEBUG("Initializing asset system");
     m_assetSystem = std::make_unique<AssetSystem>(*m_renderer);
 
     SPDLOG_DEBUG("Creating registry");
-    m_registry = std::make_unique<Registry>(*m_assetSystem);
+    m_registry = std::make_unique<Registry>(*this);
 
     // Scene
     SPDLOG_DEBUG("Creating scene");
-    m_scene = std::make_unique<Scene>(*m_registry);
+    m_scene = std::make_unique<Scene>(*this, *m_registry);
 
     // Render system
     SPDLOG_DEBUG("Initializing render system");
     m_renderSystem = std::make_unique<RenderSystem>(
         *m_registry,
         *m_assetSystem,
-        *m_renderer
+        *m_renderer,
+        *m_settings
     );
 }
 

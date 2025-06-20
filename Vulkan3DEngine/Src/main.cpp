@@ -1,4 +1,3 @@
-#include "Engine.h"
 #include "Editor.h"
 #include <spdlog/spdlog.h>
 #include <spdlog/sinks/stdout_color_sinks.h>
@@ -25,29 +24,17 @@ int main() {
     SPDLOG_INFO("=== Launching application ===");
 
     try {
-        // Create editor with its own logger
+        // Create and initialize editor (which will create and initialize engine internally)
+        SPDLOG_INFO("Creating Editor...");
         Editor editor(ASSETS_SRC, ASSETS_COMP);
-        SPDLOG_DEBUG("Created editor instance");
-        //editor.start();
 
-        // Perform initial asset scan (now using editor's logger internally)
-        SPDLOG_INFO("Performing initial asset scan...");
-        editor.assetWatcher().Run();
-        SPDLOG_INFO("Initial asset scan completed");
+        // Start editor (this will run the engine main loop)
+        SPDLOG_INFO("Starting Editor...");
+        editor.start();
 
-        Engine& engine = Engine::get();
-		Engine::InitParams initParams;
-		initParams.title = "Vulkan3DEngine";
-		initParams.logDir = LOGS_DIR;
-        engine.initialize(initParams); // Engine logger configuration happens here
-
-        SPDLOG_INFO("Entering main loop");
-        engine.run();
-
-        spdlog::set_default_logger(preinit_logger);
-
-        //SPDLOG_DEBUG("Stopping editor...");
-        //editor.stop();
+        // When we get here, the application is shutting down
+        SPDLOG_INFO("Editor finished, stopping...");
+        editor.stop();
     }
     catch (const std::exception& e) {
         SPDLOG_CRITICAL("Critical error: {}", e.what());

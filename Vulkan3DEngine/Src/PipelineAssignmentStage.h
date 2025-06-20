@@ -14,7 +14,8 @@ class PipelineAssignmentStage : public OrderProcessingStage {
 public:
     PipelineAssignmentStage(
         Renderer& renderer,
-        AssetSystem& assetSystem
+        AssetSystem& assetSystem,
+        Settings& settings
     );
 
     ~PipelineAssignmentStage();
@@ -41,6 +42,7 @@ private:
     VertexInputConfig createVertexInputConfig(const Mesh& mesh);
 
     // References to required managers
+    Settings& m_settings;
     PipelineManager& m_pipelineManager;
     ShaderManager& m_shaderManager;
     MaterialManager& m_materialManager;

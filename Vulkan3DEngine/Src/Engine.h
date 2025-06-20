@@ -7,6 +7,7 @@
 #include "ThreadPool.h"
 #include "AssetSystem.h"
 #include "RenderSystem.h"
+#include "Scene.h"
 #include <memory>
 #include <chrono>
 
@@ -30,8 +31,9 @@ public:
         size_t threadCount = 0; // 0 = auto-detect
     };
 
-    // Singleton access
-    static Engine& get();
+    // Constructor and destructor
+    Engine() = default;
+    ~Engine();
 
     // Non-copyable, non-movable
     Engine(const Engine&) = delete;
@@ -69,9 +71,6 @@ public:
     void requestShutdown() { m_running = false; }
 
 private:
-    Engine() = default;
-    ~Engine();
-
     // Initialization helpers
     void initializeLogging(const std::string& logDir);
     void initializeComponents(const InitParams& params);

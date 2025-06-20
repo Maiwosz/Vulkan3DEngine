@@ -3,6 +3,5 @@
 
 class MeshRenderSystem : public System<> {
 public:
-    void update(ContextType& context) override;
-    
+    void update() override;
 };

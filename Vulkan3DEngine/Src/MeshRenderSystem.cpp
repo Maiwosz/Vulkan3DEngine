@@ -6,14 +6,13 @@
 #include "RenderOrder.h"
 #include "Engine.h"
 
-void MeshRenderSystem::update(ContextType& context) {
-    Registry& registry = context.getRegistry();
-    auto meshes = registry.createView<TransformComponent, MeshComponent, MaterialComponent>();
+void MeshRenderSystem::update() {
+    auto meshes = m_registry->createView<TransformComponent, MeshComponent, MaterialComponent>();
 
     for (Entity entity : meshes) {
         auto renderOrder = std::make_shared<MeshRenderOrder>();
         renderOrder->entity = entity;
 
-        Engine::get().renderSystem().submitRenderOrder(renderOrder);
+        m_engine->renderSystem().submitRenderOrder(renderOrder);
     }
 }

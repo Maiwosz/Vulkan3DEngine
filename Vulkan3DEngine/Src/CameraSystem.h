@@ -3,8 +3,5 @@
 
 class CameraSystem : public System<> {
 public:
-    void update(ContextType& context) override;
-
-private:
-
+    void update() override;
 };

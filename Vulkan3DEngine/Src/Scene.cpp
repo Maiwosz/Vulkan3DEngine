@@ -12,11 +12,11 @@
 #include "InputSystem.h"
 #include <spdlog/spdlog.h>
 
-Scene::Scene(Registry& registry) :
-    m_registry(registry)
+Scene::Scene(Engine& engine, Registry& registry) :
+    m_engine(engine), m_registry(registry)
 {
 
-    if (true) {
+    if (false) {
     // Creating object with mesh
     testEntity = m_registry.create();
     {
@@ -186,8 +186,8 @@ Scene::Scene(Registry& registry) :
 
 
     AssetHandle handle = AssetHandle(AssetLib::AssetType::Prefab, "testPointLight");
-    Engine::get().assetSystem().assetManager().ensureReady(handle);
-    PrefabManager& prefabManager = Engine::get().assetSystem().prefabManager();
+    m_engine.assetSystem().assetManager().ensureReady(handle);
+    PrefabManager& prefabManager = m_engine.assetSystem().prefabManager();
     PrefabHandle prefabHandle = prefabManager.getHandle<PrefabHandle>(handle.filename);
     m_registry.prefabs().createInstance(prefabHandle);
 
@@ -195,7 +195,7 @@ Scene::Scene(Registry& registry) :
     }
 
     AssetHandle handle = AssetHandle(AssetLib::AssetType::Scene, "testScene");
-    Engine::get().assetSystem().assetManager().ensureReady(handle);
+    m_engine.assetSystem().assetManager().ensureReady(handle);
     m_registry.loadScene(handle.filename);
 }
 

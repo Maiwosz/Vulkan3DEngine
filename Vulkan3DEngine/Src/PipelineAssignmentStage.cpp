@@ -3,8 +3,9 @@
 #include "Mesh.h"
 #include "Engine.h"
 
-PipelineAssignmentStage::PipelineAssignmentStage(Renderer& renderer, AssetSystem& assetSystem)
+PipelineAssignmentStage::PipelineAssignmentStage(Renderer& renderer, AssetSystem& assetSystem, Settings& settings)
     :
+    m_settings(settings),
     m_pipelineManager(renderer.pipelineManager()),
     m_shaderManager(assetSystem.shaderManager()),
     m_materialManager(assetSystem.materialManager()),
@@ -181,8 +182,7 @@ GraphicsPipelineConfig PipelineAssignmentStage::createPipelineConfig(
     config.depthStencil.depthCompareOp = VK_COMPARE_OP_LESS;
     config.depthStencil.stencilTestEnable = VK_FALSE;
 
-    Settings& settings = Engine::get().settings();
-    VkSampleCountFlagBits samples = Graphics::convertSampleCount(settings.getMsaaSamples());
+    VkSampleCountFlagBits samples = Graphics::convertSampleCount(m_settings.getMsaaSamples());
 
     // Configure multisampling
     config.multisample.samples = samples;

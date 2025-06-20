@@ -21,7 +21,7 @@ class RenderStage;
 
 class RenderSystem {
 public:
-    RenderSystem(Registry& registry, AssetSystem& assetSystem, Renderer& renderer);
+    RenderSystem(Registry& registry, AssetSystem& assetSystem, Renderer& renderer, Settings& settings);
     ~RenderSystem() = default;
 
     // Submit a render order to the pipeline
@@ -41,6 +41,7 @@ public:
 
     void reset();
 private:
+    Settings& m_settings;
     Registry& m_registry;
     AssetSystem& m_assetSystem;
     Renderer& m_renderer;

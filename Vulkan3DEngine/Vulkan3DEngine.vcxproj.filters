@@ -278,6 +278,12 @@
     <ClCompile Include="Src\TransformComponent.cpp">
       <Filter>Engine\Scene\EntityComponentSystem\Registry\ComponentManager\Components\TransformComponent</Filter>
     </ClCompile>
+    <ClCompile Include="Src\EditorUI.cpp">
+      <Filter>Editor\EditorUI</Filter>
+    </ClCompile>
+    <ClCompile Include="Src\HierarchyWindow.cpp">
+      <Filter>Editor\EditorUI\HierarchyWindow</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Src\Prerequisites.h" />
@@ -627,6 +633,12 @@
     <ClInclude Include="Src\TransformComponent.h">
       <Filter>Engine\Scene\EntityComponentSystem\Registry\ComponentManager\Components\TransformComponent</Filter>
     </ClInclude>
+    <ClInclude Include="Src\EditorUI.h">
+      <Filter>Editor\EditorUI</Filter>
+    </ClInclude>
+    <ClInclude Include="Src\HierarchyWindow.h">
+      <Filter>Editor\EditorUI\HierarchyWindow</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <None Include="..\Libs\imgui\.gitattributes">
@@ -918,6 +930,12 @@
     </Filter>
     <Filter Include="Engine\Renderer\ImGuiWrapper">
       <UniqueIdentifier>{771687ec-623b-4f20-99f4-8a37762989e3}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Editor\EditorUI">
+      <UniqueIdentifier>{d37dc8c6-0257-428c-80e1-d4ded56dcd60}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Editor\EditorUI\HierarchyWindow">
+      <UniqueIdentifier>{ce243cde-3751-4f62-8030-bbe69e2de340}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
 </Project>

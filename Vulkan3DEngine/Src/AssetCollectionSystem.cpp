@@ -1,22 +1,21 @@
 #include "AssetCollectionSystem.h"
 
-void AssetCollectionSystem::update(ContextType& context) {
-    auto& registry = context.getRegistry();
-    AssetManager& assetManager = Engine::get().assetSystem().assetManager();
+void AssetCollectionSystem::update() {
+    AssetManager& assetManager = m_engine->assetSystem().assetManager();
 
     std::unordered_set<AssetHandle> assetsToLoad;
 
     // Zbieranie assetów z komponentów materiałów
-    auto materialEntities = registry.createView<MaterialComponent>();
+    auto materialEntities = m_registry->createView<MaterialComponent>();
     for (auto entity : materialEntities) {
-        auto& material = registry.components().getComponent<MaterialComponent>(entity);
+        auto& material = m_registry->components().getComponent<MaterialComponent>(entity);
         assetsToLoad.insert(material.getMaterial());
     }
 
     // Zbieranie assetów z komponentów meshów
-    auto meshEntities = registry.createView<MeshComponent>();
+    auto meshEntities = m_registry->createView<MeshComponent>();
     for (auto entity : meshEntities) {
-        auto& mesh = registry.components().getComponent<MeshComponent>(entity);
+        auto& mesh = m_registry->components().getComponent<MeshComponent>(entity);
         assetsToLoad.insert(mesh.getMesh());
     }
 

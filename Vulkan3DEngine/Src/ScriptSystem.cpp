@@ -8,10 +8,10 @@
 #include "Paths.h"
 #include "Scene.h"
 
-ScriptSystem::ScriptSystem() {
-    m_luaState = std::make_unique<sol::state>();
-
+void ScriptSystem::initialize() {
     SPDLOG_DEBUG("Initializing ScriptSystem");
+
+    m_luaState = std::make_unique<sol::state>();
 
     // Open Lua libraries
     m_luaState->open_libraries(
@@ -24,12 +24,12 @@ ScriptSystem::ScriptSystem() {
     );
 
     // Register bindings using the LuaBindings namespace
-    LuaBindings::registerAll(*m_luaState);
+    LuaBindings::registerAll(*m_luaState, *m_engine, *m_registry);
 
     SPDLOG_DEBUG("Current working directory: {}",
         std::filesystem::current_path().string());
 
-    SPDLOG_INFO("ScriptSystem constructed");
+    SPDLOG_INFO("ScriptSystem initialized");
 }
 
 ScriptSystem::~ScriptSystem() {
@@ -40,17 +40,16 @@ ScriptSystem::~ScriptSystem() {
     m_scriptInstances.clear();
 }
 
-void ScriptSystem::update(SystemContext<>& context) {
-    auto& registry = context.getRegistry();
-    float deltaTime = Engine::get().deltaTime();
+void ScriptSystem::update() {
+    float deltaTime = engine().deltaTime();
 
     // Get all entities with a ScriptComponent
-    auto entities = registry.createView<ScriptComponent>();
+    auto entities = registry().createView<ScriptComponent>();
 
     if (entities.empty()) {
         // No script components found - log only once every few seconds
         static float lastLogTime = 0.0f;
-        float currentTime = Engine::get().totalTime();
+        float currentTime = engine().totalTime();
         if (currentTime - lastLogTime > 5.0f) {
             SPDLOG_DEBUG("No script components in registry");
             lastLogTime = currentTime;
@@ -60,7 +59,7 @@ void ScriptSystem::update(SystemContext<>& context) {
 
     // First pass: Initialize scripts that haven't been initialized yet
     for (auto entity : entities) {
-        auto& script = registry.components().getComponent<ScriptComponent>(entity);
+        auto& script = registry().components().getComponent<ScriptComponent>(entity);
 
         // Initialize the script if not already initialized
         if (!script.isInitialized()) {
@@ -80,7 +79,7 @@ void ScriptSystem::update(SystemContext<>& context) {
 
     // Second pass: Call OnCreate for newly initialized scripts
     for (auto entity : m_createdScripts) {
-        if (registry.entities().valid(entity) && registry.components().hasComponent<ScriptComponent>(entity)) {
+        if (registry().entities().valid(entity) && registry().components().hasComponent<ScriptComponent>(entity)) {
             auto scriptIt = m_scriptInstances.find(entity);
             if (scriptIt != m_scriptInstances.end()) {
                 callOnCreate(entity, scriptIt->second);
@@ -91,7 +90,7 @@ void ScriptSystem::update(SystemContext<>& context) {
 
     // Third pass: Call OnUpdate for all initialized scripts
     for (auto entity : entities) {
-        if (registry.entities().valid(entity)) {
+        if (registry().entities().valid(entity)) {
             auto scriptIt = m_scriptInstances.find(entity);
             if (scriptIt != m_scriptInstances.end()) {
                 callOnUpdate(entity, scriptIt->second, deltaTime);
@@ -102,7 +101,7 @@ void ScriptSystem::update(SystemContext<>& context) {
     // Check for destroyed entities and call OnDestroy
     std::vector<Entity> toRemove;
     for (auto& [entity, scriptTable] : m_scriptInstances) {
-        if (!registry.entities().valid(entity)) {
+        if (!registry().entities().valid(entity)) {
             callOnDestroy(entity, scriptTable);
             toRemove.push_back(entity);
         }
@@ -186,7 +185,7 @@ bool ScriptSystem::loadScript(Entity entity, ScriptComponent& script) {
         env["self"] = scriptTable;
 
         // Add additional helpful globals for the script
-        env["registry"] = &Engine::get().registry();
+        env["registry"] = m_registry;
 
         // Execute the script file in this environment
         SPDLOG_DEBUG("Loading script: {}", absolutePath);

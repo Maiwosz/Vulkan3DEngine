@@ -13,12 +13,16 @@
 
 class Scene {
 public:
-    Scene(Registry& registry);
+    Scene(Engine& engine, Registry& registry);
     ~Scene();
 
     void update();
 
 private:
+    Engine& m_engine;
+    Registry& m_registry;
+
+
     Entity testEntity;
     Entity testEntity2;
     Entity testEntity3;
@@ -27,5 +31,4 @@ private:
     Entity testPointLight2;
     Entity testCamera;
     Entity testFloor;
-    Registry& m_registry;
 };
