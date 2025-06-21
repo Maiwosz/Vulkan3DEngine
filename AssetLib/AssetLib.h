@@ -265,6 +265,18 @@ namespace AssetLib {
             default:                   return "";
             }
         }
+
+        constexpr std::string_view GetAssetTypeName(AssetType type) {
+            switch (type) {
+            case AssetType::Texture:   return "Texture";
+            case AssetType::Mesh:      return "Mesh";
+            case AssetType::Material:  return "Material";
+            case AssetType::Shader:    return "Shader";
+            case AssetType::Prefab:    return "Prefab";
+            case AssetType::Scene:     return "Scene";
+            default:                   return "Unknown";
+            }
+        }
     } // namespace Utilities
 
 } // namespace AssetLib

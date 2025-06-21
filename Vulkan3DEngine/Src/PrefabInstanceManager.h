@@ -6,6 +6,7 @@
 #include <unordered_set>
 #include <vector>
 #include <string>
+#include "Event.h"
 
 // Forward declarations
 class Registry;
@@ -13,7 +14,6 @@ struct Prefab;
 class PrefabManager;
 class EntityManager;
 class ComponentManager;
-class Serializer;
 
 // Simple component override tracking
 struct ComponentOverride {
@@ -36,7 +36,7 @@ struct PrefabInstance {
 class PrefabInstanceManager {
 public:
     explicit PrefabInstanceManager(EntityManager& entityManager, ComponentManager& componentManager,
-        Serializer& serializer, PrefabManager& prefabManager);
+        PrefabManager& prefabManager);
     ~PrefabInstanceManager() = default;
 
     // Instance creation
@@ -55,7 +55,6 @@ public:
 
     // Entity management
     bool isEntityPartOfInstance(Entity entity) const;
-    bool canDestroyEntity(Entity entity) const; // Returns false if entity is part of instance
     bool isInstanceRoot(Entity entity) const;
     PrefabInstanceHandle getInstanceForEntity(Entity entity) const;
 
@@ -68,6 +67,7 @@ public:
     bool overrideAllComponents(PrefabInstanceHandle instanceHandle, Entity entity);
     bool restoreAllComponents(PrefabInstanceHandle instanceHandle, Entity entity);
     std::unordered_set<std::string> getOverriddenComponents(PrefabInstanceHandle instanceHandle, Entity entity) const;
+    void destroyAllPrefabInstances();
 
     // Prefab synchronization
     bool syncWithPrefab(PrefabInstanceHandle instanceHandle); // Updates non-overridden components from prefab
@@ -86,7 +86,6 @@ private:
     // Module references
     EntityManager& m_entityManager;
     ComponentManager& m_componentManager;
-    Serializer& m_serializer;
     PrefabManager& m_prefabManager;
 
     // Instance storage
@@ -109,4 +108,6 @@ private:
         std::unordered_map<Entity, Entity>& mapping, const Prefab& prefab);
 
     void syncEntityWithPrefab(Entity instanceEntity, Entity prefabEntity, const PrefabInstance& instance);
+
+    Event<Entity>::Subscription m_entityDestroyedSubscription;
 };

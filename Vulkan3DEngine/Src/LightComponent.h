@@ -129,4 +129,39 @@ struct LightComponent : public Component {
 
         incrementVersion();
     }
+
+    void renderUI() override {
+        ImGui::Text("Light Component");
+
+        // Light type selector
+        const char* lightTypes[] = { "Directional", "Point" };
+        int currentType = (type == Type::Directional) ? 0 : 1;
+
+        if (ImGui::Combo("Light Type", &currentType, lightTypes, IM_ARRAYSIZE(lightTypes))) {
+            Type newType = (currentType == 0) ? Type::Directional : Type::Point;
+            setType(newType);
+        }
+
+        // Color picker
+        glm::vec4 lightColor = getColor();
+        if (ImGui::ColorEdit4("Color", &lightColor.r)) {
+            setColor(lightColor);
+        }
+
+        // Type-specific properties
+        if (type == Type::Directional) {
+            ImGui::Text("Direction");
+            glm::vec3 dir = getDirection();
+            if (ImGui::DragFloat3("##Direction", &dir.x, 0.01f, -1.0f, 1.0f)) {
+                setDirection(dir);
+            }
+        }
+        else if (type == Type::Point) {
+            ImGui::Text("Radius");
+            float r = getRadius();
+            if (ImGui::DragFloat("##Radius", &r, 0.1f, 0.1f, 100.0f)) {
+                setRadius(r);
+            }
+        }
+    }
 };

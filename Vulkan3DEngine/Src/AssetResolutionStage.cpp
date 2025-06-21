@@ -22,8 +22,8 @@ void AssetResolutionStage::process(std::shared_ptr<RenderOrder> order)
 
     try {
         // Get required components
-        auto& meshComponent = m_registry.getComponent<MeshComponent>(order->entity);
-        auto& materialComponent = m_registry.getComponent<MaterialComponent>(order->entity);
+        auto& meshComponent = m_registry.components().getComponent<MeshComponent>(order->entity);
+        auto& materialComponent = m_registry.components().getComponent<MaterialComponent>(order->entity);
 
         // Ensure assets are loaded
         auto meshAssetHandle = meshComponent.getMesh();

@@ -52,6 +52,8 @@ public:
     json serialize() const override;
     void deserialize(const json& j) override;
 
+    void renderUI() override;
+
 private:
     glm::vec3 m_position{ 0.0f };
     glm::vec3 m_rotation{ 0.0f }; // Degrees

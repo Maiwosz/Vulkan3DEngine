@@ -18,14 +18,14 @@ Scene::Scene(Engine& engine, Registry& registry) :
 
     if (false) {
     // Creating object with mesh
-    testEntity = m_registry.create();
+    testEntity = m_registry.entities().create();
     {
         // Konfiguracja zasobów
         std::string meshName = "Flora_C";
         std::string materialName = "Flora_c";
 
         // Transform with rotation
-        auto& transform = m_registry.addComponent<TransformComponent>(testEntity);
+        auto& transform = m_registry.components().addComponent<TransformComponent>(testEntity);
         transform.setPosition(glm::vec3(0.0f, 2.0f, 0.0f));
 
         transform.setRotation(glm::vec3(0.0f, 0.0f, 0.0f));
@@ -33,21 +33,21 @@ Scene::Scene(Engine& engine, Registry& registry) :
         transform.setScale(glm::vec3(0.4f));
 
         // Mesh and material
-        auto& mesh = m_registry.addComponent<MeshComponent>(testEntity);
+        auto& mesh = m_registry.components().addComponent<MeshComponent>(testEntity);
         mesh.setMesh(AssetHandle(AssetLib::AssetType::Mesh, meshName));
 
-        auto& material = m_registry.addComponent<MaterialComponent>(testEntity);
+        auto& material = m_registry.components().addComponent<MaterialComponent>(testEntity);
         material.setMaterial(AssetHandle(AssetLib::AssetType::Material, materialName));
     }
 
-    testEntity2 = m_registry.create();
+    testEntity2 = m_registry.entities().create();
     {
         // Konfiguracja zasobów
         std::string meshName = "Hygieia_C";
         std::string materialName = "Hygieia_C";
 
         // Transform with rotation
-        auto& transform = m_registry.addComponent<TransformComponent>(testEntity2);
+        auto& transform = m_registry.components().addComponent<TransformComponent>(testEntity2);
         transform.setPosition(glm::vec3(5.0f, -0.2f, 0.0f));
 
         transform.setRotation(glm::vec3(0.0f, 0.0f, 0.0f));
@@ -55,21 +55,21 @@ Scene::Scene(Engine& engine, Registry& registry) :
         transform.setScale(glm::vec3(1.0f));
 
         // Mesh and material
-        auto& mesh = m_registry.addComponent<MeshComponent>(testEntity2);
+        auto& mesh = m_registry.components().addComponent<MeshComponent>(testEntity2);
         mesh.setMesh(AssetHandle(AssetLib::AssetType::Mesh, meshName));
 
-        auto& material = m_registry.addComponent<MaterialComponent>(testEntity2);
+        auto& material = m_registry.components().addComponent<MaterialComponent>(testEntity2);
         material.setMaterial(AssetHandle(AssetLib::AssetType::Material, materialName));
     }
 
-    testEntity3 = m_registry.create();
+    testEntity3 = m_registry.entities().create();
     {
         // Konfiguracja zasobów
         std::string meshName = "Omphale_C";
         std::string materialName = "Omphale_C";
 
         // Transform with rotation
-        auto& transform = m_registry.addComponent<TransformComponent>(testEntity3);
+        auto& transform = m_registry.components().addComponent<TransformComponent>(testEntity3);
         transform.setPosition(glm::vec3(-5.0f, 0.0f, 0.0f));
 
         // Apply rotation - 30 degrees around Y axis
@@ -80,22 +80,22 @@ Scene::Scene(Engine& engine, Registry& registry) :
         transform.setScale(glm::vec3(0.3f));
 
         // Mesh and material
-        auto& mesh = m_registry.addComponent<MeshComponent>(testEntity3);
+        auto& mesh = m_registry.components().addComponent<MeshComponent>(testEntity3);
         mesh.setMesh(AssetHandle(AssetLib::AssetType::Mesh, meshName));
 
-        auto& material = m_registry.addComponent<MaterialComponent>(testEntity3);
+        auto& material = m_registry.components().addComponent<MaterialComponent>(testEntity3);
         material.setMaterial(AssetHandle(AssetLib::AssetType::Material, materialName));
     }
 
     // floor
-    testFloor = m_registry.create();
+    testFloor = m_registry.entities().create();
     {
         // Konfiguracja zasobów
         std::string meshName = "quad";
         std::string materialName = "floor";
 
         // Transform with rotation
-        auto& transform = m_registry.addComponent<TransformComponent>(testFloor);
+        auto& transform = m_registry.components().addComponent<TransformComponent>(testFloor);
         transform.setPosition(glm::vec3(0.0f, 0.0f, 0.0f));
 
         transform.setRotation(glm::vec3(0.0f, 0.0f, 0.0f));
@@ -103,24 +103,24 @@ Scene::Scene(Engine& engine, Registry& registry) :
         transform.setScale(glm::vec3(1.0f));
 
         // Mesh and material
-        auto& mesh = m_registry.addComponent<MeshComponent>(testFloor);
+        auto& mesh = m_registry.components().addComponent<MeshComponent>(testFloor);
         mesh.setMesh(AssetHandle(AssetLib::AssetType::Mesh, meshName));
 
-        auto& material = m_registry.addComponent<MaterialComponent>(testFloor);
+        auto& material = m_registry.components().addComponent<MaterialComponent>(testFloor);
         material.setMaterial(AssetHandle(AssetLib::AssetType::Material, materialName));
     }
 
     // Camera with script
-    testCamera = m_registry.create();
+    testCamera = m_registry.entities().create();
     {
-        auto& transform = m_registry.addComponent<TransformComponent>(testCamera);
+        auto& transform = m_registry.components().addComponent<TransformComponent>(testCamera);
 
         // Initial camera position (will be overridden by script)
         transform.setPosition(glm::vec3(0.0f, 2.0f, 15.0f));
         transform.setRotation(glm::vec3(0.0f, 0.0f, 0.0f));
 
         // Add camera component
-        auto& camera = m_registry.addComponent<CameraComponent>(testCamera);
+        auto& camera = m_registry.components().addComponent<CameraComponent>(testCamera);
         float fieldOfView = 45.0f;
         float aspectRatio = 1920.0f / 1080.0f;
         float nearPlane = 0.1f;
@@ -130,15 +130,15 @@ Scene::Scene(Engine& engine, Registry& registry) :
         camera.setClippingPlanes(nearPlane, farPlane);
 
         // Add light orbiter script
-        auto& script = m_registry.addComponent<ScriptComponent>(testCamera);
+        auto& script = m_registry.components().addComponent<ScriptComponent>(testCamera);
         script.setScript("CameraController");
     }
 
     // Directional light
-    testDirectionalLight = m_registry.create();
+    testDirectionalLight = m_registry.entities().create();
     {
-        auto& transform = m_registry.addComponent<TransformComponent>(testDirectionalLight);
-        auto& light = m_registry.addComponent<LightComponent>(testDirectionalLight, LightComponent::Type::Directional);
+        auto& transform = m_registry.components().addComponent<TransformComponent>(testDirectionalLight);
+        auto& light = m_registry.components().addComponent<LightComponent>(testDirectionalLight, LightComponent::Type::Directional);
 
         glm::vec3 directionalLightDir = glm::vec3(1.0f, -1.0f, 1.0f);
         glm::vec4 directionalLightColor = glm::vec4(1.0f, 0.8f, 0.8f, 0.005f);
@@ -196,7 +196,7 @@ Scene::Scene(Engine& engine, Registry& registry) :
 
     AssetHandle handle = AssetHandle(AssetLib::AssetType::Scene, "testScene");
     m_engine.assetSystem().assetManager().ensureReady(handle);
-    m_registry.loadScene(handle.filename);
+    m_registry.scenes().loadScene(handle.filename);
 }
 
 Scene::~Scene()
@@ -207,4 +207,18 @@ Scene::~Scene()
 void Scene::update()
 {
     m_registry.systems().updateAll();
+    static bool firstUpdate = false;
+    if (firstUpdate) {
+        Entity test = m_registry.entities().create();
+        {
+            // Transform with rotation
+            auto& transform = m_registry.components().addComponent<TransformComponent>(test);
+            transform.setPosition(glm::vec3(0.0f, 2.0f, 0.0f));
+
+            transform.setRotation(glm::vec3(0.0f, 0.0f, 0.0f));
+
+            transform.setScale(glm::vec3(0.4f));
+        }
+		firstUpdate = false;
+    }
 }

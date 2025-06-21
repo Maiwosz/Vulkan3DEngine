@@ -7,7 +7,7 @@
 #include "Engine.h"
 
 void MeshRenderSystem::update() {
-    auto meshes = m_registry->createView<TransformComponent, MeshComponent, MaterialComponent>();
+    auto meshes = m_registry->components().createView<TransformComponent, MeshComponent, MaterialComponent>();
 
     for (Entity entity : meshes) {
         auto renderOrder = std::make_shared<MeshRenderOrder>();

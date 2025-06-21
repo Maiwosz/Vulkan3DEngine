@@ -1,15 +1,9 @@
 #pragma once
 #include "Prerequisites.h"
 #include <string>
-#include "MeshRenderSystem.h"
 #include "Entity.h"
 #include "Registry.h"
-#include "CameraSystem.h"
-#include "LightSystem.h"
-#include "AssetCollectionSystem.h"
-#include "ScriptSystem.h"
-#include "Event.h"
-#include "InputSystem.h"
+
 
 class Scene {
 public:

@@ -6,7 +6,7 @@
 #include "Engine.h"
 
 void LightSystem::update() {
-    auto lights = m_registry->createView<LightComponent, TransformComponent>();
+    auto lights = m_registry->components().createView<LightComponent, TransformComponent>();
 
     for (Entity entity : lights) {
         auto renderOrder = std::make_shared<LightRenderOrder>();

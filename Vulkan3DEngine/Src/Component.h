@@ -1,7 +1,9 @@
 #pragma once
 #include "Entity.h"
 #include "ISerializable.h"
+#include "imgui.h"
 
+class Engine;
 class Registry; // Forward declaration
 
 class Component : public ISerializable {
@@ -13,17 +15,25 @@ public:
 
     // Dostęp do registry
     Registry* getRegistry() const { return m_registry; }
+	Engine* getEngine() const { return m_engine; }
 
-    // Publiczna metoda do ustawiania registry (używana przez Registry)
+    void setEngine(Engine* engine) { m_engine = engine; }
     void setRegistry(Registry* registry) { m_registry = registry; }
 
     // Czysto wirtualna metoda do uzyskania nazwy komponentu
     virtual const char* getName() const = 0;
+
+    // Virtual method for rendering UI in editor
+    virtual void renderUI() {
+        // Default implementation shows basic component info
+        ImGui::Text("Component: %s", getName());
+    }
 
 protected:
     void incrementVersion() { m_version++; }
 
 private:
     uint32_t m_version = 0;
+    Engine* m_engine = nullptr;
     Registry* m_registry = nullptr;
 };

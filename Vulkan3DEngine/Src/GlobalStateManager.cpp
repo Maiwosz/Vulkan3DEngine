@@ -41,8 +41,8 @@ SmartHandle<UniformBufferHandle, Buffer> GlobalStateManager::createGlobalUniform
     Entity cameraEntity = m_activeCamera->entity;
 
     // Get components from registry
-    auto& cameraComponent = m_registry.getComponent<CameraComponent>(cameraEntity);
-    auto& cameraTransform = m_registry.getComponent<TransformComponent>(cameraEntity);
+    auto& cameraComponent = m_registry.components().getComponent<CameraComponent>(cameraEntity);
+    auto& cameraTransform = m_registry.components().getComponent<TransformComponent>(cameraEntity);
 
     ShaderLib::GlobalUBOData globalUboData;
     globalUboData.SetDefaults();
@@ -70,8 +70,8 @@ SmartHandle<UniformBufferHandle, Buffer> GlobalStateManager::createGlobalUniform
     bool hasDirectionalLight = false;
     for (auto& lightOrder : m_lights) {
         Entity lightEntity = lightOrder->entity;
-        auto& lightComponent = m_registry.getComponent<LightComponent>(lightEntity);
-        auto& lightTransform = m_registry.getComponent<TransformComponent>(lightEntity);
+        auto& lightComponent = m_registry.components().getComponent<LightComponent>(lightEntity);
+        auto& lightTransform = m_registry.components().getComponent<TransformComponent>(lightEntity);
 
         if (lightComponent.type == LightComponent::Type::Directional && !hasDirectionalLight) {
             // Get light direction from component

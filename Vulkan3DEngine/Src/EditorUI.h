@@ -3,6 +3,8 @@
 #include <memory>
 #include <spdlog/spdlog.h>
 #include "HierarchyWindow.h"
+#include "SelectionManager.h"
+#include "ComponentInspectorWindow.h"
 
 // Forward declarations
 class Engine;
@@ -19,6 +21,7 @@ public:
 
     // Window access
     HierarchyWindow& hierarchyWindow() { return *m_hierarchyWindow; }
+    ComponentInspectorWindow& componentInspectorWindow() { return *m_componentInspectorWindow; }
 
 private:
     Engine& m_engine;
@@ -26,7 +29,7 @@ private:
     FrameManager& m_frameManager;
 
     // UI Windows
+    std::unique_ptr<SelectionManager> m_selectionManager;
     std::unique_ptr<HierarchyWindow> m_hierarchyWindow;
-
-    std::shared_ptr<spdlog::logger> m_logger;
+    std::unique_ptr<ComponentInspectorWindow> m_componentInspectorWindow;
 };

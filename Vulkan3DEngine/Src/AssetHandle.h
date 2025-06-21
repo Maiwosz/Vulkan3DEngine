@@ -1,5 +1,6 @@
 #pragma once
 #include <string>
+#include <string_view>
 #include <AssetLib.h>
 
 using AssetType = AssetLib::AssetType;
@@ -15,6 +16,21 @@ struct AssetHandle {
 
     bool operator==(const AssetHandle& other) const {
         return type == other.type && filename == other.filename;
+    }
+
+    // Zwraca nazwę typu zasobu
+    std::string_view GetTypeName() const {
+        return AssetLib::Utilities::GetAssetTypeName(type);
+    }
+
+    // Zwraca rozszerzenie pliku dla tego typu zasobu
+    std::string_view GetFileExtension() const {
+        return AssetLib::Utilities::GetAssetExtension(type);
+    }
+
+    // Zwraca pełną informację o uchwycie jako string (przydatne do debugowania)
+    std::string ToString() const {
+        return std::string(GetTypeName()) + ": " + filename;
     }
 };
 

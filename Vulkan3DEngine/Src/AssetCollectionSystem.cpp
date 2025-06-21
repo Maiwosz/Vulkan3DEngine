@@ -6,14 +6,14 @@ void AssetCollectionSystem::update() {
     std::unordered_set<AssetHandle> assetsToLoad;
 
     // Zbieranie assetów z komponentów materiałów
-    auto materialEntities = m_registry->createView<MaterialComponent>();
+    auto materialEntities = m_registry->components().createView<MaterialComponent>();
     for (auto entity : materialEntities) {
         auto& material = m_registry->components().getComponent<MaterialComponent>(entity);
         assetsToLoad.insert(material.getMaterial());
     }
 
     // Zbieranie assetów z komponentów meshów
-    auto meshEntities = m_registry->createView<MeshComponent>();
+    auto meshEntities = m_registry->components().createView<MeshComponent>();
     for (auto entity : meshEntities) {
         auto& mesh = m_registry->components().getComponent<MeshComponent>(entity);
         assetsToLoad.insert(mesh.getMesh());

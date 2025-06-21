@@ -6,13 +6,17 @@ const char* TransformComponent::getName() const {
 }
 
 void TransformComponent::setPosition(const glm::vec3& worldPosition) {
-    if (!getRegistry() || !getRegistry()->hasParent(entity)) {
+    if (!getRegistry()) {
+        SPDLOG_ERROR("Registry is null in TransformComponent::setPosition for entity {}", entity.id);
+    }
+
+    if (!getRegistry() || !getRegistry()->entities().hasParent(entity)) {
         m_position = worldPosition;
     }
     else {
-        Entity parent = getRegistry()->getParent(entity);
-        if (getRegistry()->hasComponent<TransformComponent>(parent)) {
-            const TransformComponent& parentTransform = getRegistry()->getComponent<TransformComponent>(parent);
+        Entity parent = getRegistry()->entities().getParent(entity);
+        if (getRegistry()->components().hasComponent<TransformComponent>(parent)) {
+            const TransformComponent& parentTransform = getRegistry()->components().getComponent<TransformComponent>(parent);
             glm::mat4 parentWorldMatrix = parentTransform.getWorldMatrix();
             glm::mat4 inverseParentMatrix = glm::inverse(parentWorldMatrix);
             glm::vec4 localPos = inverseParentMatrix * glm::vec4(worldPosition, 1.0f);
@@ -40,13 +44,13 @@ const glm::vec3& TransformComponent::getLocalPosition() const {
 }
 
 void TransformComponent::setRotation(const glm::vec3& worldRotation) {
-    if (!getRegistry() || !getRegistry()->hasParent(entity)) {
+    if (!getRegistry() || !getRegistry()->entities().hasParent(entity)) {
         m_rotation = worldRotation;
     }
     else {
-        Entity parent = getRegistry()->getParent(entity);
-        if (getRegistry()->hasComponent<TransformComponent>(parent)) {
-            const TransformComponent& parentTransform = getRegistry()->getComponent<TransformComponent>(parent);
+        Entity parent = getRegistry()->entities().getParent(entity);
+        if (getRegistry()->components().hasComponent<TransformComponent>(parent)) {
+            const TransformComponent& parentTransform = getRegistry()->components().getComponent<TransformComponent>(parent);
             glm::vec3 parentWorldRotation = parentTransform.getRotation();
             m_rotation = worldRotation - parentWorldRotation;
         }
@@ -58,13 +62,13 @@ void TransformComponent::setRotation(const glm::vec3& worldRotation) {
 }
 
 glm::vec3 TransformComponent::getRotation() const {
-    if (!getRegistry() || !getRegistry()->hasParent(entity)) {
+    if (!getRegistry() || !getRegistry()->entities().hasParent(entity)) {
         return m_rotation;
     }
 
-    Entity parent = getRegistry()->getParent(entity);
-    if (getRegistry()->hasComponent<TransformComponent>(parent)) {
-        const TransformComponent& parentTransform = getRegistry()->getComponent<TransformComponent>(parent);
+    Entity parent = getRegistry()->entities().getParent(entity);
+    if (getRegistry()->components().hasComponent<TransformComponent>(parent)) {
+        const TransformComponent& parentTransform = getRegistry()->components().getComponent<TransformComponent>(parent);
         return parentTransform.getRotation() + m_rotation;
     }
 
@@ -81,13 +85,13 @@ const glm::vec3& TransformComponent::getLocalRotation() const {
 }
 
 void TransformComponent::setScale(const glm::vec3& worldScale) {
-    if (!getRegistry() || !getRegistry()->hasParent(entity)) {
+    if (!getRegistry() || !getRegistry()->entities().hasParent(entity)) {
         m_scale = worldScale;
     }
     else {
-        Entity parent = getRegistry()->getParent(entity);
-        if (getRegistry()->hasComponent<TransformComponent>(parent)) {
-            const TransformComponent& parentTransform = getRegistry()->getComponent<TransformComponent>(parent);
+        Entity parent = getRegistry()->entities().getParent(entity);
+        if (getRegistry()->components().hasComponent<TransformComponent>(parent)) {
+            const TransformComponent& parentTransform = getRegistry()->components().getComponent<TransformComponent>(parent);
             glm::vec3 parentWorldScale = parentTransform.getScale();
             m_scale = worldScale / parentWorldScale;
         }
@@ -137,13 +141,13 @@ glm::mat4 TransformComponent::getWorldMatrix() const {
     }
 
     Registry* registry = getRegistry();
-    if (!registry->hasParent(entity)) {
+    if (!registry->entities().hasParent(entity)) {
         return getLocalMatrix();
     }
 
-    Entity parent = registry->getParent(entity);
-    if (registry->hasComponent<TransformComponent>(parent)) {
-        const TransformComponent& parentTransform = registry->getComponent<TransformComponent>(parent);
+    Entity parent = registry->entities().getParent(entity);
+    if (registry->components().hasComponent<TransformComponent>(parent)) {
+        const TransformComponent& parentTransform = registry->components().getComponent<TransformComponent>(parent);
         return parentTransform.getWorldMatrix() * getLocalMatrix();
     }
 
@@ -209,4 +213,53 @@ void TransformComponent::deserialize(const json& j) {
         m_scale = glm::vec3(j["scale"][0], j["scale"][1], j["scale"][2]);
     }
     incrementVersion();
+}
+
+void TransformComponent::renderUI() {
+    bool hasParent = getRegistry() && getRegistry()->entities().hasParent(entity);
+
+    // Position
+    ImGui::Text("Position");
+    glm::vec3 position = getLocalPosition();
+    if (ImGui::DragFloat3("##Position", &position.x, 0.1f)) {
+        setLocalPosition(position);
+    }
+
+    if (hasParent) {
+        ImGui::SameLine();
+        ImGui::TextDisabled("(Local)");
+
+        glm::vec3 worldPos = getPosition();
+        ImGui::Text("World Position: %.2f, %.2f, %.2f", worldPos.x, worldPos.y, worldPos.z);
+    }
+
+    // Rotation
+    ImGui::Text("Rotation");
+    glm::vec3 rotation = getLocalRotation();
+    if (ImGui::DragFloat3("##Rotation", &rotation.x, 1.0f)) {
+        setLocalRotation(rotation);
+    }
+
+    if (hasParent) {
+        ImGui::SameLine();
+        ImGui::TextDisabled("(Local)");
+
+        glm::vec3 worldRot = getRotation();
+        ImGui::Text("World Rotation: %.2f, %.2f, %.2f", worldRot.x, worldRot.y, worldRot.z);
+    }
+
+    // Scale
+    ImGui::Text("Scale");
+    glm::vec3 scale = getLocalScale();
+    if (ImGui::DragFloat3("##Scale", &scale.x, 0.01f, 0.001f)) {
+        setLocalScale(scale);
+    }
+
+    if (hasParent) {
+        ImGui::SameLine();
+        ImGui::TextDisabled("(Local)");
+
+        glm::vec3 worldScale = getScale();
+        ImGui::Text("World Scale: %.2f, %.2f, %.2f", worldScale.x, worldScale.y, worldScale.z);
+    }
 }

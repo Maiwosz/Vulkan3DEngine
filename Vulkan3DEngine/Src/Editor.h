@@ -21,10 +21,7 @@ public:
     EditorUI& ui() { return *m_editorUI; }
     Engine& engine() { return *m_engine; }
 
-    std::shared_ptr<spdlog::logger> getLogger() const { return m_logger; }
-
 private:
-    void configureLogger();
     void initializeEngine();
 
     std::unique_ptr<Engine> m_engine;
@@ -32,7 +29,6 @@ private:
     std::unique_ptr<EditorUI> m_editorUI;
     std::thread m_watcherThread;
     std::atomic<bool> m_running{ false };
-    std::shared_ptr<spdlog::logger> m_logger;
 
     // Engine initialization parameters
     std::string m_sourceRelative;

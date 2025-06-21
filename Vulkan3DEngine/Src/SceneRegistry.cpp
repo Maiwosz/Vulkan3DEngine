@@ -1,15 +1,15 @@
 #include "SceneRegistry.h"
 #include "EntityManager.h"
 #include "ComponentManager.h"
-#include "Serializer.h"
 #include "SceneManager.h"
 #include <spdlog/spdlog.h>
+#include "PrefabInstanceManager.h"
 
 SceneRegistry::SceneRegistry(EntityManager& entityManager, ComponentManager& componentManager,
-    Serializer& serializer, SceneManager& sceneManager)
+    PrefabInstanceManager& prefabInstanceManager, SceneManager& sceneManager)
     : m_entityManager(entityManager)
     , m_componentManager(componentManager)
-    , m_serializer(serializer)
+    , m_prefabInstanceManager(prefabInstanceManager)
     , m_sceneManager(sceneManager) {
 }
 
@@ -51,6 +51,15 @@ bool SceneRegistry::saveScene(const std::string& sceneName) {
     return true;
 }
 
+void SceneRegistry::clearScene()
+{
+    // Najpierw zniszcz wszystkie instancje prefabów
+    m_prefabInstanceManager.destroyAllPrefabInstances();
+
+    // Następnie zniszcz pozostałe entity
+    m_entityManager.destroyAllEntities();
+}
+
 nlohmann::json SceneRegistry::serializeCurrentScene() const {
     nlohmann::json sceneData;
     nlohmann::json& entitiesJson = sceneData["entities"];
@@ -68,7 +77,7 @@ nlohmann::json SceneRegistry::serializeCurrentScene() const {
         uint32_t hierarchyCount = m_entityManager.countEntitiesInHierarchy(rootEntity);
         SPDLOG_DEBUG("Entity {} hierarchy contains {} entities", rootEntity.id, hierarchyCount);
 
-        entitiesJson.push_back(m_serializer.serializeEntityHierarchy(rootEntity));
+        entitiesJson.push_back(m_entityManager.serializeEntityHierarchy(rootEntity));
     }
 
     // Additional debug: Check if there are any orphaned entities
@@ -119,7 +128,7 @@ bool SceneRegistry::deserializeScene(const nlohmann::json& sceneData) {
             const auto& hierarchyJson = entitiesJson[i];
             SPDLOG_DEBUG("Deserializing hierarchy {}", i);
 
-            Entity rootEntity = m_serializer.deserializePrefabHierarchy(hierarchyJson);
+            Entity rootEntity = m_entityManager.deserializeEntityHierarchy(hierarchyJson);
             SPDLOG_DEBUG("Created root entity {} ({})", rootEntity.id, m_entityManager.getEntityName(rootEntity));
         }
 

@@ -41,11 +41,30 @@ public:
     Material* getMaterial(MaterialHandle handle);
     const Material* getMaterial(MaterialHandle handle) const;
 
+    // Parameter modification methods - automatically invalidate descriptor sets
+    bool setMaterialParameter(MaterialHandle handle, const std::string& paramName, const Material::ParamValue& value);
+    bool getMaterialParameter(MaterialHandle handle, const std::string& paramName, Material::ParamValue& outValue) const;
+
     // Main descriptor set access method - creates on demand and manages cache
     SmartHandle<DescriptorSetHandle, VkDescriptorSet> getDescriptorSet(MaterialHandle handle);
 
     // Invalidate descriptor set when material parameters change
     void invalidateDescriptorSet(MaterialHandle handle);
+
+    // Template method for getting handles (needed for AssetManager integration)
+    template<typename T>
+    T getHandle(const std::string& filename) const {
+        auto result = getHandleInternal(filename);
+        if (result.has_value()) {
+            try {
+                return std::any_cast<T>(result);
+            }
+            catch (const std::bad_any_cast&) {
+                return T(); // Return invalid handle on cast failure
+            }
+        }
+        return T(); // Return invalid handle if not found
+    }
 
 private:
     struct MaterialData {

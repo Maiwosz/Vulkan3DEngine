@@ -1,19 +1,16 @@
 #include "HierarchyWindow.h"
 #include "Registry.h"
+#include "SelectionManager.h"
 #include "EntityManager.h"
 #include "imgui.h"
 #include <format>
+#include "LoggerConfig.h"
 
-HierarchyWindow::HierarchyWindow(Registry& registry)
-    : m_registry(registry)
+HierarchyWindow::HierarchyWindow(Registry& registry, SelectionManager& selectionManager)
+    : m_registry(registry), m_selectionManager(selectionManager)
 {
-    // Initialize logger
-    m_logger = spdlog::get("EDITOR");
-    if (!m_logger) {
-        m_logger = spdlog::default_logger();
-    }
 
-    m_logger->debug("HierarchyWindow initialized");
+    EDITOR_LOG_DEBUG("HierarchyWindow initialized");
 }
 
 void HierarchyWindow::render() {
@@ -30,30 +27,35 @@ void HierarchyWindow::render() {
 void HierarchyWindow::renderEntityHierarchy() {
     // Add buttons for entity management
     if (ImGui::Button("Create Entity")) {
-        Entity newEntity = m_registry.create("New Entity");
-        m_logger->info("Created new entity: {} (ID: {})",
-            m_registry.getEntityName(newEntity), newEntity.id);
+        Entity newEntity = m_registry.entities().create("New Entity");
+        EDITOR_LOG_INFO("Created new entity: {} (ID: {})",
+            m_registry.entities().getEntityName(newEntity), newEntity.id);
     }
 
     ImGui::SameLine();
 
-    if (ImGui::Button("Delete Selected") && m_selectedEntity.id != 0) {
-        if (m_registry.valid(m_selectedEntity)) {
-            std::string entityName = m_registry.getEntityName(m_selectedEntity);
-            m_registry.destroy(m_selectedEntity);
-            m_logger->info("Deleted entity: {} (ID: {})", entityName, m_selectedEntity.id);
-            m_selectedEntity = Entity(0);
+    if (ImGui::Button("Delete Selected") && m_selectionManager.hasSelection()) {
+        Entity selectedEntity = m_selectionManager.getSelectedEntity();
+        if (m_registry.entities().valid(selectedEntity)) {
+            std::string entityName = m_registry.entities().getEntityName(selectedEntity);
+            m_registry.entities().destroy(selectedEntity);
+            EDITOR_LOG_INFO("Deleted entity: {} (ID: {})", entityName, selectedEntity.id);
+            m_selectionManager.clearSelection();
         }
     }
+
 
     ImGui::Separator();
 
     // Show selected entity info
-    if (m_selectedEntity.id != 0 && m_registry.valid(m_selectedEntity)) {
-        ImGui::Text("Selected: %s (ID: %u)",
-            getEntityDisplayName(m_selectedEntity).c_str(),
-            m_selectedEntity.id);
-        ImGui::Separator();
+    if (m_selectionManager.hasSelection()) {
+        Entity selectedEntity = m_selectionManager.getSelectedEntity();
+        if (m_registry.entities().valid(selectedEntity)) {
+            ImGui::Text("Selected: %s (ID: %u)",
+                getEntityDisplayName(selectedEntity).c_str(),
+                selectedEntity.id);
+            ImGui::Separator();
+        }
     }
 
     // Render the entity tree
@@ -75,21 +77,21 @@ void HierarchyWindow::renderRootEntities() {
         });
 
     for (Entity entity : sortedRoots) {
-        if (m_registry.valid(entity)) {
+        if (m_registry.entities().valid(entity)) {
             renderEntityNode(entity, 0);
         }
     }
 }
 
 void HierarchyWindow::renderEntityNode(Entity entity, int depth) {
-    if (!m_registry.valid(entity)) {
+    if (!m_registry.entities().valid(entity)) {
         return;
     }
 
     std::string displayName = getEntityDisplayName(entity);
     bool hasChildEntities = hasChildren(entity);
     bool isExpanded = isEntityExpanded(entity);
-    bool isSelected = (m_selectedEntity == entity);
+    bool isSelected = (m_selectionManager.getSelectedEntity() == entity);
 
     // Create unique ID for ImGui
     ImGui::PushID(static_cast<int>(entity.id));
@@ -149,11 +151,11 @@ void HierarchyWindow::renderEntityNode(Entity entity, int depth) {
     if (ImGui::BeginDragDropTarget()) {
         if (const ImGuiPayload* payload = ImGui::AcceptDragDropPayload("ENTITY")) {
             Entity draggedEntity = *(Entity*)payload->Data;
-            if (draggedEntity != entity && m_registry.valid(draggedEntity)) {
-                m_registry.setParent(draggedEntity, entity);
-                m_logger->info("Moved entity {} to parent {}",
-                    m_registry.getEntityName(draggedEntity),
-                    m_registry.getEntityName(entity));
+            if (draggedEntity != entity && m_registry.entities().valid(draggedEntity)) {
+                m_registry.entities().setParent(draggedEntity, entity);
+                EDITOR_LOG_INFO("Moved entity {} to parent {}",
+                    m_registry.entities().getEntityName(draggedEntity),
+                    m_registry.entities().getEntityName(entity));
             }
         }
         ImGui::EndDragDropTarget();
@@ -165,7 +167,7 @@ void HierarchyWindow::renderEntityNode(Entity entity, int depth) {
 
     // Render children if node is open
     if (nodeOpen && hasChildEntities) {
-        const auto& children = m_registry.getChildren(entity);
+        const auto& children = m_registry.entities().getChildren(entity);
 
         // Sort children by name
         std::vector<Entity> sortedChildren(children.begin(), children.end());
@@ -199,7 +201,7 @@ void HierarchyWindow::setEntityExpanded(Entity entity, bool expanded) {
 }
 
 std::string HierarchyWindow::getEntityDisplayName(Entity entity) const {
-    std::string name = m_registry.getEntityName(entity);
+    std::string name = m_registry.entities().getEntityName(entity);
     if (name.empty()) {
         return std::format("Entity_{}", entity.id);
     }
@@ -207,47 +209,47 @@ std::string HierarchyWindow::getEntityDisplayName(Entity entity) const {
 }
 
 bool HierarchyWindow::hasChildren(Entity entity) const {
-    const auto& children = m_registry.getChildren(entity);
+    const auto& children = m_registry.entities().getChildren(entity);
     return !children.empty();
 }
 
 void HierarchyWindow::handleEntitySelection(Entity entity) {
-    m_selectedEntity = entity;
-    m_logger->debug("Selected entity: {} (ID: {})",
+    m_selectionManager.selectEntity(entity);
+    EDITOR_LOG_DEBUG("Selected entity: {} (ID: {})",
         getEntityDisplayName(entity), entity.id);
 }
 
 void HierarchyWindow::handleEntityContextMenu(Entity entity) {
     if (ImGui::MenuItem("Create Child")) {
-        Entity child = m_registry.create("Child Entity");
-        m_registry.setParent(child, entity);
-        m_logger->info("Created child entity: {} for parent: {}",
-            m_registry.getEntityName(child),
-            m_registry.getEntityName(entity));
+        Entity child = m_registry.entities().create("Child Entity");
+        m_registry.entities().setParent(child, entity);
+        EDITOR_LOG_INFO("Created child entity: {} for parent: {}",
+            m_registry.entities().getEntityName(child),
+            m_registry.entities().getEntityName(entity));
     }
 
     if (ImGui::MenuItem("Duplicate")) {
-        Entity duplicate = m_registry.cloneEntityHierarchy(entity, m_registry.getParent(entity));
-        m_logger->info("Duplicated entity: {} -> {}",
-            m_registry.getEntityName(entity),
-            m_registry.getEntityName(duplicate));
+        Entity duplicate = m_registry.entities().cloneEntityHierarchy(entity, m_registry.entities().getParent(entity));
+        EDITOR_LOG_INFO("Duplicated entity: {} -> {}",
+            m_registry.entities().getEntityName(entity),
+            m_registry.entities().getEntityName(duplicate));
     }
 
     ImGui::Separator();
 
     if (ImGui::MenuItem("Rename")) {
         // TODO: Implement rename dialog
-        m_logger->info("Rename requested for entity: {}", getEntityDisplayName(entity));
+        EDITOR_LOG_INFO("Rename requested for entity: {}", getEntityDisplayName(entity));
     }
 
     ImGui::Separator();
 
     if (ImGui::MenuItem("Delete", "Del")) {
-        if (m_selectedEntity == entity) {
-            m_selectedEntity = Entity(0);
+        if (m_selectionManager.getSelectedEntity() == entity) {
+            m_selectionManager.clearSelection();
         }
-        std::string entityName = m_registry.getEntityName(entity);
-        m_registry.destroy(entity);
-        m_logger->info("Deleted entity: {} (ID: {})", entityName, entity.id);
+        std::string entityName = m_registry.entities().getEntityName(entity);
+        m_registry.entities().destroy(entity);
+        EDITOR_LOG_INFO("Deleted entity: {} (ID: {})", entityName, entity.id);
     }
 }

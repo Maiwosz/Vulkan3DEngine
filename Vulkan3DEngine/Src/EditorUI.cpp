@@ -4,28 +4,27 @@
 #include "FrameManager.h"
 #include "Renderer.h"
 #include "imgui.h"
+#include "LoggerConfig.h"
 
 EditorUI::EditorUI(Engine& engine)
     : m_engine(engine)
     , m_registry(engine.registry())
     , m_frameManager(engine.renderer().frameManager())
 {
-    // Initialize logger
-    m_logger = spdlog::get("EDITOR");
-    if (!m_logger) {
-        m_logger = spdlog::default_logger();
-    }
+    EDITOR_LOG_INFO("Initializing EditorUI");
 
-    m_logger->info("Initializing EditorUI");
+    // Create selection manager first
+    m_selectionManager = std::make_unique<SelectionManager>();
 
-    // Create UI windows
-    m_hierarchyWindow = std::make_unique<HierarchyWindow>(m_registry);
+    // Create UI windows with selection manager
+    m_hierarchyWindow = std::make_unique<HierarchyWindow>(m_registry, *m_selectionManager);
+    m_componentInspectorWindow = std::make_unique<ComponentInspectorWindow>(m_registry, *m_selectionManager);
 
-    m_logger->info("EditorUI initialized successfully");
+    EDITOR_LOG_INFO("EditorUI initialized successfully");
 }
 
 EditorUI::~EditorUI() {
-    m_logger->info("EditorUI destroyed");
+    EDITOR_LOG_INFO("EditorUI destroyed");
 }
 
 void EditorUI::renderWindows() {
@@ -33,20 +32,20 @@ void EditorUI::renderWindows() {
     if (ImGui::BeginMainMenuBar()) {
         if (ImGui::BeginMenu("File")) {
             if (ImGui::MenuItem("New Scene")) {
-                m_logger->info("New Scene requested");
+                EDITOR_LOG_INFO("New Scene requested");
                 // TODO: Implement new scene creation
             }
             if (ImGui::MenuItem("Open Scene")) {
-                m_logger->info("Open Scene requested");
+                EDITOR_LOG_INFO("Open Scene requested");
                 // TODO: Implement scene loading
             }
             if (ImGui::MenuItem("Save Scene")) {
-                m_logger->info("Save Scene requested");
+                EDITOR_LOG_INFO("Save Scene requested");
                 // TODO: Implement scene saving
             }
             ImGui::Separator();
             if (ImGui::MenuItem("Exit")) {
-                m_logger->info("Exit requested");
+                EDITOR_LOG_INFO("Exit requested");
                 m_engine.requestShutdown();
             }
             ImGui::EndMenu();
@@ -54,6 +53,7 @@ void EditorUI::renderWindows() {
 
         if (ImGui::BeginMenu("Windows")) {
             ImGui::MenuItem("Hierarchy", nullptr, &m_hierarchyWindow->m_showWindow);
+            ImGui::MenuItem("Component Inspector", nullptr, &m_componentInspectorWindow->m_showWindow);
             ImGui::EndMenu();
         }
 
@@ -62,6 +62,7 @@ void EditorUI::renderWindows() {
 
     // Render individual windows
     m_hierarchyWindow->render();
+    m_componentInspectorWindow->render();
 
     // Render engine stats window
     if (ImGui::Begin("Engine Stats")) {
@@ -77,8 +78,8 @@ void EditorUI::renderWindows() {
         ImGui::Text("Root Entities: %zu", rootEntities.size());
         ImGui::Text("Total Entities: %zu", m_registry.entities().getAllEntities().size());
 
-        if (m_registry.hasCurrentScene()) {
-            ImGui::Text("Current Scene: %s", m_registry.getCurrentSceneName().c_str());
+        if (m_registry.scenes().hasCurrentScene()) {
+            ImGui::Text("Current Scene: %s", m_registry.scenes().getCurrentSceneName().c_str());
         }
         else {
             ImGui::Text("No scene loaded");

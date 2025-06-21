@@ -8,8 +8,8 @@
 
 class SystemManager : public ISerializable {
 public:
-    SystemManager(Registry& registry, Engine& engine)
-        : m_registry(registry), m_engine(engine) {
+    SystemManager(Engine& engine, Registry& registry)
+        : m_engine(engine), m_registry(registry) {
         initializeSystems();
     }
 

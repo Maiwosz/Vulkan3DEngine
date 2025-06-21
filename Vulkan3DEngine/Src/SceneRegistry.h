@@ -6,17 +6,18 @@
 
 class EntityManager;
 class ComponentManager;
-class Serializer;
 class SceneManager;
+class PrefabInstanceManager;
 
 class SceneRegistry {
 public:
     explicit SceneRegistry(EntityManager& entityManager, ComponentManager& componentManager,
-        Serializer& serializer, SceneManager& sceneManager);
+        PrefabInstanceManager& prefabInstanceManager, SceneManager& sceneManager);
 
     // Core scene operations
     bool loadScene(const std::string& sceneName);
     bool saveScene(const std::string& sceneName);
+    void clearScene();
 
     // Scene queries
     const std::string& getCurrentSceneName() const { return m_currentSceneName; }
@@ -26,7 +27,7 @@ private:
     // Module references
     EntityManager& m_entityManager;
     ComponentManager& m_componentManager;
-    Serializer& m_serializer;
+	PrefabInstanceManager& m_prefabInstanceManager;
     SceneManager& m_sceneManager;
 
     // Current scene tracking

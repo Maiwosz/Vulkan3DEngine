@@ -5,6 +5,7 @@
 #include <algorithm>
 #include "AssetLoader.h"
 #include "ConverterLib.h"
+#include "LoggerConfig.h"
 
 using json = nlohmann::json;
 
@@ -13,7 +14,7 @@ AssetWatcher::AssetWatcher(const std::string& sourceDir, const std::string& dest
     , sourceDirectory(fs::absolute(sourceDir))
     , destinationDirectory(fs::absolute(destDir))
 {
-    m_editor.getLogger()->debug("AssetWatcher configured with:\nSource: {}\nDestination: {}",
+    EDITOR_LOG_DEBUG("AssetWatcher configured with:\nSource: {}\nDestination: {}",
         sourceDirectory.string(), destinationDirectory.string());
 
     // Log supported extensions for debugging
@@ -23,20 +24,20 @@ AssetWatcher::AssetWatcher(const std::string& sourceDir, const std::string& dest
         if (!extensionsStr.empty()) extensionsStr += ", ";
         extensionsStr += std::string(ext);
     }
-    m_editor.getLogger()->debug("Supported extensions: {}", extensionsStr);
+    EDITOR_LOG_DEBUG("Supported extensions: {}", extensionsStr);
 }
 
 void AssetWatcher::Run() {
     try {
         // Check if source directory exists
         if (!fs::exists(sourceDirectory)) {
-            m_editor.getLogger()->error("Source directory not found: {}", sourceDirectory.string());
+            EDITOR_LOG_ERROR("Source directory not found: {}", sourceDirectory.string());
             return;
         }
 
         // Ensure it's a directory
         if (!fs::is_directory(sourceDirectory)) {
-            m_editor.getLogger()->error("Source path is not a directory: {}", sourceDirectory.string());
+            EDITOR_LOG_ERROR("Source path is not a directory: {}", sourceDirectory.string());
             return;
         }
 
@@ -47,14 +48,14 @@ void AssetWatcher::Run() {
             }
         }
         catch (const fs::filesystem_error& e) {
-            m_editor.getLogger()->error("Filesystem error: {}", e.what());
+            EDITOR_LOG_ERROR("Filesystem error: {}", e.what());
         }
     }
     catch (const std::exception& e) {
-        m_editor.getLogger()->critical("Fatal error in AssetWatcher: {}", e.what());
+        EDITOR_LOG_CRITICAL("Fatal error in AssetWatcher: {}", e.what());
     }
     catch (...) {
-        m_editor.getLogger()->critical("Unknown fatal error in AssetWatcher");
+        EDITOR_LOG_CRITICAL("Unknown fatal error in AssetWatcher");
     }
 }
 
@@ -71,7 +72,7 @@ void AssetWatcher::ProcessFile(const fs::path& sourcePath) {
 
     // Check if extension is supported using ConverterLib
     if (!Converter::IsExtensionSupported(extension)) {
-        m_editor.getLogger()->debug("Skipping unsupported file type: {} (extension: {})",
+        EDITOR_LOG_DEBUG("Skipping unsupported file type: {} (extension: {})",
             sourcePath.string(), extension);
         return;
     }
@@ -80,15 +81,15 @@ void AssetWatcher::ProcessFile(const fs::path& sourcePath) {
     AssetType type = Converter::GetAssetTypeFromExtension(extension);
 
     fs::path destPath = GetDestinationPath(sourcePath, type);
-    m_editor.getLogger()->debug("Checking: {} -> {}", sourcePath.string(), destPath.string());
+    EDITOR_LOG_DEBUG("Checking: {} -> {}", sourcePath.string(), destPath.string());
 
     if (!NeedsConversion(sourcePath, destPath)) {
-        m_editor.getLogger()->debug("Skipping conversion (up to date): {}", sourcePath.string());
+        EDITOR_LOG_DEBUG("Skipping conversion (up to date): {}", sourcePath.string());
         return;
     }
 
     if (!fs::exists(destPath.parent_path())) {
-        m_editor.getLogger()->debug("Creating directories: {}", destPath.parent_path().string());
+        EDITOR_LOG_DEBUG("Creating directories: {}", destPath.parent_path().string());
     }
     fs::create_directories(destPath.parent_path());
 
@@ -96,12 +97,12 @@ void AssetWatcher::ProcessFile(const fs::path& sourcePath) {
 
     try {
         Converter converter;
-        m_editor.getLogger()->debug("Attempting conversion: {} -> {}", sourcePath.string(), destPath.string());
+        EDITOR_LOG_DEBUG("Attempting conversion: {} -> {}", sourcePath.string(), destPath.string());
         converter.Convert(sourcePath.string(), destPath.string(), settings);
-        m_editor.getLogger()->info("Converted: {} -> {}", sourcePath.string(), destPath.string());
+        EDITOR_LOG_INFO("Converted: {} -> {}", sourcePath.string(), destPath.string());
     }
     catch (const std::exception& e) {
-        m_editor.getLogger()->error("Error converting {}: {}", sourcePath.string(), e.what());
+        EDITOR_LOG_ERROR("Error converting {}: {}", sourcePath.string(), e.what());
     }
 }
 
@@ -129,13 +130,13 @@ fs::path AssetWatcher::GetDestinationPath(const fs::path& sourcePath, AssetType 
         / baseName;
 
     destPath.replace_extension(AssetLib::Utilities::GetAssetExtension(type));
-    m_editor.getLogger()->trace("Generated dest path: {}", destPath.string());
+    EDITOR_LOG_TRACE("Generated dest path: {}", destPath.string());
     return destPath;
 }
 
 bool AssetWatcher::NeedsConversion(const fs::path& sourcePath, const fs::path& destPath) const {
     if (!fs::exists(destPath)) {
-        m_editor.getLogger()->debug("Destination file missing: {}", destPath.string());
+        EDITOR_LOG_DEBUG("Destination file missing: {}", destPath.string());
         return true;
     }
 
@@ -143,7 +144,7 @@ bool AssetWatcher::NeedsConversion(const fs::path& sourcePath, const fs::path& d
     auto destTime = fs::last_write_time(destPath);
 
     if (sourceTime > destTime) {
-        m_editor.getLogger()->debug("Source is newer than destination: {}", sourcePath.string());
+        EDITOR_LOG_DEBUG("Source is newer than destination: {}", sourcePath.string());
         return true;
     }
 
@@ -151,12 +152,12 @@ bool AssetWatcher::NeedsConversion(const fs::path& sourcePath, const fs::path& d
     std::string currentSourceName = sourcePath.filename().string();
 
     if (storedSource != currentSourceName) {
-        m_editor.getLogger()->debug("Source name mismatch for {} (stored: '{}', current: '{}')",
+        EDITOR_LOG_DEBUG("Source name mismatch for {} (stored: '{}', current: '{}')",
             destPath.string(), storedSource, currentSourceName);
         return true;
     }
 
-    m_editor.getLogger()->debug("File up to date: {}", destPath.string());
+    EDITOR_LOG_DEBUG("File up to date: {}", destPath.string());
     return false;
 }
 

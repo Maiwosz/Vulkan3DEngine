@@ -7,10 +7,11 @@
 
 // Forward declarations
 class Registry;
+class SelectionManager;
 
 class HierarchyWindow {
 public:
-    explicit HierarchyWindow(Registry& registry);
+    explicit HierarchyWindow(Registry& registry, SelectionManager& selectionManager);
     ~HierarchyWindow() = default;
 
     // Main render function
@@ -36,10 +37,8 @@ public:
 
 private:
     Registry& m_registry;
+    SelectionManager& m_selectionManager;
 
     // UI State
     std::unordered_set<Entity> m_expandedEntities;
-    Entity m_selectedEntity{ 0 };
-
-    std::shared_ptr<spdlog::logger> m_logger;
 };

@@ -1,10 +1,12 @@
 #pragma once
 #include "Entity.h"
+#include "Event.h"
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
 #include <set>
 #include <string>
+#include <json.hpp>
 
 class ComponentManager; // Forward declaration
 
@@ -16,6 +18,12 @@ public:
     Entity create(const std::string& name = "");
     void destroy(Entity entity);
     bool valid(Entity entity) const;
+
+    // Entity locking system
+    void lockEntity(Entity entity);
+    void unlockEntity(Entity entity);
+    bool isEntityLocked(Entity entity) const;
+    bool canModifyEntity(Entity entity) const; // Helper method
 
     // Entity iteration
     const std::set<Entity>& getAllEntities() const { return m_entities; }
@@ -45,6 +53,17 @@ public:
     // Advanced entity operations
     Entity createChild(Entity parent, const std::string& name = "");
     uint32_t countEntitiesInHierarchy(Entity rootEntity) const;
+    Entity cloneEntityHierarchy(Entity sourceEntity, Entity newParent, const std::string& name = "");
+    void destroyAllEntities();
+
+    // Entity serialization
+    nlohmann::json serializeEntity(Entity entity) const;
+    Entity deserializeEntity(const nlohmann::json& entityData, Entity parentEntity = Entity(0));
+    nlohmann::json serializeEntityHierarchy(Entity entity) const;
+    Entity deserializeEntityHierarchy(const nlohmann::json& hierarchyData, Entity parent = Entity(0));
+
+    // Events
+    Event<Entity>& onEntityDestroyed() { return m_onEntityDestroyed; }
 
 private:
     ComponentManager& m_componentManager;
@@ -54,6 +73,9 @@ private:
     std::set<Entity> m_freeEntities;
     uint32_t m_nextId = 1;
 
+    // Entity locking
+    std::unordered_set<Entity> m_lockedEntities;
+
     // Entity naming
     std::unordered_map<Entity, std::string> m_entityNames;
     std::unordered_map<std::string, Entity> m_nameToEntity;
@@ -62,6 +84,9 @@ private:
     std::unordered_map<Entity, Entity> m_parentMap;
     std::unordered_map<Entity, std::unordered_set<Entity>> m_childrenMap;
     static const std::unordered_set<Entity> s_emptyChildren;
+
+    // Events
+    Event<Entity> m_onEntityDestroyed;
 
     // Helper methods
     std::string generateUniqueEntityName(const std::string& baseName = "Entity") const;

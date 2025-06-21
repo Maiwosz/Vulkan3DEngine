@@ -1,12 +1,26 @@
 #include "Editor.h"
+#include "LoggerConfig.h"
 #include <spdlog/spdlog.h>
 #include <spdlog/sinks/stdout_color_sinks.h>
 #include <csignal>
 #include "Paths.h"
 
 void signal_handler(int) {
-    SPDLOG_CRITICAL("Critical signal received!");
-    spdlog::default_logger()->flush();
+    // Use named loggers for signal handling
+    auto engineLogger = LoggerConfig::getNamedLogger("ENGINE");
+    auto editorLogger = LoggerConfig::getNamedLogger("EDITOR");
+
+    if (engineLogger) {
+        engineLogger->critical("Critical signal received!");
+        engineLogger->flush();
+    }
+
+    if (editorLogger) {
+        editorLogger->critical("Critical signal received!");
+        editorLogger->flush();
+    }
+
+    spdlog::shutdown();
     std::exit(EXIT_FAILURE);
 }
 
@@ -25,6 +39,7 @@ int main() {
 
     try {
         // Create and initialize editor (which will create and initialize engine internally)
+        // The engine initialization will setup the proper logging system
         SPDLOG_INFO("Creating Editor...");
         Editor editor(ASSETS_SRC, ASSETS_COMP);
 
@@ -33,7 +48,7 @@ int main() {
         editor.start();
 
         // When we get here, the application is shutting down
-        SPDLOG_INFO("Editor finished, stopping...");
+        EDITOR_LOG_INFO("Editor finished, stopping...");
         editor.stop();
     }
     catch (const std::exception& e) {

@@ -103,6 +103,53 @@ public:
         incrementVersion();
     }
 
+    // Add to CameraComponent.cpp (or inline in header):
+    void renderUI() override {
+        ImGui::Text("Camera Component");
+
+        // Projection type selector
+        const char* projectionTypes[] = { "Perspective", "Orthographic" };
+        int currentProjection = (m_projectionType == ProjectionType::Perspective) ? 0 : 1;
+
+        if (ImGui::Combo("Projection", &currentProjection, projectionTypes, IM_ARRAYSIZE(projectionTypes))) {
+            ProjectionType newType = (currentProjection == 0) ? ProjectionType::Perspective : ProjectionType::Orthographic;
+            setProjectionType(newType);
+        }
+
+        // Aspect ratio
+        float aspectRatio = getAspectRatio();
+        if (ImGui::DragFloat("Aspect Ratio", &aspectRatio, 0.01f, 0.1f, 10.0f)) {
+            setAspectRatio(aspectRatio);
+        }
+
+        // Projection-specific settings
+        if (m_projectionType == ProjectionType::Perspective) {
+            float fov = getVerticalFOV();
+            if (ImGui::SliderFloat("FOV", &fov, 10.0f, 120.0f, "%.1f°")) {
+                setVerticalFOV(fov);
+            }
+        }
+        else {
+            float orthoSize = getOrthographicSize();
+            if (ImGui::DragFloat("Orthographic Size", &orthoSize, 0.1f, 0.1f, 100.0f)) {
+                setOrthographicSize(orthoSize);
+            }
+        }
+
+        // Clipping planes
+        ImGui::Text("Clipping Planes");
+        float nearClip = getNearClip();
+        float farClip = getFarClip();
+
+        if (ImGui::DragFloat("Near", &nearClip, 0.01f, 0.001f, 10.0f)) {
+            setClippingPlanes(nearClip, farClip);
+        }
+
+        if (ImGui::DragFloat("Far", &farClip, 1.0f, nearClip + 1.0f, 10000.0f)) {
+            setClippingPlanes(nearClip, farClip);
+        }
+    }
+
 private:
     ProjectionType m_projectionType = ProjectionType::Perspective;
     float m_aspectRatio = 16.0f / 9.0f;

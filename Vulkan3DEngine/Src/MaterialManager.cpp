@@ -222,6 +222,58 @@ const Material* MaterialManager::getMaterial(MaterialHandle handle) const {
     return (it != m_materials.end() && it->second.isReady) ? it->second.material.get() : nullptr;
 }
 
+bool MaterialManager::setMaterialParameter(MaterialHandle handle, const std::string& paramName, const Material::ParamValue& value) {
+    auto it = m_materials.find(handle);
+    if (it == m_materials.end() || !it->second.isReady) {
+        SPDLOG_WARN("MaterialManager: Invalid or not ready material handle {} for setParameter", handle.id);
+        return false;
+    }
+
+    Material* material = it->second.material.get();
+    if (!material) {
+        SPDLOG_ERROR("MaterialManager: Null material for handle {}", handle.id);
+        return false;
+    }
+
+    // Set the parameter using Material's method
+    bool success = material->setParameter(paramName, value);
+
+    if (success) {
+        // Automatically invalidate descriptor set when parameter changes
+        invalidateDescriptorSet(handle);
+
+        // If this is a texture parameter, we might need to update sampler handles
+        if (std::holds_alternative<Material::TextureParam>(value)) {
+            collectSamplerHandles(handle);
+        }
+
+        SPDLOG_DEBUG("MaterialManager: Updated parameter '{}' for material {}",
+            paramName, material->name());
+    }
+    else {
+        SPDLOG_WARN("MaterialManager: Failed to set parameter '{}' for material {}",
+            paramName, material->name());
+    }
+
+    return success;
+}
+
+bool MaterialManager::getMaterialParameter(MaterialHandle handle, const std::string& paramName, Material::ParamValue& outValue) const {
+    auto it = m_materials.find(handle);
+    if (it == m_materials.end() || !it->second.isReady) {
+        SPDLOG_WARN("MaterialManager: Invalid or not ready material handle {} for getParameter", handle.id);
+        return false;
+    }
+
+    const Material* material = it->second.material.get();
+    if (!material) {
+        SPDLOG_ERROR("MaterialManager: Null material for handle {}", handle.id);
+        return false;
+    }
+
+    return material->getParameter(paramName, outValue);
+}
+
 SmartHandle<DescriptorSetHandle, VkDescriptorSet> MaterialManager::getDescriptorSet(MaterialHandle handle) {
     auto it = m_materials.find(handle);
     if (it == m_materials.end() || !it->second.isReady) {

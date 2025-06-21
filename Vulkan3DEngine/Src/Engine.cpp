@@ -20,9 +20,19 @@ void Engine::initialize(const InitParams& params) {
     }
 
     try {
-        SPDLOG_INFO("Initializing Engine...");
+        // Load settings first to get log level
+        SPDLOG_INFO("Loading settings from '{}'", params.settingsFile);
+        m_settings = std::make_unique<Settings>();
+        if (!m_settings->load(params.settingsFile)) {
+            SPDLOG_WARN("Failed to load settings, using defaults");
+        }
 
-        initializeLogging(params.logDir);
+        // Setup global logging system with settings-based log level
+        initializeLogging(params.logDir, m_settings->getLogLevel());
+
+        SPDLOG_INFO("Initializing Engine...");
+        SPDLOG_INFO("Log level set to: {}", Settings::toString(m_settings->getLogLevel()));
+
         initializeComponents(params);
         connectEventHandlers();
 
@@ -88,39 +98,27 @@ void Engine::shutdown() {
     m_initialized = false;
     SPDLOG_INFO("Engine shutdown complete");
 
-    // Flush and shutdown logging
-    if (spdlog::default_logger()) {
-        spdlog::default_logger()->flush();
-        spdlog::shutdown();
+    // Flush all loggers but don't shutdown spdlog (let Editor handle that)
+    auto engineLogger = LoggerConfig::getNamedLogger("ENGINE");
+    if (engineLogger) {
+        engineLogger->flush();
     }
 }
 
-void Engine::initializeLogging(const std::string& logDir) {
+void Engine::initializeLogging(const std::string& logDir, Settings::LogLevel logLevel) {
     std::filesystem::create_directories(logDir);
 
-    LoggerConfig::LoggerOptions options;
-    options.loggerName = "ENGINE";
-    options.logDir = logDir;
-    options.filePrefix = "engine_";
-    options.level = spdlog::level::info; // Default level, will be updated after settings load
-    options.maxOldLogFiles = 2;
+    // Convert settings log level to spdlog level
+    spdlog::level::level_enum spdlogLevel = Settings::toSpdlogLevel(logLevel);
 
-    auto logger = LoggerConfig::createLogger(options);
-    spdlog::set_default_logger(logger);
+    // Setup global logging with both ENGINE and EDITOR loggers using settings log level
+    LoggerConfig::setupGlobalLogging(logDir, spdlogLevel);
+
+    // The ENGINE logger is now set as default, so SPDLOG_* macros work
+    SPDLOG_INFO("Engine logging initialized with level: {}", Settings::toString(logLevel));
 }
 
 void Engine::initializeComponents(const InitParams& params) {
-    // Settings - must be first to configure other components
-    SPDLOG_DEBUG("Loading settings from '{}'", params.settingsFile);
-    m_settings = std::make_unique<Settings>();
-    if (!m_settings->load(params.settingsFile)) {
-        SPDLOG_WARN("Failed to load settings, using defaults");
-    }
-
-    // Update log level based on settings
-    spdlog::set_level(Settings::toSpdlogLevel(m_settings->getLogLevel()));
-    SPDLOG_INFO("Log level set to: {}", Settings::toString(m_settings->getLogLevel()));
-
     // Window
     SPDLOG_DEBUG("Creating window");
     Window::CreateInfo windowInfo;

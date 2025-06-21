@@ -1,15 +1,21 @@
 #include "PrefabInstanceManager.h"
 #include "EntityManager.h"
 #include "ComponentManager.h"
-#include "Serializer.h"
 #include "PrefabManager.h"
 #include <spdlog/spdlog.h>
 
 PrefabInstanceManager::PrefabInstanceManager(EntityManager& entityManager, ComponentManager& componentManager,
-    Serializer& serializer, PrefabManager& prefabManager)
+    PrefabManager& prefabManager)
     : m_entityManager(entityManager), m_componentManager(componentManager),
-    m_serializer(serializer), m_prefabManager(prefabManager) {
+    m_prefabManager(prefabManager) {
+
+    // Subskrybuj event niszczenia entity
+    m_entityDestroyedSubscription = m_entityManager.onEntityDestroyed().subscribe(
+        [this](Entity entity) {
+            onEntityDestroyed(entity);
+        });
 }
+
 
 PrefabInstanceHandle PrefabInstanceManager::createInstance(PrefabHandle prefabHandle, Entity parent,
     const std::string& instanceName) {
@@ -60,6 +66,13 @@ bool PrefabInstanceManager::destroyInstance(PrefabInstanceHandle instanceHandle)
     // Unregister entities
     unregisterInstanceEntities(instanceHandle);
 
+    // Odblokuj wszystkie entities przed usunięciem
+    for (Entity entity : instance.entities) {
+        if (m_entityManager.valid(entity)) {
+            m_entityManager.unlockEntity(entity);
+        }
+    }
+
     // Destroy all entities in the instance (starting from leaves)
     std::vector<Entity> entitiesToDestroy(instance.entities.begin(), instance.entities.end());
 
@@ -86,6 +99,15 @@ bool PrefabInstanceManager::unpackInstance(PrefabInstanceHandle instanceHandle) 
     auto it = m_instances.find(instanceHandle.id);
     if (it == m_instances.end()) {
         return false;
+    }
+
+    const PrefabInstance& instance = it->second;
+
+    // Odblokuj wszystkie entities
+    for (Entity entity : instance.entities) {
+        if (m_entityManager.valid(entity)) {
+            m_entityManager.unlockEntity(entity);
+        }
     }
 
     // Unregister entities (they become "free")
@@ -274,6 +296,14 @@ std::unordered_set<std::string> PrefabInstanceManager::getOverriddenComponents(
     return entityOverrideIt->second;
 }
 
+void PrefabInstanceManager::destroyAllPrefabInstances()
+{
+    auto allInstances = getAllInstances();
+    for (auto instanceHandle : allInstances) {
+        destroyInstance(instanceHandle);
+    }
+}
+
 bool PrefabInstanceManager::syncWithPrefab(PrefabInstanceHandle instanceHandle) {
     auto it = m_instances.find(instanceHandle.id);
     if (it == m_instances.end()) {
@@ -349,7 +379,7 @@ bool PrefabInstanceManager::restoreComponentFromPrefab(Entity entity, const std:
             return false;
         }
 
-        m_serializer.deserializeComponent(entity, componentType, componentIt->second);
+        m_componentManager.deserializeComponent(entity, componentType, componentIt->second);
         return true;
     }
     catch (const std::exception& e) {
@@ -420,7 +450,7 @@ void PrefabInstanceManager::syncEntityWithPrefab(Entity instanceEntity, Entity p
         for (const auto& [componentType, componentData] : prefabComponents) {
             if (overriddenComponents.find(componentType) == overriddenComponents.end()) {
                 // Component is not overridden, sync it
-                m_serializer.deserializeComponent(instanceEntity, componentType, componentData);
+                m_componentManager.deserializeComponent(instanceEntity, componentType, componentData);
             }
         }
     }
@@ -458,15 +488,6 @@ bool PrefabInstanceManager::isEntityPartOfInstance(Entity entity) const {
     return m_entityToInstance.find(entity) != m_entityToInstance.end();
 }
 
-bool PrefabInstanceManager::canDestroyEntity(Entity entity) const {
-    if (!isEntityPartOfInstance(entity)) {
-        return true; // Entity nie jest częścią instancji - można usunąć
-    }
-
-    // Entity jest częścią instancji - można usunąć tylko jeśli to korzeń
-    return isInstanceRoot(entity);
-}
-
 bool PrefabInstanceManager::isInstanceRoot(Entity entity) const {
     auto it = m_entityToInstance.find(entity);
     if (it == m_entityToInstance.end()) {
@@ -502,15 +523,23 @@ void PrefabInstanceManager::onEntityDestroyed(Entity entity) {
     if (it != m_entityToInstance.end()) {
         PrefabInstanceHandle instanceHandle = it->second;
 
-        // Remove entity from instance
+        // Sprawdź czy to root entity instancji
         auto instanceIt = m_instances.find(instanceHandle.id);
-        if (instanceIt != m_instances.end()) {
-            instanceIt->second.entities.erase(entity);
-            instanceIt->second.overriddenComponents.erase(entity);
-        }
+        if (instanceIt != m_instances.end() && instanceIt->second.rootEntity == entity) {
+            SPDLOG_INFO("Root entity {} destroyed, removing entire prefab instance {}",
+                entity.id, instanceHandle.id);
 
-        // Remove from lookup
-        m_entityToInstance.erase(it);
+            // Usuń całą instancję
+            destroyInstance(instanceHandle);
+        }
+        else {
+            // Zwykłe entity - usuń tylko z instancji
+            if (instanceIt != m_instances.end()) {
+                instanceIt->second.entities.erase(entity);
+                instanceIt->second.overriddenComponents.erase(entity);
+            }
+            m_entityToInstance.erase(it);
+        }
     }
 }
 
@@ -550,7 +579,7 @@ PrefabHandle PrefabInstanceManager::createPrefabFromEntity(Entity rootEntity) {
             // Serialize all components
             std::vector<std::string> componentTypes = m_componentManager.getEntityComponentTypes(entity);
             for (const std::string& componentType : componentTypes) {
-                entityData.components[componentType] = m_serializer.serializeComponent(entity, componentType);
+                entityData.components[componentType] = m_componentManager.serializeComponent(entity, componentType);
             }
 
             prefabData.entities[entity] = std::move(entityData);
@@ -645,7 +674,7 @@ Entity PrefabInstanceManager::instantiatePrefabInternal(PrefabHandle prefabHandl
             // Deserialize components
             for (const auto& [componentType, componentData] : entityData.components) {
                 try {
-                    m_serializer.deserializeComponent(newEntity, componentType, componentData);
+                    m_componentManager.deserializeComponent(newEntity, componentType, componentData);
                 }
                 catch (const std::exception& e) {
                     SPDLOG_ERROR("Failed to deserialize component {} for entity {}: {}",

@@ -1,12 +1,44 @@
 #include "ComponentManager.h"
 #include "ComponentsRegistry.h"
-#include "Registry.h" // Now we can include it in .cpp file
+#include "Registry.h"
+#include "Engine.h"
 #include <json.hpp>
 #include <stdexcept>
 #include <spdlog/spdlog.h>
 
-ComponentManager::ComponentManager(Registry& registry) : m_registry(registry) {
+ComponentManager::ComponentManager(Engine& engine, Registry& registry) : m_engine(engine), m_registry(registry) {
     initializeComponents();
+}
+
+bool ComponentManager::addComponentByName(Entity entity, const std::string& componentName, const nlohmann::json& componentData) {
+    // Sprawdź czy komponent już istnieje
+    if (auto* pool = getComponentPool(componentName); pool && pool->hasEntity(entity)) {
+        return false; // Komponent już istnieje
+    }
+
+    return createComponentFromData(entity, componentName, componentData);
+}
+
+void ComponentManager::removeComponentByName(Entity entity, const std::string& componentName) {
+    try {
+        std::type_index componentType = getComponentType(componentName);
+        auto it = m_componentPools.find(componentType);
+        if (it != m_componentPools.end()) {
+            it->second->remove(entity);
+        }
+    }
+    catch (const std::exception& e) {
+        throw std::runtime_error("Failed to remove component: " + std::string(e.what()));
+    }
+}
+
+Component* ComponentManager::getComponentByName(Entity entity, const std::string& componentName) {
+    auto* pool = getComponentPool(componentName);
+    if (!pool || !pool->hasEntity(entity)) {
+        return nullptr;
+    }
+
+    return pool->getComponentPtr(entity);
 }
 
 void ComponentManager::initializeComponents() {

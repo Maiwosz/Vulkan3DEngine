@@ -11,11 +11,12 @@
 #include "Entity.h"
 
 // Forward declaration to avoid circular dependency
+class Engine;
 class Registry;
 
 class ComponentManager {
 public:
-    explicit ComponentManager(Registry& registry);
+    explicit ComponentManager(Engine& engine, Registry& registry);
 
     // Component registration
     template<typename T>
@@ -24,19 +25,22 @@ public:
     // Component lifecycle
     template<typename T, typename... Args>
     T& addComponent(Entity entity, Args&&... args);
+    bool addComponentByName(Entity entity, const std::string& componentName, const nlohmann::json& componentData = {});
 
     template<typename T>
     void removeComponent(Entity entity);
+    void removeComponentByName(Entity entity, const std::string& componentName);
 
     template<typename T>
     T& getComponent(Entity entity);
+    Component* getComponentByName(Entity entity, const std::string& componentName);
 
     template<typename T>
     bool hasComponent(Entity entity) const;
 
     // Entity queries
     template<typename... Components>
-    std::vector<Entity> createView(const std::vector<Entity>& entities);
+    std::vector<Entity> createView();
 
     // Entity component introspection
     std::vector<std::string> getEntityComponentTypes(Entity entity) const;
@@ -73,12 +77,13 @@ private:
         virtual nlohmann::json serializeComponent(Entity entity) const = 0;
         virtual void deserializeComponent(Entity entity, const nlohmann::json& data) = 0;
         virtual bool hasEntity(Entity entity) const = 0;
+        virtual Component* getComponentPtr(Entity entity) = 0;
     };
 
     template<typename T>
     class ComponentPool : public IComponentPool {
     public:
-        explicit ComponentPool(Registry& registry) : m_registry(registry) {}
+        explicit ComponentPool(Engine& engine, Registry& registry) : m_engine(engine), m_registry(registry) {}
 
         std::vector<T> m_components;
         std::unordered_map<Entity, size_t> m_entityToIndex;
@@ -90,13 +95,21 @@ private:
         nlohmann::json serializeComponent(Entity entity) const override;
         void deserializeComponent(Entity entity, const nlohmann::json& data) override;
         bool hasEntity(Entity entity) const override;
-
+        Component* getComponentPtr(Entity entity) override {
+            auto it = m_entityToIndex.find(entity);
+            if (it != m_entityToIndex.end()) {
+                return &m_components[it->second];
+            }
+            return nullptr;
+        }
     private:
+		Engine& m_engine;
         Registry& m_registry;
     };
 
     using DeserializerFunction = std::function<void(Entity, const nlohmann::json&)>;
 
+    Engine& m_engine;
     Registry& m_registry; // Reference to Registry
     std::unordered_map<std::type_index, std::unique_ptr<IComponentPool>> m_componentPools;
     std::unordered_map<std::type_index, std::string> m_componentTypes;
@@ -139,7 +152,7 @@ T& ComponentManager::addComponent(Entity entity, Args&&... args) {
     auto poolIt = m_componentPools.find(type);
 
     if (poolIt == m_componentPools.end()) {
-        auto pool = std::make_unique<ComponentPool<T>>(m_registry);
+        auto pool = std::make_unique<ComponentPool<T>>(m_engine, m_registry);
         poolIt = m_componentPools.emplace(type, std::move(pool)).first;
     }
 
@@ -173,12 +186,24 @@ bool ComponentManager::hasComponent(Entity entity) const {
 }
 
 template<typename... Components>
-std::vector<Entity> ComponentManager::createView(const std::vector<Entity>& entities) {
+std::vector<Entity> ComponentManager::createView() {
     std::vector<Entity> result;
-    for (Entity entity : entities) {
+
+    // Znajdź pool pierwszego komponentu
+    auto firstType = std::type_index(typeid(std::tuple_element_t<0, std::tuple<Components...>>));
+    auto poolIt = m_componentPools.find(firstType);
+    if (poolIt == m_componentPools.end()) return result;
+
+    auto& firstPool = static_cast<ComponentPool<std::tuple_element_t<0, std::tuple<Components...>>>&>(*poolIt->second);
+
+    // Iteruj przez encje w pierwszym poolu
+    for (const auto& [entity, index] : firstPool.m_entityToIndex) {
         bool hasAll = (hasComponent<Components>(entity) && ...);
-        if (hasAll) result.push_back(entity);
+        if (hasAll) {
+            result.push_back(entity);
+        }
     }
+
     return result;
 }
 
@@ -199,6 +224,7 @@ T& ComponentManager::ComponentPool<T>::add(Entity entity, T&& component) {
     component.entity = entity;
     // Set registry reference directly here
     component.setRegistry(&m_registry);
+    component.setEngine(&m_engine);
 
     size_t index = m_components.size();
     m_entityToIndex[entity] = index;
@@ -244,6 +270,7 @@ void ComponentManager::ComponentPool<T>::deserializeComponent(Entity entity, con
         m_components[it->second].deserialize(data);
         // Ensure registry is set after deserialization
         m_components[it->second].setRegistry(&m_registry);
+		m_components[it->second].setEngine(&m_engine);
     }
     else {
         throw std::runtime_error("Entity not found in component pool for deserialization");
@@ -254,3 +281,4 @@ template<typename T>
 bool ComponentManager::ComponentPool<T>::hasEntity(Entity entity) const {
     return m_entityToIndex.find(entity) != m_entityToIndex.end();
 }
+

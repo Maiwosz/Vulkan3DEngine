@@ -72,7 +72,7 @@ public:
 
 private:
     // Initialization helpers
-    void initializeLogging(const std::string& logDir);
+    void initializeLogging(const std::string& logDir, Settings::LogLevel logLevel);
     void initializeComponents(const InitParams& params);
     void connectEventHandlers();
 

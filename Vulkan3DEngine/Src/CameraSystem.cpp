@@ -6,7 +6,7 @@
 #include "Engine.h"
 
 void CameraSystem::update() {
-    auto cameras = m_registry->createView<CameraComponent, TransformComponent>();
+    auto cameras = m_registry->components().createView<CameraComponent, TransformComponent>();
 
     for (Entity entity : cameras) {
         auto renderOrder = std::make_shared<CameraRenderOrder>();

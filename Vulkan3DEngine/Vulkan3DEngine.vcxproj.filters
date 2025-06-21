@@ -266,9 +266,6 @@
     <ClCompile Include="Src\PrefabInstanceManager.cpp">
       <Filter>Engine\Scene\EntityComponentSystem\Registry\PrefabInstaceManager</Filter>
     </ClCompile>
-    <ClCompile Include="Src\Serializer.cpp">
-      <Filter>Engine\Scene\EntityComponentSystem\Registry\Serializer</Filter>
-    </ClCompile>
     <ClCompile Include="Src\SceneManager.cpp">
       <Filter>Engine\AssetSystem\AssetManager\AssetHandlers\SceneManager</Filter>
     </ClCompile>
@@ -283,6 +280,15 @@
     </ClCompile>
     <ClCompile Include="Src\HierarchyWindow.cpp">
       <Filter>Editor\EditorUI\HierarchyWindow</Filter>
+    </ClCompile>
+    <ClCompile Include="Src\ComponentInspectorWindow.cpp">
+      <Filter>Editor\EditorUI\ComponentInspectorWindow</Filter>
+    </ClCompile>
+    <ClCompile Include="Src\SelectionManager.cpp">
+      <Filter>Editor\EditorUI\SelectionManager</Filter>
+    </ClCompile>
+    <ClCompile Include="Src\MaterialComponent.cpp">
+      <Filter>Engine\Scene\EntityComponentSystem\Registry\ComponentManager\Components\MaterialComponent</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -321,9 +327,6 @@
       <Filter>Engine\Scene\EntityComponentSystem</Filter>
     </ClInclude>
     <ClInclude Include="Src\MeshComponent.h">
-      <Filter>Engine\Scene\EntityComponentSystem\Registry\ComponentManager\Components</Filter>
-    </ClInclude>
-    <ClInclude Include="Src\MaterialComponent.h">
       <Filter>Engine\Scene\EntityComponentSystem\Registry\ComponentManager\Components</Filter>
     </ClInclude>
     <ClInclude Include="Src\Component.h">
@@ -621,9 +624,6 @@
     <ClInclude Include="Src\PrefabInstanceManager.h">
       <Filter>Engine\Scene\EntityComponentSystem\Registry\PrefabInstaceManager</Filter>
     </ClInclude>
-    <ClInclude Include="Src\Serializer.h">
-      <Filter>Engine\Scene\EntityComponentSystem\Registry\Serializer</Filter>
-    </ClInclude>
     <ClInclude Include="Src\SceneManager.h">
       <Filter>Engine\AssetSystem\AssetManager\AssetHandlers\SceneManager</Filter>
     </ClInclude>
@@ -638,6 +638,15 @@
     </ClInclude>
     <ClInclude Include="Src\HierarchyWindow.h">
       <Filter>Editor\EditorUI\HierarchyWindow</Filter>
+    </ClInclude>
+    <ClInclude Include="Src\ComponentInspectorWindow.h">
+      <Filter>Editor\EditorUI\ComponentInspectorWindow</Filter>
+    </ClInclude>
+    <ClInclude Include="Src\SelectionManager.h">
+      <Filter>Editor\EditorUI\SelectionManager</Filter>
+    </ClInclude>
+    <ClInclude Include="Src\MaterialComponent.h">
+      <Filter>Engine\Scene\EntityComponentSystem\Registry\ComponentManager\Components\MaterialComponent</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
@@ -913,9 +922,6 @@
     <Filter Include="Engine\Scene\EntityComponentSystem\Registry\PrefabInstaceManager">
       <UniqueIdentifier>{074b3130-13df-4ef7-ab03-71399ae27f6a}</UniqueIdentifier>
     </Filter>
-    <Filter Include="Engine\Scene\EntityComponentSystem\Registry\Serializer">
-      <UniqueIdentifier>{21a2e228-5592-4d06-ab05-0b040faed3da}</UniqueIdentifier>
-    </Filter>
     <Filter Include="Engine\AssetSystem\AssetManager\AssetHandlers\SceneManager">
       <UniqueIdentifier>{75a3a772-8db5-4f42-994e-cfee70ff039a}</UniqueIdentifier>
     </Filter>
@@ -936,6 +942,15 @@
     </Filter>
     <Filter Include="Editor\EditorUI\HierarchyWindow">
       <UniqueIdentifier>{ce243cde-3751-4f62-8030-bbe69e2de340}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Editor\EditorUI\ComponentInspectorWindow">
+      <UniqueIdentifier>{59210806-0c4c-4e3a-bd35-f61766b4c9b5}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Editor\EditorUI\SelectionManager">
+      <UniqueIdentifier>{e0781f3a-7efa-4d5d-84fc-33d4ea6c47bd}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Engine\Scene\EntityComponentSystem\Registry\ComponentManager\Components\MaterialComponent">
+      <UniqueIdentifier>{6be0774a-79ba-4238-8c44-358beae081f8}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
 </Project>
