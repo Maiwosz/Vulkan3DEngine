@@ -1,6 +1,8 @@
 #pragma once
 
 #include <memory>
+#include <vector>
+#include <string>
 #include <spdlog/spdlog.h>
 #include "HierarchyWindow.h"
 #include "SelectionManager.h"
@@ -23,7 +25,7 @@ public:
     // Window access
     HierarchyWindow& hierarchyWindow() { return *m_hierarchyWindow; }
     ComponentInspectorWindow& componentInspectorWindow() { return *m_componentInspectorWindow; }
-	MaterialCreatorUI& materialCreatorWindow() { return *m_materialCreatorWindow; }
+    MaterialCreatorUI& materialCreatorWindow() { return *m_materialCreatorWindow; }
 
 private:
     Engine& m_engine;
@@ -35,4 +37,20 @@ private:
     std::unique_ptr<HierarchyWindow> m_hierarchyWindow;
     std::unique_ptr<ComponentInspectorWindow> m_componentInspectorWindow;
     std::unique_ptr<MaterialCreatorUI> m_materialCreatorWindow;
+
+    // Scene management UI state
+    bool m_showOpenSceneDialog;
+    bool m_showSaveSceneDialog;
+    std::vector<std::string> m_availableScenes;
+    int m_selectedSceneIndex;
+    char m_sceneNameBuffer[256];
+
+    // Scene management functions
+    void createNewScene();
+    void saveCurrentScene();
+    void refreshSceneList();
+    void renderOpenSceneDialog();
+    void renderSaveSceneDialog();
+    void loadScene(const std::string& sceneName);
+    void saveSceneAs(const std::string& sceneName);
 };

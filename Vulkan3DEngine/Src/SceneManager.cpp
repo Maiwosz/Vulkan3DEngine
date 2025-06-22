@@ -57,6 +57,19 @@ std::any SceneManager::getResourceInternal(const AssetHandle& handle) const {
     if (it != m_loadedScenes.end()) {
         return it->second;
     }
+
+    // If scene is not loaded, try to request it from AssetManager
+    SPDLOG_INFO("Scene '{}' not found in cache, attempting to load it", handle.filename);
+    if (requestAssetReady(handle)) {
+        // After successful load, try to get the scene data again
+        auto loadedIt = m_loadedScenes.find(handle.filename);
+        if (loadedIt != m_loadedScenes.end()) {
+            SPDLOG_INFO("Successfully loaded scene '{}' on demand", handle.filename);
+            return loadedIt->second;
+        }
+    }
+
+    SPDLOG_WARN("Failed to load scene '{}' on demand", handle.filename);
     return nlohmann::json{};
 }
 
@@ -70,6 +83,20 @@ nlohmann::json SceneManager::getSceneData(const std::string& filename) const {
     if (it != m_loadedScenes.end()) {
         return it->second;
     }
+
+    // If scene is not loaded, try to request it from AssetManager
+    SPDLOG_INFO("Scene '{}' not found in cache, attempting to load it", filename);
+    AssetHandle handle(AssetType::Scene, filename);
+    if (requestAssetReady(handle)) {
+        // After successful load, try to get the scene data again
+        auto loadedIt = m_loadedScenes.find(filename);
+        if (loadedIt != m_loadedScenes.end()) {
+            SPDLOG_INFO("Successfully loaded scene '{}' on demand", filename);
+            return loadedIt->second;
+        }
+    }
+
+    SPDLOG_WARN("Failed to load scene '{}' on demand", filename);
     return nlohmann::json{};
 }
 
@@ -88,6 +115,9 @@ bool SceneManager::saveSceneToFile(const std::string& filename, const nlohmann::
 
         std::string filePath = getSceneFilePath(filename);
         AssetLib::WriteAsset(filePath, assetData);
+
+        // Also update the in-memory cache with the new data
+        m_loadedScenes[filename] = sceneData;
 
         SPDLOG_INFO("Successfully saved scene to file: {}", filename);
         return true;

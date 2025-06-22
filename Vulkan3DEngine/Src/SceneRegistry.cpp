@@ -14,6 +14,11 @@ SceneRegistry::SceneRegistry(EntityManager& entityManager, ComponentManager& com
 }
 
 bool SceneRegistry::loadScene(const std::string& sceneName) {
+	clearScene();
+	if (sceneName.empty()) {
+		SPDLOG_WARN("Scene name cannot empty");
+		return false;
+	}
     // Get scene data from SceneManager
     nlohmann::json sceneData = m_sceneManager.getSceneData(sceneName);
     if (sceneData.empty()) {
@@ -64,28 +69,32 @@ nlohmann::json SceneRegistry::serializeCurrentScene() const {
     nlohmann::json sceneData;
     nlohmann::json& entitiesJson = sceneData["entities"];
 
-    // Get all root entities (entities without parents)
+    // Pobierz wszystkie root entities
     std::vector<Entity> rootEntities = m_entityManager.getRootEntities();
 
     SPDLOG_INFO("Serializing scene with {} root entities", rootEntities.size());
 
-    // Serialize each root entity hierarchy using the hierarchy format
-    for (Entity rootEntity : rootEntities) {
-        SPDLOG_DEBUG("Serializing root entity {} ({})", rootEntity.id, m_entityManager.getEntityName(rootEntity));
+    // Sortuj root entities dla przewidywalnej kolejności
+    std::sort(rootEntities.begin(), rootEntities.end(),
+        [](const Entity& a, const Entity& b) { return a.id < b.id; });
 
-        // Count entities in this hierarchy for debugging
+    // Serializuj każdą hierarchię root entity
+    for (Entity rootEntity : rootEntities) {
+        SPDLOG_DEBUG("Serializing root entity {} ({})", rootEntity.id,
+            m_entityManager.getEntityName(rootEntity));
+
         uint32_t hierarchyCount = m_entityManager.countEntitiesInHierarchy(rootEntity);
         SPDLOG_DEBUG("Entity {} hierarchy contains {} entities", rootEntity.id, hierarchyCount);
 
+        // UŻYWAJ serializeEntityHierarchy dla kompletnej hierarchii
         entitiesJson.push_back(m_entityManager.serializeEntityHierarchy(rootEntity));
     }
 
-    // Additional debug: Check if there are any orphaned entities
+    // Debug statistics
     const auto& allEntities = m_entityManager.getAllEntities();
     size_t totalEntities = allEntities.size();
     size_t rootEntitiesCount = rootEntities.size();
 
-    // Count all entities that should be in hierarchies
     size_t entitiesInHierarchies = 0;
     for (Entity rootEntity : rootEntities) {
         entitiesInHierarchies += m_entityManager.countEntitiesInHierarchy(rootEntity);
@@ -95,19 +104,8 @@ nlohmann::json SceneRegistry::serializeCurrentScene() const {
         totalEntities, rootEntitiesCount, entitiesInHierarchies);
 
     if (totalEntities != entitiesInHierarchies) {
-        SPDLOG_WARN("Potential issue: {} entities may not be properly organized in hierarchies",
+        SPDLOG_WARN("Warning: {} entities may not be properly organized in hierarchies",
             totalEntities - entitiesInHierarchies);
-
-        // Log details of entities that might be missing
-        for (Entity entity : allEntities) {
-            bool isRoot = std::find(rootEntities.begin(), rootEntities.end(), entity) != rootEntities.end();
-            bool hasParent = m_entityManager.hasParent(entity);
-
-            if (!isRoot && !hasParent) {
-                SPDLOG_WARN("Entity {} ({}) is neither root nor has parent - this might indicate a problem",
-                    entity.id, m_entityManager.getEntityName(entity));
-            }
-        }
     }
 
     return sceneData;
@@ -123,13 +121,15 @@ bool SceneRegistry::deserializeScene(const nlohmann::json& sceneData) {
         const auto& entitiesJson = sceneData["entities"];
         SPDLOG_INFO("Deserializing scene with {} entity hierarchies", entitiesJson.size());
 
-        // Deserialize each entity hierarchy using the correct method
+        // Deserializuj każdą hierarchię root entity
         for (size_t i = 0; i < entitiesJson.size(); ++i) {
-            const auto& hierarchyJson = entitiesJson[i];
-            SPDLOG_DEBUG("Deserializing hierarchy {}", i);
+            const auto& entityHierarchyJson = entitiesJson[i];
+            SPDLOG_DEBUG("Deserializing entity hierarchy {}", i);
 
-            Entity rootEntity = m_entityManager.deserializeEntityHierarchy(hierarchyJson);
-            SPDLOG_DEBUG("Created root entity {} ({})", rootEntity.id, m_entityManager.getEntityName(rootEntity));
+            // UŻYWAJ deserializeEntityHierarchy dla kompletnej hierarchii
+            Entity rootEntity = m_entityManager.deserializeEntityHierarchy(entityHierarchyJson);
+            SPDLOG_DEBUG("Created root entity {} ({})", rootEntity.id,
+                m_entityManager.getEntityName(rootEntity));
         }
 
         return true;

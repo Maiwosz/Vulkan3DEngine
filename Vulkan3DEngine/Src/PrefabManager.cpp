@@ -81,6 +81,25 @@ std::any PrefabManager::getResourceInternal(const AssetHandle& handle) const {
             return *prefab;
         }
     }
+
+    // Asset not found - try to load it automatically
+    SPDLOG_INFO("Prefab '{}' not found in cache, attempting to load it automatically", handle.filename);
+
+    // Use the callback to request the asset from AssetManager
+    if (requestAssetReady(handle)) {
+        SPDLOG_INFO("Successfully loaded prefab '{}', retrying resource retrieval", handle.filename);
+
+        // Try again after loading
+        auto it2 = m_prefabHandles.find(handle.filename);
+        if (it2 != m_prefabHandles.end()) {
+            const Prefab* prefab = getPrefab(it2->second);
+            if (prefab) {
+                return *prefab;
+            }
+        }
+    }
+
+    SPDLOG_WARN("Failed to automatically load prefab '{}'", handle.filename);
     return {};
 }
 
@@ -89,6 +108,23 @@ std::any PrefabManager::getHandleInternal(const std::string& filename) const {
     if (it != m_prefabHandles.end()) {
         return it->second;
     }
+
+    // Handle not found - try to load the asset automatically
+    SPDLOG_INFO("Prefab handle for '{}' not found in cache, attempting to load it automatically", filename);
+
+    // Create AssetHandle for this prefab and request loading
+    AssetHandle handle(AssetType::Prefab, filename);
+    if (requestAssetReady(handle)) {
+        SPDLOG_INFO("Successfully loaded prefab '{}', retrying handle retrieval", filename);
+
+        // Try again after loading
+        auto it2 = m_prefabHandles.find(filename);
+        if (it2 != m_prefabHandles.end()) {
+            return it2->second;
+        }
+    }
+
+    SPDLOG_WARN("Failed to automatically load prefab '{}', returning default handle", filename);
     return PrefabHandle{};
 }
 

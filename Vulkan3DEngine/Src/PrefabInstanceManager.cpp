@@ -38,14 +38,14 @@ PrefabInstanceHandle PrefabInstanceManager::createInstance(PrefabHandle prefabHa
         instance.instanceName = instanceName.empty() ?
             ("Instance_" + std::to_string(instanceHandle.id)) : instanceName;
 
-        // Register all entities in the instance
-        registerInstanceEntities(instanceHandle, rootEntity);
-
-        // Store instance
+        // NAJPIERW dodaj instancję do mapy
         m_instances[instanceHandle.id] = std::move(instance);
 
+        // POTEM zarejestruj encje (teraz znajdzie instancję)
+        registerInstanceEntities(instanceHandle, rootEntity);
+
         SPDLOG_DEBUG("Created prefab instance: {} with root entity: {}",
-            instance.instanceName, rootEntity.id);
+            m_instances[instanceHandle.id].instanceName, rootEntity.id);
 
         return instanceHandle;
     }
@@ -635,19 +635,26 @@ Entity PrefabInstanceManager::instantiatePrefabInternal(PrefabHandle prefabHandl
             SPDLOG_DEBUG("Mapped prefab entity {} to new entity {}", oldEntity.id, newEntity.id);
         }
 
-        // Phase 2: Set up hierarchy using parent-child relationships from prefab
+        // Phase 2: Set up hierarchy ONLY using parent information to avoid duplicates
+        Entity newRootEntity = entityMapping[prefab->rootEntity];
+        
+        // First, set the root entity's parent if provided
+        if (parent.id != 0 && m_entityManager.valid(parent)) {
+            m_entityManager.setParent(newRootEntity, parent);
+            SPDLOG_DEBUG("Set parent {} for root entity {}", parent.id, newRootEntity.id);
+        }
+
+        // Then, set up all other parent-child relationships
         for (const auto& [oldEntity, entityData] : prefab->entities) {
+            // Skip root entity (already handled above)
+            if (oldEntity == prefab->rootEntity) {
+                continue;
+            }
+
             Entity newEntity = entityMapping[oldEntity];
 
-            if (oldEntity == prefab->rootEntity) {
-                // Root entity - set provided parent if any
-                if (parent.id != 0 && m_entityManager.valid(parent)) {
-                    m_entityManager.setParent(newEntity, parent);
-                    SPDLOG_DEBUG("Set parent {} for root entity {}", parent.id, newEntity.id);
-                }
-            }
-            else if (entityData.parent.id != 0) {
-                // Non-root entity with stored parent - find mapped parent
+            // Only process entities that have a parent in the prefab
+            if (entityData.parent.id != 0) {
                 auto parentMappingIt = entityMapping.find(entityData.parent);
                 if (parentMappingIt != entityMapping.end()) {
                     Entity newParent = parentMappingIt->second;
@@ -683,14 +690,22 @@ Entity PrefabInstanceManager::instantiatePrefabInternal(PrefabHandle prefabHandl
             }
         }
 
+        // Lock all entities in the instance to prevent accidental modification
+        for (const auto& [oldEntity, entityData] : prefab->entities) {
+            Entity newEntity = entityMapping[oldEntity];
+            m_entityManager.lockEntity(newEntity);
+        }
+
         // Verify hierarchy was created correctly
-        Entity newRootEntity = entityMapping[prefab->rootEntity];
         if (!m_entityManager.valid(newRootEntity)) {
             SPDLOG_ERROR("Root entity became invalid during instantiation");
             return Entity(0);
         }
 
-        SPDLOG_DEBUG("Successfully instantiated prefab {} as entity {}", prefabHandle.id, newRootEntity.id);
+        // Debug: Log final hierarchy structure
+        SPDLOG_DEBUG("Successfully instantiated prefab {} as entity {} with {} children", 
+            prefabHandle.id, newRootEntity.id, m_entityManager.getChildren(newRootEntity).size());
+        
         return newRootEntity;
     }
     catch (const std::exception& e) {

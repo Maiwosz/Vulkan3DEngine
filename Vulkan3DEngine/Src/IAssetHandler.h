@@ -6,6 +6,7 @@
 #include <any>
 #include <vector>
 #include <unordered_map>
+#include <functional>
 
 // Forward declarations
 class AssetManager;
@@ -39,6 +40,10 @@ struct AssetDependency {
         return AssetDependency(textureHandle, type, config);
     }
 };
+
+// Callback types for AssetManager communication
+using AssetLoadCallback = std::function<bool(const AssetHandle&)>;
+using AssetReadyCallback = std::function<bool(const AssetHandle&)>;
 
 // Interface for all asset handlers
 class IAssetHandler {
@@ -74,4 +79,39 @@ public:
     HandleType getHandle(const std::string& filename) const {
         return std::any_cast<HandleType>(getHandleInternal(filename));
     }
+
+    // AssetManager callback registration
+    void setAssetManagerCallbacks(AssetLoadCallback loadCallback, AssetReadyCallback readyCallback) {
+        m_loadAssetCallback = std::move(loadCallback);
+        m_ensureReadyCallback = std::move(readyCallback);
+    }
+
+protected:
+    // Helper methods for handlers to request assets from AssetManager
+    bool requestAssetLoad(const AssetHandle& handle) const {
+        if (m_loadAssetCallback) {
+            return m_loadAssetCallback(handle);
+        }
+        return false;
+    }
+
+    bool requestAssetReady(const AssetHandle& handle) const {
+        if (m_ensureReadyCallback) {
+            return m_ensureReadyCallback(handle);
+        }
+        return false;
+    }
+
+    // Convenience methods for specific asset types
+    bool requestAssetLoad(AssetType type, const std::string& filename) const {
+        return requestAssetLoad(AssetHandle(type, filename));
+    }
+
+    bool requestAssetReady(AssetType type, const std::string& filename) const {
+        return requestAssetReady(AssetHandle(type, filename));
+    }
+
+private:
+    AssetLoadCallback m_loadAssetCallback;
+    AssetReadyCallback m_ensureReadyCallback;
 };

@@ -53,8 +53,16 @@ AssetManager::~AssetManager() {
 
 void AssetManager::registerHandler(AssetType type, std::shared_ptr<IAssetHandler> handler) {
     SPDLOG_INFO("Registering asset handler for type {}", static_cast<int>(type));
+
+    // Set up callbacks for the handler to communicate back with AssetManager
+    handler->setAssetManagerCallbacks(
+        [this](const AssetHandle& handle) { return handleLoadAssetRequest(handle); },
+        [this](const AssetHandle& handle) { return handleEnsureReadyRequest(handle); }
+    );
+
     m_handlers[type] = std::move(handler);
 }
+
 
 std::shared_ptr<IAssetHandler> AssetManager::getHandler(AssetType type) const {
     auto it = m_handlers.find(type);
@@ -549,4 +557,26 @@ bool AssetManager::isActiveDependency(const AssetHandle& handle) const {
     }
 
     return false;
+}
+
+bool AssetManager::handleLoadAssetRequest(const AssetHandle& handle) {
+    // Prevent infinite recursion by checking if we're already processing this asset
+    std::string cacheKey = createCacheKey(handle);
+    if (m_processingAssets.count(cacheKey) > 0) {
+        SPDLOG_WARN("Circular dependency detected while handler requested loading of {}", handle);
+        return false;
+    }
+
+    return ensureLoaded(handle);
+}
+
+bool AssetManager::handleEnsureReadyRequest(const AssetHandle& handle) {
+    // Prevent infinite recursion by checking if we're already processing this asset
+    std::string cacheKey = createCacheKey(handle);
+    if (m_processingAssets.count(cacheKey) > 0) {
+        SPDLOG_WARN("Circular dependency detected while handler requested readiness of {}", handle);
+        return false;
+    }
+
+    return ensureReady(handle);
 }

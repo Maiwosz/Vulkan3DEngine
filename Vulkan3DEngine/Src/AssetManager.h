@@ -109,4 +109,8 @@ private:
     void resetActiveUsageFlags();
 
     bool isActiveDependency(const AssetHandle& handle) const;
+
+    // Callback methods for handlers
+    bool handleLoadAssetRequest(const AssetHandle& handle);
+    bool handleEnsureReadyRequest(const AssetHandle& handle);
 };

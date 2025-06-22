@@ -16,7 +16,7 @@ Scene::Scene(Engine& engine, Registry& registry) :
     m_engine(engine), m_registry(registry)
 {
 
-    if (false) {
+    if (true) {
     // Creating object with mesh
     testEntity = m_registry.entities().create();
     {
@@ -194,9 +194,9 @@ Scene::Scene(Engine& engine, Registry& registry) :
     m_registry.scenes().saveScene("testScene");
     }
 
-    AssetHandle handle = AssetHandle(AssetLib::AssetType::Scene, "testScene");
-    m_engine.assetSystem().assetManager().ensureReady(handle);
-    m_registry.scenes().loadScene(handle.filename);
+    //AssetHandle handle = AssetHandle(AssetLib::AssetType::Scene, "testScene");
+    //m_engine.assetSystem().assetManager().ensureReady(handle);
+    m_registry.scenes().loadScene("testScene");
 }
 
 Scene::~Scene()
@@ -207,18 +207,5 @@ Scene::~Scene()
 void Scene::update()
 {
     m_registry.systems().updateAll();
-    static bool firstUpdate = false;
-    if (firstUpdate) {
-        Entity test = m_registry.entities().create();
-        {
-            // Transform with rotation
-            auto& transform = m_registry.components().addComponent<TransformComponent>(test);
-            transform.setPosition(glm::vec3(0.0f, 2.0f, 0.0f));
 
-            transform.setRotation(glm::vec3(0.0f, 0.0f, 0.0f));
-
-            transform.setScale(glm::vec3(0.4f));
-        }
-		firstUpdate = false;
-    }
 }

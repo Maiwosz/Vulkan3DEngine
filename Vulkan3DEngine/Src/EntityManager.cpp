@@ -325,10 +325,9 @@ nlohmann::json EntityManager::serializeEntity(Entity entity) const {
     }
 
     nlohmann::json result;
-    result["id"] = entity.id;
     result["name"] = getEntityName(entity);
-    result["parent"] = hasParent(entity) ? getParent(entity).id : 0;
 
+    // Serializuj komponenty
     nlohmann::json componentsJson = nlohmann::json::array();
     auto componentTypes = m_componentManager.getEntityComponentTypes(entity);
 
@@ -338,17 +337,12 @@ nlohmann::json EntityManager::serializeEntity(Entity entity) const {
         componentJson["data"] = m_componentManager.serializeComponent(entity, typeName);
         componentsJson.push_back(componentJson);
     }
-    result["components"] = componentsJson;
 
-    const auto& children = getChildren(entity);
-    if (!children.empty()) {
-        nlohmann::json childrenJson = nlohmann::json::array();
-        for (Entity child : children) {
-            childrenJson.push_back(serializeEntity(child));
-        }
-        result["children"] = childrenJson;
+    if (!componentsJson.empty()) {
+        result["components"] = componentsJson;
     }
 
+    // WAŻNE: NIE serializujemy dzieci tutaj - to robi serializeEntityHierarchy
     return result;
 }
 
@@ -356,11 +350,12 @@ Entity EntityManager::deserializeEntity(const nlohmann::json& entityData, Entity
     std::string entityName = entityData.contains("name") ? entityData["name"].get<std::string>() : "";
     Entity newEntity = create(entityName);
 
-    // Set parent if provided
+    // Ustaw rodzica jeśli podany
     if (parentEntity.id != 0 && valid(parentEntity)) {
         setParent(newEntity, parentEntity);
     }
 
+    // Deserializuj komponenty
     if (entityData.contains("components")) {
         for (const auto& componentJson : entityData["components"]) {
             std::string typeName = componentJson["type"];
@@ -368,23 +363,31 @@ Entity EntityManager::deserializeEntity(const nlohmann::json& entityData, Entity
         }
     }
 
-    if (entityData.contains("children")) {
-        for (const auto& childJson : entityData["children"]) {
-            deserializeEntity(childJson, newEntity);
-        }
-    }
-
+    // WAŻNE: NIE deserializujemy dzieci tutaj - to robi deserializeEntityHierarchy
     return newEntity;
 }
 
 nlohmann::json EntityManager::serializeEntityHierarchy(Entity entity) const {
+    if (!valid(entity)) {
+        throw std::runtime_error("Invalid entity for hierarchy serialization");
+    }
+
     nlohmann::json result;
+
+    // Użyj serializeEntity dla podstawowych danych
     result["entity"] = serializeEntity(entity);
 
+    // Dodaj dzieci jeśli istnieją
     const auto& children = getChildren(entity);
     if (!children.empty()) {
         nlohmann::json childrenArray = nlohmann::json::array();
-        for (Entity child : children) {
+
+        // Sortuj dzieci po ID dla przewidywalnej kolejności
+        std::vector<Entity> sortedChildren(children.begin(), children.end());
+        std::sort(sortedChildren.begin(), sortedChildren.end(),
+            [](const Entity& a, const Entity& b) { return a.id < b.id; });
+
+        for (Entity child : sortedChildren) {
             childrenArray.push_back(serializeEntityHierarchy(child));
         }
         result["children"] = std::move(childrenArray);
@@ -394,8 +397,14 @@ nlohmann::json EntityManager::serializeEntityHierarchy(Entity entity) const {
 }
 
 Entity EntityManager::deserializeEntityHierarchy(const nlohmann::json& hierarchyData, Entity parent) {
+    if (!hierarchyData.contains("entity")) {
+        throw std::runtime_error("Invalid hierarchy data: missing 'entity' field");
+    }
+
+    // Utwórz główne entity
     Entity newEntity = deserializeEntity(hierarchyData["entity"], parent);
 
+    // Deserializuj dzieci jeśli istnieją
     if (hierarchyData.contains("children")) {
         const auto& childrenArray = hierarchyData["children"];
         for (const auto& childData : childrenArray) {
