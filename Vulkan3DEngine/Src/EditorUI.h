@@ -5,6 +5,7 @@
 #include "HierarchyWindow.h"
 #include "SelectionManager.h"
 #include "ComponentInspectorWindow.h"
+#include "MaterialCreatorUI.h"
 
 // Forward declarations
 class Engine;
@@ -22,6 +23,7 @@ public:
     // Window access
     HierarchyWindow& hierarchyWindow() { return *m_hierarchyWindow; }
     ComponentInspectorWindow& componentInspectorWindow() { return *m_componentInspectorWindow; }
+	MaterialCreatorUI& materialCreatorWindow() { return *m_materialCreatorWindow; }
 
 private:
     Engine& m_engine;
@@ -32,4 +34,5 @@ private:
     std::unique_ptr<SelectionManager> m_selectionManager;
     std::unique_ptr<HierarchyWindow> m_hierarchyWindow;
     std::unique_ptr<ComponentInspectorWindow> m_componentInspectorWindow;
+    std::unique_ptr<MaterialCreatorUI> m_materialCreatorWindow;
 };

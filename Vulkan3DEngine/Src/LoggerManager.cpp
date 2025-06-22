@@ -1,11 +1,63 @@
-#include "LoggerConfig.h"
+#include "LoggerManager.h"
 #include <algorithm>
 
-// Static member definitions
-std::shared_ptr<spdlog::sinks::stdout_color_sink_mt> LoggerConfig::s_sharedConsoleSink = nullptr;
-std::unordered_map<std::string, std::shared_ptr<spdlog::logger>> LoggerConfig::s_namedLoggers;
+// Static member definitions for LoggerAccess
+std::weak_ptr<LoggerManager> LoggerAccess::s_loggerManager;
 
-std::shared_ptr<spdlog::logger> LoggerConfig::createLogger(const LoggerOptions& options) {
+LoggerManager::~LoggerManager() {
+    if (!m_isShutdown) {
+        shutdown();
+    }
+}
+
+void LoggerManager::initializeEngineLogging(const std::string& logDir, spdlog::level::level_enum level) {
+    std::filesystem::create_directories(logDir);
+
+    // Create shared console sink
+    auto consoleSink = getSharedConsoleSink();
+
+    // Create ENGINE logger
+    LoggerOptions engineOptions;
+    engineOptions.loggerName = "ENGINE";
+    engineOptions.logDir = logDir;
+    engineOptions.filePrefix = "engine_";
+    engineOptions.level = level;
+    engineOptions.maxOldLogFiles = 2;
+
+    auto engineLogger = createSharedConsoleLogger(engineOptions, consoleSink);
+    m_namedLoggers["ENGINE"] = engineLogger;
+
+    // Set ENGINE logger as default for SPDLOG macros
+    spdlog::set_default_logger(engineLogger);
+}
+
+void LoggerManager::addEditorLogger(const std::string& logDir, spdlog::level::level_enum level) {
+    if (m_isShutdown) {
+        return;
+    }
+
+    std::filesystem::create_directories(logDir);
+
+    // Get shared console sink
+    auto consoleSink = getSharedConsoleSink();
+
+    // Create EDITOR logger
+    LoggerOptions editorOptions;
+    editorOptions.loggerName = "EDITOR";
+    editorOptions.logDir = logDir;
+    editorOptions.filePrefix = "editor_";
+    editorOptions.level = level;
+    editorOptions.maxOldLogFiles = 2;
+
+    auto editorLogger = createSharedConsoleLogger(editorOptions, consoleSink);
+    m_namedLoggers["EDITOR"] = editorLogger;
+}
+
+std::shared_ptr<spdlog::logger> LoggerManager::createLogger(const LoggerOptions& options) {
+    if (m_isShutdown) {
+        return nullptr;
+    }
+
     try {
         // Ensure log directory exists
         std::filesystem::create_directories(options.logDir);
@@ -48,9 +100,13 @@ std::shared_ptr<spdlog::logger> LoggerConfig::createLogger(const LoggerOptions& 
     }
 }
 
-std::shared_ptr<spdlog::logger> LoggerConfig::createSharedConsoleLogger(
+std::shared_ptr<spdlog::logger> LoggerManager::createSharedConsoleLogger(
     const LoggerOptions& options,
     std::shared_ptr<spdlog::sinks::sink> sharedConsoleSink) {
+
+    if (m_isShutdown) {
+        return nullptr;
+    }
 
     try {
         // Ensure log directory exists
@@ -99,47 +155,25 @@ std::shared_ptr<spdlog::logger> LoggerConfig::createSharedConsoleLogger(
     }
 }
 
-std::shared_ptr<spdlog::sinks::stdout_color_sink_mt> LoggerConfig::getSharedConsoleSink() {
-    if (!s_sharedConsoleSink) {
-        s_sharedConsoleSink = std::make_shared<spdlog::sinks::stdout_color_sink_mt>();
-        s_sharedConsoleSink->set_pattern("[%Y-%m-%d %H:%M:%S.%e] [%^%l%$] [%n] - %v");
+std::shared_ptr<spdlog::sinks::stdout_color_sink_mt> LoggerManager::getSharedConsoleSink() {
+    if (m_isShutdown) {
+        return nullptr;
     }
-    return s_sharedConsoleSink;
+
+    if (!m_sharedConsoleSink) {
+        m_sharedConsoleSink = std::make_shared<spdlog::sinks::stdout_color_sink_mt>();
+        m_sharedConsoleSink->set_pattern("[%Y-%m-%d %H:%M:%S.%e] [%^%l%$] [%n] - %v");
+    }
+    return m_sharedConsoleSink;
 }
 
-void LoggerConfig::setupGlobalLogging(const std::string& logDir, spdlog::level::level_enum level) {
-    // Create shared console sink
-    auto consoleSink = getSharedConsoleSink();
+std::shared_ptr<spdlog::logger> LoggerManager::getNamedLogger(const std::string& name) {
+    if (m_isShutdown) {
+        return nullptr;
+    }
 
-    // Create ENGINE logger
-    LoggerOptions engineOptions;
-    engineOptions.loggerName = "ENGINE";
-    engineOptions.logDir = logDir;
-    engineOptions.filePrefix = "engine_";
-    engineOptions.level = level;
-    engineOptions.maxOldLogFiles = 2;
-
-    auto engineLogger = createSharedConsoleLogger(engineOptions, consoleSink);
-    s_namedLoggers["ENGINE"] = engineLogger;
-
-    // Set ENGINE logger as default for SPDLOG macros
-    spdlog::set_default_logger(engineLogger);
-
-    // Create EDITOR logger
-    LoggerOptions editorOptions;
-    editorOptions.loggerName = "EDITOR";
-    editorOptions.logDir = logDir;
-    editorOptions.filePrefix = "editor_";
-    editorOptions.level = spdlog::level::info;
-    editorOptions.maxOldLogFiles = 2;
-
-    auto editorLogger = createSharedConsoleLogger(editorOptions, consoleSink);
-    s_namedLoggers["EDITOR"] = editorLogger;
-}
-
-std::shared_ptr<spdlog::logger> LoggerConfig::getNamedLogger(const std::string& name) {
-    auto it = s_namedLoggers.find(name);
-    if (it != s_namedLoggers.end()) {
+    auto it = m_namedLoggers.find(name);
+    if (it != m_namedLoggers.end()) {
         return it->second;
     }
 
@@ -150,11 +184,39 @@ std::shared_ptr<spdlog::logger> LoggerConfig::getNamedLogger(const std::string& 
     options.logDir = "logs/";
 
     auto logger = createSharedConsoleLogger(options, getSharedConsoleSink());
-    s_namedLoggers[name] = logger;
+    if (logger) {
+        m_namedLoggers[name] = logger;
+    }
     return logger;
 }
 
-std::string LoggerConfig::generateLogFilename(const LoggerOptions& options) {
+bool LoggerManager::hasLogger(const std::string& name) const {
+    return m_namedLoggers.find(name) != m_namedLoggers.end();
+}
+
+void LoggerManager::shutdown() {
+    if (m_isShutdown) {
+        return;
+    }
+
+    m_isShutdown = true;
+
+    // Flush all loggers
+    for (auto& [name, logger] : m_namedLoggers) {
+        if (logger) {
+            logger->flush();
+        }
+    }
+
+    // Clear all loggers
+    m_namedLoggers.clear();
+    m_sharedConsoleSink.reset();
+
+    // Shutdown spdlog
+    spdlog::shutdown();
+}
+
+std::string LoggerManager::generateLogFilename(const LoggerOptions& options) {
     std::stringstream ss;
     ss << options.logDir << options.filePrefix;
 
@@ -179,7 +241,7 @@ std::string LoggerConfig::generateLogFilename(const LoggerOptions& options) {
     return ss.str();
 }
 
-void LoggerConfig::rotateLogFiles(const LoggerOptions& options) {
+void LoggerManager::rotateLogFiles(const LoggerOptions& options) {
     if (!options.rotateOldLogs || options.maxOldLogFiles == 0) {
         return;
     }
@@ -206,4 +268,21 @@ void LoggerConfig::rotateLogFiles(const LoggerOptions& options) {
         std::filesystem::remove(log_files.front());
         log_files.erase(log_files.begin());
     }
+}
+
+// LoggerAccess implementation
+void LoggerAccess::setLoggerManager(std::shared_ptr<LoggerManager> manager) {
+    s_loggerManager = manager;
+}
+
+std::shared_ptr<LoggerManager> LoggerAccess::getLoggerManager() {
+    return s_loggerManager.lock();
+}
+
+std::shared_ptr<spdlog::logger> LoggerAccess::getNamedLogger(const std::string& name) {
+    auto manager = s_loggerManager.lock();
+    if (manager) {
+        return manager->getNamedLogger(name);
+    }
+    return nullptr;
 }

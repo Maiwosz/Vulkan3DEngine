@@ -1,5 +1,5 @@
 #include "Engine.h"
-#include "LoggerConfig.h"
+#include "LoggerManager.h"
 #include "Paths.h"
 #include <spdlog/spdlog.h>
 #include <filesystem>
@@ -27,7 +27,7 @@ void Engine::initialize(const InitParams& params) {
             SPDLOG_WARN("Failed to load settings, using defaults");
         }
 
-        // Setup global logging system with settings-based log level
+        // Setup logging system with settings-based log level
         initializeLogging(params.logDir, m_settings->getLogLevel());
 
         SPDLOG_INFO("Initializing Engine...");
@@ -98,10 +98,13 @@ void Engine::shutdown() {
     m_initialized = false;
     SPDLOG_INFO("Engine shutdown complete");
 
-    // Flush all loggers but don't shutdown spdlog (let Editor handle that)
-    auto engineLogger = LoggerConfig::getNamedLogger("ENGINE");
-    if (engineLogger) {
-        engineLogger->flush();
+    // Flush loggers but don't shutdown the logger manager
+    // (Editor might still need it)
+    if (m_loggerManager) {
+        auto engineLogger = m_loggerManager->getNamedLogger("ENGINE");
+        if (engineLogger) {
+            engineLogger->flush();
+        }
     }
 }
 
@@ -111,8 +114,12 @@ void Engine::initializeLogging(const std::string& logDir, Settings::LogLevel log
     // Convert settings log level to spdlog level
     spdlog::level::level_enum spdlogLevel = Settings::toSpdlogLevel(logLevel);
 
-    // Setup global logging with both ENGINE and EDITOR loggers using settings log level
-    LoggerConfig::setupGlobalLogging(logDir, spdlogLevel);
+    // Create logger manager and initialize ENGINE logging
+    m_loggerManager = std::make_shared<LoggerManager>();
+    m_loggerManager->initializeEngineLogging(logDir, spdlogLevel);
+
+    // Set global logger manager for macro access
+    LoggerAccess::setLoggerManager(m_loggerManager);
 
     // The ENGINE logger is now set as default, so SPDLOG_* macros work
     SPDLOG_INFO("Engine logging initialized with level: {}", Settings::toString(logLevel));

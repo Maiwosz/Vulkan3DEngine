@@ -1,5 +1,5 @@
 #include "Editor.h"
-#include "LoggerConfig.h"
+#include "LoggerManager.h"
 #include <spdlog/spdlog.h>
 #include <spdlog/sinks/stdout_color_sinks.h>
 #include <csignal>
@@ -7,8 +7,8 @@
 
 void signal_handler(int) {
     // Use named loggers for signal handling
-    auto engineLogger = LoggerConfig::getNamedLogger("ENGINE");
-    auto editorLogger = LoggerConfig::getNamedLogger("EDITOR");
+    auto engineLogger = LoggerAccess::getNamedLogger("ENGINE");
+    auto editorLogger = LoggerAccess::getNamedLogger("EDITOR");
 
     if (engineLogger) {
         engineLogger->critical("Critical signal received!");
@@ -48,8 +48,12 @@ int main() {
         editor.start();
 
         // When we get here, the application is shutting down
-        EDITOR_LOG_INFO("Editor finished, stopping...");
+        SPDLOG_INFO("Editor finished, stopping...");
         editor.stop();
+
+        // The LoggerManager::shutdown() has already called spdlog::shutdown()
+        // Use simple std::cout for final message instead
+        std::cout << "[INFO] Application shutdown complete" << std::endl;
     }
     catch (const std::exception& e) {
         SPDLOG_CRITICAL("Critical error: {}", e.what());
@@ -57,6 +61,5 @@ int main() {
         return EXIT_FAILURE;
     }
 
-    SPDLOG_INFO("Application shutdown complete");
     return EXIT_SUCCESS;
 }

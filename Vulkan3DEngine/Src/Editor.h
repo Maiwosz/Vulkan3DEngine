@@ -9,6 +9,8 @@
 #include "EditorUI.h"
 #include "Engine.h"
 
+class LoggerManager; // Forward declaration
+
 class Editor {
 public:
     Editor(const std::string& sourceRelative, const std::string& destRelative);
@@ -29,6 +31,9 @@ private:
     std::unique_ptr<EditorUI> m_editorUI;
     std::thread m_watcherThread;
     std::atomic<bool> m_running{ false };
+
+    // Shared ownership of LoggerManager to ensure it survives
+    std::shared_ptr<LoggerManager> m_loggerManager;
 
     // Engine initialization parameters
     std::string m_sourceRelative;

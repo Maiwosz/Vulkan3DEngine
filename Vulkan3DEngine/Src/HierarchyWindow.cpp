@@ -4,7 +4,7 @@
 #include "EntityManager.h"
 #include "imgui.h"
 #include <format>
-#include "LoggerConfig.h"
+#include "LoggerManager.h"
 
 HierarchyWindow::HierarchyWindow(Registry& registry, SelectionManager& selectionManager)
     : m_registry(registry), m_selectionManager(selectionManager)

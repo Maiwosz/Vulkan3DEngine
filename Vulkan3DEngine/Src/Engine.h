@@ -8,6 +8,7 @@
 #include "AssetSystem.h"
 #include "RenderSystem.h"
 #include "Scene.h"
+#include "LoggerManager.h"
 #include <memory>
 #include <chrono>
 
@@ -57,6 +58,9 @@ public:
     RenderSystem& renderSystem() const { return *m_renderSystem; }
     Registry& registry() const { return *m_registry; }
 
+    // Logger manager access (for Editor to take shared ownership)
+    std::shared_ptr<LoggerManager> getLoggerManager() const { return m_loggerManager; }
+
     // Time and frame info
     float deltaTime() const { return m_deltaTime; }
     float totalTime() const { return m_totalTime; }
@@ -85,6 +89,9 @@ private:
     void cleanupComponents();
 
 private:
+    // Logger manager - managed as shared_ptr for Editor access
+    std::shared_ptr<LoggerManager> m_loggerManager;
+
     // Core components - order matters for destruction
     std::unique_ptr<Settings> m_settings;
     std::unique_ptr<Window> m_window;

@@ -5,7 +5,7 @@
 #include <algorithm>
 #include "AssetLoader.h"
 #include "ConverterLib.h"
-#include "LoggerConfig.h"
+#include "LoggerManager.h"
 
 using json = nlohmann::json;
 

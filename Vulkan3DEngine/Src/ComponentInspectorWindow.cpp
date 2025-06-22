@@ -6,7 +6,7 @@
 #include <format>
 #include <algorithm>
 #include "SelectionManager.h"
-#include "LoggerConfig.h"
+#include "LoggerManager.h"
 
 ComponentInspectorWindow::ComponentInspectorWindow(Registry& registry, SelectionManager& selectionManager)
     : m_registry(registry), m_selectionManager(selectionManager)

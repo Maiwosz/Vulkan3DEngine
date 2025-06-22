@@ -171,6 +171,8 @@
     <ClCompile Include="..\Libs\imgui\imgui_impl_vulkan.cpp" />
     <ClCompile Include="..\Libs\imgui\imgui_tables.cpp" />
     <ClCompile Include="..\Libs\imgui\imgui_widgets.cpp" />
+    <ClCompile Include="Src\MaterialCreatorUI.cpp" />
+    <ClCompile Include="Src\MaterialCreator.cpp" />
     <ClCompile Include="Src\MaterialComponent.cpp" />
     <ClCompile Include="Src\SelectionManager.cpp" />
     <ClCompile Include="Src\ComponentInspectorWindow.cpp" />
@@ -186,7 +188,7 @@
     <ClCompile Include="Src\ShaderManager.cpp" />
     <ClCompile Include="Src\AssetResolutionStage.cpp" />
     <ClCompile Include="Src\MaterialResourceFactory.cpp" />
-    <ClCompile Include="Src\LoggerConfig.cpp" />
+    <ClCompile Include="Src\LoggerManager.cpp" />
     <ClCompile Include="Src\LuaBindingsRegistry.cpp" />
     <ClCompile Include="Src\LuaBindingsSpdlog.cpp" />
     <ClCompile Include="Src\LuaBindingsComponents.cpp" />
@@ -271,6 +273,8 @@
     <ClInclude Include="..\Libs\imgui\imstb_rectpack.h" />
     <ClInclude Include="..\Libs\imgui\imstb_textedit.h" />
     <ClInclude Include="..\Libs\imgui\imstb_truetype.h" />
+    <ClInclude Include="Src\MaterialCreatorUI.h" />
+    <ClInclude Include="Src\MaterialCreator.h" />
     <ClInclude Include="Src\SelectionManager.h" />
     <ClInclude Include="Src\ComponentInspectorWindow.h" />
     <ClInclude Include="Src\HierarchyWindow.h" />
@@ -291,7 +295,7 @@
     <ClInclude Include="Src\IAssetHandler.h" />
     <ClInclude Include="Src\MaterialResourceFactory.h" />
     <ClInclude Include="Src\Handle.h" />
-    <ClInclude Include="Src\LoggerConfig.h" />
+    <ClInclude Include="Src\LoggerManager.h" />
     <ClInclude Include="Src\LuaBindingsRegistry.h" />
     <ClInclude Include="Src\LuaBindingsSpdlog.h" />
     <ClInclude Include="Src\LuaBindingsComponents.h" />

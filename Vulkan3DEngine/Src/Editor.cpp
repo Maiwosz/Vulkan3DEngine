@@ -1,5 +1,5 @@
 #include "Editor.h"
-#include "LoggerConfig.h"
+#include "LoggerManager.h"
 #include "Paths.h"
 #include <filesystem>
 #include <iostream>
@@ -9,13 +9,23 @@ Editor::Editor(const std::string& sourceRelative, const std::string& destRelativ
     , m_destRelative(destRelative)
 {
     // Note: Don't use EDITOR_LOG_* macros here yet - logging not initialized
-    std::cout << "[EDITOR] Initializing Editor..." << std::endl;
+    SPDLOG_INFO("Initializing Editor...");
 
     // Create Engine instance first
     m_engine = std::make_unique<Engine>();
 
     // Initialize Engine (this will load settings and setup logging system)
     initializeEngine();
+
+    // Get shared ownership of LoggerManager from Engine
+    m_loggerManager = m_engine->getLoggerManager();
+    if (!m_loggerManager) {
+        SPDLOG_CRITICAL("Failed to get LoggerManager from Engine");
+        throw std::runtime_error("LoggerManager not available from Engine");
+    }
+
+    // Initialize Editor's own logger
+    m_loggerManager->addEditorLogger(LOGS_DIR);
 
     // Now we can use proper logging
     EDITOR_LOG_INFO("Engine initialized, continuing Editor setup...");
@@ -53,12 +63,17 @@ Editor::~Editor() {
         m_engine->shutdown();
     }
 
-    // Flush all loggers
-    auto editorLogger = LoggerConfig::getNamedLogger("EDITOR");
-    auto engineLogger = LoggerConfig::getNamedLogger("ENGINE");
+    // Flush all loggers if LoggerManager is still available
+    if (m_loggerManager) {
+        auto editorLogger = m_loggerManager->getNamedLogger("EDITOR");
+        auto engineLogger = m_loggerManager->getNamedLogger("ENGINE");
 
-    if (editorLogger) editorLogger->flush();
-    if (engineLogger) engineLogger->flush();
+        if (editorLogger) editorLogger->flush();
+        if (engineLogger) engineLogger->flush();
+
+        // Release our reference to LoggerManager
+        m_loggerManager.reset();
+    }
 
     // Shutdown spdlog completely
     spdlog::shutdown();
@@ -105,7 +120,7 @@ void Editor::stop() {
 
 void Editor::initializeEngine() {
     try {
-        std::cout << "[EDITOR] Initializing Engine..." << std::endl;
+        SPDLOG_INFO("Initializing Engine...");
 
         Engine::InitParams initParams;
         initParams.title = "Vulkan3DEngine - Editor";
@@ -116,17 +131,10 @@ void Editor::initializeEngine() {
         // Engine initialization will load settings and setup logging
         m_engine->initialize(initParams);
 
-        EDITOR_LOG_INFO("Engine initialized successfully");
+        SPDLOG_INFO("Engine initialized successfully");
     }
     catch (const std::exception& e) {
-        // Try to log with EDITOR logger if available, otherwise use cout
-        auto editorLogger = LoggerConfig::getNamedLogger("EDITOR");
-        if (editorLogger) {
-            EDITOR_LOG_CRITICAL("Failed to initialize Engine: {}", e.what());
-        }
-        else {
-            std::cerr << "[EDITOR] CRITICAL: Failed to initialize Engine: " << e.what() << std::endl;
-        }
+        SPDLOG_CRITICAL("Failed to initialize Engine: {}", e.what());
         throw;
     }
 }

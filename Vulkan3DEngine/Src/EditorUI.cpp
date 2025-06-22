@@ -4,7 +4,7 @@
 #include "FrameManager.h"
 #include "Renderer.h"
 #include "imgui.h"
-#include "LoggerConfig.h"
+#include "LoggerManager.h"
 
 EditorUI::EditorUI(Engine& engine)
     : m_engine(engine)
@@ -19,6 +19,7 @@ EditorUI::EditorUI(Engine& engine)
     // Create UI windows with selection manager
     m_hierarchyWindow = std::make_unique<HierarchyWindow>(m_registry, *m_selectionManager);
     m_componentInspectorWindow = std::make_unique<ComponentInspectorWindow>(m_registry, *m_selectionManager);
+    m_materialCreatorWindow = std::make_unique<MaterialCreatorUI>();
 
     EDITOR_LOG_INFO("EditorUI initialized successfully");
 }
@@ -54,6 +55,8 @@ void EditorUI::renderWindows() {
         if (ImGui::BeginMenu("Windows")) {
             ImGui::MenuItem("Hierarchy", nullptr, &m_hierarchyWindow->m_showWindow);
             ImGui::MenuItem("Component Inspector", nullptr, &m_componentInspectorWindow->m_showWindow);
+            ImGui::MenuItem("Material Creator", nullptr, &m_materialCreatorWindow->m_showWindow);
+
             ImGui::EndMenu();
         }
 
@@ -63,6 +66,7 @@ void EditorUI::renderWindows() {
     // Render individual windows
     m_hierarchyWindow->render();
     m_componentInspectorWindow->render();
+    m_materialCreatorWindow->render();
 
     // Render engine stats window
     if (ImGui::Begin("Engine Stats")) {

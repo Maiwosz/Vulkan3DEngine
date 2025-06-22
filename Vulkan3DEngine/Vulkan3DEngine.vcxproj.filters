@@ -233,8 +233,8 @@
     <ClCompile Include="Src\LuaBindingsCoreTypes.cpp">
       <Filter>Engine\Scene\EntityComponentSystem\Registry\SystemManager\Systems\ScriptSystem\LuaBindings\CoreTypes</Filter>
     </ClCompile>
-    <ClCompile Include="Src\LoggerConfig.cpp">
-      <Filter>Engine\LoggerConfig</Filter>
+    <ClCompile Include="Src\LoggerManager.cpp">
+      <Filter>Engine\LoggerManager</Filter>
     </ClCompile>
     <ClCompile Include="Src\MaterialResourceFactory.cpp">
       <Filter>Engine\AssetSystem\AssetManager\AssetHandlers\MaterialManager\MaterialResourceFactory</Filter>
@@ -289,6 +289,12 @@
     </ClCompile>
     <ClCompile Include="Src\MaterialComponent.cpp">
       <Filter>Engine\Scene\EntityComponentSystem\Registry\ComponentManager\Components\MaterialComponent</Filter>
+    </ClCompile>
+    <ClCompile Include="Src\MaterialCreator.cpp">
+      <Filter>Editor\EditorUI\MaterialCreatorUI\MaterialCreator</Filter>
+    </ClCompile>
+    <ClCompile Include="Src\MaterialCreatorUI.cpp">
+      <Filter>Editor\EditorUI\MaterialCreatorUI</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -570,8 +576,8 @@
     <ClInclude Include="Src\LuaBindingsRegistry.h">
       <Filter>Engine\Scene\EntityComponentSystem\Registry\SystemManager\Systems\ScriptSystem\LuaBindings\Registry</Filter>
     </ClInclude>
-    <ClInclude Include="Src\LoggerConfig.h">
-      <Filter>Engine\LoggerConfig</Filter>
+    <ClInclude Include="Src\LoggerManager.h">
+      <Filter>Engine\LoggerManager</Filter>
     </ClInclude>
     <ClInclude Include="Src\MaterialResourceFactory.h">
       <Filter>Engine\AssetSystem\AssetManager\AssetHandlers\MaterialManager\MaterialResourceFactory</Filter>
@@ -647,6 +653,12 @@
     </ClInclude>
     <ClInclude Include="Src\MaterialComponent.h">
       <Filter>Engine\Scene\EntityComponentSystem\Registry\ComponentManager\Components\MaterialComponent</Filter>
+    </ClInclude>
+    <ClInclude Include="Src\MaterialCreator.h">
+      <Filter>Editor\EditorUI\MaterialCreatorUI\MaterialCreator</Filter>
+    </ClInclude>
+    <ClInclude Include="Src\MaterialCreatorUI.h">
+      <Filter>Editor\EditorUI\MaterialCreatorUI</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
@@ -814,9 +826,6 @@
     <Filter Include="Engine\RenderSystem\GlobalStateManager">
       <UniqueIdentifier>{882842c2-b9ed-4d8a-8848-c37083718aaf}</UniqueIdentifier>
     </Filter>
-    <Filter Include="Engine\LoggerConfig">
-      <UniqueIdentifier>{f7084a8b-d68e-4686-8bc2-7c3b39c53870}</UniqueIdentifier>
-    </Filter>
     <Filter Include="Engine\RenderSystem\ProcessingStages\AssetResolutionStage">
       <UniqueIdentifier>{ea5bd055-c6ad-452c-bf30-11a8877845d3}</UniqueIdentifier>
     </Filter>
@@ -951,6 +960,15 @@
     </Filter>
     <Filter Include="Engine\Scene\EntityComponentSystem\Registry\ComponentManager\Components\MaterialComponent">
       <UniqueIdentifier>{6be0774a-79ba-4238-8c44-358beae081f8}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Engine\LoggerManager">
+      <UniqueIdentifier>{f7084a8b-d68e-4686-8bc2-7c3b39c53870}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Editor\EditorUI\MaterialCreatorUI">
+      <UniqueIdentifier>{cfc42cab-5e4a-4381-ae0c-135355c62636}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Editor\EditorUI\MaterialCreatorUI\MaterialCreator">
+      <UniqueIdentifier>{a7664f0a-2048-464f-9dfc-881b5a1ff7bd}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
 </Project>

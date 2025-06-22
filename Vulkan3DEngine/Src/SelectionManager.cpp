@@ -1,5 +1,5 @@
 #include "SelectionManager.h"
-#include "LoggerConfig.h"
+#include "LoggerManager.h"
 
 SelectionManager::SelectionManager() {
     EDITOR_LOG_DEBUG("SelectionManager initialized");
