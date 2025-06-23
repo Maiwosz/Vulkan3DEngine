@@ -17,8 +17,7 @@ PrefabInstanceManager::PrefabInstanceManager(EntityManager& entityManager, Compo
 }
 
 
-PrefabInstanceHandle PrefabInstanceManager::createInstance(PrefabHandle prefabHandle, Entity parent,
-    const std::string& instanceName) {
+PrefabInstanceHandle PrefabInstanceManager::createInstance(PrefabHandle prefabHandle, Entity parent) {
     try {
         // Create instance handle
         PrefabInstanceHandle instanceHandle = generateHandle();
@@ -30,13 +29,11 @@ PrefabInstanceHandle PrefabInstanceManager::createInstance(PrefabHandle prefabHa
             return PrefabInstanceHandle{};
         }
 
-        // Create instance data
+        // Create instance data (bez instanceName)
         PrefabInstance instance;
         instance.handle = instanceHandle;
         instance.prefabHandle = prefabHandle;
         instance.rootEntity = rootEntity;
-        instance.instanceName = instanceName.empty() ?
-            ("Instance_" + std::to_string(instanceHandle.id)) : instanceName;
 
         // NAJPIERW dodaj instancję do mapy
         m_instances[instanceHandle.id] = std::move(instance);
@@ -45,12 +42,55 @@ PrefabInstanceHandle PrefabInstanceManager::createInstance(PrefabHandle prefabHa
         registerInstanceEntities(instanceHandle, rootEntity);
 
         SPDLOG_DEBUG("Created prefab instance: {} with root entity: {}",
-            m_instances[instanceHandle.id].instanceName, rootEntity.id);
+            instanceHandle.id, rootEntity.id);
 
         return instanceHandle;
     }
     catch (const std::exception& e) {
         SPDLOG_ERROR("Failed to create prefab instance: {}", e.what());
+        return PrefabInstanceHandle{};
+    }
+}
+
+PrefabInstanceHandle PrefabInstanceManager::createInstance(const std::string& prefabName, Entity parent)
+{
+    try {
+        // Pobierz handle prefaba na podstawie nazwy z PrefabManager
+        auto handleAny = m_prefabManager.getHandleInternal(prefabName);
+
+        // Sprawdź czy handle został znaleziony
+        if (!handleAny.has_value()) {
+            SPDLOG_ERROR("Failed to get prefab handle for name: {}", prefabName);
+            return PrefabInstanceHandle{};
+        }
+
+        // Rzutuj na PrefabHandle
+        PrefabHandle prefabHandle;
+        try {
+            prefabHandle = std::any_cast<PrefabHandle>(handleAny);
+        }
+        catch (const std::bad_any_cast& e) {
+            SPDLOG_ERROR("Invalid handle type for prefab: {}", prefabName);
+            return PrefabInstanceHandle{};
+        }
+
+        // Sprawdź czy handle jest ważny
+        if (prefabHandle.id == 0) {
+            SPDLOG_ERROR("Invalid prefab handle for name: {}", prefabName);
+            return PrefabInstanceHandle{};
+        }
+
+        // Użyj istniejącej funkcji createInstance
+        PrefabInstanceHandle instanceHandle = createInstance(prefabHandle, parent);
+
+        if (instanceHandle.id != 0) {
+            SPDLOG_INFO("Successfully created prefab instance from name: {}", prefabName);
+        }
+
+        return instanceHandle;
+    }
+    catch (const std::exception& e) {
+        SPDLOG_ERROR("Exception while creating prefab instance by name '{}': {}", prefabName, e.what());
         return PrefabInstanceHandle{};
     }
 }
@@ -66,9 +106,9 @@ bool PrefabInstanceManager::destroyInstance(PrefabInstanceHandle instanceHandle)
     // Unregister entities
     unregisterInstanceEntities(instanceHandle);
 
-    // Odblokuj wszystkie entities przed usunięciem
+    // Odblokuj tylko NON-ROOT entities przed usunięciem
     for (Entity entity : instance.entities) {
-        if (m_entityManager.valid(entity)) {
+        if (m_entityManager.valid(entity) && entity != instance.rootEntity) {
             m_entityManager.unlockEntity(entity);
         }
     }
@@ -103,9 +143,9 @@ bool PrefabInstanceManager::unpackInstance(PrefabInstanceHandle instanceHandle) 
 
     const PrefabInstance& instance = it->second;
 
-    // Odblokuj wszystkie entities
+    // Odblokuj tylko NON-ROOT entities
     for (Entity entity : instance.entities) {
-        if (m_entityManager.valid(entity)) {
+        if (m_entityManager.valid(entity) && entity != instance.rootEntity) {
             m_entityManager.unlockEntity(entity);
         }
     }
@@ -116,7 +156,8 @@ bool PrefabInstanceManager::unpackInstance(PrefabInstanceHandle instanceHandle) 
     // Remove instance data but keep entities
     m_instances.erase(it);
 
-    SPDLOG_DEBUG("Unpacked prefab instance: {}", instanceHandle.id);
+    SPDLOG_DEBUG("Unpacked prefab instance: {} (root {} left unlocked)",
+        instanceHandle.id, instance.rootEntity.id);
     return true;
 }
 
@@ -508,14 +549,11 @@ PrefabInstanceHandle PrefabInstanceManager::getInstanceForEntity(Entity entity) 
 
 std::string PrefabInstanceManager::getInstanceName(PrefabInstanceHandle instanceHandle) const {
     auto it = m_instances.find(instanceHandle.id);
-    return it != m_instances.end() ? it->second.instanceName : "";
-}
-
-void PrefabInstanceManager::setInstanceName(PrefabInstanceHandle instanceHandle, const std::string& name) {
-    auto it = m_instances.find(instanceHandle.id);
     if (it != m_instances.end()) {
-        it->second.instanceName = name;
+        // Zwróć nazwę root entity jako nazwę instancji
+        return m_entityManager.getEntityName(it->second.rootEntity);
     }
+    return "";
 }
 
 void PrefabInstanceManager::onEntityDestroyed(Entity entity) {
@@ -547,6 +585,12 @@ PrefabHandle PrefabInstanceManager::createPrefabFromEntity(Entity rootEntity) {
     try {
         if (!m_entityManager.valid(rootEntity)) {
             SPDLOG_ERROR("Invalid root entity for prefab creation");
+            return PrefabHandle{};
+        }
+
+        // Check if entity is already part of an instance
+        if (isEntityPartOfInstance(rootEntity)) {
+            SPDLOG_WARN("Entity {} is already part of a prefab instance", rootEntity.id);
             return PrefabHandle{};
         }
 
@@ -591,15 +635,90 @@ PrefabHandle PrefabInstanceManager::createPrefabFromEntity(Entity rootEntity) {
             filename = "Entity_" + std::to_string(rootEntity.id);
         }
 
-        // Create prefab
+        // Create prefab in memory
         PrefabHandle handle = m_prefabManager.createPrefab(prefabData, filename);
+        if (handle.id == 0) {
+            SPDLOG_ERROR("Failed to create prefab in memory");
+            return PrefabHandle{};
+        }
 
-        SPDLOG_INFO("Created prefab from entity: {}", filename);
+        // Save prefab to file immediately
+        if (!m_prefabManager.savePrefabToFile(handle)) {
+            SPDLOG_ERROR("Failed to save prefab to file: {}", filename);
+            // Still continue with instance creation even if save failed
+        }
+        else {
+            SPDLOG_INFO("Successfully saved prefab to file: {}", filename);
+        }
+
+        // Store parent of root entity before conversion
+        Entity originalParent = Entity(0);
+        if (m_entityManager.hasParent(rootEntity)) {
+            originalParent = m_entityManager.getParent(rootEntity);
+        }
+
+        // Convert existing entities to a prefab instance
+        PrefabInstanceHandle instanceHandle = convertEntitiesToInstance(handle, rootEntity, allEntities);
+        if (instanceHandle.id == 0) {
+            SPDLOG_ERROR("Failed to convert entities to prefab instance");
+            return handle; // Return prefab handle even if instance creation failed
+        }
+
+        SPDLOG_INFO("Created prefab '{}' and converted original entities to instance {}",
+            filename, instanceHandle.id);
         return handle;
     }
     catch (const std::exception& e) {
         SPDLOG_ERROR("Failed to create prefab from entity: {}", e.what());
         return PrefabHandle{};
+    }
+}
+
+bool PrefabInstanceManager::saveInstanceAsPrefab(PrefabInstanceHandle instanceHandle) {
+    try {
+        auto it = m_instances.find(instanceHandle.id);
+        if (it == m_instances.end()) {
+            SPDLOG_ERROR("Invalid instance handle for save operation");
+            return false;
+        }
+
+        const PrefabInstance& instance = it->second;
+
+        if (!m_entityManager.valid(instance.rootEntity)) {
+            SPDLOG_ERROR("Root entity is not valid for save operation");
+            return false;
+        }
+
+        // Użyj nazwy root entity jako filename
+        std::string filename = m_entityManager.getEntityName(instance.rootEntity);
+        if (filename.empty()) {
+            filename = "Entity_" + std::to_string(instance.rootEntity.id);
+        }
+
+        // Create prefab from current instance state (without overrides)
+        PrefabHandle newPrefabHandle = createPrefabFromEntity(instance.rootEntity);
+        if (newPrefabHandle.id == 0) {
+            SPDLOG_ERROR("Failed to create prefab from instance");
+            return false;
+        }
+
+        // Save to file using PrefabManager
+        bool success = m_prefabManager.savePrefabToFile(newPrefabHandle);
+
+        if (success) {
+            SPDLOG_INFO("Successfully saved instance {} as prefab: {}",
+                instanceHandle.id, filename);
+        }
+        else {
+            SPDLOG_ERROR("Failed to save instance {} as prefab: {}",
+                instanceHandle.id, filename);
+        }
+
+        return success;
+    }
+    catch (const std::exception& e) {
+        SPDLOG_ERROR("Exception while saving instance as prefab: {}", e.what());
+        return false;
     }
 }
 
@@ -637,7 +756,7 @@ Entity PrefabInstanceManager::instantiatePrefabInternal(PrefabHandle prefabHandl
 
         // Phase 2: Set up hierarchy ONLY using parent information to avoid duplicates
         Entity newRootEntity = entityMapping[prefab->rootEntity];
-        
+
         // First, set the root entity's parent if provided
         if (parent.id != 0 && m_entityManager.valid(parent)) {
             m_entityManager.setParent(newRootEntity, parent);
@@ -690,10 +809,13 @@ Entity PrefabInstanceManager::instantiatePrefabInternal(PrefabHandle prefabHandl
             }
         }
 
-        // Lock all entities in the instance to prevent accidental modification
+        // Lock only NON-ROOT entities in the instance to prevent accidental modification
         for (const auto& [oldEntity, entityData] : prefab->entities) {
             Entity newEntity = entityMapping[oldEntity];
-            m_entityManager.lockEntity(newEntity);
+            // Skip locking the root entity
+            if (newEntity != newRootEntity) {
+                m_entityManager.lockEntity(newEntity);
+            }
         }
 
         // Verify hierarchy was created correctly
@@ -703,9 +825,9 @@ Entity PrefabInstanceManager::instantiatePrefabInternal(PrefabHandle prefabHandl
         }
 
         // Debug: Log final hierarchy structure
-        SPDLOG_DEBUG("Successfully instantiated prefab {} as entity {} with {} children", 
+        SPDLOG_DEBUG("Successfully instantiated prefab {} as entity {} with {} children",
             prefabHandle.id, newRootEntity.id, m_entityManager.getChildren(newRootEntity).size());
-        
+
         return newRootEntity;
     }
     catch (const std::exception& e) {
@@ -742,5 +864,44 @@ void PrefabInstanceManager::unregisterInstanceEntities(PrefabInstanceHandle inst
     // Remove from lookup table
     for (Entity entity : instance.entities) {
         m_entityToInstance.erase(entity);
+    }
+}
+
+PrefabInstanceHandle PrefabInstanceManager::convertEntitiesToInstance(
+    PrefabHandle prefabHandle, Entity rootEntity, const std::unordered_set<Entity>& entities) {
+    try {
+        // Generate new instance handle
+        PrefabInstanceHandle instanceHandle = generateHandle();
+
+        // Create instance data
+        PrefabInstance instance;
+        instance.handle = instanceHandle;
+        instance.prefabHandle = prefabHandle;
+        instance.rootEntity = rootEntity;
+        instance.entities = entities; // Copy the entity set
+
+        // Lock only NON-ROOT entities to indicate they're part of an instance
+        for (Entity entity : entities) {
+            if (m_entityManager.valid(entity) && entity != rootEntity) {
+                m_entityManager.lockEntity(entity);
+            }
+        }
+
+        // Add instance to storage
+        m_instances[instanceHandle.id] = std::move(instance);
+
+        // Update entity-to-instance mapping
+        for (Entity entity : entities) {
+            m_entityToInstance[entity] = instanceHandle;
+        }
+
+        SPDLOG_DEBUG("Converted {} entities to prefab instance: {} (root {} left unlocked)",
+            entities.size(), instanceHandle.id, rootEntity.id);
+
+        return instanceHandle;
+    }
+    catch (const std::exception& e) {
+        SPDLOG_ERROR("Failed to convert entities to instance: {}", e.what());
+        return PrefabInstanceHandle{};
     }
 }

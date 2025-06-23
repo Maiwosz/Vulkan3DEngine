@@ -125,8 +125,10 @@ std::vector<std::string> MaterialComponent::getAvailableMaterialFiles() {
 
 void MaterialComponent::renderMaterialParametersUI() {
     ImGui::Text("Material Parameters");
-
+    AssetManager& assetManager = getEngine()->assetSystem().assetManager();
 	MaterialManager& materialManager = getEngine()->assetSystem().materialManager();
+
+    assetManager.ensureReady(m_material);
 
     if (m_material.filename.empty()) {
         ImGui::TextDisabled("No material selected");

@@ -1,5 +1,6 @@
 #pragma once
 #include "Entity.h"
+#include "Handle.h"
 #include <string>
 #include <vector>
 #include <json.hpp>
@@ -8,6 +9,7 @@ class EntityManager;
 class ComponentManager;
 class SceneManager;
 class PrefabInstanceManager;
+struct PrefabInstance;
 
 class SceneRegistry {
 public:
@@ -27,7 +29,7 @@ private:
     // Module references
     EntityManager& m_entityManager;
     ComponentManager& m_componentManager;
-	PrefabInstanceManager& m_prefabInstanceManager;
+    PrefabInstanceManager& m_prefabInstanceManager;
     SceneManager& m_sceneManager;
 
     // Current scene tracking
@@ -36,4 +38,12 @@ private:
     // Helper methods
     nlohmann::json serializeCurrentScene() const;
     bool deserializeScene(const nlohmann::json& sceneData);
+
+    // Prefab instance serialization
+    nlohmann::json serializePrefabInstance(const PrefabInstance& instance) const;
+    bool deserializePrefabInstance(const nlohmann::json& instanceJson);
+
+    // Helper methods for prefab instance handling
+    Entity findCorrespondingEntityInInstance(PrefabInstanceHandle instanceHandle, uint32_t originalEntityId) const;
+    bool isEntityHierarchyPartOfPrefabInstance(Entity rootEntity) const;
 };

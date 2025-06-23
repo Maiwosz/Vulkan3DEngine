@@ -30,7 +30,6 @@ struct PrefabInstance {
     Entity rootEntity;
     std::unordered_set<Entity> entities; // All entities in this instance
     std::unordered_map<Entity, std::unordered_set<std::string>> overriddenComponents; // Track which components are overridden per entity
-    std::string instanceName;
 };
 
 class PrefabInstanceManager {
@@ -40,8 +39,8 @@ public:
     ~PrefabInstanceManager() = default;
 
     // Instance creation
-    PrefabInstanceHandle createInstance(PrefabHandle prefabHandle, Entity parent = Entity(0),
-        const std::string& instanceName = "");
+    PrefabInstanceHandle createInstance(PrefabHandle prefabHandle, Entity parent = Entity(0));
+    PrefabInstanceHandle createInstance(const std::string& prefabName, Entity parent = Entity(0));
 
     // Instance management
     bool destroyInstance(PrefabInstanceHandle instanceHandle);
@@ -74,13 +73,13 @@ public:
 
     // Instance properties
     std::string getInstanceName(PrefabInstanceHandle instanceHandle) const;
-    void setInstanceName(PrefabInstanceHandle instanceHandle, const std::string& name);
 
     // Cleanup - called by Registry when entity is being destroyed
     void onEntityDestroyed(Entity entity);
 
-    // Prefab creation from entity
+    // Prefab creation and saving
     PrefabHandle createPrefabFromEntity(Entity rootEntity);
+    bool saveInstanceAsPrefab(PrefabInstanceHandle instanceHandle);
 
 private:
     // Module references
@@ -101,6 +100,10 @@ private:
     Entity instantiatePrefabInternal(PrefabHandle prefabHandle, Entity parent);
     void registerInstanceEntities(PrefabInstanceHandle instanceHandle, Entity rootEntity);
     void unregisterInstanceEntities(PrefabInstanceHandle instanceHandle);
+
+    // Helper method for converting existing entities to prefab instance
+    PrefabInstanceHandle convertEntitiesToInstance(PrefabHandle prefabHandle, Entity rootEntity,
+        const std::unordered_set<Entity>& entities);
 
     // Copy-on-write helpers
     bool restoreComponentFromPrefab(Entity entity, const std::string& componentType, PrefabHandle prefabHandle);

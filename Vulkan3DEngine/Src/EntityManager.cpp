@@ -10,7 +10,7 @@ EntityManager::EntityManager(ComponentManager& componentManager)
 }
 
 // Entity lifecycle
-Entity EntityManager::create(const std::string& name) {
+Entity EntityManager::create(const std::string& name, Entity parent) {
     Entity entity;
 
     if (!m_freeEntities.empty()) {
@@ -32,6 +32,11 @@ Entity EntityManager::create(const std::string& name) {
 
     m_entityNames[entity] = finalName;
     m_nameToEntity[finalName] = entity;
+
+    // Set parent if provided and valid
+    if (parent.id != 0 && valid(parent)) {
+        setParent(entity, parent);
+    }
 
     return entity;
 }
@@ -245,16 +250,6 @@ int EntityManager::getDepth(Entity entity) const {
 }
 
 // Advanced entity operations
-Entity EntityManager::createChild(Entity parent, const std::string& name) {
-    Entity child = create(name);
-
-    if (parent.id != 0 && valid(parent)) {
-        setParent(child, parent);
-    }
-
-    return child;
-}
-
 uint32_t EntityManager::countEntitiesInHierarchy(Entity rootEntity) const {
     if (!valid(rootEntity)) {
         return 0;

@@ -15,7 +15,7 @@ public:
     explicit EntityManager(ComponentManager& componentManager);
 
     // Entity lifecycle
-    Entity create(const std::string& name = "");
+    Entity create(const std::string& name = "", Entity parent = Entity(0));
     void destroy(Entity entity);
     bool valid(Entity entity) const;
 
@@ -51,7 +51,6 @@ public:
     int getDepth(Entity entity) const;
 
     // Advanced entity operations
-    Entity createChild(Entity parent, const std::string& name = "");
     uint32_t countEntitiesInHierarchy(Entity rootEntity) const;
     Entity cloneEntityHierarchy(Entity sourceEntity, Entity newParent, const std::string& name = "");
     void destroyAllEntities();

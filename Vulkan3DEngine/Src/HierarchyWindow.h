@@ -8,6 +8,7 @@
 // Forward declarations
 class Registry;
 class SelectionManager;
+class PrefabInstanceManager;
 
 class HierarchyWindow {
 public:
@@ -21,6 +22,7 @@ private:
     void renderEntityHierarchy();
     void renderEntityNode(Entity entity, int depth = 0);
     void renderRootEntities();
+    void renderPrefabMenu();
 
     bool isEntityExpanded(Entity entity) const;
     void setEntityExpanded(Entity entity, bool expanded);
@@ -30,7 +32,8 @@ private:
     bool hasChildren(Entity entity) const;
     void handleEntitySelection(Entity entity);
     void handleEntityContextMenu(Entity entity);
-
+    std::vector<std::string> getAvailablePrefabs() const;
+    std::string extractPrefabName(const std::string& filename) const;
 public:
     // UI State - public so EditorUI can access
     bool m_showWindow = true;
@@ -41,4 +44,14 @@ private:
 
     // UI State
     std::unordered_set<Entity> m_expandedEntities;
+
+    void handleEmptySpaceContextMenu();
+    void renderPrefabMenuWithParent(Entity parent);
+    void startRename(Entity entity);
+    void handleRenameDialog();
+
+    // Rename dialog state
+    bool m_showRenameDialog = false;
+    Entity m_renameEntity = Entity(0);
+    char m_renameBuffer[256] = "";
 };
