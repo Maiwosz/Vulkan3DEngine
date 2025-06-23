@@ -38,7 +38,7 @@ public:
         std::string title = "Window";
         Settings::WindowMode mode = Settings::WindowMode::Windowed;
         Settings::Resolution resolution = Settings::Resolution::R_1280x720;
-        bool resizable = true;
+        bool resizable = false; // Changed default to false
     };
 
 public:
@@ -67,10 +67,12 @@ public:
     void setWindowMode(Settings::WindowMode mode);
     void setResolution(Settings::Resolution resolution);
     void setTitle(const std::string& title);
+    void setResizable(bool resizable); // New method to control resizing
 
     Settings::WindowMode getWindowMode() const { return m_currentMode; }
     Settings::Resolution getResolution() const { return m_currentResolution; }
     const std::string& getTitle() const { return m_title; }
+    bool isResizable() const { return m_resizable; }
 
     // === Events ===
     [[nodiscard]] ResizeEvent::Subscription onResize(ResizeEvent::Callback callback) {
@@ -91,6 +93,7 @@ public:
 
     // Utility for automatic Settings integration
     void connectToSettings(Settings& settings);
+    void disconnectFromSettings();
 
 private:
     void createWindow(const CreateInfo& createInfo);
@@ -99,6 +102,7 @@ private:
 
     void applyWindowMode(Settings::WindowMode mode);
     void applyResolution(Settings::Resolution resolution);
+    void applyResizable(bool resizable);
 
     // Process batched events
     void processBatchedEvents();
@@ -107,6 +111,9 @@ private:
 
     // Safe GLFW operations - check context validity before operations
     bool isGLFWValid() const;
+
+    // Settings event handler
+    void onSettingsChanged(Settings::SettingType type, const Settings::SettingValue& oldValue, const Settings::SettingValue& newValue);
 
     // GLFW callbacks
     static void framebufferSizeCallback(GLFWwindow* window, int width, int height);
@@ -142,6 +149,7 @@ private:
 
     // Settings integration
     std::optional<Settings::SettingChangedEvent::Subscription> m_settingsSubscription;
+    Settings* m_connectedSettings = nullptr; // Keep reference to connected settings
 };
 
 // Helper functions for resolution mapping

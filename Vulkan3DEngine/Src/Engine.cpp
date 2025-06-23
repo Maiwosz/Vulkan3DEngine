@@ -182,6 +182,11 @@ void Engine::connectEventHandlers() {
 
     // Connect window to settings for automatic updates
     m_window->connectToSettings(*m_settings);
+
+    // Connect logger manager to settings for log level updates
+    if (m_loggerManager && m_settings) {
+        m_loggerManager->connectToSettings(*m_settings);
+    }
 }
 
 void Engine::update() {
@@ -236,6 +241,11 @@ void Engine::updateFPS() {
 void Engine::cleanupComponents() {
     // Unsubscribe from events first
     m_windowCloseSubscription.unsubscribe();
+
+    // Disconnect logger manager from settings before cleanup
+    if (m_loggerManager) {
+        m_loggerManager->disconnectFromSettings();
+    }
 
     // Cleanup in reverse order
     m_renderSystem.reset();

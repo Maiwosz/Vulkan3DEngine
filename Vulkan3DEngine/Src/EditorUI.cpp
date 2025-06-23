@@ -27,6 +27,7 @@ EditorUI::EditorUI(Engine& engine)
     m_hierarchyWindow = std::make_unique<HierarchyWindow>(m_registry, *m_selectionManager);
     m_componentInspectorWindow = std::make_unique<ComponentInspectorWindow>(m_registry, *m_selectionManager);
     m_materialCreatorWindow = std::make_unique<MaterialCreatorUI>();
+    m_settingsWindow = std::make_unique<SettingsWindow>(m_engine.settings());
 
     // Clear scene name buffer
     memset(m_sceneNameBuffer, 0, sizeof(m_sceneNameBuffer));
@@ -78,7 +79,7 @@ void EditorUI::renderWindows() {
             ImGui::MenuItem("Hierarchy", nullptr, &m_hierarchyWindow->m_showWindow);
             ImGui::MenuItem("Component Inspector", nullptr, &m_componentInspectorWindow->m_showWindow);
             ImGui::MenuItem("Material Creator", nullptr, &m_materialCreatorWindow->m_showWindow);
-
+            ImGui::MenuItem("Settings", nullptr, &m_settingsWindow->m_showWindow);
             ImGui::EndMenu();
         }
 
@@ -93,6 +94,7 @@ void EditorUI::renderWindows() {
     m_hierarchyWindow->render();
     m_componentInspectorWindow->render();
     m_materialCreatorWindow->render();
+    m_settingsWindow->render();
 
     // Render engine stats window
     if (ImGui::Begin("Engine Stats")) {

@@ -64,6 +64,18 @@ public:
         bool anisotropySupported;
     };
 
+    struct SettingsBundle {
+        LogLevel logLevel;
+        WindowMode windowMode;
+        Resolution resolution;
+        bool vsyncEnabled;
+        TextureFiltering textureFiltering;
+        MipmapMode mipmapMode;
+        AnisotropyLevel anisotropyLevel;
+        MsaaSampleCount msaaSamples;
+        uint32_t framesInFlight;
+    };
+
 public:
     Settings();
     ~Settings() = default;
@@ -114,9 +126,14 @@ public:
     const HardwareLimits& getHardwareLimits() const { return m_hardwareLimits; }
     bool hasHardwareLimits() const { return m_hardwareLimitsSet; }
 
+    // Batch operations
+    SettingsBundle getAllSettings() const;
+    void applySettings(const SettingsBundle& bundle);
+    static SettingsBundle getDefaultSettings();
+
     // Persistence
-    bool save(const std::string& filename) const;
-    bool load(const std::string& filename);
+    bool save(const std::string& filename = "settings.json") const;
+    bool load(const std::string& filename = "settings.json");
 
     // Events - subscribe to setting changes
     [[nodiscard]] auto onSettingChanged() -> SettingChangedEvent& {

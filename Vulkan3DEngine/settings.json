@@ -1,6 +1,8 @@
 {
+    "anisotropyLevel": 8,
     "framesInFlight": 3,
     "logLevel": 3,
+    "mipmapMode": 1,
     "msaaSamples": 4,
     "resolution": 3,
     "textureFiltering": 2,

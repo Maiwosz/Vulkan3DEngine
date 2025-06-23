@@ -88,17 +88,14 @@ Window::Window(const CreateInfo& createInfo)
 Window::~Window() {
     SPDLOG_INFO("Destroying Window...");
 
+    // Disconnect from settings first
+    disconnectFromSettings();
+
     // Clean up in correct order - events first, then window
     m_resizeEvent.clear();
     m_focusEvent.clear();
     m_minimizeEvent.clear();
     m_closeEvent.clear();
-
-    // Clear settings subscription
-    if (m_settingsSubscription.has_value()) {
-        m_settingsSubscription->unsubscribe();
-        m_settingsSubscription.reset();
-    }
 
     destroyWindow();
 
@@ -118,8 +115,10 @@ Window::Window(Window&& other) noexcept
     , m_minimizeEvent(std::move(other.m_minimizeEvent))
     , m_closeEvent(std::move(other.m_closeEvent))
     , m_settingsSubscription(std::move(other.m_settingsSubscription))
+    , m_connectedSettings(other.m_connectedSettings)
 {
     other.m_window = nullptr;
+    other.m_connectedSettings = nullptr;
 
     // Copy pending resize state
     m_pendingResize.pending.store(other.m_pendingResize.pending.load());
@@ -140,6 +139,8 @@ Window::Window(Window&& other) noexcept
 
 Window& Window::operator=(Window&& other) noexcept {
     if (this != &other) {
+        // Disconnect from current settings
+        disconnectFromSettings();
         destroyWindow();
 
         m_glfwContext = std::move(other.m_glfwContext);
@@ -153,8 +154,10 @@ Window& Window::operator=(Window&& other) noexcept {
         m_minimizeEvent = std::move(other.m_minimizeEvent);
         m_closeEvent = std::move(other.m_closeEvent);
         m_settingsSubscription = std::move(other.m_settingsSubscription);
+        m_connectedSettings = other.m_connectedSettings;
 
         other.m_window = nullptr;
+        other.m_connectedSettings = nullptr;
 
         // Copy pending resize state
         m_pendingResize.pending.store(other.m_pendingResize.pending.load());
@@ -223,6 +226,8 @@ void Window::createWindow(const CreateInfo& createInfo) {
     }
 
     glfwSetWindowUserPointer(m_window, this);
+    SPDLOG_INFO("Window created: {}x{}, mode: {}, resizable: {}",
+        width, height, static_cast<int>(createInfo.mode), createInfo.resizable);
 }
 
 void Window::setupCallbacks() {
@@ -267,6 +272,7 @@ void Window::processBatchedEvents() {
         int height = m_pendingResize.height.load();
         m_pendingResize.pending.store(false);
 
+        SPDLOG_DEBUG("Processing resize event: {}x{}", width, height);
         m_resizeEvent.safeInvoke(width, height);
     }
 
@@ -275,6 +281,7 @@ void Window::processBatchedEvents() {
         bool focused = m_pendingFocus.focused.load();
         m_pendingFocus.pending.store(false);
 
+        SPDLOG_DEBUG("Processing focus event: {}", focused);
         m_focusEvent.safeInvoke(focused);
     }
 }
@@ -314,6 +321,9 @@ std::pair<int, int> Window::getPosition() const {
 void Window::setWindowMode(Settings::WindowMode mode) {
     if (m_currentMode == mode) return;
 
+    SPDLOG_INFO("Changing window mode from {} to {}",
+        static_cast<int>(m_currentMode), static_cast<int>(mode));
+
     m_currentMode = mode;
     applyWindowMode(mode);
 }
@@ -321,15 +331,32 @@ void Window::setWindowMode(Settings::WindowMode mode) {
 void Window::setResolution(Settings::Resolution resolution) {
     if (m_currentResolution == resolution) return;
 
+    auto oldRes = getResolutionInfo(m_currentResolution);
+    auto newRes = getResolutionInfo(resolution);
+
+    SPDLOG_INFO("Changing resolution from {}x{} to {}x{}",
+        oldRes.width, oldRes.height, newRes.width, newRes.height);
+
     m_currentResolution = resolution;
     applyResolution(resolution);
 }
 
 void Window::setTitle(const std::string& title) {
+    if (m_title == title) return;
+
+    SPDLOG_INFO("Changing window title from '{}' to '{}'", m_title, title);
     m_title = title;
     if (m_window && isGLFWValid()) {
         glfwSetWindowTitle(m_window, title.c_str());
     }
+}
+
+void Window::setResizable(bool resizable) {
+    if (m_resizable == resizable) return;
+
+    SPDLOG_INFO("Changing window resizable from {} to {}", m_resizable, resizable);
+    m_resizable = resizable;
+    applyResizable(resizable);
 }
 
 void Window::applyWindowMode(Settings::WindowMode mode) {
@@ -343,24 +370,49 @@ void Window::applyWindowMode(Settings::WindowMode mode) {
     auto resInfo = getResolutionInfo(m_currentResolution);
 
     switch (mode) {
-    case Settings::WindowMode::Windowed:
-        glfwSetWindowMonitor(m_window, nullptr, currentX, currentY,
-            resInfo.width, resInfo.height, vidmode->refreshRate);
+    case Settings::WindowMode::Windowed: {
+        // Najpierw przywróć dekoracje, zanim zmieniasz monitor
         glfwSetWindowAttrib(m_window, GLFW_DECORATED, GLFW_TRUE);
+
+        // Dla trybu okienkowego, ustaw pozycję wyśrodkowaną jeśli okno było w pełnym ekranie
+        int windowedX = currentX;
+        int windowedY = currentY;
+
+        // Jeśli okno było w trybie pełnoekranowym lub bezramkowym, wyśrodkuj je
+        if (m_currentMode == Settings::WindowMode::Fullscreen ||
+            m_currentMode == Settings::WindowMode::Borderless) {
+            windowedX = (vidmode->width - resInfo.width) / 2;
+            windowedY = (vidmode->height - resInfo.height) / 2;
+        }
+
+        glfwSetWindowMonitor(m_window, nullptr, windowedX, windowedY,
+            resInfo.width, resInfo.height, vidmode->refreshRate);
         break;
+    }
 
     case Settings::WindowMode::Fullscreen:
+        // Dla pełnego ekranu, zachowaj dekoracje
+        glfwSetWindowAttrib(m_window, GLFW_DECORATED, GLFW_TRUE);
         glfwSetWindowMonitor(m_window, monitor, 0, 0,
             resInfo.width, resInfo.height, vidmode->refreshRate);
-        glfwSetWindowAttrib(m_window, GLFW_DECORATED, GLFW_TRUE);
         break;
 
     case Settings::WindowMode::Borderless:
+        // Dla bezramkowego, usuń dekoracje PO ustawieniu monitora
         glfwSetWindowMonitor(m_window, monitor, 0, 0,
             vidmode->width, vidmode->height, vidmode->refreshRate);
         glfwSetWindowAttrib(m_window, GLFW_DECORATED, GLFW_FALSE);
         break;
     }
+
+    // Dodatkowe wymuszenie odświeżenia okna dla pewności
+    if (mode == Settings::WindowMode::Windowed) {
+        // Wymuszenie ponownego wyświetlenia dekoracji
+        glfwShowWindow(m_window);
+        glfwFocusWindow(m_window);
+    }
+
+    SPDLOG_DEBUG("Applied window mode: {}", static_cast<int>(mode));
 }
 
 void Window::applyResolution(Settings::Resolution resolution) {
@@ -371,6 +423,7 @@ void Window::applyResolution(Settings::Resolution resolution) {
     switch (m_currentMode) {
     case Settings::WindowMode::Windowed:
         glfwSetWindowSize(m_window, resInfo.width, resInfo.height);
+        SPDLOG_DEBUG("Applied windowed resolution: {}x{}", resInfo.width, resInfo.height);
         break;
 
     case Settings::WindowMode::Fullscreen: {
@@ -379,14 +432,23 @@ void Window::applyResolution(Settings::Resolution resolution) {
             const GLFWvidmode* vidmode = glfwGetVideoMode(monitor);
             glfwSetWindowMonitor(m_window, monitor, 0, 0,
                 resInfo.width, resInfo.height, vidmode->refreshRate);
+            SPDLOG_DEBUG("Applied fullscreen resolution: {}x{}", resInfo.width, resInfo.height);
         }
         break;
     }
 
     case Settings::WindowMode::Borderless:
         // Borderless uses native resolution, so no change needed
+        SPDLOG_DEBUG("Borderless mode - resolution change ignored");
         break;
     }
+}
+
+void Window::applyResizable(bool resizable) {
+    if (!m_window || !isGLFWValid()) return;
+
+    glfwSetWindowAttrib(m_window, GLFW_RESIZABLE, resizable ? GLFW_TRUE : GLFW_FALSE);
+    SPDLOG_DEBUG("Applied resizable: {}", resizable);
 }
 
 Settings::ResolutionInfo Window::getResolutionInfo(Settings::Resolution resolution) const {
@@ -394,31 +456,76 @@ Settings::ResolutionInfo Window::getResolutionInfo(Settings::Resolution resoluti
 }
 
 void Window::connectToSettings(Settings& settings) {
+    // Disconnect from any existing settings
+    disconnectFromSettings();
+
+    m_connectedSettings = &settings;
+
     // Subscribe to settings changes
     m_settingsSubscription = settings.onSettingChanged().subscribe(
-        [this, &settings](Settings::SettingType type, const Settings::SettingValue& /*old_value*/, const Settings::SettingValue& /*new_value*/) {
-            switch (type) {
-            case Settings::SettingType::WindowMode:
-                setWindowMode(settings.getWindowMode());
-                break;
-            case Settings::SettingType::Resolution:
-                setResolution(settings.getResolution());
-                break;
-            default:
-                break;
-            }
+        [this](Settings::SettingType type, const Settings::SettingValue& oldValue, const Settings::SettingValue& newValue) {
+            onSettingsChanged(type, oldValue, newValue);
         }
     );
+
+    SPDLOG_INFO("Window connected to Settings");
+}
+
+void Window::disconnectFromSettings() {
+    if (m_settingsSubscription.has_value()) {
+        m_settingsSubscription->unsubscribe();
+        m_settingsSubscription.reset();
+        SPDLOG_INFO("Window disconnected from Settings");
+    }
+    m_connectedSettings = nullptr;
+}
+
+void Window::onSettingsChanged(Settings::SettingType type, const Settings::SettingValue& oldValue, const Settings::SettingValue& newValue) {
+    if (!m_connectedSettings) return;
+
+    SPDLOG_DEBUG("Settings changed - type: {}", Settings::toString(type));
+
+    try {
+        switch (type) {
+        case Settings::SettingType::WindowMode: {
+            auto newMode = std::get<Settings::WindowMode>(newValue);
+            setWindowMode(newMode);
+            break;
+        }
+        case Settings::SettingType::Resolution: {
+            auto newResolution = std::get<Settings::Resolution>(newValue);
+            setResolution(newResolution);
+            break;
+        }
+        default:
+            // Other settings don't affect the window directly
+            break;
+        }
+    }
+    catch (const std::bad_variant_access& e) {
+        SPDLOG_ERROR("Bad variant access in settings change handler: {}", e.what());
+    }
+    catch (const std::exception& e) {
+        SPDLOG_ERROR("Exception in settings change handler: {}", e.what());
+    }
 }
 
 // === GLFW Callbacks ===
 void Window::framebufferSizeCallback(GLFWwindow* window, int width, int height) {
     if (auto* self = static_cast<Window*>(glfwGetWindowUserPointer(window))) {
         if (self->isGLFWValid()) {
+            // Check if resizing is allowed
+            if (!self->m_resizable) {
+                SPDLOG_DEBUG("Ignoring resize event - window is not resizable");
+                return;
+            }
+
             // Store the latest resize info instead of immediately invoking
             self->m_pendingResize.width.store(width);
             self->m_pendingResize.height.store(height);
             self->m_pendingResize.pending.store(true);
+
+            SPDLOG_DEBUG("Batched resize event: {}x{}", width, height);
         }
     }
 }
@@ -429,6 +536,8 @@ void Window::windowFocusCallback(GLFWwindow* window, int focused) {
             // Store the latest focus info instead of immediately invoking
             self->m_pendingFocus.focused.store(focused == GLFW_TRUE);
             self->m_pendingFocus.pending.store(true);
+
+            SPDLOG_DEBUG("Batched focus event: {}", focused == GLFW_TRUE);
         }
     }
 }
@@ -436,6 +545,7 @@ void Window::windowFocusCallback(GLFWwindow* window, int focused) {
 void Window::windowIconifyCallback(GLFWwindow* window, int iconified) {
     if (auto* self = static_cast<Window*>(glfwGetWindowUserPointer(window))) {
         if (self->isGLFWValid()) {
+            SPDLOG_DEBUG("Window minimize event: {}", iconified == GLFW_TRUE);
             self->m_minimizeEvent.safeInvoke(iconified == GLFW_TRUE);
         }
     }
@@ -444,6 +554,7 @@ void Window::windowIconifyCallback(GLFWwindow* window, int iconified) {
 void Window::windowCloseCallback(GLFWwindow* window) {
     if (auto* self = static_cast<Window*>(glfwGetWindowUserPointer(window))) {
         if (self->isGLFWValid()) {
+            SPDLOG_DEBUG("Window close event");
             self->m_closeEvent.safeInvoke();
         }
     }

@@ -8,6 +8,7 @@
 #include "SelectionManager.h"
 #include "ComponentInspectorWindow.h"
 #include "MaterialCreatorUI.h"
+#include "SettingsWindow.h"
 
 // Forward declarations
 class Engine;
@@ -37,6 +38,7 @@ private:
     std::unique_ptr<HierarchyWindow> m_hierarchyWindow;
     std::unique_ptr<ComponentInspectorWindow> m_componentInspectorWindow;
     std::unique_ptr<MaterialCreatorUI> m_materialCreatorWindow;
+    std::unique_ptr<SettingsWindow> m_settingsWindow;
 
     // Scene management UI state
     bool m_showOpenSceneDialog;

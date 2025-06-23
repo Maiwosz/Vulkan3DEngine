@@ -11,6 +11,8 @@
 #include <sstream>
 #include <iomanip>
 #include <unordered_map>
+#include "Settings.h"
+#include "Event.h"
 
 class LoggerManager {
 public:
@@ -37,6 +39,12 @@ public:
     // Add EDITOR logger (called by Editor after taking shared ownership)
     void addEditorLogger(const std::string& logDir, spdlog::level::level_enum level = spdlog::level::info);
 
+    // Connect to Settings to listen for log level changes
+    void connectToSettings(Settings& settings);
+
+    // Disconnect from Settings events
+    void disconnectFromSettings();
+
     // Create logger with separate file but shared console
     std::shared_ptr<spdlog::logger> createLogger(const LoggerOptions& options);
 
@@ -52,6 +60,9 @@ public:
     // Get named logger (creates if doesn't exist)
     std::shared_ptr<spdlog::logger> getNamedLogger(const std::string& name);
 
+    // Manually update log level for all loggers
+    void updateLogLevel(Settings::LogLevel newLevel);
+
     // Shutdown all loggers safely
     void shutdown();
 
@@ -62,10 +73,17 @@ private:
     std::string generateLogFilename(const LoggerOptions& options);
     void rotateLogFiles(const LoggerOptions& options);
 
+    // Event handler for Settings changes
+    void onSettingChanged(Settings::SettingType type, const Settings::SettingValue& oldValue, const Settings::SettingValue& newValue);
+
     // Shared console sink for all loggers
     std::shared_ptr<spdlog::sinks::stdout_color_sink_mt> m_sharedConsoleSink;
     std::unordered_map<std::string, std::shared_ptr<spdlog::logger>> m_namedLoggers;
     bool m_isShutdown = false;
+
+    // Settings event subscription
+    Settings::SettingChangedEvent::Subscription m_settingChangedSubscription;
+    Settings* m_connectedSettings = nullptr;
 };
 
 // Global instance access

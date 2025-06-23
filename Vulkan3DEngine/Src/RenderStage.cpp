@@ -46,7 +46,39 @@ void RenderStage::executeRenderPass() {
         executeTransferOperations();
 
         uint32_t imageIndex = acquireSwapchainImage();
+
+        // Validate swapchain image index
+        if (imageIndex >= m_swapChain.getImages().size()) {
+            SPDLOG_ERROR("Invalid swapchain image index: {}, max: {}",
+                imageIndex, m_swapChain.getImages().size());
+            throw std::runtime_error("Invalid swapchain image index");
+        }
+
         FrameBufferHandle framebufferHandle = createFramebufferForImage(imageIndex);
+
+        // Validate framebuffer handle
+        if (!framebufferHandle.isValid() || !m_framebufferManager.isValid(framebufferHandle)) {
+            SPDLOG_ERROR("Failed to create valid framebuffer for image index: {}", imageIndex);
+            throw std::runtime_error("Invalid framebuffer handle");
+        }
+
+        // Validate framebuffer dimensions
+        auto* framebufferResource = m_framebufferManager.getResource(framebufferHandle);
+        if (!framebufferResource) {
+            SPDLOG_ERROR("Framebuffer resource is null for handle: {}", framebufferHandle.id);
+            throw std::runtime_error("Null framebuffer resource");
+        }
+
+        VkExtent2D swapchainExtent = m_swapChain.getSwapChainExtent();
+        if (framebufferResource->config.extent.width != swapchainExtent.width ||
+            framebufferResource->config.extent.height != swapchainExtent.height) {
+            SPDLOG_ERROR("Framebuffer dimensions mismatch: {}x{} vs {}x{}",
+                framebufferResource->config.extent.width,
+                framebufferResource->config.extent.height,
+                swapchainExtent.width,
+                swapchainExtent.height);
+            throw std::runtime_error("Framebuffer dimension mismatch");
+        }
 
         beginRenderPass(framebufferHandle);
         executeRenderCommands(currentFrame.graphicsCommandBuffer.get()->handle(), imageIndex, currentFrame.renderOrders);
@@ -57,7 +89,6 @@ void RenderStage::executeRenderPass() {
 
         cleanupFrame();
         m_renderer.advanceFrame();
-
     }
     catch (const std::exception& e) {
         SPDLOG_ERROR("Error in render pass execution: {}", e.what());
@@ -254,54 +285,133 @@ void RenderStage::releaseCurrentFramebuffer() {
 FrameBufferHandle RenderStage::createFramebufferForImage(uint32_t imageIndex) {
     auto& currentFrame = m_frameManager.getCurrentFrame();
 
-    VramHandle swapchainImageHandle = m_swapChain.getImageHandles()[imageIndex];
-    // Fix: Store ID in variable to avoid reference issues
-    uint32_t handleId = swapchainImageHandle.id;
+    // Validate image index
+    const auto& imageHandles = m_swapChain.getImageHandles();
+    if (imageIndex >= imageHandles.size()) {
+        SPDLOG_ERROR("Image index {} out of range, max: {}", imageIndex, imageHandles.size());
+        return FrameBufferHandle(0);
+    }
+
+    VramHandle swapchainImageHandle = imageHandles[imageIndex];
+    if (!swapchainImageHandle.isValid()) {
+        SPDLOG_ERROR("Invalid swapchain image handle for index: {}", imageIndex);
+        return FrameBufferHandle(0);
+    }
+
+    uint64_t handleId = swapchainImageHandle.id;
     SPDLOG_DEBUG("Using swapchain image handle: {}", handleId);
 
-    AttachmentHandle swapchainAttachmentHandle = m_attachmentManager.registerExternalImage(
-        swapchainImageHandle,
-        m_swapChain.getImageFormat(),
-        m_swapChain.getSwapChainExtent(),
-        VK_IMAGE_LAYOUT_UNDEFINED,
-        VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
-        AttachmentType::Resolve
-    );
+    // Validate attachment handles
+    if (!m_attachmentManager.isValid(m_msColorAttachmentHandle)) {
+        SPDLOG_ERROR("Invalid multisampling color attachment handle: {}", m_msColorAttachmentHandle.id);
+        return FrameBufferHandle(0);
+    }
 
-    // Fix: Store ID in variable to avoid reference issues
-    uint32_t attachmentHandleId = swapchainAttachmentHandle.id;
-    SPDLOG_DEBUG("Created swapchain attachment handle: {}", attachmentHandleId);
+    if (!m_attachmentManager.isValid(m_depthAttachmentHandle)) {
+        SPDLOG_ERROR("Invalid depth attachment handle: {}", m_depthAttachmentHandle.id);
+        return FrameBufferHandle(0);
+    }
 
-    std::vector<AttachmentHandle> framebufferAttachments = {
-        m_msColorAttachmentHandle,
-        swapchainAttachmentHandle,
-        m_depthAttachmentHandle
-    };
+    // Validate render pass handle
+    if (!m_renderPassManager.isValid(m_mainRenderPassHandle)) {
+        SPDLOG_ERROR("Invalid render pass handle: {}", m_mainRenderPassHandle.id);
+        return FrameBufferHandle(0);
+    }
 
-    FrameBufferHandle framebufferHandle = m_framebufferManager.acquireFrameBuffer(
-        m_mainRenderPassHandle,
-        framebufferAttachments,
-        m_swapChain.getSwapChainExtent()
-    );
+    try {
+        AttachmentHandle swapchainAttachmentHandle = m_attachmentManager.registerExternalImage(
+            swapchainImageHandle,
+            m_swapChain.getImageFormat(),
+            m_swapChain.getSwapChainExtent(),
+            VK_IMAGE_LAYOUT_UNDEFINED,
+            VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
+            AttachmentType::Resolve
+        );
 
-    currentFrame.framebufferHandle = framebufferHandle;
-    // Fix: Store ID in variable to avoid reference issues
-    uint32_t framebufferHandleId = framebufferHandle.id;
-    SPDLOG_DEBUG("Using framebuffer handle: {}", framebufferHandleId);
+        if (!swapchainAttachmentHandle.isValid()) {
+            SPDLOG_ERROR("Failed to register swapchain image as attachment");
+            return FrameBufferHandle(0);
+        }
 
-    return framebufferHandle;
+        uint32_t attachmentHandleId = swapchainAttachmentHandle.id;
+        SPDLOG_DEBUG("Created swapchain attachment handle: {}", attachmentHandleId);
+
+        std::vector<AttachmentHandle> framebufferAttachments = {
+            m_msColorAttachmentHandle,
+            swapchainAttachmentHandle,
+            m_depthAttachmentHandle
+        };
+
+        FrameBufferHandle framebufferHandle = m_framebufferManager.acquireFrameBuffer(
+            m_mainRenderPassHandle,
+            framebufferAttachments,
+            m_swapChain.getSwapChainExtent()
+        );
+
+        if (!framebufferHandle.isValid()) {
+            SPDLOG_ERROR("Failed to acquire framebuffer");
+            return FrameBufferHandle(0);
+        }
+
+        currentFrame.framebufferHandle = framebufferHandle;
+        uint32_t framebufferHandleId = framebufferHandle.id;
+        SPDLOG_DEBUG("Using framebuffer handle: {}", framebufferHandleId);
+
+        return framebufferHandle;
+    }
+    catch (const std::exception& e) {
+        SPDLOG_ERROR("Exception in createFramebufferForImage: {}", e.what());
+        return FrameBufferHandle(0);
+    }
 }
 
 // Render pass execution
 void RenderStage::beginRenderPass(FrameBufferHandle framebufferHandle) {
     auto& currentFrame = m_frameManager.getCurrentFrame();
 
+    // Validate framebuffer handle
+    if (!framebufferHandle.isValid() || !m_framebufferManager.isValid(framebufferHandle)) {
+        SPDLOG_ERROR("Invalid framebuffer handle: {}", framebufferHandle.id);
+        throw std::runtime_error("Invalid framebuffer handle in beginRenderPass");
+    }
+
+    // Validate render pass handle
+    if (!m_renderPassManager.isValid(m_mainRenderPassHandle)) {
+        SPDLOG_ERROR("Invalid render pass handle: {}", m_mainRenderPassHandle.id);
+        throw std::runtime_error("Invalid render pass handle in beginRenderPass");
+    }
+
+    // Get resources
+    auto* renderPass = m_renderPassManager.getResource(m_mainRenderPassHandle);
+    if (!renderPass || *renderPass == VK_NULL_HANDLE) {
+        SPDLOG_ERROR("Render pass resource is null or invalid");
+        throw std::runtime_error("Invalid render pass resource");
+    }
+
+    auto* framebufferResource = m_framebufferManager.getResource(framebufferHandle);
+    if (!framebufferResource || framebufferResource->frameBuffer == VK_NULL_HANDLE) {
+        SPDLOG_ERROR("Framebuffer resource is null or invalid");
+        throw std::runtime_error("Invalid framebuffer resource");
+    }
+
+    // Validate dimensions match
+    VkExtent2D swapchainExtent = m_swapChain.getSwapChainExtent();
+    if (framebufferResource->config.extent.width != swapchainExtent.width ||
+        framebufferResource->config.extent.height != swapchainExtent.height) {
+        SPDLOG_ERROR("Framebuffer extent mismatch with swapchain: {}x{} vs {}x{}",
+            framebufferResource->config.extent.width,
+            framebufferResource->config.extent.height,
+            swapchainExtent.width,
+            swapchainExtent.height);
+        throw std::runtime_error("Framebuffer extent mismatch");
+    }
+
     VkRenderPassBeginInfo renderPassInfo{};
     renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
-    renderPassInfo.renderPass = *m_renderPassManager.getResource(m_mainRenderPassHandle);
-    renderPassInfo.framebuffer = m_framebufferManager.getResource(framebufferHandle)->frameBuffer;
+    renderPassInfo.renderPass = *renderPass;
+    renderPassInfo.framebuffer = framebufferResource->frameBuffer;
     renderPassInfo.renderArea.offset = { 0, 0 };
-    renderPassInfo.renderArea.extent = m_swapChain.getSwapChainExtent();
+    renderPassInfo.renderArea.extent = swapchainExtent;
 
     std::array<VkClearValue, 3> clearValues{};
     clearValues[0].color = { {0.0f, 0.0f, 0.0f, 0.0f} };
@@ -311,9 +421,8 @@ void RenderStage::beginRenderPass(FrameBufferHandle framebufferHandle) {
     renderPassInfo.clearValueCount = static_cast<uint32_t>(clearValues.size());
     renderPassInfo.pClearValues = clearValues.data();
 
-    // Fix: Store values in variables to avoid reference issues
-    uint32_t width = m_swapChain.getSwapChainExtent().width;
-    uint32_t height = m_swapChain.getSwapChainExtent().height;
+    uint32_t width = swapchainExtent.width;
+    uint32_t height = swapchainExtent.height;
     SPDLOG_INFO("Beginning render pass with dimensions: {}x{}", width, height);
 
     vkCmdBeginRenderPass(
@@ -401,28 +510,65 @@ void RenderStage::executeRenderCommands(
 }
 
 void RenderStage::executeMeshRenderOrder(VkCommandBuffer commandBuffer, MeshRenderOrder* meshOrder) {
-    // Fix: Store IDs in variables to avoid reference issues
+    if (!meshOrder) {
+        SPDLOG_ERROR("MeshRenderOrder is null");
+        return;
+    }
+
+    // Validate pipeline handle
+    if (!meshOrder->pipelineHandle.isValid()) {
+        SPDLOG_ERROR("Invalid pipeline handle in mesh render order");
+        return;
+    }
+
+    // Validate mesh handle
+    if (!meshOrder->meshHandle.isValid()) {
+        SPDLOG_ERROR("Invalid mesh handle in mesh render order");
+        return;
+    }
+
     uint32_t pipelineId = meshOrder->pipelineHandle.id;
     uint32_t meshId = meshOrder->meshHandle.id;
     SPDLOG_DEBUG("Processing mesh render order, pipeline handle: {}, mesh handle: {}", pipelineId, meshId);
 
-    Pipeline* pipeline = &m_pipelineManager.get(meshOrder->pipelineHandle);
-    if (!pipeline) {
-        SPDLOG_ERROR("Failed to get pipeline from handle: {}", pipelineId);
-        return;
-    }
+    // Validate pipeline exists
+    try {
+        Pipeline* pipeline = &m_pipelineManager.get(meshOrder->pipelineHandle);
+        if (!pipeline) {
+            SPDLOG_ERROR("Failed to get pipeline from handle: {}", pipelineId);
+            return;
+        }
 
-    bindPipeline(commandBuffer, meshOrder->pipelineHandle);
-    setViewportAndScissor(commandBuffer);
-    bindDescriptorSets(commandBuffer, pipeline->getLayout(), meshOrder);
+        // Validate mesh exists
+        const Mesh* mesh = m_meshManager.getMesh(meshOrder->meshHandle);
+        if (!mesh) {
+            SPDLOG_ERROR("Mesh not found for handle: {}", meshId);
+            return;
+        }
 
-    const Mesh* mesh = m_meshManager.getMesh(meshOrder->meshHandle);
-    if (mesh) {
+        // Validate mesh buffers
+        if (!mesh->vertexBuffer.isValid() || !mesh->indexBuffer.isValid()) {
+            SPDLOG_ERROR("Invalid mesh buffers - vertex: {}, index: {}",
+                mesh->vertexBuffer.isValid(), mesh->indexBuffer.isValid());
+            return;
+        }
+
+        // Validate mesh has geometry
+        if (mesh->vertexCount == 0 || mesh->indexCount == 0) {
+            SPDLOG_WARN("Mesh has no geometry - vertices: {}, indices: {}",
+                mesh->vertexCount, mesh->indexCount);
+            return;
+        }
+
+        bindPipeline(commandBuffer, meshOrder->pipelineHandle);
+        setViewportAndScissor(commandBuffer);
+        bindDescriptorSets(commandBuffer, pipeline->getLayout(), meshOrder);
         bindVertexAndIndexBuffers(commandBuffer, mesh);
         drawMesh(commandBuffer, mesh);
     }
-    else {
-        SPDLOG_ERROR("Mesh not found for handle: {}", meshId);
+    catch (const std::exception& e) {
+        SPDLOG_ERROR("Exception in executeMeshRenderOrder: {}", e.what());
+        return;
     }
 }
 
@@ -454,34 +600,74 @@ void RenderStage::setViewportAndScissor(VkCommandBuffer commandBuffer) {
 }
 
 void RenderStage::bindDescriptorSets(VkCommandBuffer commandBuffer, VkPipelineLayout pipelineLayout, MeshRenderOrder* meshOrder) {
+    if (!meshOrder) {
+        SPDLOG_ERROR("MeshRenderOrder is null");
+        return;
+    }
+
+    if (pipelineLayout == VK_NULL_HANDLE) {
+        SPDLOG_ERROR("Pipeline layout is null");
+        return;
+    }
+
+    // Validate and bind global descriptor set
     if (meshOrder->globalDescriptorSetHandle.isValid()) {
-        VkDescriptorSet globalDescSet = m_descriptorAllocator.getDescriptorSet(meshOrder->globalDescriptorSetHandle.handle());
-        vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &globalDescSet, 0, nullptr);
-        // Fix: Store ID in variable to avoid reference issues
-        uint32_t handleId = meshOrder->globalDescriptorSetHandle.handle().id;
-        SPDLOG_DEBUG("Global descriptor set bound, handle ID: {}", handleId);
+        try {
+            VkDescriptorSet globalDescSet = m_descriptorAllocator.getDescriptorSet(meshOrder->globalDescriptorSetHandle.handle());
+            if (globalDescSet != VK_NULL_HANDLE) {
+                vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &globalDescSet, 0, nullptr);
+                uint32_t handleId = meshOrder->globalDescriptorSetHandle.handle().id;
+                SPDLOG_DEBUG("Global descriptor set bound, handle ID: {}", handleId);
+            }
+            else {
+                SPDLOG_WARN("Global descriptor set is null for valid handle");
+            }
+        }
+        catch (const std::exception& e) {
+            SPDLOG_ERROR("Failed to bind global descriptor set: {}", e.what());
+        }
     }
     else {
         SPDLOG_WARN("Global descriptor set handle is invalid");
     }
 
+    // Validate and bind object descriptor set
     if (meshOrder->objectDescriptorSetHandle.isValid()) {
-        VkDescriptorSet objectDescSet = m_descriptorAllocator.getDescriptorSet(meshOrder->objectDescriptorSetHandle.handle());
-        vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 1, 1, &objectDescSet, 0, nullptr);
-        // Fix: Store ID in variable to avoid reference issues
-        uint32_t handleId = meshOrder->objectDescriptorSetHandle.handle().id;
-        SPDLOG_DEBUG("Object descriptor set bound, handle ID: {}", handleId);
+        try {
+            VkDescriptorSet objectDescSet = m_descriptorAllocator.getDescriptorSet(meshOrder->objectDescriptorSetHandle.handle());
+            if (objectDescSet != VK_NULL_HANDLE) {
+                vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 1, 1, &objectDescSet, 0, nullptr);
+                uint32_t handleId = meshOrder->objectDescriptorSetHandle.handle().id;
+                SPDLOG_DEBUG("Object descriptor set bound, handle ID: {}", handleId);
+            }
+            else {
+                SPDLOG_WARN("Object descriptor set is null for valid handle");
+            }
+        }
+        catch (const std::exception& e) {
+            SPDLOG_ERROR("Failed to bind object descriptor set: {}", e.what());
+        }
     }
     else {
         SPDLOG_WARN("Object descriptor set handle is invalid");
     }
 
+    // Validate and bind material descriptor set
     if (meshOrder->materialDescriptorSetHandle.isValid()) {
-        VkDescriptorSet materialDescSet = m_descriptorAllocator.getDescriptorSet(meshOrder->materialDescriptorSetHandle.handle());
-        vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 2, 1, &materialDescSet, 0, nullptr);
-        // Fix: Store ID in variable to avoid reference issues
-        uint32_t handleId = meshOrder->materialDescriptorSetHandle.handle().id;
-        SPDLOG_DEBUG("Material descriptor set bound, handle ID: {}", handleId);
+        try {
+            VkDescriptorSet materialDescSet = m_descriptorAllocator.getDescriptorSet(meshOrder->materialDescriptorSetHandle.handle());
+            if (materialDescSet != VK_NULL_HANDLE) {
+                vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 2, 1, &materialDescSet, 0, nullptr);
+                uint32_t handleId = meshOrder->materialDescriptorSetHandle.handle().id;
+                SPDLOG_DEBUG("Material descriptor set bound, handle ID: {}", handleId);
+            }
+            else {
+                SPDLOG_WARN("Material descriptor set is null for valid handle");
+            }
+        }
+        catch (const std::exception& e) {
+            SPDLOG_ERROR("Failed to bind material descriptor set: {}", e.what());
+        }
     }
     else {
         SPDLOG_WARN("Material descriptor set handle is invalid");
@@ -489,24 +675,50 @@ void RenderStage::bindDescriptorSets(VkCommandBuffer commandBuffer, VkPipelineLa
 }
 
 void RenderStage::bindVertexAndIndexBuffers(VkCommandBuffer commandBuffer, const Mesh* mesh) {
-    // Fix: Store values in variables to avoid reference issues
+    if (!mesh) {
+        SPDLOG_ERROR("Mesh pointer is null");
+        return;
+    }
+
     uint32_t vertexCount = mesh->vertexCount;
     uint32_t indexCount = mesh->indexCount;
     SPDLOG_DEBUG("Using mesh: vertices={}, indices={}", vertexCount, indexCount);
 
-    VkBuffer vertexBuffer = m_vramManager.getResource<Buffer>(mesh->vertexBuffer)->get();
-    VkBuffer indexBuffer = m_vramManager.getResource<Buffer>(mesh->indexBuffer)->get();
+    // Validate and get vertex buffer
 
+    auto* vertexBufferResource = m_vramManager.getResource<Buffer>(mesh->vertexBuffer);
+    if (!vertexBufferResource) {
+        SPDLOG_ERROR("Vertex buffer resource is null for handle: {}", mesh->vertexBuffer.id);
+        return;
+    }
+
+    VkBuffer vertexBuffer = vertexBufferResource->get();
     if (vertexBuffer == VK_NULL_HANDLE) {
-        SPDLOG_ERROR("Vertex buffer handle is NULL!");
+        SPDLOG_ERROR("Vertex buffer VkBuffer is null");
         return;
     }
 
+    auto* indexBufferResource = m_vramManager.getResource<Buffer>(mesh->indexBuffer);
+    if (!indexBufferResource) {
+        SPDLOG_ERROR("Index buffer resource is null for handle: {}", mesh->indexBuffer.id);
+        return;
+    }
+
+    VkBuffer indexBuffer = indexBufferResource->get();
     if (indexBuffer == VK_NULL_HANDLE) {
-        SPDLOG_ERROR("Index buffer handle is NULL!");
+        SPDLOG_ERROR("Index buffer VkBuffer is null");
         return;
     }
 
+    // Validate buffer sizes
+    size_t expectedIndexSize = mesh->indexCount * mesh->getIndexSize();
+    if (indexBufferResource->getSize() < expectedIndexSize) {
+        SPDLOG_ERROR("Index buffer too small: expected {}, got {}",
+            expectedIndexSize, indexBufferResource->getSize());
+        return;
+    }
+
+    // Bind buffers
     VkDeviceSize offsets[] = { 0 };
     vkCmdBindVertexBuffers(commandBuffer, 0, 1, &vertexBuffer, offsets);
     SPDLOG_DEBUG("Vertex buffer bound: {:#x}", reinterpret_cast<uint64_t>(vertexBuffer));

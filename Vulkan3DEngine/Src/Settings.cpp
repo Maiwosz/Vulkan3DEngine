@@ -167,6 +167,147 @@ void Settings::setHardwareLimits(const HardwareLimits& limits) {
     setTextureFiltering(currentFiltering);
 }
 
+Settings::SettingsBundle Settings::getAllSettings() const {
+    return SettingsBundle{
+        m_logLevel,
+        m_windowMode,
+        m_resolution,
+        m_vsyncEnabled,
+        m_textureFiltering,
+        m_mipmapMode,
+        m_anisotropyLevel,
+        m_msaaSamples,
+        m_framesInFlight
+    };
+}
+
+void Settings::applySettings(const SettingsBundle& bundle) {
+    // Collect all changes to fire events properly
+    std::vector<std::tuple<SettingType, SettingValue, SettingValue>> changes;
+
+    bool displayChanged = false;
+    bool graphicsChanged = false;
+
+    // Check and collect all changes
+    if (m_logLevel != bundle.logLevel) {
+        changes.emplace_back(SettingType::LogLevel, makeSettingValue(m_logLevel), makeSettingValue(bundle.logLevel));
+        m_logLevel = bundle.logLevel;
+    }
+
+    if (m_windowMode != bundle.windowMode) {
+        changes.emplace_back(SettingType::WindowMode, makeSettingValue(m_windowMode), makeSettingValue(bundle.windowMode));
+        m_windowMode = bundle.windowMode;
+        displayChanged = true;
+    }
+
+    if (m_resolution != bundle.resolution) {
+        changes.emplace_back(SettingType::Resolution, makeSettingValue(m_resolution), makeSettingValue(bundle.resolution));
+        m_resolution = bundle.resolution;
+        displayChanged = true;
+    }
+
+    if (m_vsyncEnabled != bundle.vsyncEnabled) {
+        changes.emplace_back(SettingType::VSync, makeSettingValue(m_vsyncEnabled), makeSettingValue(bundle.vsyncEnabled));
+        m_vsyncEnabled = bundle.vsyncEnabled;
+        displayChanged = true;
+    }
+
+    // Validate and collect graphics settings changes
+    auto filtering = bundle.textureFiltering;
+    auto anisotropy = bundle.anisotropyLevel;
+    auto msaa = bundle.msaaSamples;
+    auto framesInFlight = std::clamp(bundle.framesInFlight, MIN_FRAMES, MAX_FRAMES);
+
+    // Validate graphics settings
+    bool filteringChanged = validateTextureFiltering(filtering);
+    bool anisotropyChanged = validateAndClampAnisotropy(anisotropy);
+    bool msaaChanged = validateAndClampMsaa(msaa);
+
+    // Log warnings for clamped values
+    if (filteringChanged && filtering != bundle.textureFiltering) {
+        SPDLOG_WARN("Texture filtering {} not supported, using {}",
+            toString(bundle.textureFiltering), toString(filtering));
+    }
+    if (anisotropyChanged && anisotropy != bundle.anisotropyLevel) {
+        SPDLOG_WARN("Anisotropy level {}x exceeds maximum, clamped to {}x",
+            static_cast<int>(bundle.anisotropyLevel), static_cast<int>(anisotropy));
+    }
+    if (msaaChanged && msaa != bundle.msaaSamples) {
+        SPDLOG_WARN("MSAA samples {}x exceeds maximum, clamped to {}x",
+            static_cast<int>(bundle.msaaSamples), static_cast<int>(msaa));
+    }
+    if (framesInFlight != bundle.framesInFlight) {
+        SPDLOG_WARN("Frames in flight clamped from {} to {} (valid range: {}-{})",
+            bundle.framesInFlight, framesInFlight, MIN_FRAMES, MAX_FRAMES);
+    }
+
+    // Check graphics settings changes
+    if (m_textureFiltering != filtering) {
+        changes.emplace_back(SettingType::TextureFiltering, makeSettingValue(m_textureFiltering), makeSettingValue(filtering));
+        m_textureFiltering = filtering;
+        graphicsChanged = true;
+    }
+
+    if (m_mipmapMode != bundle.mipmapMode) {
+        changes.emplace_back(SettingType::MipmapMode, makeSettingValue(m_mipmapMode), makeSettingValue(bundle.mipmapMode));
+        m_mipmapMode = bundle.mipmapMode;
+        graphicsChanged = true;
+    }
+
+    if (m_anisotropyLevel != anisotropy) {
+        changes.emplace_back(SettingType::AnisotropyLevel, makeSettingValue(m_anisotropyLevel), makeSettingValue(anisotropy));
+        m_anisotropyLevel = anisotropy;
+        graphicsChanged = true;
+    }
+
+    if (m_msaaSamples != msaa) {
+        changes.emplace_back(SettingType::MsaaSamples, makeSettingValue(m_msaaSamples), makeSettingValue(msaa));
+        m_msaaSamples = msaa;
+        graphicsChanged = true;
+    }
+
+    if (m_framesInFlight != framesInFlight) {
+        changes.emplace_back(SettingType::FramesInFlight, makeSettingValue(m_framesInFlight), makeSettingValue(framesInFlight));
+        m_framesInFlight = framesInFlight;
+        graphicsChanged = true;
+    }
+
+    // Fire all individual setting changed events
+    for (const auto& [type, oldValue, newValue] : changes) {
+        SPDLOG_INFO("{} changed: {} → {}", toString(type), toString(oldValue), toString(newValue));
+        m_settingChangedEvent.invoke(type, oldValue, newValue);
+    }
+
+    // Fire consolidated events
+    if (displayChanged) {
+        m_displaySettingChangedEvent.invoke();
+    }
+
+    if (graphicsChanged) {
+        m_graphicsSettingChangedEvent.invoke();
+    }
+
+    // Log the batch update
+    if (!changes.empty()) {
+        SPDLOG_INFO("Applied settings batch update with {} changes", changes.size());
+    }
+}
+
+
+Settings::SettingsBundle Settings::getDefaultSettings() {
+    return SettingsBundle{
+        SettingsDefaults::LOG_LEVEL,
+        SettingsDefaults::WINDOW_MODE,
+        SettingsDefaults::RESOLUTION,
+        SettingsDefaults::VSYNC_ENABLED,
+        SettingsDefaults::TEXTURE_FILTERING,
+        SettingsDefaults::MIPMAP_MODE,
+        SettingsDefaults::ANISOTROPY_LEVEL,
+        SettingsDefaults::MSAA_SAMPLES,
+        SettingsDefaults::FRAMES_IN_FLIGHT
+    };
+}
+
 Settings::ResolutionInfo Settings::getResolutionInfo() const {
     auto it = RESOLUTION_INFO.find(m_resolution);
     return it != RESOLUTION_INFO.end() ? it->second : ResolutionInfo{ 1280, 720, "1280x720" };
@@ -399,7 +540,7 @@ void Settings::updateSetting(T& current, T newValue, SettingType settingType) {
 
         current = newValue;
 
-        // Fire events with type-safe values
+        // Fire individual setting changed event
         m_settingChangedEvent.invoke(settingType, oldValue, newValueVariant);
     }
 }
@@ -423,9 +564,9 @@ bool Settings::validateAndClampMsaa(MsaaSampleCount& samples) const {
 
     if (static_cast<int>(samples) > static_cast<int>(m_hardwareLimits.maxMsaa)) {
         samples = m_hardwareLimits.maxMsaa;
-        return false;
+        return false; // Changed
     }
-    return true;
+    return true; // No change
 }
 
 bool Settings::validateAndClampAnisotropy(AnisotropyLevel& level) const {
@@ -439,9 +580,9 @@ bool Settings::validateAndClampAnisotropy(AnisotropyLevel& level) const {
         else if (m_hardwareLimits.maxAnisotropy >= 4.0f) level = AnisotropyLevel::X4;
         else if (m_hardwareLimits.maxAnisotropy >= 2.0f) level = AnisotropyLevel::X2;
         else level = AnisotropyLevel::X1;
-        return false;
+        return false; // Changed
     }
-    return true;
+    return true; // No change
 }
 
 bool Settings::validateTextureFiltering(TextureFiltering& filtering) const {
@@ -449,7 +590,7 @@ bool Settings::validateTextureFiltering(TextureFiltering& filtering) const {
 
     if (filtering == TextureFiltering::Anisotropic && !m_hardwareLimits.anisotropySupported) {
         filtering = TextureFiltering::Trilinear;
-        return false;
+        return false; // Changed
     }
-    return true;
+    return true; // No change
 }

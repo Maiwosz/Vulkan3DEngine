@@ -1,5 +1,6 @@
 #include "LoggerManager.h"
 #include <algorithm>
+#include <variant>
 
 // Static member definitions for LoggerAccess
 std::weak_ptr<LoggerManager> LoggerAccess::s_loggerManager;
@@ -51,6 +52,95 @@ void LoggerManager::addEditorLogger(const std::string& logDir, spdlog::level::le
 
     auto editorLogger = createSharedConsoleLogger(editorOptions, consoleSink);
     m_namedLoggers["EDITOR"] = editorLogger;
+}
+
+void LoggerManager::connectToSettings(Settings& settings) {
+    if (m_isShutdown) {
+        return;
+    }
+
+    // Disconnect from previous settings if any
+    disconnectFromSettings();
+
+    // Subscribe to settings changes
+    m_settingChangedSubscription = settings.onSettingChanged().subscribe(
+        [this](Settings::SettingType type, const Settings::SettingValue& oldValue, const Settings::SettingValue& newValue) {
+            onSettingChanged(type, oldValue, newValue);
+        }
+    );
+
+    m_connectedSettings = &settings;
+
+    // Log the connection
+    if (auto logger = getNamedLogger("ENGINE")) {
+        logger->info("LoggerManager connected to Settings for log level updates");
+    }
+}
+
+void LoggerManager::disconnectFromSettings() {
+    if (m_settingChangedSubscription.isValid()) {
+        m_settingChangedSubscription.unsubscribe();
+    }
+    m_connectedSettings = nullptr;
+}
+
+void LoggerManager::onSettingChanged(Settings::SettingType type, const Settings::SettingValue& oldValue, const Settings::SettingValue& newValue) {
+    if (m_isShutdown) {
+        return;
+    }
+
+    // Only handle LogLevel changes
+    if (type != Settings::SettingType::LogLevel) {
+        return;
+    }
+
+    // Extract the new LogLevel from the variant
+    try {
+        auto newLogLevel = std::get<Settings::LogLevel>(newValue);
+        auto oldLogLevel = std::get<Settings::LogLevel>(oldValue);
+
+        // Convert to spdlog level and update all loggers
+        auto spdlogLevel = Settings::toSpdlogLevel(newLogLevel);
+
+        // Update all existing loggers
+        for (auto& [name, logger] : m_namedLoggers) {
+            if (logger) {
+                logger->set_level(spdlogLevel);
+            }
+        }
+
+        // Log the change using the new level
+        if (auto logger = getNamedLogger("ENGINE")) {
+            logger->info("Log level changed from {} to {}",
+                Settings::toString(oldLogLevel),
+                Settings::toString(newLogLevel));
+        }
+    }
+    catch (const std::bad_variant_access& e) {
+        // Handle variant access error - this shouldn't happen if Settings is working correctly
+        if (auto logger = getNamedLogger("ENGINE")) {
+            logger->error("Failed to extract log level from Settings event: {}", e.what());
+        }
+    }
+}
+
+void LoggerManager::updateLogLevel(Settings::LogLevel newLevel) {
+    if (m_isShutdown) {
+        return;
+    }
+
+    auto spdlogLevel = Settings::toSpdlogLevel(newLevel);
+
+    // Update all existing loggers
+    for (auto& [name, logger] : m_namedLoggers) {
+        if (logger) {
+            logger->set_level(spdlogLevel);
+        }
+    }
+
+    if (auto logger = getNamedLogger("ENGINE")) {
+        logger->info("Log level manually updated to {}", Settings::toString(newLevel));
+    }
 }
 
 std::shared_ptr<spdlog::logger> LoggerManager::createLogger(const LoggerOptions& options) {
@@ -200,6 +290,9 @@ void LoggerManager::shutdown() {
     }
 
     m_isShutdown = true;
+
+    // Disconnect from Settings events
+    disconnectFromSettings();
 
     // Flush all loggers
     for (auto& [name, logger] : m_namedLoggers) {

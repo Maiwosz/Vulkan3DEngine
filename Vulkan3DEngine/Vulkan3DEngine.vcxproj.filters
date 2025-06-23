@@ -296,6 +296,9 @@
     <ClCompile Include="Src\MaterialCreatorUI.cpp">
       <Filter>Editor\EditorUI\MaterialCreatorUI</Filter>
     </ClCompile>
+    <ClCompile Include="Src\SettingsWindow.cpp">
+      <Filter>Editor\EditorUI\SettingsWindow</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Src\Prerequisites.h" />
@@ -660,6 +663,9 @@
     <ClInclude Include="Src\MaterialCreatorUI.h">
       <Filter>Editor\EditorUI\MaterialCreatorUI</Filter>
     </ClInclude>
+    <ClInclude Include="Src\SettingsWindow.h">
+      <Filter>Editor\EditorUI\SettingsWindow</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <None Include="..\Libs\imgui\.gitattributes">
@@ -969,6 +975,9 @@
     </Filter>
     <Filter Include="Editor\EditorUI\MaterialCreatorUI\MaterialCreator">
       <UniqueIdentifier>{a7664f0a-2048-464f-9dfc-881b5a1ff7bd}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Editor\EditorUI\SettingsWindow">
+      <UniqueIdentifier>{f98a6b91-a335-4e86-9ade-5a53fbc03c22}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
 </Project>
