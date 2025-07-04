@@ -4,8 +4,8 @@
     "logLevel": 3,
     "mipmapMode": 1,
     "msaaSamples": 4,
-    "resolution": 3,
+    "resolution": 6,
     "textureFiltering": 2,
     "vsyncEnabled": false,
-    "windowMode": 0
+    "windowMode": 1
 }

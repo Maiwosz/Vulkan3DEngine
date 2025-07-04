@@ -11,6 +11,7 @@
 #include <Serialization.h>
 #include <fstream>
 #include <UBODefinitions.h>
+#include "ShaderParser.h"
 
 using namespace ShaderLib;
 using namespace ShaderLib::TypeConversion;
@@ -18,136 +19,6 @@ using namespace ShaderLib::TypeConversion;
 bool usePritnf = false;
 
 namespace Shader {
-
-    struct ShaderStage {
-        std::string code;
-        Stage stage;
-    };
-
-    struct InputVariable {
-        std::string type;
-        std::string name;
-        bool isSampler;
-    };
-
-    struct ShaderSourceData {
-        std::string versionLine;
-        std::vector<InputVariable> inputVariables;
-        bool usesGlobalUBO;
-        bool usesObjectUBO;
-        std::vector<ShaderStage> stages;
-    };
-
-
-    // Extract version line from shader source
-    std::string ExtractVersionLine(const std::string& source) {
-        std::regex versionRegex(R"(^\s*#version\s+\d+[^\n]*)");
-        std::smatch match;
-        if (std::regex_search(source, match, versionRegex)) {
-            return match[0].str();
-        }
-        return "#version 450"; // Domyślna wersja
-    }
-
-    // Extract InputData block from source
-    std::string ExtractInputDataBlock(const std::string& source) {
-        std::regex inputDataRegex(R"(InputData\s*\{([\s\S]*?)\};)");
-        std::smatch match;
-
-        if (std::regex_search(source, match, inputDataRegex)) {
-            return match[1].str();
-        }
-
-        return "";
-    }
-
-    // Check if a UBO directive is present
-    bool CheckUseUBO(const std::string& source, const std::string& uboType) {
-        std::string directive = "#use " + uboType;
-        return source.find(directive) != std::string::npos;
-    }
-
-    // Split shader into stages
-    // Improved version of the SplitShaderStages function
-    std::vector<ShaderStage> SplitShaderStages(const std::string& source) {
-        std::vector<ShaderStage> stages;
-
-        // Find all #stage directives
-        std::vector<std::pair<size_t, std::string>> stagePositions;
-
-        std::regex stageDirectiveRegex(R"(#stage\s+(\w+))");
-        auto beginDir = std::sregex_iterator(source.begin(), source.end(), stageDirectiveRegex);
-        auto endDir = std::sregex_iterator();
-
-        for (std::sregex_iterator i = beginDir; i != endDir; ++i) {
-            std::smatch match = *i;
-            stagePositions.push_back({ match.position(), match[1].str() });
-        }
-
-        // If no stages found, return empty vector
-        if (stagePositions.empty()) {
-            return stages;
-        }
-
-        // Extract each stage's code
-        for (size_t i = 0; i < stagePositions.size(); ++i) {
-            size_t startPos = stagePositions[i].first;
-            size_t endPos;
-
-            // Find where the directive ends (after the stage name)
-            size_t directiveEnd = source.find_first_of("\r\n", startPos);
-            if (directiveEnd == std::string::npos) {
-                directiveEnd = source.length();
-            }
-
-            // Find content start (after the line break)
-            size_t contentStart = source.find_first_not_of("\r\n", directiveEnd);
-            if (contentStart == std::string::npos) {
-                contentStart = directiveEnd;
-            }
-
-            // Find content end (either at next #stage or end of file)
-            if (i < stagePositions.size() - 1) {
-                endPos = stagePositions[i + 1].first;
-            }
-            else {
-                endPos = source.length();
-            }
-
-            // Extract code
-            std::string stageName = stagePositions[i].second;
-            std::string code = source.substr(contentStart, endPos - contentStart);
-
-            // Create stage
-            Stage stageEnum = StringToStage(stageName);
-            stages.push_back({ code, stageEnum });
-        }
-
-        return stages;
-    }
-
-    // Parse input data block to extract variables
-    std::vector<InputVariable> ParseInputData(const std::string& inputBlock) {
-        std::vector<InputVariable> variables;
-
-        // Regular expression to match variable declarations
-        std::regex varRegex(R"((?:^|\n)\s*(\w+(?:\s+\w+)*)\s+(\w+);)", std::regex::ECMAScript);
-
-        auto begin = std::sregex_iterator(inputBlock.begin(), inputBlock.end(), varRegex);
-        auto end = std::sregex_iterator();
-
-        for (std::sregex_iterator i = begin; i != end; ++i) {
-            std::smatch match = *i;
-            std::string type = match[1].str();
-            std::string name = match[2].str();
-
-            bool isSampler = type.find("sampler") != std::string::npos;
-
-            variables.push_back({ type, name, isSampler });
-        }
-
-        return variables;
-    }
 
     // Create descriptor bindings for input variables
     std::vector<DescriptorBinding> CreateDescriptorBindings(const std::vector<InputVariable>& variables) {
@@ -232,24 +103,9 @@ namespace Shader {
     }
 
     // Extract all necessary data from shader source
-    ShaderSourceData ExtractShaderData(const std::string& source) {
-        ShaderSourceData data;
-
-        // Extract version line
-        data.versionLine = ExtractVersionLine(source);
-
-        // Check for UBO usage
-        data.usesGlobalUBO = CheckUseUBO(source, "global_ubo");
-        data.usesObjectUBO = CheckUseUBO(source, "object_ubo");
-
-        // Extract InputData block and parse variables
-        std::string inputDataBlock = ExtractInputDataBlock(source);
-        data.inputVariables = ParseInputData(inputDataBlock);
-
-        // Split into stages
-        data.stages = SplitShaderStages(source);
-
-        return data;
+    ParsedShaderData ExtractShaderData(const std::string& source) {
+        ShaderParser parser;
+        return parser.Parse(source);
     }
 
     // Generate texture and sampler declarations
@@ -282,7 +138,7 @@ namespace Shader {
     }
 
     // Generate shader source from scratch
-    std::string GenerateShaderSource(const ShaderSourceData& data, const ShaderStage& stage,
+    std::string GenerateShaderSource(const ParsedShaderData& data, const ShaderStage& stage,
         const UniformBufferObject* customUBO = nullptr) {
         std::stringstream ss;
 
@@ -379,13 +235,13 @@ namespace Shader {
             options.SetGenerateDebugInfo();
             options.AddMacroDefinition("DEBUG_PRINTF_ENABLED", "1");
         }
-        
+
         ShaderData result;
         ShaderMetadata metadata;
         StageFlags stageFlags = 0;
 
-        // Extract all needed data from the source
-        ShaderSourceData sourceData = ExtractShaderData(source);
+        // Extract all needed data from the source using new parser
+        ParsedShaderData sourceData = ExtractShaderData(source);
 
         // Set UBO usage in metadata
         metadata.usesGlobalUBO = sourceData.usesGlobalUBO;

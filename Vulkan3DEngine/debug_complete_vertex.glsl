@@ -71,4 +71,3 @@ void main() {
     fragPos = posWorld.xyz;
     directionToCamera = cameraPosition - fragPos;
 }
-
