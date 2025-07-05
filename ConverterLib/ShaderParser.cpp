@@ -1,420 +1,480 @@
 #include "pch.h"
 #include "ShaderParser.h"
+#include "ParserDictionary.h"
+#include "ShaderLexer.h"
+#include "ShaderErrorManager.h"
 #include <stdexcept>
 #include <cctype>
 #include <algorithm>
-#include <TypeConversions.h>
+#include <iostream>
 
 namespace Shader {
 
-    // ShaderLexer Implementation
-    ShaderLexer::ShaderLexer(const std::string& source)
-        : source_(source), pos_(0), line_(1), column_(1) {
-    }
-
-    std::vector<Token> ShaderLexer::Tokenize() {
-        std::vector<Token> tokens;
-
-        while (pos_ < source_.length()) {
-            char current = CurrentChar();
-
-            if (std::isspace(current)) {
-                SkipWhitespace();
-                continue;
-            }
-
-            if (current == '/' && PeekChar() == '/') {
-                tokens.push_back(ReadComment());
-                continue;
-            }
-
-            if (current == '/' && PeekChar() == '*') {
-                tokens.push_back(ReadComment());
-                continue;
-            }
-
-            if (current == '"') {
-                tokens.push_back(ReadString());
-                continue;
-            }
-
-            if (current == '#') {
-                tokens.push_back(ReadDirective());
-                continue;
-            }
-
-            if (IsAlpha(current) || current == '_') {
-                tokens.push_back(ReadIdentifier());
-                continue;
-            }
-
-            if (IsDigit(current)) {
-                tokens.push_back(ReadNumber());
-                continue;
-            }
-
-            // Single character tokens
-            switch (current) {
-            case '{':
-                tokens.push_back({ TokenType::LeftBrace, "{", line_, column_, pos_ });
-                break;
-            case '}':
-                tokens.push_back({ TokenType::RightBrace, "}", line_, column_, pos_ });
-                break;
-            case ';':
-                tokens.push_back({ TokenType::Semicolon, ";", line_, column_, pos_ });
-                break;
-            default:
-                tokens.push_back({ TokenType::Unknown, std::string(1, current), line_, column_, pos_ });
-                break;
-            }
-
-            Advance();
-        }
-
-        tokens.push_back({ TokenType::EndOfFile, "", line_, column_, pos_ });
-        return tokens;
-    }
-
-    char ShaderLexer::CurrentChar() {
-        if (pos_ >= source_.length()) return '\0';
-        return source_[pos_];
-    }
-
-    char ShaderLexer::PeekChar(size_t offset) {
-        size_t peekPos = pos_ + offset;
-        if (peekPos >= source_.length()) return '\0';
-        return source_[peekPos];
-    }
-
-    void ShaderLexer::Advance() {
-        if (pos_ < source_.length()) {
-            if (source_[pos_] == '\n') {
-                line_++;
-                column_ = 1;
-            }
-            else {
-                column_++;
-            }
-            pos_++;
-        }
-    }
-
-    void ShaderLexer::SkipWhitespace() {
-        while (pos_ < source_.length() && std::isspace(CurrentChar())) {
-            Advance();
-        }
-    }
-
-    Token ShaderLexer::ReadIdentifier() {
-        size_t start = pos_;
-        size_t startLine = line_;
-        size_t startColumn = column_;
-
-        while (pos_ < source_.length() && (IsAlphaNumeric(CurrentChar()) || CurrentChar() == '_')) {
-            Advance();
-        }
-
-        std::string value = source_.substr(start, pos_ - start);
-        return { TokenType::Identifier, value, startLine, startColumn, start };
-    }
-
-    Token ShaderLexer::ReadDirective() {
-        size_t start = pos_;
-        size_t startLine = line_;
-        size_t startColumn = column_;
-
-        // Read until end of line
-        while (pos_ < source_.length() && CurrentChar() != '\n' && CurrentChar() != '\r') {
-            Advance();
-        }
-
-        std::string value = source_.substr(start, pos_ - start);
-        return { TokenType::Directive, value, startLine, startColumn, start };
-    }
-
-    Token ShaderLexer::ReadString() {
-        size_t start = pos_;
-        size_t startLine = line_;
-        size_t startColumn = column_;
-
-        Advance(); // Skip opening quote
-
-        while (pos_ < source_.length() && CurrentChar() != '"') {
-            if (CurrentChar() == '\\') {
-                Advance(); // Skip escape character
-                if (pos_ < source_.length()) {
-                    Advance(); // Skip escaped character
-                }
-            }
-            else {
-                Advance();
-            }
-        }
-
-        if (pos_ < source_.length()) {
-            Advance(); // Skip closing quote
-        }
-
-        std::string value = source_.substr(start, pos_ - start);
-        return { TokenType::String, value, startLine, startColumn, start };
-    }
-
-    Token ShaderLexer::ReadNumber() {
-        size_t start = pos_;
-        size_t startLine = line_;
-        size_t startColumn = column_;
-
-        while (pos_ < source_.length() && (IsDigit(CurrentChar()) || CurrentChar() == '.')) {
-            Advance();
-        }
-
-        std::string value = source_.substr(start, pos_ - start);
-        return { TokenType::Number, value, startLine, startColumn, start };
-    }
-
-    Token ShaderLexer::ReadComment() {
-        size_t start = pos_;
-        size_t startLine = line_;
-        size_t startColumn = column_;
-
-        if (CurrentChar() == '/' && PeekChar() == '/') {
-            // Single line comment
-            while (pos_ < source_.length() && CurrentChar() != '\n') {
-                Advance();
-            }
-        }
-        else if (CurrentChar() == '/' && PeekChar() == '*') {
-            // Multi-line comment
-            Advance(); // Skip '/'
-            Advance(); // Skip '*'
-
-            while (pos_ < source_.length() - 1) {
-                if (CurrentChar() == '*' && PeekChar() == '/') {
-                    Advance(); // Skip '*'
-                    Advance(); // Skip '/'
-                    break;
-                }
-                Advance();
-            }
-        }
-
-        std::string value = source_.substr(start, pos_ - start);
-        return { TokenType::Comment, value, startLine, startColumn, start };
-    }
-
-    bool ShaderLexer::IsAlpha(char c) {
-        return std::isalpha(c) || c == '_';
-    }
-
-    bool ShaderLexer::IsAlphaNumeric(char c) {
-        return std::isalnum(c) || c == '_';
-    }
-
-    bool ShaderLexer::IsDigit(char c) {
-        return std::isdigit(c);
-    }
-
-    // ShaderParser Implementation
-    ShaderParser::ShaderParser() : current_(0) {
-        InitializeDirectiveHandlers();
-    }
-
-    void ShaderParser::InitializeDirectiveHandlers() {
-        directiveHandlers_["#version"] = [this](const Token& token) {
-            HandleVersionDirective(token);
-            };
-
-        directiveHandlers_["#use"] = [this](const Token& token) {
-            HandleUseDirective(token);
-            };
-
-        directiveHandlers_["#stage"] = [this](const Token& token) {
-            HandleStageDirective(token);
-            };
+    ShaderParser::ShaderParser() : maxErrors_(20) {
     }
 
     ParsedShaderData ShaderParser::Parse(const std::string& source) {
-        originalSource_ = source; // Store the original source
+        errors_.clear();
 
-        ShaderLexer lexer(source);
-        tokens_ = lexer.Tokenize();
-        current_ = 0;
-        result_ = ParsedShaderData{};
+        // Get reference to error manager
+        auto& errorManager = ShaderErrorManager::Instance();
+        errorManager.Clear();
 
-        // Set default version if not specified
-        result_.versionLine = "#version 450";
+        if (source.empty()) {
+            errorManager.ReportParserError("Empty shader source", 0, 0, 0, "", "");
+            return ParsedShaderData{};
+        }
 
-        ParseTokens();
+        try {
+            ShaderLexer lexer(source);
+            std::vector<Token> tokens = lexer.Tokenize();
 
-        return result_;
+            // Report lexer errors to error manager
+            for (const auto& lexerError : lexer.GetErrors()) {
+                errorManager.ReportLexerError(lexerError.message, lexerError.line,
+                    lexerError.column, lexerError.position, "", "");
+            }
+
+            // Copy lexer errors to parser errors for backward compatibility
+            for (const auto& lexerError : lexer.GetErrors()) {
+                errors_.push_back({
+                    lexerError.message,
+                    lexerError.line,
+                    lexerError.column,
+                    lexerError.position,
+                    "Lexer"
+                    });
+            }
+
+            ParseContext context(tokens, source, maxErrors_);
+            ParsedShaderData result = ParseWithContext(context);
+
+            // Report parser errors to error manager
+            for (const auto& error : errors_) {
+                errorManager.ReportParserError(error.message, error.line,
+                    error.column, error.position, error.context, "");
+            }
+
+            // Don't fail completely on errors - return partial results
+            if (errorManager.HasFatalErrors()) {
+                std::cout << "Fatal parser errors found:\n" << errorManager.FormatNonInfoErrors() << std::endl;
+                return ParsedShaderData{}; // Return empty data only on fatal errors
+            }
+            else if (errorManager.HasNonWarningErrors()) {
+                std::cout << "Parser errors found (continuing with partial results):\n" << errorManager.FormatNonInfoErrors() << std::endl;
+            }
+
+            return result;
+        }
+        catch (const std::exception& e) {
+            errorManager.ReportParserError("Parser exception: " + std::string(e.what()), 0, 0, 0, "", "");
+            return ParsedShaderData{};
+        }
     }
 
-    void ShaderParser::ParseTokens() {
-        while (!IsAtEnd()) {
-            Token token = CurrentToken();
+    ParsedShaderData ShaderParser::ParseWithContext(ParseContext& context) {
+        ParsedShaderData result;
+        result.versionLine = "#version 450"; // Default version
+        result.usesGlobalUBO = false;
+        result.usesObjectUBO = false;
 
-            if (token.type == TokenType::Directive) {
-                // Extract directive name
-                std::string directive = token.value;
-                size_t spacePos = directive.find(' ');
-                if (spacePos != std::string::npos) {
-                    std::string directiveName = directive.substr(0, spacePos);
+        try {
+            context = ParseTokens(context, result); // Pass result by reference
 
-                    auto it = directiveHandlers_.find(directiveName);
-                    if (it != directiveHandlers_.end()) {
-                        it->second(token);
+            // Copy context errors to parser errors
+            for (const auto& error : context.errors) {
+                errors_.push_back(error);
+            }
+
+            // Check for actual errors (not info messages)
+            auto& errorManager = ShaderErrorManager::Instance();
+            if (errorManager.HasFatalErrors()) {
+                std::cout << "Fatal parser errors found:\n" << errorManager.FormatNonInfoErrors() << std::endl;
+                return ParsedShaderData{}; // Return empty data only on fatal errors
+            }
+            else if (errorManager.HasNonWarningErrors()) {
+                std::cout << "Parser errors found (continuing with partial results):\n" << errorManager.FormatNonInfoErrors() << std::endl;
+            }
+
+            // Don't return empty data if we have some valid content
+            if (result.stages.empty() && result.inputVariables.empty()) {
+                // Only report as error if we actually expected content
+                if (context.tokens->size() > 1) { // More than just EOF token
+                    errorManager.ReportParserError("No shader stages or input variables found", 0, 0, 0, "", "");
+                }
+            }
+
+            // Even if we have errors, return what we parsed successfully
+            return result;
+        }
+        catch (const std::exception& e) {
+            ReportError("Exception in ParseWithContext: " + std::string(e.what()), context);
+            return result; // Return partial results even on exception
+        }
+    }
+
+    ParseContext ShaderParser::ParseTokens(ParseContext context, ParsedShaderData& result) {
+        ParserDictionary dictionary;
+
+        while (!IsAtEnd(context) && ShouldContinue(context)) {
+            Token token = CurrentToken(context);
+
+            try {
+                if (token.type == TokenType::Directive) {
+                    if (token.value.substr(0, 6) == "#stage") {
+                        // Handle stage directive and skip its content
+                        context = HandleStageDirective(context, result);
+                    }
+                    else {
+                        context = HandleDirective(context, result);
+                    }
+                }
+                else if (token.type == TokenType::Identifier) {
+                    if (token.value == "InputData") {
+                        context = HandleInputDataBlock(context, result);
+                    }
+                    else {
+                        // Check if this is a GLSL type followed by a name (potential variable declaration)
+                        std::string nextTokenValue = "";
+                        if (context.currentPosition + 1 < context.tokens->size()) {
+                            Token nextToken = (*context.tokens)[context.currentPosition + 1];
+                            if (nextToken.type == TokenType::Identifier) {
+                                nextTokenValue = nextToken.value;
+                            }
+                        }
+
+                        // For now, just skip unknown identifiers but don't report as error
+                        context = Advance(context);
+                    }
+                }
+                else if (token.type == TokenType::Comment) {
+                    // Skip comments
+                    context = Advance(context);
+                }
+                else if (token.type == TokenType::Unknown) {
+                    // Only report as error if it's truly unexpected
+                    if (token.value != "{" && token.value != "}" && token.value != ";" &&
+                        token.value != "(" && token.value != ")" && token.value != "," &&
+                        token.value != "=" && token.value != "." && token.value != "[" && token.value != "]") {
+                        ReportError("Unknown token: " + token.value, context);
+                    }
+                    context = Advance(context);
+                }
+                else {
+                    // Skip other tokens (numbers, strings, etc.)
+                    context = Advance(context);
+                }
+            }
+            catch (const std::exception& e) {
+                ReportError("Parser exception: " + std::string(e.what()), context);
+                context = RecoverFromError(context);
+            }
+        }
+
+        return context;
+    }
+
+    ParseContext ShaderParser::HandleDirective(ParseContext context, ParsedShaderData& result) {
+        Token token = CurrentToken(context);
+        ParserDictionary dictionary;
+
+        std::string directive = token.value;
+        size_t spacePos = directive.find(' ');
+
+        if (spacePos != std::string::npos) {
+            std::string directiveName = directive.substr(0, spacePos);
+
+            if (dictionary.IsDirectiveSupported(directiveName)) {
+                auto handler = dictionary.GetDirectiveHandler(directiveName);
+                if (handler) {
+                    try {
+                        handler(token, result, *context.originalSource);
+                    }
+                    catch (const std::exception& e) {
+                        ReportError("Error handling directive " + directiveName + ": " + e.what(), context);
                     }
                 }
             }
-            else if (token.type == TokenType::Identifier && token.value == "InputData") {
-                HandleInputDataBlock();
+            else {
+                ReportError("Unsupported directive: " + directiveName, context);
+            }
+        }
+        else {
+            ReportError("Invalid directive format: " + directive, context);
+        }
+
+        return Advance(context);
+    }
+
+    ParseContext ShaderParser::HandleStageDirective(ParseContext context, ParsedShaderData& result) {
+        Token token = CurrentToken(context);
+        ParserDictionary dictionary;
+
+        std::string directive = token.value;
+        size_t spacePos = directive.find(' ');
+
+        if (spacePos != std::string::npos) {
+            std::string directiveName = directive.substr(0, spacePos);
+
+            if (dictionary.IsDirectiveSupported(directiveName)) {
+                auto handler = dictionary.GetDirectiveHandler(directiveName);
+                if (handler) {
+                    try {
+                        handler(token, result, *context.originalSource);
+                    }
+                    catch (const std::exception& e) {
+                        ReportError("Error handling directive " + directiveName + ": " + e.what(), context);
+                    }
+                }
+            }
+        }
+
+        context = Advance(context); // Skip the #stage directive
+
+        // Skip all tokens until next #stage directive or end of file
+        while (!IsAtEnd(context)) {
+            Token nextToken = CurrentToken(context);
+
+            if (nextToken.type == TokenType::Directive &&
+                nextToken.value.substr(0, 6) == "#stage") {
+                break; // Found next #stage directive
             }
 
-            Advance();
+            context = Advance(context);
         }
+
+        return context;
     }
 
-    void ShaderParser::HandleVersionDirective(const Token& token) {
-        result_.versionLine = token.value;
-    }
+    ParseContext ShaderParser::HandleInputDataBlock(ParseContext context, ParsedShaderData& result) {
+        auto& errorManager = ShaderErrorManager::Instance();
 
-    void ShaderParser::HandleUseDirective(const Token& token) {
-        std::string value = ExtractDirectiveValue(token, "#use");
-
-        if (value == "global_ubo") {
-            result_.usesGlobalUBO = true;
+        // Skip to opening brace
+        while (!IsAtEnd(context) && CurrentToken(context).type != TokenType::LeftBrace) {
+            context = Advance(context);
         }
-        else if (value == "object_ubo") {
-            result_.usesObjectUBO = true;
+
+        if (IsAtEnd(context)) {
+            ReportError("Expected '{' after InputData", context);
+            return context;
         }
-    }
 
-    void ShaderParser::HandleStageDirective(const Token& token) {
-        std::string stageName = ExtractDirectiveValue(token, "#stage");
+        context = Advance(context); // Skip opening brace
 
-        if (!stageName.empty()) {
-            Stage stage = ShaderLib::TypeConversion::StringToStage(stageName);
+        int braceCount = 1;
+        bool foundClosingBrace = false;
 
-            // Find the start of the actual stage code (skip the directive line)
-            size_t codeStart = token.position + token.value.length();
+        while (!IsAtEnd(context) && braceCount > 0) {
+            Token token = CurrentToken(context);
 
-            // Skip any whitespace and newlines after the directive
-            while (codeStart < originalSource_.length() &&
-                std::isspace(originalSource_[codeStart])) {
-                codeStart++;
+            if (token.type == TokenType::LeftBrace) {
+                braceCount++;
+                context = Advance(context);
             }
+            else if (token.type == TokenType::RightBrace) {
+                braceCount--;
+                if (braceCount == 0) {
+                    foundClosingBrace = true;
+                    break;
+                }
+                context = Advance(context);
+            }
+            else if (token.type == TokenType::Identifier && braceCount == 1) {
+                // Parse tylko proste pary: type name;
+                std::string type = token.value;
+                context = Advance(context);
 
-            std::string code = ExtractStageCode(codeStart);
-            result_.stages.push_back({ code, stage });
+                if (!IsAtEnd(context) && CurrentToken(context).type == TokenType::Identifier) {
+                    std::string name = CurrentToken(context).value;
+                    bool isSampler = type.find("sampler") != std::string::npos;
+
+                    result.inputVariables.push_back({ type, name, isSampler });
+                    errorManager.ReportError("Found input variable: " + type + " " + name,
+                        ErrorSeverity::Info, ErrorCategory::Parser, token.line, token.column, token.position, "", "");
+
+                    context = Advance(context);
+
+                    // Skip semicolon if present
+                    if (!IsAtEnd(context) && CurrentToken(context).type == TokenType::Semicolon) {
+                        context = Advance(context);
+                    }
+                }
+                else {
+                    ReportError("Expected variable name after type '" + type + "'", context);
+                    context = Advance(context);
+                }
+            }
+            else if (token.type == TokenType::Comment) {
+                // Skip comments
+                context = Advance(context);
+            }
+            else if (token.type == TokenType::Semicolon) {
+                // Skip semicolons
+                context = Advance(context);
+            }
+            else {
+                // Skip other tokens but advance to avoid infinite loop
+                context = Advance(context);
+            }
         }
+
+        if (!foundClosingBrace) {
+            ReportError("Unterminated InputData block - missing closing brace '}'", context);
+        }
+
+        return context;
     }
 
-    void ShaderParser::HandleInputDataBlock() {
-        // Look for opening brace
-        while (!IsAtEnd() && CurrentToken().type != TokenType::LeftBrace) {
-            Advance();
-        }
-
-        if (IsAtEnd()) return;
-
-        result_.inputVariables = ParseInputDataFields();
-    }
-
-    std::string ShaderParser::ExtractDirectiveValue(const Token& token, const std::string& directive) {
-        std::string value = token.value;
-
-        if (value.length() > directive.length() + 1) {
-            return value.substr(directive.length() + 1); // +1 for space
-        }
-
-        return "";
-    }
-
-    std::vector<InputVariable> ShaderParser::ParseInputDataFields() {
+    std::vector<InputVariable> ShaderParser::ParseInputDataFields(ParseContext& context) {
         std::vector<InputVariable> variables;
 
-        Advance(); // Skip opening brace
+        context = Advance(context); // Skip opening brace
 
-        while (!IsAtEnd() && CurrentToken().type != TokenType::RightBrace) {
-            Token token = CurrentToken();
+        while (!IsAtEnd(context) && CurrentToken(context).type != TokenType::RightBrace) {
+            Token token = CurrentToken(context);
 
             if (token.type == TokenType::Identifier) {
                 std::string type = token.value;
-                Advance();
+                context = Advance(context);
 
-                if (!IsAtEnd() && CurrentToken().type == TokenType::Identifier) {
-                    std::string name = CurrentToken().value;
+                if (!IsAtEnd(context) && CurrentToken(context).type == TokenType::Identifier) {
+                    std::string name = CurrentToken(context).value;
                     bool isSampler = type.find("sampler") != std::string::npos;
 
                     variables.push_back({ type, name, isSampler });
                 }
+                else {
+                    ReportError("Expected variable name after type '" + type + "'", context);
+                }
+            }
+            else if (token.type == TokenType::Comment) {
+                // Skip comments
+            }
+            else if (token.type != TokenType::Semicolon) {
+                ReportError("Unexpected token in InputData block: " + token.value, context);
             }
 
-            Advance();
+            context = Advance(context);
+        }
+
+        if (IsAtEnd(context)) {
+            ReportError("Unterminated InputData block", context);
         }
 
         return variables;
     }
 
-    std::string ShaderParser::ExtractStageCode(size_t startPos) {
-        // Find the next #stage directive or end of file
-        size_t endPos = originalSource_.length(); // Default to end of file
+    Token ShaderParser::CurrentToken(const ParseContext& context) {
+        if (!ValidateTokenIndex(context, context.currentPosition)) {
+            return context.tokens->back(); // Return EOF token
+        }
+        return (*context.tokens)[context.currentPosition];
+    }
 
-        for (size_t i = current_ + 1; i < tokens_.size(); ++i) {
-            if (tokens_[i].type == TokenType::Directive &&
-                tokens_[i].value.find("#stage") == 0) {
-                endPos = tokens_[i].position;
+    Token ShaderParser::PeekToken(const ParseContext& context, size_t offset) {
+        size_t peekPos = context.currentPosition + offset;
+        if (!ValidateTokenIndex(context, peekPos)) {
+            return context.tokens->back(); // Return EOF token
+        }
+        return (*context.tokens)[peekPos];
+    }
+
+    ParseContext ShaderParser::Advance(ParseContext context) {
+        if (context.currentPosition < context.tokens->size() - 1) {
+            context.currentPosition++;
+        }
+        return context;
+    }
+
+    bool ShaderParser::IsAtEnd(const ParseContext& context) {
+        return context.currentPosition >= context.tokens->size() - 1 ||
+            CurrentToken(context).type == TokenType::EndOfFile;
+    }
+
+    bool ShaderParser::IsValidContext(const ParseContext& context) {
+        Token token = CurrentToken(context);
+        return token.type != TokenType::Comment && token.type != TokenType::String;
+    }
+
+    void ShaderParser::ReportError(const std::string& message, const ParseContext& context) {
+        Token token = CurrentToken(context);
+        ReportError(message, token);
+    }
+
+    void ShaderParser::ReportError(const std::string& message, const Token& token) {
+        errors_.push_back({
+            message,
+            token.line,
+            token.column,
+            token.position,
+            "Parser at token: " + token.value
+            });
+
+        // Also report to error manager
+        auto& errorManager = ShaderErrorManager::Instance();
+        errorManager.ReportParserError(message, token.line, token.column, token.position,
+            "Parser at token: " + token.value, "");
+    }
+
+    bool ShaderParser::ShouldContinue(const ParseContext& context) {
+        return context.errors.size() < context.maxErrors && errors_.size() < maxErrors_;
+    }
+
+    ParseContext ShaderParser::RecoverFromError(ParseContext context) {
+        // Try to recover to next safe point
+        return SkipToNextStatement(context);
+    }
+
+    ParseContext ShaderParser::SkipToNextStatement(ParseContext context) {
+        while (!IsAtEnd(context)) {
+            Token token = CurrentToken(context);
+            if (token.type == TokenType::Semicolon ||
+                token.type == TokenType::RightBrace ||
+                token.type == TokenType::LeftBrace) {
                 break;
             }
+            context = Advance(context);
         }
+        return context;
+    }
 
-        // Extract the original source code directly from the source string
-        // This preserves all original spacing and formatting
-        if (startPos < originalSource_.length() && endPos <= originalSource_.length()) {
-            std::string stageCode = originalSource_.substr(startPos, endPos - startPos);
-
-            // Remove any trailing whitespace and newlines
-            while (!stageCode.empty() && std::isspace(stageCode.back())) {
-                stageCode.pop_back();
+    ParseContext ShaderParser::SkipToNextBlock(ParseContext context) {
+        int braceCount = 0;
+        while (!IsAtEnd(context)) {
+            Token token = CurrentToken(context);
+            if (token.type == TokenType::LeftBrace) {
+                braceCount++;
             }
+            else if (token.type == TokenType::RightBrace) {
+                braceCount--;
+                if (braceCount <= 0) {
+                    break;
+                }
+            }
+            context = Advance(context);
+        }
+        return context;
+    }
 
-            return stageCode;
+    bool ShaderParser::ValidateTokenIndex(const ParseContext& context, size_t index) {
+        return index < context.tokens->size();
+    }
+
+    bool ShaderParser::ValidateShaderStages(const ParsedShaderData& data) {
+        // Check if we have at least vertex and fragment stages
+        bool hasVertex = false;
+        bool hasFragment = false;
+
+        for (const auto& stage : data.stages) {
+            if (stage.stage == Stage::Vertex) {
+                hasVertex = true;
+            }
+            else if (stage.stage == Stage::Fragment) {
+                hasFragment = true;
+            }
         }
 
-        return "";
-    }
-
-    Token ShaderParser::CurrentToken() {
-        if (current_ >= tokens_.size()) {
-            return tokens_.back(); // Return EOF token
-        }
-        return tokens_[current_];
-    }
-
-    Token ShaderParser::PeekToken(size_t offset) {
-        size_t peekPos = current_ + offset;
-        if (peekPos >= tokens_.size()) {
-            return tokens_.back(); // Return EOF token
-        }
-        return tokens_[peekPos];
-    }
-
-    void ShaderParser::Advance() {
-        if (current_ < tokens_.size() - 1) {
-            current_++;
-        }
-    }
-
-    bool ShaderParser::IsAtEnd() {
-        return current_ >= tokens_.size() - 1 ||
-            CurrentToken().type == TokenType::EndOfFile;
-    }
-
-    bool ShaderParser::IsValidContext() {
-        // Check if current token is not in a comment or string
-        Token token = CurrentToken();
-        return token.type != TokenType::Comment && token.type != TokenType::String;
+        return hasVertex && hasFragment;
     }
 
 } // namespace Shader

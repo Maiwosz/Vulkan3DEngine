@@ -1,9 +1,10 @@
 #pragma once
 #include <string>
 #include <vector>
-#include <unordered_map>
-#include <functional>
+#include <memory>
+#include <optional>
 #include <ShaderLib.h>
+#include "ShaderLexer.h"
 
 using namespace ShaderLib;
 
@@ -28,89 +29,77 @@ namespace Shader {
         std::vector<ShaderStage> stages;
     };
 
-    // Token types for lexer
-    enum class TokenType {
-        Identifier,
-        Directive,
-        LeftBrace,
-        RightBrace,
-        Semicolon,
-        Whitespace,
-        Comment,
-        String,
-        Number,
-        EndOfFile,
-        Unknown
-    };
-
-    struct Token {
-        TokenType type;
-        std::string value;
+    // Error handling for parser
+    struct ParseError {
+        std::string message;
         size_t line;
         size_t column;
         size_t position;
+        std::string context;
     };
 
-    class ShaderLexer {
-    public:
-        ShaderLexer(const std::string& source);
-        std::vector<Token> Tokenize();
+    // Immutable parse context - now with pointers instead of references
+    struct ParseContext {
+        const std::vector<Token>* tokens;
+        const std::string* originalSource;
+        size_t currentPosition;
+        std::vector<ParseError> errors;
+        size_t maxErrors;
 
-    private:
-        std::string source_;
-        size_t pos_;
-        size_t line_;
-        size_t column_;
+        ParseContext(const std::vector<Token>& tokens, const std::string& source, size_t maxErrors = 20)
+            : tokens(&tokens), originalSource(&source), currentPosition(0), maxErrors(maxErrors) {
+        }
 
-        char CurrentChar();
-        char PeekChar(size_t offset = 1);
-        void Advance();
-        void SkipWhitespace();
-        Token ReadIdentifier();
-        Token ReadDirective();
-        Token ReadString();
-        Token ReadNumber();
-        Token ReadComment();
-        bool IsAlpha(char c);
-        bool IsAlphaNumeric(char c);
-        bool IsDigit(char c);
+        // Now copy assignment works fine since we're copying pointers
+        ParseContext(const ParseContext&) = default;
+        ParseContext& operator=(const ParseContext&) = default;
     };
 
     class ShaderParser {
     public:
         ShaderParser();
+
         ParsedShaderData Parse(const std::string& source);
 
+        // Error handling
+        bool HasErrors() const { return !errors_.empty(); }
+        const std::vector<ParseError>& GetErrors() const { return errors_; }
+
+        // Configuration
+        void SetMaxErrors(size_t maxErrors) { maxErrors_ = maxErrors; }
+
     private:
-        std::vector<Token> tokens_;
-        size_t current_;
-        std::string originalSource_; // Store the original source for stage extraction
-
-        // Supported directives and their handlers
-        std::unordered_map<std::string, std::function<void(const Token&)>> directiveHandlers_;
-
-        // Parsing state
-        ParsedShaderData result_;
+        std::vector<ParseError> errors_;
+        size_t maxErrors_;
 
         // Core parsing methods
-        void InitializeDirectiveHandlers();
-        void ParseTokens();
-        Token CurrentToken();
-        Token PeekToken(size_t offset = 1);
-        void Advance();
-        bool IsAtEnd();
+        ParsedShaderData ParseWithContext(ParseContext& context);
+        ParseContext ParseTokens(ParseContext context, ParsedShaderData& result);
 
-        // Directive handlers
-        void HandleVersionDirective(const Token& token);
-        void HandleUseDirective(const Token& token);
-        void HandleStageDirective(const Token& token);
-        void HandleInputDataBlock();
+        // Token navigation
+        Token CurrentToken(const ParseContext& context);
+        Token PeekToken(const ParseContext& context, size_t offset = 1);
+        ParseContext Advance(ParseContext context);
+        bool IsAtEnd(const ParseContext& context);
 
-        // Utility methods
-        std::string ExtractDirectiveValue(const Token& token, const std::string& directive);
-        std::vector<InputVariable> ParseInputDataFields();
-        std::string ExtractStageCode(size_t startPos);
-        bool IsValidContext(); // Check if we're not in comments or strings
+        // Specific parsing methods
+        ParseContext HandleDirective(ParseContext context, ParsedShaderData& result);
+        ParseContext HandleStageDirective(ParseContext context, ParsedShaderData& result);
+        ParseContext HandleInputDataBlock(ParseContext context, ParsedShaderData& result);
+        std::vector<InputVariable> ParseInputDataFields(ParseContext& context);
+        bool IsValidContext(const ParseContext& context);
+
+        // Error handling and recovery
+        void ReportError(const std::string& message, const ParseContext& context);
+        void ReportError(const std::string& message, const Token& token);
+        bool ShouldContinue(const ParseContext& context);
+        ParseContext RecoverFromError(ParseContext context);
+        ParseContext SkipToNextStatement(ParseContext context);
+        ParseContext SkipToNextBlock(ParseContext context);
+
+        // Validation
+        bool ValidateTokenIndex(const ParseContext& context, size_t index);
+        bool ValidateShaderStages(const ParsedShaderData& data);
     };
 
 } // namespace Shader

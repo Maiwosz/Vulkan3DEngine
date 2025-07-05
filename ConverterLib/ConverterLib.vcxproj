@@ -147,8 +147,11 @@
     <ClInclude Include="bc7enc\bc7enc.h" />
     <ClInclude Include="ConverterLib.h" />
     <ClInclude Include="framework.h" />
+    <ClInclude Include="ParserDictionary.h" />
     <ClInclude Include="pch.h" />
     <ClInclude Include="Shader.h" />
+    <ClInclude Include="ShaderErrorManager.h" />
+    <ClInclude Include="ShaderLexer.h" />
     <ClInclude Include="ShaderParser.h" />
   </ItemGroup>
   <ItemGroup>
@@ -157,6 +160,7 @@
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|x64'">NotUsing</PrecompiledHeader>
     </ClCompile>
     <ClCompile Include="ConverterLib.cpp" />
+    <ClCompile Include="ParserDictionary.cpp" />
     <ClCompile Include="pch.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Create</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">Create</PrecompiledHeader>
@@ -164,6 +168,8 @@
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">Create</PrecompiledHeader>
     </ClCompile>
     <ClCompile Include="Shader.cpp" />
+    <ClCompile Include="ShaderErrorManager.cpp" />
+    <ClCompile Include="ShaderLexer.cpp" />
     <ClCompile Include="ShaderParser.cpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

@@ -102,12 +102,6 @@ namespace Shader {
         return builder.Build();
     }
 
-    // Extract all necessary data from shader source
-    ParsedShaderData ExtractShaderData(const std::string& source) {
-        ShaderParser parser;
-        return parser.Parse(source);
-    }
-
     // Generate texture and sampler declarations
     std::string GenerateTextureBindings(const std::vector<InputVariable>& variables, uint32_t startBinding) {
         std::stringstream ss;
@@ -240,8 +234,20 @@ namespace Shader {
         ShaderMetadata metadata;
         StageFlags stageFlags = 0;
 
-        // Extract all needed data from the source using new parser
-        ParsedShaderData sourceData = ExtractShaderData(source);
+        // Simply parse the source - all complexity is handled by ParserDictionary
+        ShaderParser parser;
+        ParsedShaderData sourceData = parser.Parse(source);
+
+        // Check if parser found any real errors (not just info messages)
+        auto& errorManager = ShaderErrorManager::Instance();
+        if (errorManager.HasNonWarningErrors()) {
+            throw std::runtime_error("Shader parsing failed with errors:\n" + errorManager.FormatAllErrors());
+        }
+
+        // Check if we have any stages to compile
+        if (sourceData.stages.empty()) {
+            throw std::runtime_error("No shader stages found in source");
+        }
 
         // Set UBO usage in metadata
         metadata.usesGlobalUBO = sourceData.usesGlobalUBO;
