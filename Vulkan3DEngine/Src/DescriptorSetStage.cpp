@@ -74,9 +74,6 @@ void DescriptorSetStage::processMeshOrder(std::shared_ptr<MeshRenderOrder> order
         return;
     }
 
-    // Create global descriptor set
-    createGlobalDescriptorSet(order, shaderHandle);
-
     // Create object descriptor set
     createObjectDescriptorSet(order, shaderHandle);
 
@@ -87,45 +84,6 @@ void DescriptorSetStage::processMeshOrder(std::shared_ptr<MeshRenderOrder> order
         if (materialDescriptorSet.isValid()) {
             order->materialDescriptorSetHandle = materialDescriptorSet;
         }
-    }
-}
-
-void DescriptorSetStage::createGlobalDescriptorSet(std::shared_ptr<MeshRenderOrder> order, ShaderHandle shader) {
-    // Get shader resources (descriptor layouts, pipeline layout)
-    const ShaderResources& shaderResources = m_shaderManager.getShaderResources(shader);
-
-    // Check if we have a layout for global descriptor set (set=0)
-    if (shaderResources.descriptorLayouts.count(0) > 0) {
-        // Get descriptor set layout for set=0
-        VkDescriptorSetLayout globalSetLayout =
-            m_layoutManager.get(shaderResources.descriptorLayouts.at(0));
-
-        // Clear writer for new descriptor set
-        m_writer.clear();
-
-        // Write global UBO to descriptor set if available
-        if (order->globalUBOHandle.isValid()) {
-            m_writer.writeUniformBuffer(0, order->globalUBOHandle);
-            SPDLOG_DEBUG("Added global UBO to global descriptor set at binding 0");
-        }
-        else {
-            SPDLOG_WARN("Missing valid global UBO handle in render order");
-        }
-
-        // Create descriptor set using writer - this returns SmartHandle automatically
-        auto smartGlobalDescriptorSet = m_writer.createDescriptorSet(globalSetLayout);
-
-        if (smartGlobalDescriptorSet.isValid()) {
-            // Store SmartHandle in render order - automatic cleanup when order is destroyed
-            order->globalDescriptorSetHandle = smartGlobalDescriptorSet;
-            SPDLOG_DEBUG("Created global descriptor set with SmartHandle");
-        }
-        else {
-            SPDLOG_ERROR("Failed to create global descriptor set");
-        }
-    }
-    else {
-        SPDLOG_DEBUG("No descriptor layout found for global set (set=0)");
     }
 }
 

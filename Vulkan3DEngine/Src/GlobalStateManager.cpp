@@ -9,7 +9,8 @@ GlobalStateManager::GlobalStateManager(Registry& registry, Renderer& renderer)
     m_uniformBufferManager(renderer.uniformBufferManager()),
     m_descriptorAllocator(renderer.descriptorAllocator()),
     m_descriptorLayoutManager(renderer.descriptorLayoutManager()),
-    m_device(renderer.vulkanContext().logical())
+    m_device(renderer.vulkanContext().logical()),
+    m_writer(m_device, renderer.imageSamplerManager(), m_uniformBufferManager, m_descriptorAllocator)
 {
 }
 
@@ -131,12 +132,14 @@ SmartHandle<DescriptorSetHandle, VkDescriptorSet> GlobalStateManager::createGlob
             return SmartHandle<DescriptorSetHandle, VkDescriptorSet>();
         }
 
-        // Create resources for descriptor set
-        DescriptorAllocator::DescriptorResources resources;
-        resources.uniformBuffers.push_back(m_globalUBO);
+        // Clear writer for new descriptor set
+        m_writer.clear();
 
-        // Acquire smart descriptor set with resources
-        auto descriptorSet = m_descriptorAllocator.acquireSmartDescriptorSet(globalLayout, resources);
+        // Write global UBO to descriptor set
+        m_writer.writeUniformBuffer(0, m_globalUBO);
+
+        // Create descriptor set using writer - this returns SmartHandle automatically
+        auto descriptorSet = m_writer.createDescriptorSet(globalLayout);
 
         if (descriptorSet.isValid()) {
             SPDLOG_DEBUG("Created global descriptor set successfully");

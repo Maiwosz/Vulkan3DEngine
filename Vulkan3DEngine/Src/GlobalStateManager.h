@@ -58,6 +58,7 @@ private:
     DescriptorAllocator& m_descriptorAllocator;
     DescriptorLayoutManager& m_descriptorLayoutManager;
     const LogicalDevice& m_device;
+    DescriptorWriter m_writer;
 
     // Global state data - używamy SmartHandle dla automatycznego zarządzania
     std::shared_ptr<CameraRenderOrder> m_activeCamera;

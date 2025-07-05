@@ -258,10 +258,14 @@ void ShaderManager::destroyShader(ShaderHandle handle) {
             m_pipelineLayoutManager.destroy(assetPtr->resources.pipelineLayout);
         }
 
-        // Destroy descriptor layouts
+        // Destroy descriptor layouts (but skip built-in ones)
         for (const auto& [set, layoutHandle] : assetPtr->resources.descriptorLayouts) {
             if (layoutHandle) {
-                m_descriptorLayoutManager.destroy(layoutHandle);
+                // Don't destroy built-in layouts
+                if (set != ShaderLib::GLOBAL_DESCRIPTOR_SET &&
+                    set != ShaderLib::OBJECT_DESCRIPTOR_SET) {
+                    m_descriptorLayoutManager.destroy(layoutHandle);
+                }
             }
         }
 
@@ -286,26 +290,45 @@ std::unordered_map<uint32_t, DescriptorLayoutHandle> ShaderManager::createDescri
 
     // Create descriptor layouts for each set
     for (const auto& [set, descriptors] : descriptorsBySet) {
-        DescriptorLayoutBuilder builder;
-        VkShaderStageFlags combinedStageFlags = 0;
+        DescriptorLayoutHandle layoutHandle;
 
-        // Add bindings to builder
-        for (const auto& descriptor : descriptors) {
-            VkDescriptorType vulkanDescriptorType =
-                static_cast<VkDescriptorType>(ShaderLib::GetVulkanDescriptorType(descriptor.type));
-
-            // Convert the stage flags for this descriptor
-            VkShaderStageFlags stageFlags = ShaderLib::GetVulkanShaderStageFlags(descriptor.stages);
-            combinedStageFlags |= stageFlags;
-
-            builder.addBinding(descriptor.binding, vulkanDescriptorType);
+        // Use built-in layouts for Global and Object descriptor sets
+        if (set == ShaderLib::GLOBAL_DESCRIPTOR_SET && metadata.usesGlobalUBO) {
+            layoutHandle = m_descriptorLayoutManager.getBuiltInLayout(
+                DescriptorLayoutManager::BuiltInLayout::Global
+            );
+            SPDLOG_DEBUG("Using built-in Global descriptor layout for set {}", set);
         }
+        else if (set == ShaderLib::OBJECT_DESCRIPTOR_SET && metadata.usesObjectUBO) {
+            layoutHandle = m_descriptorLayoutManager.getBuiltInLayout(
+                DescriptorLayoutManager::BuiltInLayout::Object
+            );
+            SPDLOG_DEBUG("Using built-in Object descriptor layout for set {}", set);
+        }
+        else {
+            // Create custom descriptor layout for other sets
+            DescriptorLayoutBuilder builder;
+            VkShaderStageFlags combinedStageFlags = 0;
 
-        // Create descriptor layout
-        DescriptorLayoutHandle layoutHandle = m_descriptorLayoutManager.create(
-            builder,
-            combinedStageFlags
-        );
+            // Add bindings to builder
+            for (const auto& descriptor : descriptors) {
+                VkDescriptorType vulkanDescriptorType =
+                    static_cast<VkDescriptorType>(ShaderLib::GetVulkanDescriptorType(descriptor.type));
+
+                // Convert the stage flags for this descriptor
+                VkShaderStageFlags stageFlags = ShaderLib::GetVulkanShaderStageFlags(descriptor.stages);
+                combinedStageFlags |= stageFlags;
+
+                builder.addBinding(descriptor.binding, vulkanDescriptorType);
+            }
+
+            // Create descriptor layout
+            layoutHandle = m_descriptorLayoutManager.create(
+                builder,
+                combinedStageFlags
+            );
+            SPDLOG_DEBUG("Created custom descriptor layout for set {}", set);
+        }
 
         result[set] = layoutHandle;
     }

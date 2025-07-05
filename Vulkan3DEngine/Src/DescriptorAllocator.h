@@ -82,10 +82,11 @@ private:
         VkDescriptorSet descriptorSet;
         VkDescriptorSetLayout layout;
         VkDescriptorPool sourcePool;
-        bool inUse;
+        bool inUse;           // Czy jest aktywnie używany
+        bool isAllocated;     // Czy został przydzielony z poola (nowy stan)
         uint32_t referenceCount;
-        uint32_t frameIndex; // Frame this descriptor set was allocated in
-        DescriptorResources resources; // Resources bound to this descriptor set
+        uint32_t frameIndex;
+        DescriptorResources resources;
     };
 
     // Per-frame pool management

@@ -29,7 +29,6 @@ private:
     void processMeshOrder(std::shared_ptr<MeshRenderOrder> order);
 
     // Create and bind descriptor sets for different shader set bindings
-    void createGlobalDescriptorSet(std::shared_ptr<MeshRenderOrder> order, ShaderHandle shader);
     void createObjectDescriptorSet(std::shared_ptr<MeshRenderOrder> order, ShaderHandle shader);
 
     Renderer& m_renderer;
