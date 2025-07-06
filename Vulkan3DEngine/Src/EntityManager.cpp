@@ -3,10 +3,19 @@
 #include <algorithm>
 #include <spdlog/spdlog.h>
 
-const std::unordered_set<Entity> EntityManager::s_emptyChildren;
-
 EntityManager::EntityManager(ComponentManager& componentManager)
     : m_componentManager(componentManager) {
+}
+
+// Internal node access
+EntityNode* EntityManager::getNode(Entity entity) {
+    auto it = m_entityNodes.find(entity);
+    return (it != m_entityNodes.end()) ? &it->second : nullptr;
+}
+
+const EntityNode* EntityManager::getNode(Entity entity) const {
+    auto it = m_entityNodes.find(entity);
+    return (it != m_entityNodes.end()) ? &it->second : nullptr;
 }
 
 // Entity lifecycle
@@ -22,15 +31,15 @@ Entity EntityManager::create(const std::string& name, Entity parent) {
         entity = Entity(m_nextId++);
     }
 
-    m_entities.insert(entity);
-
     // Set entity name
     std::string finalName = name.empty() ? generateUniqueEntityName() : name;
     if (entityNameExists(finalName)) {
         finalName = generateUniqueEntityName(finalName);
     }
 
-    m_entityNames[entity] = finalName;
+    // Create node
+    EntityNode node(finalName);
+    m_entityNodes[entity] = std::move(node);
     m_nameToEntity[finalName] = entity;
 
     // Set parent if provided and valid
@@ -44,23 +53,22 @@ Entity EntityManager::create(const std::string& name, Entity parent) {
 void EntityManager::destroy(Entity entity) {
     if (!valid(entity)) return;
 
-    // Sprawdź czy entity jest zablokowane
+    // Check if entity is locked
     if (isEntityLocked(entity)) {
         SPDLOG_WARN("Cannot destroy locked entity: {}", entity.id);
         return;
     }
 
-    // Wyślij event PRZED usunięciem
+    // Send event BEFORE removal
     m_onEntityDestroyed.invoke(entity);
 
-	if (!valid(entity)) return; // Entity mogło być usunięte przez event
+    if (!valid(entity)) return; // Entity might have been deleted by event
 
-    // Remove name mappings
-    auto nameIt = m_entityNames.find(entity);
-    if (nameIt != m_entityNames.end()) {
-        m_nameToEntity.erase(nameIt->second);
-        m_entityNames.erase(nameIt);
-    }
+    EntityNode* node = getNode(entity);
+    if (!node) return;
+
+    // Remove name mapping
+    m_nameToEntity.erase(node->name);
 
     // Remove from hierarchy and reparent children
     removeFromHierarchy(entity);
@@ -68,31 +76,43 @@ void EntityManager::destroy(Entity entity) {
     // Remove all components
     m_componentManager.removeAllComponents(entity);
 
-    // Remove from locked entities
-    m_lockedEntities.erase(entity);
+    // Remove node
+    m_entityNodes.erase(entity);
 
     // Free entity
-    m_entities.erase(entity);
     m_freeEntities.insert(entity);
 }
 
 bool EntityManager::valid(Entity entity) const {
-    return m_entities.count(entity) > 0;
+    return m_entityNodes.find(entity) != m_entityNodes.end();
+}
+
+std::set<Entity> EntityManager::getAllEntities() const {
+    std::set<Entity> entities;
+    for (const auto& [entity, node] : m_entityNodes) {
+        entities.insert(entity);
+    }
+    return entities;
 }
 
 // Entity locking system
 void EntityManager::lockEntity(Entity entity) {
-    if (valid(entity)) {
-        m_lockedEntities.insert(entity);
+    if (EntityNode* node = getNode(entity)) {
+        node->locked = true;
     }
 }
 
 void EntityManager::unlockEntity(Entity entity) {
-    m_lockedEntities.erase(entity);
+    if (EntityNode* node = getNode(entity)) {
+        node->locked = false;
+    }
 }
 
 bool EntityManager::isEntityLocked(Entity entity) const {
-    return m_lockedEntities.count(entity) > 0;
+    if (const EntityNode* node = getNode(entity)) {
+        return node->locked;
+    }
+    return false;
 }
 
 bool EntityManager::canModifyEntity(Entity entity) const {
@@ -101,18 +121,20 @@ bool EntityManager::canModifyEntity(Entity entity) const {
 
 // Entity naming
 std::string EntityManager::getEntityName(Entity entity) const {
-    auto it = m_entityNames.find(entity);
-    return (it != m_entityNames.end()) ? it->second : "";
+    if (const EntityNode* node = getNode(entity)) {
+        return node->name;
+    }
+    return "";
 }
 
 void EntityManager::setEntityName(Entity entity, const std::string& name) {
     if (!canModifyEntity(entity)) return;
 
+    EntityNode* node = getNode(entity);
+    if (!node) return;
+
     // Remove old mapping
-    auto oldNameIt = m_entityNames.find(entity);
-    if (oldNameIt != m_entityNames.end()) {
-        m_nameToEntity.erase(oldNameIt->second);
-    }
+    m_nameToEntity.erase(node->name);
 
     // Generate unique name if needed
     std::string finalName = name;
@@ -121,7 +143,7 @@ void EntityManager::setEntityName(Entity entity, const std::string& name) {
     }
 
     // Set new mapping
-    m_entityNames[entity] = finalName;
+    node->name = finalName;
     m_nameToEntity[finalName] = entity;
 }
 
@@ -138,59 +160,71 @@ bool EntityManager::entityNameExists(const std::string& name) const {
 void EntityManager::setParent(Entity child, Entity parent) {
     if (!canModifyEntity(child) || !valid(parent)) return;
 
+    EntityNode* childNode = getNode(child);
+    EntityNode* parentNode = getNode(parent);
+    if (!childNode || !parentNode) return;
+
     // Prevent cycles
     if (isDescendantOf(parent, child)) {
         return;
     }
 
-    // Remove previous parent if exists
-    if (hasParent(child)) {
-        removeParent(child);
+    // Remove from previous parent
+    if (childNode->parent.id != 0) {
+        if (EntityNode* oldParentNode = getNode(childNode->parent)) {
+            oldParentNode->children.erase(child);
+        }
     }
 
     // Set new parent
-    m_parentMap[child] = parent;
-    m_childrenMap[parent].insert(child);
+    childNode->parent = parent;
+    parentNode->children.insert(child);
 }
 
 void EntityManager::removeParent(Entity child) {
     if (!canModifyEntity(child)) return;
 
-    auto it = m_parentMap.find(child);
-    if (it != m_parentMap.end()) {
-        Entity parent = it->second;
-        m_parentMap.erase(it);
+    EntityNode* childNode = getNode(child);
+    if (!childNode || childNode->parent.id == 0) return;
 
-        // Remove from parent's children list
-        if (auto childrenIt = m_childrenMap.find(parent); childrenIt != m_childrenMap.end()) {
-            childrenIt->second.erase(child);
-            if (childrenIt->second.empty()) {
-                m_childrenMap.erase(childrenIt);
-            }
-        }
+    // Remove from parent's children
+    if (EntityNode* parentNode = getNode(childNode->parent)) {
+        parentNode->children.erase(child);
     }
+
+    // Clear parent
+    childNode->parent = Entity(0);
 }
 
 void EntityManager::removeChild(Entity parent, Entity child) {
-    auto it = m_parentMap.find(child);
-    if (it != m_parentMap.end() && it->second == parent) {
-        removeParent(child);
+    if (const EntityNode* childNode = getNode(child)) {
+        if (childNode->parent == parent) {
+            removeParent(child);
+        }
     }
 }
 
 // Hierarchy queries
 bool EntityManager::hasParent(Entity entity) const {
-    return m_parentMap.count(entity) > 0;
+    if (const EntityNode* node = getNode(entity)) {
+        return node->parent.id != 0;
+    }
+    return false;
 }
 
 Entity EntityManager::getParent(Entity entity) const {
-    auto it = m_parentMap.find(entity);
-    return (it != m_parentMap.end()) ? it->second : Entity(0);
+    if (const EntityNode* node = getNode(entity)) {
+        return node->parent;
+    }
+    return Entity(0);
 }
 
 const std::unordered_set<Entity>& EntityManager::getChildren(Entity entity) const {
-    auto it = m_childrenMap.find(entity);
-    return (it != m_childrenMap.end()) ? it->second : s_emptyChildren;
+    static const std::unordered_set<Entity> emptyChildren;
+    if (const EntityNode* node = getNode(entity)) {
+        return node->children;
+    }
+    return emptyChildren;
 }
 
 std::vector<Entity> EntityManager::getAllChildren(Entity entity) const {
@@ -227,9 +261,8 @@ bool EntityManager::isDescendantOf(Entity child, Entity ancestor) const {
 std::vector<Entity> EntityManager::getRootEntities() const {
     std::vector<Entity> roots;
 
-    // Iterate through ALL entities, not just parents
-    for (Entity entity : m_entities) {
-        if (!hasParent(entity)) {
+    for (const auto& [entity, node] : m_entityNodes) {
+        if (node.parent.id == 0) {
             roots.push_back(entity);
         }
     }
@@ -301,8 +334,7 @@ Entity EntityManager::cloneEntityHierarchy(Entity sourceEntity, Entity newParent
     return newEntity;
 }
 
-void EntityManager::destroyAllEntities()
-{
+void EntityManager::destroyAllEntities() {
     auto allEntities = getAllEntities();
     std::vector<Entity> entitiesToDestroy(allEntities.begin(), allEntities.end());
 
@@ -322,7 +354,7 @@ nlohmann::json EntityManager::serializeEntity(Entity entity) const {
     nlohmann::json result;
     result["name"] = getEntityName(entity);
 
-    // Serializuj komponenty
+    // Serialize components
     nlohmann::json componentsJson = nlohmann::json::array();
     auto componentTypes = m_componentManager.getEntityComponentTypes(entity);
 
@@ -337,7 +369,6 @@ nlohmann::json EntityManager::serializeEntity(Entity entity) const {
         result["components"] = componentsJson;
     }
 
-    // WAŻNE: NIE serializujemy dzieci tutaj - to robi serializeEntityHierarchy
     return result;
 }
 
@@ -345,12 +376,12 @@ Entity EntityManager::deserializeEntity(const nlohmann::json& entityData, Entity
     std::string entityName = entityData.contains("name") ? entityData["name"].get<std::string>() : "";
     Entity newEntity = create(entityName);
 
-    // Ustaw rodzica jeśli podany
+    // Set parent if provided
     if (parentEntity.id != 0 && valid(parentEntity)) {
         setParent(newEntity, parentEntity);
     }
 
-    // Deserializuj komponenty
+    // Deserialize components
     if (entityData.contains("components")) {
         for (const auto& componentJson : entityData["components"]) {
             std::string typeName = componentJson["type"];
@@ -358,7 +389,6 @@ Entity EntityManager::deserializeEntity(const nlohmann::json& entityData, Entity
         }
     }
 
-    // WAŻNE: NIE deserializujemy dzieci tutaj - to robi deserializeEntityHierarchy
     return newEntity;
 }
 
@@ -369,15 +399,15 @@ nlohmann::json EntityManager::serializeEntityHierarchy(Entity entity) const {
 
     nlohmann::json result;
 
-    // Użyj serializeEntity dla podstawowych danych
+    // Use serializeEntity for basic data
     result["entity"] = serializeEntity(entity);
 
-    // Dodaj dzieci jeśli istnieją
+    // Add children if they exist
     const auto& children = getChildren(entity);
     if (!children.empty()) {
         nlohmann::json childrenArray = nlohmann::json::array();
 
-        // Sortuj dzieci po ID dla przewidywalnej kolejności
+        // Sort children by ID for predictable order
         std::vector<Entity> sortedChildren(children.begin(), children.end());
         std::sort(sortedChildren.begin(), sortedChildren.end(),
             [](const Entity& a, const Entity& b) { return a.id < b.id; });
@@ -396,10 +426,10 @@ Entity EntityManager::deserializeEntityHierarchy(const nlohmann::json& hierarchy
         throw std::runtime_error("Invalid hierarchy data: missing 'entity' field");
     }
 
-    // Utwórz główne entity
+    // Create main entity
     Entity newEntity = deserializeEntity(hierarchyData["entity"], parent);
 
-    // Deserializuj dzieci jeśli istnieją
+    // Deserialize children if they exist
     if (hierarchyData.contains("children")) {
         const auto& childrenArray = hierarchyData["children"];
         for (const auto& childData : childrenArray) {
@@ -433,25 +463,34 @@ void EntityManager::getAllChildrenRecursive(Entity entity, std::vector<Entity>& 
 }
 
 void EntityManager::removeFromHierarchy(Entity entity) {
-    // Make a COPY of children before removing entity to avoid iterator invalidation
-    std::vector<Entity> childrenCopy;
-    const auto& children = getChildren(entity);
-    childrenCopy.reserve(children.size());
-    for (Entity child : children) {
-        childrenCopy.push_back(child);
-    }
+    EntityNode* node = getNode(entity);
+    if (!node) return;
 
-    Entity parent = hasParent(entity) ? getParent(entity) : Entity(0);
+    // Make a copy of children to avoid iterator invalidation
+    std::vector<Entity> childrenCopy(node->children.begin(), node->children.end());
 
     // Reparent children to entity's parent (or make them roots)
-    for (Entity child : childrenCopy) {  // Now safe to iterate
-        removeParent(child);
-        if (parent.id != 0) {
-            setParent(child, parent);
+    for (Entity child : childrenCopy) {
+        if (EntityNode* childNode = getNode(child)) {
+            childNode->parent = node->parent;
+
+            // Add to new parent's children list
+            if (node->parent.id != 0) {
+                if (EntityNode* parentNode = getNode(node->parent)) {
+                    parentNode->children.insert(child);
+                }
+            }
         }
     }
 
-    // Remove entity from hierarchy
-    removeParent(entity);
-    m_childrenMap.erase(entity);
+    // Remove entity from its parent's children list
+    if (node->parent.id != 0) {
+        if (EntityNode* parentNode = getNode(node->parent)) {
+            parentNode->children.erase(entity);
+        }
+    }
+
+    // Clear node's relationships
+    node->parent = Entity(0);
+    node->children.clear();
 }

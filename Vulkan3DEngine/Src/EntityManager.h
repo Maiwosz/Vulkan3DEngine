@@ -10,6 +10,16 @@
 
 class ComponentManager; // Forward declaration
 
+struct EntityNode {
+    Entity parent{ 0 };
+    std::string name;
+    std::unordered_set<Entity> children;
+    bool locked = false;
+
+    EntityNode() = default;
+    EntityNode(const std::string& entityName) : name(entityName) {}
+};
+
 class EntityManager {
 public:
     explicit EntityManager(ComponentManager& componentManager);
@@ -26,7 +36,7 @@ public:
     bool canModifyEntity(Entity entity) const; // Helper method
 
     // Entity iteration
-    const std::set<Entity>& getAllEntities() const { return m_entities; }
+    std::set<Entity> getAllEntities() const;
 
     // Entity naming
     std::string getEntityName(Entity entity) const;
@@ -67,22 +77,13 @@ public:
 private:
     ComponentManager& m_componentManager;
 
-    // Entity storage
-    std::set<Entity> m_entities;
+    // Flat entity storage - single source of truth
+    std::unordered_map<Entity, EntityNode> m_entityNodes;
     std::set<Entity> m_freeEntities;
     uint32_t m_nextId = 1;
 
-    // Entity locking
-    std::unordered_set<Entity> m_lockedEntities;
-
-    // Entity naming
-    std::unordered_map<Entity, std::string> m_entityNames;
+    // Name lookup optimization
     std::unordered_map<std::string, Entity> m_nameToEntity;
-
-    // Hierarchy storage
-    std::unordered_map<Entity, Entity> m_parentMap;
-    std::unordered_map<Entity, std::unordered_set<Entity>> m_childrenMap;
-    static const std::unordered_set<Entity> s_emptyChildren;
 
     // Events
     Event<Entity> m_onEntityDestroyed;
@@ -91,4 +92,8 @@ private:
     std::string generateUniqueEntityName(const std::string& baseName = "Entity") const;
     void getAllChildrenRecursive(Entity entity, std::vector<Entity>& result) const;
     void removeFromHierarchy(Entity entity);
+
+    // Internal node access
+    EntityNode* getNode(Entity entity);
+    const EntityNode* getNode(Entity entity) const;
 };
