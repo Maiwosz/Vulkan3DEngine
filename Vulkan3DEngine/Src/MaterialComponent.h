@@ -27,6 +27,10 @@ public:
 private:
     AssetHandle m_material;
 
+    // Lazy loading state
+    mutable std::vector<std::string> m_materialFiles;
+    mutable bool m_filesLoaded = false;
+
     std::vector<std::string> getAvailableMaterialFiles();
     void renderMaterialParametersUI();
 };

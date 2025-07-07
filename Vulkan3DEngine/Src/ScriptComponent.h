@@ -97,54 +97,42 @@ public:
             ImGui::TextDisabled("No script assigned");
         }
 
-        // Get available script files
-        std::vector<std::string> scriptFiles = getAvailableScriptFiles();
+        // Lazy loading - only check files when combo is opened
+        if (ImGui::BeginCombo("Script File", m_scriptPath.empty() ? "None" : m_scriptPath.c_str())) {
+            // Load files only when combo is opened
+            if (!m_filesLoaded) {
+                m_scriptFiles = getAvailableScriptFiles();
+                m_filesLoaded = true;
+            }
 
-        if (scriptFiles.empty()) {
-            ImGui::TextDisabled("No script files found in scripts directory");
-        }
-        else {
-            // Find current selection index
-            int currentSelection = -1;
-            for (int i = 0; i < scriptFiles.size(); i++) {
-                if (scriptFiles[i] == m_scriptPath) {
-                    currentSelection = i;
-                    break;
+            // "None" option
+            bool isSelected = m_scriptPath.empty();
+            if (ImGui::Selectable("None", isSelected)) {
+                setScript("");
+            }
+            if (isSelected) {
+                ImGui::SetItemDefaultFocus();
+            }
+
+            // Script file options
+            for (const auto& file : m_scriptFiles) {
+                bool isSelected = (file == m_scriptPath);
+                if (ImGui::Selectable(file.c_str(), isSelected)) {
+                    setScript(file);
+                    // Initialize script after selection
+                    m_initialized = false;
+                }
+                if (isSelected) {
+                    ImGui::SetItemDefaultFocus();
                 }
             }
 
-            // Create combo items
-            std::vector<const char*> items;
-            items.push_back("None"); // First option for no selection
-            for (const auto& file : scriptFiles) {
-                items.push_back(file.c_str());
-            }
-
-            int comboSelection = currentSelection + 1; // +1 because "None" is at index 0
-
-            if (ImGui::Combo("Script File", &comboSelection, items.data(), items.size())) {
-                if (comboSelection == 0) {
-                    // "None" selected
-                    setScript("");
-                }
-                else {
-                    // Script file selected
-                    setScript(scriptFiles[comboSelection - 1]);
-                }
-            }
+            ImGui::EndCombo();
         }
 
-        // Manual input fallback
-        ImGui::Separator();
-        ImGui::Text("Manual Input:");
-
-        char pathBuffer[256];
-        size_t copyLen = std::min(m_scriptPath.length(), sizeof(pathBuffer) - 1);
-        m_scriptPath.copy(pathBuffer, copyLen);
-        pathBuffer[copyLen] = '\0';
-
-        if (ImGui::InputText("Script Name (without extension)", pathBuffer, sizeof(pathBuffer))) {
-            setScript(std::string(pathBuffer));
+        // Refresh button for development
+        if (ImGui::Button("Refresh Files")) {
+            m_filesLoaded = false;
         }
 
         // Script status
@@ -170,6 +158,10 @@ private:
     bool m_initialized = false;
     sol::state* m_luaState = nullptr;  // Pointer to lua state owned by ScriptSystem
     sol::table* m_table = nullptr;     // Script instance table
+
+    // Lazy loading state
+    mutable std::vector<std::string> m_scriptFiles;
+    mutable bool m_filesLoaded = false;
 
     std::vector<std::string> getAvailableScriptFiles() {
         std::vector<std::string> files;

@@ -6,9 +6,15 @@
 #include <stdexcept>
 #include <spdlog/spdlog.h>
 
-ComponentManager::ComponentManager(Engine& engine, Registry& registry) : m_engine(engine), m_registry(registry) {
+ComponentManager::ComponentManager(Engine& engine, Registry& registry)
+    : m_engine(engine), m_registry(registry) {
     initializeComponents();
 }
+
+void ComponentManager::setEntityOrderCallback(std::function<const std::vector<Entity>& ()> callback) {
+    m_entityOrderCallback = callback;
+}
+
 
 bool ComponentManager::addComponentByName(Entity entity, const std::string& componentName, const nlohmann::json& componentData) {
     // Sprawdź czy komponent już istnieje
@@ -158,6 +164,12 @@ std::vector<std::string> ComponentManager::getAllComponentNames() const {
 
 size_t ComponentManager::getComponentCount() const {
     return m_componentTypes.size();
+}
+
+void ComponentManager::invalidateAllOrders() {
+    for (auto& [typeIndex, pool] : m_componentPools) {
+        pool->invalidateOrder();
+    }
 }
 
 // Component pool interface helper

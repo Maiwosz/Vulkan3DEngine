@@ -44,7 +44,7 @@ void ScriptSystem::update() {
     float deltaTime = engine().deltaTime();
 
     // Get all entities with a ScriptComponent
-    auto entities = registry().components().createView<ScriptComponent>();
+    auto entities = registry().components().createOrderedView<ScriptComponent>();
 
     if (entities.empty()) {
         // No script components found - log only once every few seconds

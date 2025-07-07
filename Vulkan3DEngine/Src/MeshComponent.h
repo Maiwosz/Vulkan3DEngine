@@ -88,24 +88,14 @@ public:
                 }
             }
         }
-
-        // Manual input fallback
-        ImGui::Separator();
-        ImGui::Text("Manual Input:");
-
-        char filenameBuffer[256];
-        size_t copyLen = std::min(m_mesh.filename.length(), sizeof(filenameBuffer) - 1);
-        m_mesh.filename.copy(filenameBuffer, copyLen);
-        filenameBuffer[copyLen] = '\0';
-
-        if (ImGui::InputText("Filename (without extension)", filenameBuffer, sizeof(filenameBuffer))) {
-            AssetHandle newHandle(AssetType::Mesh, std::string(filenameBuffer));
-            setMesh(newHandle);
-        }
     }
 
 private:
     AssetHandle m_mesh;
+
+    // Lazy loading state
+    mutable std::vector<std::string> m_meshFiles;
+    mutable bool m_filesLoaded = false;
 
     std::vector<std::string> getAvailableMeshFiles() {
         std::vector<std::string> files;

@@ -9,6 +9,7 @@
 #include <functional>
 #include <json.hpp>
 #include "Entity.h"
+#include "spdlog/spdlog.h"
 
 // Forward declaration to avoid circular dependency
 class Engine;
@@ -17,6 +18,9 @@ class Registry;
 class ComponentManager {
 public:
     explicit ComponentManager(Engine& engine, Registry& registry);
+
+    // Entity order callback setup
+    void setEntityOrderCallback(std::function<const std::vector<Entity>& ()> callback);
 
     // Component registration
     template<typename T>
@@ -41,6 +45,9 @@ public:
     // Entity queries
     template<typename... Components>
     std::vector<Entity> createView();
+
+    template<typename... Components>
+    std::vector<Entity> createOrderedView();
 
     // Entity component introspection
     std::vector<std::string> getEntityComponentTypes(Entity entity) const;
@@ -67,6 +74,9 @@ public:
     std::vector<std::string> getAllComponentNames() const;
     size_t getComponentCount() const;
 
+    // Order management
+    void invalidateAllOrders();
+
 private:
     void initializeComponents();
 
@@ -78,6 +88,8 @@ private:
         virtual void deserializeComponent(Entity entity, const nlohmann::json& data) = 0;
         virtual bool hasEntity(Entity entity) const = 0;
         virtual Component* getComponentPtr(Entity entity) = 0;
+        virtual void invalidateOrder() = 0;
+        virtual std::vector<Entity> getOrderedEntities() = 0;
     };
 
     template<typename T>
@@ -88,6 +100,10 @@ private:
         std::vector<T> m_components;
         std::unordered_map<Entity, size_t> m_entityToIndex;
         std::unordered_map<size_t, Entity> m_indexToEntity;
+
+        // Order management
+        mutable std::vector<Entity> m_orderedEntities;
+        mutable bool m_orderDirty = true;
 
         T& add(Entity entity, T&& component);
         void remove(Entity entity) override;
@@ -102,8 +118,12 @@ private:
             }
             return nullptr;
         }
+
+        void invalidateOrder() override { m_orderDirty = true; }
+        std::vector<Entity> getOrderedEntities() override;
+
     private:
-		Engine& m_engine;
+        Engine& m_engine;
         Registry& m_registry;
     };
 
@@ -115,6 +135,9 @@ private:
     std::unordered_map<std::type_index, std::string> m_componentTypes;
     std::unordered_map<std::string, std::type_index> m_nameToType;
     std::unordered_map<std::string, DeserializerFunction> m_deserializerFunctions;
+
+    // Entity order callback
+    std::function<const std::vector<Entity>& ()> m_entityOrderCallback;
 
     // Helper method
     IComponentPool* getComponentPool(const std::string& componentTypeName) const;
@@ -207,6 +230,29 @@ std::vector<Entity> ComponentManager::createView() {
     return result;
 }
 
+template<typename... Components>
+std::vector<Entity> ComponentManager::createOrderedView() {
+    std::vector<Entity> result;
+
+    try {
+        const auto& globalOrder = m_entityOrderCallback();
+
+        for (Entity entity : globalOrder) {
+            bool hasAll = (hasComponent<Components>(entity) && ...);
+            if (hasAll) {
+                result.push_back(entity);
+            }
+        }
+    }
+    catch (const std::exception& e) {
+        // Entity order callback not set or failed - this should not happen in normal operation
+        SPDLOG_ERROR("Entity order callback failed: {}", e.what());
+        throw std::runtime_error("Entity order callback is not properly initialized");
+    }
+
+    return result;
+}
+
 template<typename T>
 std::string ComponentManager::getComponentName() const {
     auto type = std::type_index(typeid(T));
@@ -231,6 +277,9 @@ T& ComponentManager::ComponentPool<T>::add(Entity entity, T&& component) {
     m_indexToEntity[index] = entity;
     m_components.emplace_back(std::move(component));
 
+    // Invalidate order since we added a new entity
+    m_orderDirty = true;
+
     return m_components.back();
 }
 
@@ -252,6 +301,9 @@ void ComponentManager::ComponentPool<T>::remove(Entity entity) {
     m_components.pop_back();
     m_entityToIndex.erase(entity);
     m_indexToEntity.erase(lastIndex);
+
+    // Invalidate order since we removed an entity
+    m_orderDirty = true;
 }
 
 template<typename T>
@@ -270,7 +322,7 @@ void ComponentManager::ComponentPool<T>::deserializeComponent(Entity entity, con
         m_components[it->second].deserialize(data);
         // Ensure registry is set after deserialization
         m_components[it->second].setRegistry(&m_registry);
-		m_components[it->second].setEngine(&m_engine);
+        m_components[it->second].setEngine(&m_engine);
     }
     else {
         throw std::runtime_error("Entity not found in component pool for deserialization");
@@ -282,3 +334,19 @@ bool ComponentManager::ComponentPool<T>::hasEntity(Entity entity) const {
     return m_entityToIndex.find(entity) != m_entityToIndex.end();
 }
 
+template<typename T>
+std::vector<Entity> ComponentManager::ComponentPool<T>::getOrderedEntities() {
+    if (!m_orderDirty) {
+        return m_orderedEntities;
+    }
+
+    m_orderedEntities.clear();
+    m_orderedEntities.reserve(m_components.size());
+
+    for (const auto& [entity, index] : m_entityToIndex) {
+        m_orderedEntities.push_back(entity);
+    }
+
+    m_orderDirty = false;
+    return m_orderedEntities;
+}

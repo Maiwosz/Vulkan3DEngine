@@ -7,13 +7,15 @@
 #include <set>
 #include <string>
 #include <json.hpp>
+#include <functional>
 
 class ComponentManager; // Forward declaration
 
 struct EntityNode {
     Entity parent{ 0 };
     std::string name;
-    std::unordered_set<Entity> children;
+    std::unordered_set<Entity> children; // For fast lookup
+    std::vector<Entity> childrenOrder;   // For maintaining order
     bool locked = false;
 
     EntityNode() = default;
@@ -60,6 +62,16 @@ public:
     std::vector<Entity> getRootEntities() const;
     int getDepth(Entity entity) const;
 
+    // Order management
+    void setEntityOrder(Entity parent, const std::vector<Entity>& childOrder);
+    std::vector<Entity> getEntityOrder(Entity parent) const;
+    void moveEntityBefore(Entity parent, Entity child, Entity beforeChild);
+    void moveEntityAfter(Entity parent, Entity child, Entity afterChild);
+
+    // Global entity order (depth-first traversal)
+    const std::vector<Entity>& getGlobalEntityOrder() const;
+    void invalidateGlobalOrder();
+
     // Advanced entity operations
     uint32_t countEntitiesInHierarchy(Entity rootEntity) const;
     Entity cloneEntityHierarchy(Entity sourceEntity, Entity newParent, const std::string& name = "");
@@ -73,6 +85,7 @@ public:
 
     // Events
     Event<Entity>& onEntityDestroyed() { return m_onEntityDestroyed; }
+    Event<>& onGlobalOrderChanged() { return m_onGlobalOrderChanged; }
 
 private:
     ComponentManager& m_componentManager;
@@ -85,13 +98,24 @@ private:
     // Name lookup optimization
     std::unordered_map<std::string, Entity> m_nameToEntity;
 
+    // Root entities order (entities without parent)
+    std::vector<Entity> m_rootOrder;
+
+    // Global order cache
+    mutable std::vector<Entity> m_globalOrder;
+    mutable bool m_globalOrderDirty = true;
+
     // Events
     Event<Entity> m_onEntityDestroyed;
+    Event<> m_onGlobalOrderChanged;
 
     // Helper methods
     std::string generateUniqueEntityName(const std::string& baseName = "Entity") const;
     void getAllChildrenRecursive(Entity entity, std::vector<Entity>& result) const;
     void removeFromHierarchy(Entity entity);
+    void buildGlobalOrder() const;
+    void buildGlobalOrderRecursive(Entity entity, std::vector<Entity>& order) const;
+    void invalidateOrderAndNotify();
 
     // Internal node access
     EntityNode* getNode(Entity entity);

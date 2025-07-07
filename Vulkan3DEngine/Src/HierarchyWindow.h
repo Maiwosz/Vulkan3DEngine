@@ -49,6 +49,7 @@ private:
     void renderPrefabMenuWithParent(Entity parent);
     void startRename(Entity entity);
     void handleRenameDialog();
+    void renderDropTargetBetweenEntities(Entity parent, Entity beforeEntity, Entity afterEntity);
 
     // Rename dialog state
     bool m_showRenameDialog = false;

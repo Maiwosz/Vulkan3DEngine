@@ -96,23 +96,34 @@ void HierarchyWindow::renderEntityHierarchy() {
 }
 
 void HierarchyWindow::renderRootEntities() {
-    auto rootEntities = m_registry.entities().getRootEntities();
+    // Use entity order instead of alphabetical sorting
+    auto rootEntities = m_registry.entities().getEntityOrder(Entity(0));
 
     if (rootEntities.empty()) {
         ImGui::TextDisabled("No entities in scene");
         return;
     }
 
-    // Sort root entities by name for consistent display
-    std::vector<Entity> sortedRoots(rootEntities.begin(), rootEntities.end());
-    std::sort(sortedRoots.begin(), sortedRoots.end(), [this](Entity a, Entity b) {
-        return getEntityDisplayName(a) < getEntityDisplayName(b);
-        });
-
-    for (Entity entity : sortedRoots) {
+    for (size_t i = 0; i < rootEntities.size(); ++i) {
+        Entity entity = rootEntities[i];
         if (m_registry.entities().valid(entity)) {
+            // Add drop target before each entity (including first)
+            if (i == 0) {
+                // Drop target before first entity
+                renderDropTargetBetweenEntities(Entity(0), Entity(0), entity);
+            }
+            else {
+                // Drop target between entities
+                renderDropTargetBetweenEntities(Entity(0), rootEntities[i - 1], entity);
+            }
+
             renderEntityNode(entity, 0);
         }
+    }
+
+    // Add drop target after last entity
+    if (!rootEntities.empty()) {
+        renderDropTargetBetweenEntities(Entity(0), rootEntities.back(), Entity(0));
     }
 }
 
@@ -267,14 +278,29 @@ void HierarchyWindow::renderEntityNode(Entity entity, int depth) {
     if (nodeOpen && hasChildEntities) {
         const auto& children = m_registry.entities().getChildren(entity);
 
-        // Sort children by name
-        std::vector<Entity> sortedChildren(children.begin(), children.end());
-        std::sort(sortedChildren.begin(), sortedChildren.end(), [this](Entity a, Entity b) {
-            return getEntityDisplayName(a) < getEntityDisplayName(b);
-            });
+        // Use entity order instead of alphabetical sorting
+        std::vector<Entity> orderedChildren = m_registry.entities().getEntityOrder(entity);
 
-        for (Entity child : sortedChildren) {
-            renderEntityNode(child, depth + 1);
+        for (size_t i = 0; i < orderedChildren.size(); ++i) {
+            Entity child = orderedChildren[i];
+            if (m_registry.entities().valid(child)) {
+                // Add drop target before each child (including first)
+                if (i == 0) {
+                    // Drop target before first child
+                    renderDropTargetBetweenEntities(entity, Entity(0), child);
+                }
+                else {
+                    // Drop target between children
+                    renderDropTargetBetweenEntities(entity, orderedChildren[i - 1], child);
+                }
+
+                renderEntityNode(child, depth + 1);
+            }
+        }
+
+        // Add drop target after last child
+        if (!orderedChildren.empty()) {
+            renderDropTargetBetweenEntities(entity, orderedChildren.back(), Entity(0));
         }
 
         if (hasChildEntities) {
@@ -616,5 +642,71 @@ void HierarchyWindow::handleRenameDialog() {
         }
 
         ImGui::EndPopup();
+    }
+}
+
+void HierarchyWindow::renderDropTargetBetweenEntities(Entity parent, Entity beforeEntity, Entity afterEntity) {
+    // Create a thin invisible button as drop target
+    ImGui::InvisibleButton(("DropTarget_" + std::to_string(parent.id) + "_" +
+        std::to_string(beforeEntity.id) + "_" +
+        std::to_string(afterEntity.id)).c_str(),
+        ImVec2(-1, 2.0f));
+
+    if (ImGui::BeginDragDropTarget()) {
+        if (const ImGuiPayload* payload = ImGui::AcceptDragDropPayload("ENTITY")) {
+            Entity draggedEntity = *(Entity*)payload->Data;
+            if (m_registry.entities().valid(draggedEntity)) {
+                // Don't allow dropping on itself or invalid operations
+                if (draggedEntity == beforeEntity || draggedEntity == afterEntity) {
+                    ImGui::EndDragDropTarget();
+                    return;
+                }
+
+                // Check if we can move this entity
+                bool canMove = !m_registry.prefabs().isEntityPartOfInstance(draggedEntity) ||
+                    m_registry.prefabs().isInstanceRoot(draggedEntity);
+
+                if (canMove) {
+                    // First, ensure the entity has the correct parent
+                    Entity currentParent = m_registry.entities().getParent(draggedEntity);
+                    if (currentParent != parent) {
+                        if (parent.id == 0) {
+                            m_registry.entities().removeParent(draggedEntity);
+                        }
+                        else {
+                            m_registry.entities().setParent(draggedEntity, parent);
+                        }
+                    }
+
+                    // Then adjust the order
+                    if (afterEntity.id == 0) {
+                        // Move to end - after beforeEntity
+                        m_registry.entities().moveEntityAfter(parent, draggedEntity, beforeEntity);
+                    }
+                    else {
+                        // Move before afterEntity
+                        m_registry.entities().moveEntityBefore(parent, draggedEntity, afterEntity);
+                    }
+
+                    EDITOR_LOG_INFO("Reordered entity {} in parent {}",
+                        m_registry.entities().getEntityName(draggedEntity),
+                        parent.id);
+                }
+            }
+        }
+        ImGui::EndDragDropTarget();
+    }
+
+    // Visual feedback when dragging over
+    if (ImGui::IsItemHovered() && ImGui::BeginDragDropSource()) {
+        // Draw a line to show where the entity will be dropped
+        ImDrawList* drawList = ImGui::GetWindowDrawList();
+        ImVec2 itemMin = ImGui::GetItemRectMin();
+        ImVec2 itemMax = ImGui::GetItemRectMax();
+
+        drawList->AddLine(ImVec2(itemMin.x, itemMin.y + 1),
+            ImVec2(itemMax.x, itemMin.y + 1),
+            IM_COL32(255, 255, 0, 255), 2.0f);
+        ImGui::EndDragDropSource();
     }
 }

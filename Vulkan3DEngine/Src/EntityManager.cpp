@@ -5,6 +5,10 @@
 
 EntityManager::EntityManager(ComponentManager& componentManager)
     : m_componentManager(componentManager) {
+    // Setup entity order callback for ComponentManager
+    m_componentManager.setEntityOrderCallback([this]() -> const std::vector<Entity>&{
+        return this->getGlobalEntityOrder();
+        });
 }
 
 // Internal node access
@@ -46,6 +50,11 @@ Entity EntityManager::create(const std::string& name, Entity parent) {
     if (parent.id != 0 && valid(parent)) {
         setParent(entity, parent);
     }
+    else {
+        // Add to root order
+        m_rootOrder.push_back(entity);
+        invalidateOrderAndNotify();
+    }
 
     return entity;
 }
@@ -73,6 +82,14 @@ void EntityManager::destroy(Entity entity) {
     // Remove from hierarchy and reparent children
     removeFromHierarchy(entity);
 
+    // Remove from root order if it's a root entity
+    if (node->parent.id == 0) {
+        auto it = std::find(m_rootOrder.begin(), m_rootOrder.end(), entity);
+        if (it != m_rootOrder.end()) {
+            m_rootOrder.erase(it);
+        }
+    }
+
     // Remove all components
     m_componentManager.removeAllComponents(entity);
 
@@ -81,6 +98,8 @@ void EntityManager::destroy(Entity entity) {
 
     // Free entity
     m_freeEntities.insert(entity);
+
+    invalidateOrderAndNotify();
 }
 
 bool EntityManager::valid(Entity entity) const {
@@ -173,12 +192,27 @@ void EntityManager::setParent(Entity child, Entity parent) {
     if (childNode->parent.id != 0) {
         if (EntityNode* oldParentNode = getNode(childNode->parent)) {
             oldParentNode->children.erase(child);
+            // Remove from order as well
+            auto it = std::find(oldParentNode->childrenOrder.begin(), oldParentNode->childrenOrder.end(), child);
+            if (it != oldParentNode->childrenOrder.end()) {
+                oldParentNode->childrenOrder.erase(it);
+            }
+        }
+    }
+    else {
+        // Remove from root order if it was a root entity
+        auto it = std::find(m_rootOrder.begin(), m_rootOrder.end(), child);
+        if (it != m_rootOrder.end()) {
+            m_rootOrder.erase(it);
         }
     }
 
     // Set new parent
     childNode->parent = parent;
     parentNode->children.insert(child);
+    parentNode->childrenOrder.push_back(child); // Add to end of order
+
+    invalidateOrderAndNotify();
 }
 
 void EntityManager::removeParent(Entity child) {
@@ -190,10 +224,18 @@ void EntityManager::removeParent(Entity child) {
     // Remove from parent's children
     if (EntityNode* parentNode = getNode(childNode->parent)) {
         parentNode->children.erase(child);
+        // Remove from order as well
+        auto it = std::find(parentNode->childrenOrder.begin(), parentNode->childrenOrder.end(), child);
+        if (it != parentNode->childrenOrder.end()) {
+            parentNode->childrenOrder.erase(it);
+        }
     }
 
-    // Clear parent
+    // Clear parent and add to root order
     childNode->parent = Entity(0);
+    m_rootOrder.push_back(child);
+
+    invalidateOrderAndNotify();
 }
 
 void EntityManager::removeChild(Entity parent, Entity child) {
@@ -280,6 +322,176 @@ int EntityManager::getDepth(Entity entity) const {
     }
 
     return depth;
+}
+
+void EntityManager::setEntityOrder(Entity parent, const std::vector<Entity>& childOrder) {
+    // Jeśli parent ma ID 0, to operujemy na root entities
+    if (parent.id == 0) {
+        // Validate that all entities in childOrder are actually root entities
+        for (Entity entity : childOrder) {
+            if (!valid(entity) || hasParent(entity)) {
+                return; // Invalid root entity found
+            }
+        }
+
+        // Get current root entities
+        auto currentRoots = getRootEntities();
+
+        // Ensure all root entities are included in the order
+        if (childOrder.size() != currentRoots.size()) {
+            return; // Missing root entities
+        }
+
+        m_rootOrder = childOrder;
+        invalidateOrderAndNotify();
+    }
+    else {
+        // Operujemy na children danego parent
+        if (!canModifyEntity(parent)) return;
+
+        EntityNode* parentNode = getNode(parent);
+        if (!parentNode) return;
+
+        // Validate that all entities in childOrder are actually children of parent
+        for (Entity child : childOrder) {
+            if (parentNode->children.find(child) == parentNode->children.end()) {
+                return; // Invalid child found
+            }
+        }
+
+        // Ensure all children are included in the order
+        if (childOrder.size() != parentNode->children.size()) {
+            return; // Missing children
+        }
+
+        parentNode->childrenOrder = childOrder;
+        invalidateOrderAndNotify();
+    }
+}
+
+std::vector<Entity> EntityManager::getEntityOrder(Entity parent) const {
+    // Jeśli parent ma ID 0, zwracamy kolejność root entities
+    if (parent.id == 0) {
+        return m_rootOrder;
+    }
+    else {
+        // Zwracamy kolejność children danego parent
+        if (const EntityNode* parentNode = getNode(parent)) {
+            return parentNode->childrenOrder;
+        }
+        return {};
+    }
+}
+
+void EntityManager::moveEntityBefore(Entity parent, Entity child, Entity beforeChild) {
+    if (parent.id == 0) {
+        // Operujemy na root entities
+        auto& order = m_rootOrder;
+
+        // Find positions
+        auto childIt = std::find(order.begin(), order.end(), child);
+        auto beforeIt = std::find(order.begin(), order.end(), beforeChild);
+
+        if (childIt == order.end() || beforeIt == order.end()) return;
+
+        // Remove child from current position
+        order.erase(childIt);
+
+        // Find new position for beforeChild (might have changed after erase)
+        beforeIt = std::find(order.begin(), order.end(), beforeChild);
+
+        // Insert before
+        order.insert(beforeIt, child);
+
+        invalidateOrderAndNotify();
+    }
+    else {
+        // Operujemy na children danego parent
+        if (!canModifyEntity(parent)) return;
+
+        EntityNode* parentNode = getNode(parent);
+        if (!parentNode) return;
+
+        auto& order = parentNode->childrenOrder;
+
+        // Find positions
+        auto childIt = std::find(order.begin(), order.end(), child);
+        auto beforeIt = std::find(order.begin(), order.end(), beforeChild);
+
+        if (childIt == order.end() || beforeIt == order.end()) return;
+
+        // Remove child from current position
+        order.erase(childIt);
+
+        // Find new position for beforeChild (might have changed after erase)
+        beforeIt = std::find(order.begin(), order.end(), beforeChild);
+
+        // Insert before
+        order.insert(beforeIt, child);
+
+        invalidateOrderAndNotify();
+    }
+}
+
+void EntityManager::moveEntityAfter(Entity parent, Entity child, Entity afterChild) {
+    if (parent.id == 0) {
+        // Operujemy na root entities
+        auto& order = m_rootOrder;
+
+        // Find positions
+        auto childIt = std::find(order.begin(), order.end(), child);
+        auto afterIt = std::find(order.begin(), order.end(), afterChild);
+
+        if (childIt == order.end() || afterIt == order.end()) return;
+
+        // Remove child from current position
+        order.erase(childIt);
+
+        // Find new position for afterChild (might have changed after erase)
+        afterIt = std::find(order.begin(), order.end(), afterChild);
+
+        // Insert after
+        order.insert(afterIt + 1, child);
+
+        invalidateOrderAndNotify();
+    }
+    else {
+        // Operujemy na children danego parent
+        if (!canModifyEntity(parent)) return;
+
+        EntityNode* parentNode = getNode(parent);
+        if (!parentNode) return;
+
+        auto& order = parentNode->childrenOrder;
+
+        // Find positions
+        auto childIt = std::find(order.begin(), order.end(), child);
+        auto afterIt = std::find(order.begin(), order.end(), afterChild);
+
+        if (childIt == order.end() || afterIt == order.end()) return;
+
+        // Remove child from current position
+        order.erase(childIt);
+
+        // Find new position for afterChild (might have changed after erase)
+        afterIt = std::find(order.begin(), order.end(), afterChild);
+
+        // Insert after
+        order.insert(afterIt + 1, child);
+
+        invalidateOrderAndNotify();
+    }
+}
+
+const std::vector<Entity>& EntityManager::getGlobalEntityOrder() const {
+    if (m_globalOrderDirty) {
+        buildGlobalOrder();
+    }
+    return m_globalOrder;
+}
+
+void EntityManager::invalidateGlobalOrder() {
+    m_globalOrderDirty = true;
 }
 
 // Advanced entity operations
@@ -493,4 +705,36 @@ void EntityManager::removeFromHierarchy(Entity entity) {
     // Clear node's relationships
     node->parent = Entity(0);
     node->children.clear();
+}
+
+void EntityManager::buildGlobalOrder() const {
+    m_globalOrder.clear();
+
+    // Process root entities in order
+    for (Entity rootEntity : m_rootOrder) {
+        if (valid(rootEntity)) {
+            buildGlobalOrderRecursive(rootEntity, m_globalOrder);
+        }
+    }
+
+    m_globalOrderDirty = false;
+}
+
+void EntityManager::buildGlobalOrderRecursive(Entity entity, std::vector<Entity>& order) const {
+    order.push_back(entity);
+
+    if (const EntityNode* node = getNode(entity)) {
+        // Process children in order
+        for (Entity child : node->childrenOrder) {
+            if (valid(child)) {
+                buildGlobalOrderRecursive(child, order);
+            }
+        }
+    }
+}
+
+void EntityManager::invalidateOrderAndNotify() {
+    invalidateGlobalOrder();
+    m_componentManager.invalidateAllOrders();
+    m_onGlobalOrderChanged.invoke();
 }

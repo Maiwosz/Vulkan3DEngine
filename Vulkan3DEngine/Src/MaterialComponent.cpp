@@ -81,20 +81,6 @@ void MaterialComponent::renderUI() {
         }
     }
 
-    // Manual input fallback
-    ImGui::Separator();
-    ImGui::Text("Manual Input:");
-
-    char filenameBuffer[256];
-    size_t copyLen = std::min(m_material.filename.length(), sizeof(filenameBuffer) - 1);
-    m_material.filename.copy(filenameBuffer, copyLen);
-    filenameBuffer[copyLen] = '\0';
-
-    if (ImGui::InputText("Filename (without extension)", filenameBuffer, sizeof(filenameBuffer))) {
-        AssetHandle newHandle(AssetType::Material, std::string(filenameBuffer));
-        setMaterial(newHandle);
-    }
-
     // Material parameters section
     ImGui::Separator();
     renderMaterialParametersUI();
@@ -126,7 +112,7 @@ std::vector<std::string> MaterialComponent::getAvailableMaterialFiles() {
 void MaterialComponent::renderMaterialParametersUI() {
     ImGui::Text("Material Parameters");
     AssetManager& assetManager = getEngine()->assetSystem().assetManager();
-	MaterialManager& materialManager = getEngine()->assetSystem().materialManager();
+    MaterialManager& materialManager = getEngine()->assetSystem().materialManager();
 
     assetManager.ensureReady(m_material);
 
