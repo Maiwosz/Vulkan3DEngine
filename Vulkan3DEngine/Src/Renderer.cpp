@@ -90,11 +90,9 @@ Renderer::Renderer(Settings& settings, Window& window) :m_settings(settings), m_
             { VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 4.0f }
         };
         allocConfig.growthFactor = 1.5f;
-		allocConfig.framesInFlight = m_settings.getFramesInFlight();
 
         m_descriptorAllocator = std::make_unique<DescriptorAllocator>(
             m_vulkanContext->logical(),
-            *m_frameManager,
             allocConfig
         );
        
@@ -154,7 +152,6 @@ Renderer::~Renderer() {
 void Renderer::advanceFrame()
 {
 	m_frameManager->advanceFrame();
-	m_descriptorAllocator->advanceFrame();
 }
 
 

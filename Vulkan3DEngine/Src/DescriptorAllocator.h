@@ -13,7 +13,6 @@
 // Forward declarations
 class Buffer;
 class ImageSampler;
-class FrameManager;
 
 class DescriptorAllocator : public ISmartHandleManager<DescriptorSetHandle, VkDescriptorSet> {
 public:
@@ -26,13 +25,12 @@ public:
         uint32_t initialSets = 512;
         std::vector<PoolSizeRatio> ratios;
         float growthFactor = 1.5f;
-        uint32_t framesInFlight = 2; // Number of frames in flight for per-frame pools
     };
 
     // Structure to hold resources bound to a descriptor set
     struct DescriptorResources {
         std::vector<SmartHandle<UniformBufferHandle, Buffer>> uniformBuffers;
-        std::vector<SamplerHandle> samplers; // Regular handles since ImageSamplerManager doesn't support smart handles
+        std::vector<SamplerHandle> samplers;
 
         void clear() {
             uniformBuffers.clear();
@@ -40,16 +38,14 @@ public:
         }
     };
 
-    DescriptorAllocator(const LogicalDevice& device, const FrameManager& frameManager, const PoolConfig& config);
+    DescriptorAllocator(const LogicalDevice& device, const PoolConfig& config);
     ~DescriptorAllocator();
     void reset();
     void destroy();
 
-    // Frame management
-    void advanceFrame();
-    void updateFramesInFlight(uint32_t newFrameCount);
-    uint32_t getCurrentFrameIndex() const { return m_currentFrameIndex; }
-    uint32_t getFramesInFlight() const { return m_config.framesInFlight; }
+    // GPU usage tracking - to be called by RenderSystem
+    void markDescriptorAsUsedByGPU(DescriptorSetHandle handle, uint32_t frameIndex);
+    void markFrameCompleted(uint32_t frameIndex);
 
     // Enhanced interface with resource tracking
     DescriptorSetHandle acquireDescriptorSet(VkDescriptorSetLayout layout);
@@ -67,7 +63,7 @@ public:
     const DescriptorResources& getDescriptorResources(DescriptorSetHandle handle) const;
     DescriptorResources& getDescriptorResources(DescriptorSetHandle handle);
 
-    // Smart handle support - publiczny factory method
+    // Smart handle support
     SmartHandle<DescriptorSetHandle, VkDescriptorSet> acquireSmartDescriptorSet(VkDescriptorSetLayout layout);
     SmartHandle<DescriptorSetHandle, VkDescriptorSet> acquireSmartDescriptorSet(VkDescriptorSetLayout layout, const DescriptorResources& resources);
 
@@ -83,54 +79,49 @@ private:
         VkDescriptorSet descriptorSet;
         VkDescriptorSetLayout layout;
         VkDescriptorPool sourcePool;
-        bool inUse;           // Czy jest aktywnie używany
-        bool isAllocated;     // Czy został przydzielony z poola (nowy stan)
+        bool inUse;                    // Czy jest aktywnie używany przez aplikację
+        bool isAllocated;              // Czy został przydzielony z poola
+        bool usedByGPU;                // Czy jest używany przez GPU
+        uint32_t gpuFrameIndex;        // W której klatce jest używany przez GPU
         uint32_t referenceCount;
-        uint32_t frameIndex;
         DescriptorResources resources;
     };
 
-    // Per-frame pool management
-    struct FrameData {
-        std::vector<VkDescriptorPool> readyPools;
-        std::vector<VkDescriptorPool> fullPools;
-        std::unordered_map<VkDescriptorSetLayout, std::queue<DescriptorSetHandle>> reusableSets;
-        uint32_t nextSetCount;
-
-        FrameData() : nextSetCount(512) {}
+    // GPU usage tracking structures
+    struct FrameGpuUsage {
+        std::vector<DescriptorSetHandle> usedDescriptors;
+        bool completed = false;
     };
 
-    // Prywatne metody zarządzania pulami
+    // Pool management methods
     VkResult createPool(uint32_t setCount, VkDescriptorPool* outPool) const;
-    VkDescriptorPool getPool(uint32_t frameIndex);
+    VkDescriptorPool getPool();
     uint32_t computeMinSetCount() const;
-    void resetFramePools(uint32_t frameIndex);
-    void destroyFramePools(uint32_t frameIndex);
 
-    // Prywatne metody zarządzania uchwytami
+    // Handle management methods
     DescriptorSetHandle createNewDescriptorSet(VkDescriptorSetLayout layout);
     DescriptorSetHandle createNewDescriptorSet(VkDescriptorSetLayout layout, const DescriptorResources& resources);
-    DescriptorSetHandle findReusableDescriptorSet(VkDescriptorSetLayout layout, uint32_t frameIndex);
+    DescriptorSetHandle findReusableDescriptorSet(VkDescriptorSetLayout layout);
 
-    // Legacy pools (for backward compatibility)
+    // Internal GPU usage tracking
+    void releaseGpuUsageForFrame(uint32_t frameIndex);
+
+    // Pool management
     std::vector<VkDescriptorPool> m_fullPools;
     std::vector<VkDescriptorPool> m_readyPools;
-
     PoolConfig m_config;
     uint32_t m_nextSetCount;
     const LogicalDevice& m_device;
-    const FrameManager& m_frameManager;
 
-    // Per-frame data
-    std::vector<FrameData> m_frameData;
-    uint32_t m_currentFrameIndex;
-
-    // Struktury dla zarządzania uchwytami
+    // Handle management
     std::vector<DescriptorSetEntry> m_descriptorSets;
     std::unordered_map<VkDescriptorSetLayout, std::queue<DescriptorSetHandle>> m_reusableSets;
     uint32_t m_nextHandleId;
 
-    // Cache dla getResource (żeby zwrócić wskaźnik)
+    // GPU usage tracking
+    std::unordered_map<uint32_t, FrameGpuUsage> m_frameGpuUsage;
+
+    // Cache for getResource (to return pointer)
     mutable std::unordered_map<DescriptorSetHandle, VkDescriptorSet> m_resourceCache;
 
     // Empty resources for invalid handles

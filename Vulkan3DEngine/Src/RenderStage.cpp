@@ -105,6 +105,7 @@ void RenderStage::waitForPreviousFrame() {
 
     vkWaitForFences(m_vulkanContext.logical().get(), 1, &inFlightFence, VK_TRUE, UINT64_MAX);
     vkResetFences(m_vulkanContext.logical().get(), 1, &inFlightFence);
+	m_descriptorAllocator.markFrameCompleted(m_frameManager.getCurrentFrameIndex());
     SPDLOG_DEBUG("Fence reset");
 }
 
@@ -610,13 +611,19 @@ void RenderStage::bindDescriptorSets(VkCommandBuffer commandBuffer, VkPipelineLa
         return;
     }
 
+	UINT32 frameIndex = m_frameManager.getCurrentFrameIndex();
+    SmartHandle<DescriptorSetHandle, VkDescriptorSet> globalDescSetHandle = meshOrder->globalDescriptorSetHandle;
+    SmartHandle<DescriptorSetHandle, VkDescriptorSet> objectDescSetHandle = meshOrder->objectDescriptorSetHandle;
+    SmartHandle<DescriptorSetHandle, VkDescriptorSet> materialDescSetHandle = meshOrder->materialDescriptorSetHandle;
+
     // Validate and bind global descriptor set
-    if (meshOrder->globalDescriptorSetHandle.isValid()) {
+    if (globalDescSetHandle.isValid()) {
         try {
-            VkDescriptorSet globalDescSet = m_descriptorAllocator.getDescriptorSet(meshOrder->globalDescriptorSetHandle.handle());
+            VkDescriptorSet globalDescSet = m_descriptorAllocator.getDescriptorSet(globalDescSetHandle.handle());
             if (globalDescSet != VK_NULL_HANDLE) {
                 vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &globalDescSet, 0, nullptr);
-                uint32_t handleId = meshOrder->globalDescriptorSetHandle.handle().id;
+                m_descriptorAllocator.markDescriptorAsUsedByGPU(globalDescSetHandle.handle(), frameIndex);
+                uint32_t handleId = globalDescSetHandle.handle().id;
                 SPDLOG_DEBUG("Global descriptor set bound, handle ID: {}", handleId);
             }
             else {
@@ -632,12 +639,13 @@ void RenderStage::bindDescriptorSets(VkCommandBuffer commandBuffer, VkPipelineLa
     }
 
     // Validate and bind object descriptor set
-    if (meshOrder->objectDescriptorSetHandle.isValid()) {
+    if (objectDescSetHandle.isValid()) {
         try {
-            VkDescriptorSet objectDescSet = m_descriptorAllocator.getDescriptorSet(meshOrder->objectDescriptorSetHandle.handle());
+            VkDescriptorSet objectDescSet = m_descriptorAllocator.getDescriptorSet(objectDescSetHandle.handle());
             if (objectDescSet != VK_NULL_HANDLE) {
                 vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 1, 1, &objectDescSet, 0, nullptr);
-                uint32_t handleId = meshOrder->objectDescriptorSetHandle.handle().id;
+                uint32_t handleId = objectDescSetHandle.handle().id;
+                m_descriptorAllocator.markDescriptorAsUsedByGPU(objectDescSetHandle.handle(), frameIndex);
                 SPDLOG_DEBUG("Object descriptor set bound, handle ID: {}", handleId);
             }
             else {
@@ -653,12 +661,13 @@ void RenderStage::bindDescriptorSets(VkCommandBuffer commandBuffer, VkPipelineLa
     }
 
     // Validate and bind material descriptor set
-    if (meshOrder->materialDescriptorSetHandle.isValid()) {
+    if (materialDescSetHandle.isValid()) {
         try {
-            VkDescriptorSet materialDescSet = m_descriptorAllocator.getDescriptorSet(meshOrder->materialDescriptorSetHandle.handle());
+            VkDescriptorSet materialDescSet = m_descriptorAllocator.getDescriptorSet(materialDescSetHandle.handle());
             if (materialDescSet != VK_NULL_HANDLE) {
                 vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 2, 1, &materialDescSet, 0, nullptr);
-                uint32_t handleId = meshOrder->materialDescriptorSetHandle.handle().id;
+                m_descriptorAllocator.markDescriptorAsUsedByGPU(materialDescSetHandle.handle(), frameIndex);
+                uint32_t handleId = materialDescSetHandle.handle().id;
                 SPDLOG_DEBUG("Material descriptor set bound, handle ID: {}", handleId);
             }
             else {

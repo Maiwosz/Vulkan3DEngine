@@ -1,81 +1,73 @@
 #include "DescriptorAllocator.h"
 #include "Prerequisites.h"
-#include "FrameManager.h"
 
 // Static member definition
 const DescriptorAllocator::DescriptorResources DescriptorAllocator::s_emptyResources;
 
-DescriptorAllocator::DescriptorAllocator(const LogicalDevice& device, const FrameManager& frameManager, const PoolConfig& config) :
-    m_device(device), m_frameManager(frameManager), m_config(config), m_nextSetCount(config.initialSets), m_nextHandleId(1), m_currentFrameIndex(0) 
+DescriptorAllocator::DescriptorAllocator(const LogicalDevice& device, const PoolConfig& config) :
+    m_device(device), m_config(config), m_nextSetCount(config.initialSets), m_nextHandleId(1)
 {
-    // Initialize per-frame data
-    m_frameData.resize(m_config.framesInFlight);
-    for (auto& frameData : m_frameData) {
-        frameData.nextSetCount = config.initialSets;
-        frameData.readyPools.push_back(getPool(0)); // Initialize with first frame
-    }
-
-    // Keep legacy pools for backward compatibility
-    m_readyPools.push_back(getPool(0));
+    // Initialize with first pool
+    m_readyPools.push_back(getPool());
 }
 
 DescriptorAllocator::~DescriptorAllocator() {
     destroy();
 }
 
-// Frame management methods
-void DescriptorAllocator::advanceFrame() {
-    m_currentFrameIndex = (m_currentFrameIndex + 1) % m_config.framesInFlight;
-}
-
-void DescriptorAllocator::updateFramesInFlight(uint32_t newFrameCount) {
-    if (newFrameCount == m_config.framesInFlight) {
+// GPU usage tracking methods
+void DescriptorAllocator::markDescriptorAsUsedByGPU(DescriptorSetHandle handle, uint32_t frameIndex) {
+    if (!handle.isValid() || handle.id > m_descriptorSets.size()) {
         return;
     }
 
-    // Jeśli zwiększamy liczbę klatek, inicjalizujemy nowe
-    if (newFrameCount > m_config.framesInFlight) {
-        size_t oldSize = m_frameData.size();
-        m_frameData.resize(newFrameCount);
-
-        for (size_t i = oldSize; i < newFrameCount; ++i) {
-            m_frameData[i].nextSetCount = m_config.initialSets;
-            // Nie tworzymy od razu puli - będą utworzone gdy potrzebne
-        }
+    auto& entry = m_descriptorSets[handle.id - 1];
+    if (!entry.inUse || !entry.isAllocated) {
+        return;
     }
-    // Jeśli zmniejszamy liczbę klatek, przenosimy pule do legacy
-    else {
-        for (uint32_t i = newFrameCount; i < m_config.framesInFlight; ++i) {
-            if (i < m_frameData.size()) {
-                auto& frameData = m_frameData[i];
 
-                // Przenoś pule do legacy pools zamiast je niszczyć
-                m_readyPools.insert(m_readyPools.end(),
-                    frameData.readyPools.begin(), frameData.readyPools.end());
-                m_readyPools.insert(m_readyPools.end(),
-                    frameData.fullPools.begin(), frameData.fullPools.end());
+    // Mark as used by GPU
+    entry.usedByGPU = true;
+    entry.gpuFrameIndex = frameIndex;
 
-                // Przenoś reusable sets do legacy
-                for (auto& [layout, queue] : frameData.reusableSets) {
-                    while (!queue.empty()) {
-                        m_reusableSets[layout].push(queue.front());
-                        queue.pop();
-                    }
+    // Add to frame tracking
+    auto& frameUsage = m_frameGpuUsage[frameIndex];
+    frameUsage.usedDescriptors.push_back(handle);
+    frameUsage.completed = false;
+}
+
+void DescriptorAllocator::markFrameCompleted(uint32_t frameIndex) {
+    auto it = m_frameGpuUsage.find(frameIndex);
+    if (it != m_frameGpuUsage.end()) {
+        it->second.completed = true;
+        releaseGpuUsageForFrame(frameIndex);
+    }
+}
+
+void DescriptorAllocator::releaseGpuUsageForFrame(uint32_t frameIndex) {
+    auto it = m_frameGpuUsage.find(frameIndex);
+    if (it == m_frameGpuUsage.end() || !it->second.completed) {
+        return;
+    }
+
+    // Release GPU usage flag for all descriptors in this frame
+    for (DescriptorSetHandle handle : it->second.usedDescriptors) {
+        if (handle.isValid() && handle.id <= m_descriptorSets.size()) {
+            auto& entry = m_descriptorSets[handle.id - 1];
+            if (entry.gpuFrameIndex == frameIndex) {
+                entry.usedByGPU = false;
+                entry.gpuFrameIndex = 0;
+
+                // If not in use by application, make it reusable
+                if (!entry.inUse && entry.referenceCount == 0) {
+                    m_reusableSets[entry.layout].push(handle);
                 }
-
-                frameData.readyPools.clear();
-                frameData.fullPools.clear();
-                frameData.reusableSets.clear();
             }
         }
-        m_frameData.resize(newFrameCount);
     }
 
-    m_config.framesInFlight = newFrameCount;
-
-    if (m_currentFrameIndex >= newFrameCount) {
-        m_currentFrameIndex = 0;
-    }
+    // Remove frame tracking data
+    m_frameGpuUsage.erase(it);
 }
 
 // Enhanced public interface
@@ -84,12 +76,11 @@ DescriptorSetHandle DescriptorAllocator::acquireDescriptorSet(VkDescriptorSetLay
 }
 
 DescriptorSetHandle DescriptorAllocator::acquireDescriptorSet(VkDescriptorSetLayout layout, const DescriptorResources& resources) {
-    // Try to find reusable descriptor from current frame first
-    DescriptorSetHandle handle = findReusableDescriptorSet(layout, m_currentFrameIndex);
+    // Try to find reusable descriptor set
+    DescriptorSetHandle handle = findReusableDescriptorSet(layout);
     if (handle.isValid()) {
         m_descriptorSets[handle.id - 1].inUse = true;
-        m_descriptorSets[handle.id - 1].resources = resources; // Copy resources
-        m_descriptorSets[handle.id - 1].frameIndex = m_currentFrameIndex;
+        m_descriptorSets[handle.id - 1].resources = resources;
         return handle;
     }
 
@@ -181,7 +172,7 @@ bool DescriptorAllocator::isValid(DescriptorSetHandle handle) const {
     if (!handle.isValid() || handle.id > m_descriptorSets.size()) {
         return false;
     }
-    return m_descriptorSets[handle.id - 1].isAllocated; // Używaj isAllocated zamiast inUse
+    return m_descriptorSets[handle.id - 1].isAllocated;
 }
 
 void DescriptorAllocator::releaseResource(DescriptorSetHandle handle) {
@@ -193,15 +184,12 @@ void DescriptorAllocator::releaseResource(DescriptorSetHandle handle) {
     if (entry.referenceCount == 0) {
         entry.inUse = false;
         entry.resources.clear();
-        // isAllocated pozostaje true
 
-        uint32_t frameIndex = entry.frameIndex;
-        if (frameIndex < m_frameData.size()) {
-            m_frameData[frameIndex].reusableSets[entry.layout].push(handle);
-        }
-        else {
+        // If not used by GPU, make it immediately reusable
+        if (!entry.usedByGPU) {
             m_reusableSets[entry.layout].push(handle);
         }
+        // If used by GPU, it will be made reusable when frame completes
 
         m_resourceCache.erase(handle);
     }
@@ -222,17 +210,14 @@ void DescriptorAllocator::removeReference(DescriptorSetHandle handle) {
         entry.referenceCount--;
 
         if (entry.referenceCount == 0 && entry.inUse) {
-            entry.inUse = false;  // Oznacz jako nieużywany
+            entry.inUse = false;
             entry.resources.clear();
-            // isAllocated pozostaje true - descriptor set nadal jest ważny!
 
-            uint32_t frameIndex = entry.frameIndex;
-            if (frameIndex < m_frameData.size()) {
-                m_frameData[frameIndex].reusableSets[entry.layout].push(handle);
-            }
-            else {
+            // If not used by GPU, make it immediately reusable
+            if (!entry.usedByGPU) {
                 m_reusableSets[entry.layout].push(handle);
             }
+            // If used by GPU, it will be made reusable when frame completes
 
             m_resourceCache.erase(handle);
         }
@@ -249,58 +234,17 @@ SmartHandle<DescriptorSetHandle, VkDescriptorSet> DescriptorAllocator::acquireSm
 }
 
 // Private implementation methods
-DescriptorSetHandle DescriptorAllocator::findReusableDescriptorSet(VkDescriptorSetLayout layout, uint32_t frameIndex) {
-    // Sprawdź pule dla konkretnej klatki
-    if (frameIndex < m_frameData.size()) {
-        auto& queue = m_frameData[frameIndex].reusableSets[layout];
-        while (!queue.empty()) {
-            DescriptorSetHandle handle = queue.front();
-            queue.pop();
-
-            // Sprawdź czy handle jest nadal ważny i przydzielony
-            if (handle.isValid() && handle.id <= m_descriptorSets.size()) {
-                auto& entry = m_descriptorSets[handle.id - 1];
-                if (entry.isAllocated && entry.layout == layout) {
-                    // NOWA LOGIKA: Sprawdź czy fence dla tej klatki jest zasygnalizowany
-                    uint32_t entryFrameIndex = entry.frameIndex;
-                    if (entryFrameIndex < m_frameManager.getMaxFrames()) {
-                        VkFence fence = m_frameManager.getFrameFence(entryFrameIndex);
-                        if (fence != VK_NULL_HANDLE) {
-                            VkResult fenceStatus = vkGetFenceStatus(m_device.get(), fence);
-                            if (fenceStatus == VK_NOT_READY) {
-                                // Fence nie jest jeszcze zasygnalizowany, nie możemy reużyć tego descriptor set
-                                continue;
-                            }
-                        }
-                    }
-                    return handle;
-                }
-            }
-        }
-    }
-
-    // Fallback do legacy reusable sets z tym samym sprawdzeniem
+DescriptorSetHandle DescriptorAllocator::findReusableDescriptorSet(VkDescriptorSetLayout layout) {
     auto& queue = m_reusableSets[layout];
+
     while (!queue.empty()) {
         DescriptorSetHandle handle = queue.front();
         queue.pop();
 
-        // Sprawdź czy handle jest nadal ważny i przydzielony
+        // Check if handle is still valid and allocated
         if (handle.isValid() && handle.id <= m_descriptorSets.size()) {
             auto& entry = m_descriptorSets[handle.id - 1];
-            if (entry.isAllocated && entry.layout == layout) {
-                // NOWA LOGIKA: Sprawdź czy fence dla tej klatki jest zasygnalizowany
-                uint32_t entryFrameIndex = entry.frameIndex;
-                if (entryFrameIndex < m_frameManager.getMaxFrames()) {
-                    VkFence fence = m_frameManager.getFrameFence(entryFrameIndex);
-                    if (fence != VK_NULL_HANDLE) {
-                        VkResult fenceStatus = vkGetFenceStatus(m_device.get(), fence);
-                        if (fenceStatus == VK_NOT_READY) {
-                            // Fence nie jest jeszcze zasygnalizowany, nie możemy reużyć tego descriptor set
-                            continue;
-                        }
-                    }
-                }
+            if (entry.isAllocated && entry.layout == layout && !entry.usedByGPU) {
                 return handle;
             }
         }
@@ -314,7 +258,7 @@ DescriptorSetHandle DescriptorAllocator::createNewDescriptorSet(VkDescriptorSetL
 }
 
 DescriptorSetHandle DescriptorAllocator::createNewDescriptorSet(VkDescriptorSetLayout layout, const DescriptorResources& resources) {
-    VkDescriptorPool pool = getPool(m_currentFrameIndex);
+    VkDescriptorPool pool = getPool();
 
     VkDescriptorSetAllocateInfo allocInfo = {
         .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
@@ -327,33 +271,23 @@ DescriptorSetHandle DescriptorAllocator::createNewDescriptorSet(VkDescriptorSetL
     VkResult result = vkAllocateDescriptorSets(m_device.get(), &allocInfo, &descriptorSet);
 
     if (result == VK_ERROR_OUT_OF_POOL_MEMORY) {
-        // Przenieś pulę do pełnych puli
-        if (m_currentFrameIndex < m_frameData.size()) {
-            m_frameData[m_currentFrameIndex].fullPools.push_back(pool);
-        }
-        else {
-            m_fullPools.push_back(pool);
-        }
+        // Move pool to full pools
+        m_fullPools.push_back(pool);
 
-        // Pobierz nową pulę
-        pool = getPool(m_currentFrameIndex);
+        // Get new pool
+        pool = getPool();
         allocInfo.descriptorPool = pool;
         result = vkAllocateDescriptorSets(m_device.get(), &allocInfo, &descriptorSet);
         VK_CHECK(result);
     }
 
-    // Zwróć pulę do gotowych puli (może być użyta ponownie)
-    if (m_currentFrameIndex < m_frameData.size()) {
-        m_frameData[m_currentFrameIndex].readyPools.push_back(pool);
-    }
-    else {
-        m_readyPools.push_back(pool);
-    }
+    // Return pool to ready pools (can be reused)
+    m_readyPools.push_back(pool);
 
-    // Utwórz nowy handle
+    // Create new handle
     DescriptorSetHandle handle{ m_nextHandleId++ };
 
-    // Rozszerz wektor jeśli potrzeba
+    // Expand vector if needed
     if (m_descriptorSets.size() < handle.id) {
         m_descriptorSets.resize(handle.id);
     }
@@ -364,124 +298,31 @@ DescriptorSetHandle DescriptorAllocator::createNewDescriptorSet(VkDescriptorSetL
         .sourcePool = pool,
         .inUse = true,
         .isAllocated = true,
+        .usedByGPU = false,
+        .gpuFrameIndex = 0,
         .referenceCount = 0,
-        .frameIndex = m_currentFrameIndex,
         .resources = resources
     };
 
     return handle;
 }
 
-void DescriptorAllocator::resetFramePools(uint32_t frameIndex) {
-    if (frameIndex >= m_frameData.size()) return;
-
-    auto& frameData = m_frameData[frameIndex];
-
-    vkDeviceWaitIdle(m_device.get());
-
-    // Oznacz descriptor sets jako nieprzydzielone PRZED resetem poolów
-    for (auto& entry : m_descriptorSets) {
-        if (entry.frameIndex == frameIndex && entry.isAllocated) {
-            entry.inUse = false;
-            entry.isAllocated = false;  // Oznacz jako nieprzydzielony
-            entry.referenceCount = 0;
-            entry.resources.clear();
-            entry.descriptorSet = VK_NULL_HANDLE;  // Invalidate VkDescriptorSet
-        }
-    }
-
-    frameData.reusableSets.clear();
-
-    // Reset poolów
-    for (auto pool : frameData.readyPools) {
-        if (pool != VK_NULL_HANDLE) {
-            vkResetDescriptorPool(m_device.get(), pool, 0);
-        }
-    }
-    for (auto pool : frameData.fullPools) {
-        if (pool != VK_NULL_HANDLE) {
-            vkResetDescriptorPool(m_device.get(), pool, 0);
-            frameData.readyPools.push_back(pool);
-        }
-    }
-    frameData.fullPools.clear();
-}
-
-void DescriptorAllocator::destroyFramePools(uint32_t frameIndex) {
-    if (frameIndex >= m_frameData.size()) return;
-
-    auto& frameData = m_frameData[frameIndex];
-
-    // Destroy all pools for this frame
-    for (auto pool : frameData.readyPools) {
-        if (pool != VK_NULL_HANDLE) {
-            vkDestroyDescriptorPool(m_device.get(), pool, nullptr);
-        }
-    }
-    for (auto pool : frameData.fullPools) {
-        if (pool != VK_NULL_HANDLE) {
-            vkDestroyDescriptorPool(m_device.get(), pool, nullptr);
-        }
-    }
-
-    frameData.readyPools.clear();
-    frameData.fullPools.clear();
-    frameData.reusableSets.clear();
-}
-
 void DescriptorAllocator::destroy() {
     // Check if already destroyed
-    if (m_readyPools.empty() && m_fullPools.empty() && m_descriptorSets.empty() && m_frameData.empty()) {
-        return; // Already destroyed
+    if (m_readyPools.empty() && m_fullPools.empty() && m_descriptorSets.empty()) {
+        return;
     }
 
     // Ensure all GPU work is complete before destroying anything
     vkDeviceWaitIdle(m_device.get());
 
-    // 1. Explicitly release all active descriptor sets and their resources
-    for (auto& entry : m_descriptorSets) {
-        if (entry.inUse || entry.referenceCount > 0) {
-            // Force release of all bound resources (smart handles)
-            entry.resources.clear();
-
-            // Zero out all flags and counters
-            entry.referenceCount = 0;
-            entry.inUse = false;
-            entry.isAllocated = false;
-            entry.descriptorSet = VK_NULL_HANDLE;
-            entry.layout = VK_NULL_HANDLE;
-            entry.sourcePool = VK_NULL_HANDLE;
-        }
-    }
-
-    // 2. Clear all data structures BEFORE destroying pools
+    // Clear all data structures
     m_descriptorSets.clear();
     m_reusableSets.clear();
     m_resourceCache.clear();
+    m_frameGpuUsage.clear();
 
-    // 3. Destroy per-frame pools (no need to reset since we're destroying)
-    for (uint32_t i = 0; i < m_frameData.size(); ++i) {
-        auto& frameData = m_frameData[i];
-
-        // Destroy all pools for this frame directly without resetting
-        for (auto pool : frameData.readyPools) {
-            if (pool != VK_NULL_HANDLE) {
-                vkDestroyDescriptorPool(m_device.get(), pool, nullptr);
-            }
-        }
-        for (auto pool : frameData.fullPools) {
-            if (pool != VK_NULL_HANDLE) {
-                vkDestroyDescriptorPool(m_device.get(), pool, nullptr);
-            }
-        }
-
-        frameData.readyPools.clear();
-        frameData.fullPools.clear();
-        frameData.reusableSets.clear();
-    }
-    m_frameData.clear();
-
-    // 4. Destroy all legacy pools directly without resetting
+    // Destroy all pools
     for (auto pool : m_readyPools) {
         if (pool != VK_NULL_HANDLE) {
             vkDestroyDescriptorPool(m_device.get(), pool, nullptr);
@@ -493,33 +334,27 @@ void DescriptorAllocator::destroy() {
         }
     }
 
-    // 5. Clear pool collections
     m_readyPools.clear();
     m_fullPools.clear();
 
-    // 6. Reset all counters
+    // Reset counters
     m_nextHandleId = 1;
     m_nextSetCount = m_config.initialSets;
-    m_currentFrameIndex = 0;
 }
 
-
 void DescriptorAllocator::reset() {
-    // 1. First clear all bound resources
+    // Clear all bound resources
     for (auto& entry : m_descriptorSets) {
         if (entry.inUse) {
-            entry.resources.clear(); // Release smart handles
+            entry.resources.clear();
             entry.referenceCount = 0;
             entry.inUse = false;
+            entry.usedByGPU = false;
+            entry.gpuFrameIndex = 0;
         }
     }
 
-    // 2. Reset all per-frame pools
-    for (uint32_t i = 0; i < m_frameData.size(); ++i) {
-        resetFramePools(i);
-    }
-
-    // 3. Reset legacy pools
+    // Reset pools
     for (auto pool : m_readyPools) {
         if (pool != VK_NULL_HANDLE) {
             vkResetDescriptorPool(m_device.get(), pool, 0);
@@ -533,12 +368,12 @@ void DescriptorAllocator::reset() {
     }
     m_fullPools.clear();
 
-    // 4. Clear all handles and queues
+    // Clear all handles and queues
     m_descriptorSets.clear();
     m_reusableSets.clear();
     m_resourceCache.clear();
+    m_frameGpuUsage.clear();
     m_nextHandleId = 1;
-    m_currentFrameIndex = 0;
 }
 
 VkResult DescriptorAllocator::createPool(uint32_t setCount, VkDescriptorPool* outPool) const {
@@ -567,79 +402,28 @@ VkResult DescriptorAllocator::createPool(uint32_t setCount, VkDescriptorPool* ou
     return vkCreateDescriptorPool(m_device.get(), &poolInfo, nullptr, outPool);
 }
 
-VkDescriptorPool DescriptorAllocator::getPool(uint32_t frameIndex) {
-    // Sprawdź dostępne pule dla konkretnej klatki
-    if (frameIndex < m_frameData.size()) {
-        auto& frameData = m_frameData[frameIndex];
-
-        // Użyj gotowej puli jeśli dostępna
-        if (!frameData.readyPools.empty()) {
-            VkDescriptorPool pool = frameData.readyPools.back();
-            frameData.readyPools.pop_back();
-            return pool;
-        }
-
-        // Sprawdź czy można zresetować pełną pulę
-        if (!frameData.fullPools.empty()) {
-            VkDescriptorPool pool = frameData.fullPools.back();
-            frameData.fullPools.pop_back();
-
-            // Resetuj pulę tylko jeśli nie ma innych opcji
-            vkResetDescriptorPool(m_device.get(), pool, 0);
-
-            // Oznacz wszystkie descriptor sets z tej puli jako nieprzydzielone
-            for (auto& entry : m_descriptorSets) {
-                if (entry.sourcePool == pool && entry.isAllocated) {
-                    entry.isAllocated = false;
-                    entry.inUse = false;
-                    entry.referenceCount = 0;
-                    entry.resources.clear();
-                    entry.descriptorSet = VK_NULL_HANDLE;
-                }
-            }
-
-            return pool;
-        }
-
-        // Utwórz nową pulę jako ostatnią opcję
-        const uint32_t minSetCount = computeMinSetCount();
-        uint32_t newSetCount = frameData.nextSetCount;
-
-        while (newSetCount >= minSetCount) {
-            VkDescriptorPool pool;
-            VkResult result = createPool(newSetCount, &pool);
-
-            if (result == VK_SUCCESS) {
-                frameData.nextSetCount = static_cast<uint32_t>(newSetCount * m_config.growthFactor);
-                return pool;
-            }
-            else if (result == VK_ERROR_OUT_OF_DEVICE_MEMORY || result == VK_ERROR_FRAGMENTED_POOL) {
-                newSetCount = std::max(newSetCount / 2, minSetCount);
-            }
-            else {
-                VK_CHECK(result);
-            }
-        }
-    }
-
-    // Fallback do legacy pools z tą samą logiką
+VkDescriptorPool DescriptorAllocator::getPool() {
+    // Use ready pool if available
     if (!m_readyPools.empty()) {
         VkDescriptorPool pool = m_readyPools.back();
         m_readyPools.pop_back();
         return pool;
     }
 
+    // Try to reset a full pool
     if (!m_fullPools.empty()) {
         VkDescriptorPool pool = m_fullPools.back();
         m_fullPools.pop_back();
 
         vkResetDescriptorPool(m_device.get(), pool, 0);
 
-        // Oznacz wszystkie descriptor sets z tej puli jako nieprzydzielone
+        // Mark all descriptor sets from this pool as unallocated
         for (auto& entry : m_descriptorSets) {
             if (entry.sourcePool == pool && entry.isAllocated) {
                 entry.isAllocated = false;
                 entry.inUse = false;
+                entry.usedByGPU = false;
+                entry.gpuFrameIndex = 0;
                 entry.referenceCount = 0;
                 entry.resources.clear();
                 entry.descriptorSet = VK_NULL_HANDLE;
@@ -649,7 +433,7 @@ VkDescriptorPool DescriptorAllocator::getPool(uint32_t frameIndex) {
         return pool;
     }
 
-    // Utwórz nową pulę jako ostatnią opcję
+    // Create new pool as last resort
     const uint32_t minSetCount = computeMinSetCount();
     uint32_t newSetCount = m_nextSetCount;
 
