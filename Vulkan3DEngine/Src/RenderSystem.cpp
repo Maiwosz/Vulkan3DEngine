@@ -41,17 +41,6 @@ void RenderSystem::processOrders() {
         // Reset global state manager for this frame
         m_globalStateManager->reset();
 
-        // Sort orders: Cameras first, then Lights, then Meshes
-        std::stable_sort(m_pendingOrders.begin(), m_pendingOrders.end(),
-            [](const std::shared_ptr<RenderOrder>& a, const std::shared_ptr<RenderOrder>& b) {
-                static const std::unordered_map<RenderOrderType, int> priority{
-                    {RenderOrderType::Camera, 0},
-                    {RenderOrderType::Light, 1},
-                    {RenderOrderType::Mesh, 2}
-                };
-                return priority.at(a->getType()) < priority.at(b->getType());
-            });
-
         // First pass: Process cameras and lights
         for (const auto& order : m_pendingOrders) {
             if (order->getType() == RenderOrderType::Camera) {

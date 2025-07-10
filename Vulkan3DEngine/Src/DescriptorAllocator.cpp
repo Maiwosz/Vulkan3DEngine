@@ -24,7 +24,7 @@ DescriptorAllocator::~DescriptorAllocator() {
 
 // Frame management methods
 void DescriptorAllocator::advanceFrame() {
-    uint32_t nextFrame = (m_currentFrameIndex + 1) % m_config.framesInFlight;
+    m_currentFrameIndex = (m_currentFrameIndex + 1) % m_config.framesInFlight;
 }
 
 void DescriptorAllocator::updateFramesInFlight(uint32_t newFrameCount) {
