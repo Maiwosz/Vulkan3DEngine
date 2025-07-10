@@ -13,6 +13,7 @@
 // Forward declarations
 class Buffer;
 class ImageSampler;
+class FrameManager;
 
 class DescriptorAllocator : public ISmartHandleManager<DescriptorSetHandle, VkDescriptorSet> {
 public:
@@ -39,7 +40,7 @@ public:
         }
     };
 
-    DescriptorAllocator(const LogicalDevice& device, const PoolConfig& config);
+    DescriptorAllocator(const LogicalDevice& device, const FrameManager& frameManager, const PoolConfig& config);
     ~DescriptorAllocator();
     void reset();
     void destroy();
@@ -118,6 +119,7 @@ private:
     PoolConfig m_config;
     uint32_t m_nextSetCount;
     const LogicalDevice& m_device;
+    const FrameManager& m_frameManager;
 
     // Per-frame data
     std::vector<FrameData> m_frameData;

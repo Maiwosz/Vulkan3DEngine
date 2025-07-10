@@ -54,6 +54,13 @@ public:
     VkFence getInFlightFence() const { return m_frames[m_currentFrame].inFlightFence; }
     uint32_t getCurrentFrameIndex() { return m_currentFrame; }
 
+    uint32_t getMaxFrames() const { return m_maxFrames; }
+    VkFence getFrameFence(uint32_t frameIndex) const {
+        if (frameIndex >= m_maxFrames) {
+            return VK_NULL_HANDLE;
+        }
+        return m_frames[frameIndex].inFlightFence;
+    }
 private:
     VulkanContext& m_vulkanContext;
     SynchronizationResourceManager& m_syncManager;

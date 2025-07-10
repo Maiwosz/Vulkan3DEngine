@@ -94,6 +94,7 @@ Renderer::Renderer(Settings& settings, Window& window) :m_settings(settings), m_
 
         m_descriptorAllocator = std::make_unique<DescriptorAllocator>(
             m_vulkanContext->logical(),
+            *m_frameManager,
             allocConfig
         );
        

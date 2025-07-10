@@ -1,11 +1,12 @@
 #include "DescriptorAllocator.h"
 #include "Prerequisites.h"
+#include "FrameManager.h"
 
 // Static member definition
 const DescriptorAllocator::DescriptorResources DescriptorAllocator::s_emptyResources;
 
-DescriptorAllocator::DescriptorAllocator(const LogicalDevice& device, const PoolConfig& config) :
-    m_device(device), m_config(config), m_nextSetCount(config.initialSets), m_nextHandleId(1), m_currentFrameIndex(0)
+DescriptorAllocator::DescriptorAllocator(const LogicalDevice& device, const FrameManager& frameManager, const PoolConfig& config) :
+    m_device(device), m_frameManager(frameManager), m_config(config), m_nextSetCount(config.initialSets), m_nextHandleId(1), m_currentFrameIndex(0) 
 {
     // Initialize per-frame data
     m_frameData.resize(m_config.framesInFlight);
@@ -260,13 +261,25 @@ DescriptorSetHandle DescriptorAllocator::findReusableDescriptorSet(VkDescriptorS
             if (handle.isValid() && handle.id <= m_descriptorSets.size()) {
                 auto& entry = m_descriptorSets[handle.id - 1];
                 if (entry.isAllocated && entry.layout == layout) {
+                    // NOWA LOGIKA: Sprawdź czy fence dla tej klatki jest zasygnalizowany
+                    uint32_t entryFrameIndex = entry.frameIndex;
+                    if (entryFrameIndex < m_frameManager.getMaxFrames()) {
+                        VkFence fence = m_frameManager.getFrameFence(entryFrameIndex);
+                        if (fence != VK_NULL_HANDLE) {
+                            VkResult fenceStatus = vkGetFenceStatus(m_device.get(), fence);
+                            if (fenceStatus == VK_NOT_READY) {
+                                // Fence nie jest jeszcze zasygnalizowany, nie możemy reużyć tego descriptor set
+                                continue;
+                            }
+                        }
+                    }
                     return handle;
                 }
             }
         }
     }
 
-    // Fallback do legacy reusable sets
+    // Fallback do legacy reusable sets z tym samym sprawdzeniem
     auto& queue = m_reusableSets[layout];
     while (!queue.empty()) {
         DescriptorSetHandle handle = queue.front();
@@ -276,6 +289,18 @@ DescriptorSetHandle DescriptorAllocator::findReusableDescriptorSet(VkDescriptorS
         if (handle.isValid() && handle.id <= m_descriptorSets.size()) {
             auto& entry = m_descriptorSets[handle.id - 1];
             if (entry.isAllocated && entry.layout == layout) {
+                // NOWA LOGIKA: Sprawdź czy fence dla tej klatki jest zasygnalizowany
+                uint32_t entryFrameIndex = entry.frameIndex;
+                if (entryFrameIndex < m_frameManager.getMaxFrames()) {
+                    VkFence fence = m_frameManager.getFrameFence(entryFrameIndex);
+                    if (fence != VK_NULL_HANDLE) {
+                        VkResult fenceStatus = vkGetFenceStatus(m_device.get(), fence);
+                        if (fenceStatus == VK_NOT_READY) {
+                            // Fence nie jest jeszcze zasygnalizowany, nie możemy reużyć tego descriptor set
+                            continue;
+                        }
+                    }
+                }
                 return handle;
             }
         }
