@@ -4,6 +4,7 @@
 #include "RenderSystem.h"
 #include "RenderOrder.h"
 #include "Engine.h"
+#include "LightRenderOrder.h"
 
 void LightSystem::update() {
     auto lights = m_registry->components().createView<LightComponent, TransformComponent>();

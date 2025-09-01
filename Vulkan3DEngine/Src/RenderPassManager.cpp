@@ -8,15 +8,9 @@
 size_t RenderPassConfig::hash() const {
     size_t h = std::hash<size_t>()(attachments.size());
 
-    // Hash each attachment description
+    // Hash each attachment specification
     for (const auto& attachment : attachments) {
-        h ^= std::hash<uint32_t>()(static_cast<uint32_t>(attachment.format)) +
-            std::hash<uint32_t>()(static_cast<uint32_t>(attachment.samples)) +
-            std::hash<uint32_t>()(static_cast<uint32_t>(attachment.loadOp)) +
-            std::hash<uint32_t>()(static_cast<uint32_t>(attachment.storeOp)) +
-            std::hash<uint32_t>()(static_cast<uint32_t>(attachment.initialLayout)) +
-            std::hash<uint32_t>()(static_cast<uint32_t>(attachment.finalLayout)) +
-            std::hash<uint32_t>()(static_cast<uint32_t>(attachment.type));
+        h ^= std::hash<AttachmentSpec>()(attachment);
     }
 
     // Hash subpass configuration
@@ -144,8 +138,7 @@ RenderPassHandle RenderPassManager::createRenderPass(const RenderPassConfig& con
     return newHandle;
 }
 
-VkRenderPass RenderPassManager::createVkRenderPass(const RenderPassConfig& config)
-{
+VkRenderPass RenderPassManager::createVkRenderPass(const RenderPassConfig& config) {
     // Verify we have at least one attachment
     if (config.attachments.empty()) {
         throw std::runtime_error("Cannot create render pass with no attachments");
@@ -161,15 +154,10 @@ VkRenderPass RenderPassManager::createVkRenderPass(const RenderPassConfig& confi
         desc.samples = attachment.samples;
         desc.loadOp = attachment.loadOp;
         desc.storeOp = attachment.storeOp;
-        desc.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
-        desc.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+        desc.stencilLoadOp = attachment.stencilLoadOp;
+        desc.stencilStoreOp = attachment.stencilStoreOp;
         desc.initialLayout = attachment.initialLayout;
         desc.finalLayout = attachment.finalLayout;
-
-        if (attachment.type == AttachmentType::Depth) {
-            desc.stencilLoadOp = attachment.loadOp;
-            desc.stencilStoreOp = attachment.storeOp;
-        }
 
         attachmentDescriptions.push_back(desc);
     }
@@ -247,5 +235,5 @@ VkRenderPass RenderPassManager::createVkRenderPass(const RenderPassConfig& confi
         throw std::runtime_error("Failed to create render pass");
     }
 
-    return renderPass; // zwróć utworzony VkRenderPass
+    return renderPass;
 }

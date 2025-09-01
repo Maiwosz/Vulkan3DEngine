@@ -13,6 +13,7 @@
 #include <UBODefinitions.h>
 #include "MaterialManager.h"
 #include "Renderer.h"
+#include "MeshRenderOrder.h"
 
 
 class UniformBufferStage : public OrderProcessingStage {

@@ -4,6 +4,7 @@
 #include "RenderSystem.h"
 #include "RenderOrder.h"
 #include "Engine.h"
+#include "CameraRenderOrder.h"
 
 void CameraSystem::update() {
     auto cameras = m_registry->components().createView<CameraComponent, TransformComponent>();

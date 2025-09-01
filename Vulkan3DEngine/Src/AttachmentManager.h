@@ -3,6 +3,7 @@
 #include "Image.h"
 #include "IResourceManager.h"
 #include "Handle.h"
+#include "AttachmentFactory.h"
 #include <unordered_map>
 #include <memory>
 #include <string>
@@ -30,6 +31,12 @@ struct AttachmentSpec {
     VkImageLayout finalLayout;
     AttachmentType type;
 
+    // Render pass specific operations
+    VkAttachmentLoadOp loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+    VkAttachmentStoreOp storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+    VkAttachmentLoadOp stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+    VkAttachmentStoreOp stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+
     bool operator==(const AttachmentSpec& other) const {
         return format == other.format &&
             extent.width == other.extent.width &&
@@ -38,7 +45,11 @@ struct AttachmentSpec {
             usage == other.usage &&
             initialLayout == other.initialLayout &&
             finalLayout == other.finalLayout &&
-            type == other.type;
+            type == other.type &&
+            loadOp == other.loadOp &&
+            storeOp == other.storeOp &&
+            stencilLoadOp == other.stencilLoadOp &&
+            stencilStoreOp == other.stencilStoreOp;
     }
 };
 
@@ -55,11 +66,14 @@ namespace std {
             hash_combine(hash, static_cast<int>(spec.initialLayout));
             hash_combine(hash, static_cast<int>(spec.finalLayout));
             hash_combine(hash, static_cast<int>(spec.type));
+            hash_combine(hash, static_cast<int>(spec.loadOp));
+            hash_combine(hash, static_cast<int>(spec.storeOp));
+            hash_combine(hash, static_cast<int>(spec.stencilLoadOp));
+            hash_combine(hash, static_cast<int>(spec.stencilStoreOp));
             return hash;
         }
 
     private:
-        // Helper for combining hash values
         template <typename T>
         void hash_combine(size_t& seed, const T& val) const {
             seed ^= std::hash<T>()(val) + 0x9e3779b9 + (seed << 6) + (seed >> 2);
@@ -118,6 +132,10 @@ public:
         AttachmentType type = AttachmentType::Color
     );
 
+    // Access to the attachment factory
+    AttachmentFactory& getFactory() { return m_factory; }
+    const AttachmentFactory& getFactory() const { return m_factory; }
+
 private:
     struct AttachmentData {
         std::unique_ptr<Attachment> attachment;
@@ -132,12 +150,12 @@ private:
     AttachmentHandle createAttachment(const AttachmentSpec& spec);
 
     // Helper functions
-    VkImageUsageFlags getDefaultUsageFlags(AttachmentType type) const;
     VkImageView createImageView(VramHandle imageHandle, const AttachmentSpec& spec);
     void destroyAttachment(AttachmentHandle handle);
 
     const LogicalDevice& m_device;
     VramManager& m_vramManager;
+    AttachmentFactory m_factory;  // Attachment factory instance
 
     // Maps from spec to handle for quick lookup
     std::unordered_map<AttachmentSpec, AttachmentHandle> m_specToHandle;

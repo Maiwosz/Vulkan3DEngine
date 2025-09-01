@@ -7,6 +7,7 @@
 #include "CommandBuffer.h"
 #include "FrameManager.h"
 #include "RenderPassManager.h"
+#include "RenderNodeManager.h"
 #include "VulkanContext.h"
 #include "AttachmentManager.h"
 #include "FrameBufferManager.h"
@@ -42,10 +43,11 @@ public:
     ImageSamplerManager& imageSamplerManager() { return *m_samplerManager; }
     AttachmentManager& attachmentManager() { return *m_attachmentManager; }
     RenderPassManager& renderPassManager() { return *m_renderPassManager; }
+	RenderNodeManager& renderNodeManager() { return *m_renderNodeManager; }
     FrameBufferManager& framebufferManager() { return *m_framebufferManager; }
     PipelineManager& pipelineManager() { return *m_pipelineManager; }
     DescriptorAllocator& descriptorAllocator() { return *m_descriptorAllocator; }
-    ImGuiWrapper& imguiWrapper() { return *m_imguiWrapper; }  // Nowy getter
+    ImGuiWrapper& imguiWrapper() { return *m_imguiWrapper; }
 
     RenderPassHandle renderPass() {
         SPDLOG_INFO("renderPass() called, m_mainRenderPassHandle.id = {}", m_mainRenderPassHandle.id);
@@ -76,6 +78,7 @@ private:
     std::unique_ptr<ImageSamplerManager> m_samplerManager;
     std::unique_ptr<AttachmentManager> m_attachmentManager;
     std::unique_ptr<RenderPassManager> m_renderPassManager;
+    std::unique_ptr<RenderNodeManager> m_renderNodeManager;
     std::unique_ptr<FrameBufferManager> m_framebufferManager;
     std::unique_ptr<PipelineManager> m_pipelineManager;
     std::unique_ptr<DescriptorAllocator> m_descriptorAllocator;

@@ -2,6 +2,7 @@
 #include "Material.h"
 #include "Mesh.h"
 #include "Engine.h"
+#include "MeshRenderOrder.h"
 
 PipelineAssignmentStage::PipelineAssignmentStage(Renderer& renderer, AssetSystem& assetSystem, Settings& settings)
     :

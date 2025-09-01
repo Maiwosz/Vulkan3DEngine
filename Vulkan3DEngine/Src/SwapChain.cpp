@@ -1,6 +1,7 @@
 #include "SwapChain.h"
 #include "VulkanUtilities.h"
 #include "Engine.h"
+#include <spdlog/spdlog.h>
 
 SwapChain::SwapChain(
     const Surface& surface,
@@ -19,10 +20,10 @@ SwapChain::SwapChain(
 {
     try {
         init();
-        fmt::print("SwapChain created successfully\n");
+        SPDLOG_INFO("SwapChain created successfully");
     }
     catch (const std::exception& e) {
-        fmt::print("Error during SwapChain creation: {}\n", e.what());
+        SPDLOG_ERROR("Error during SwapChain creation: {}", e.what());
         throw;
     }
 }
@@ -30,7 +31,7 @@ SwapChain::SwapChain(
 SwapChain::~SwapChain()
 {
     cleanupSwapChain();
-    fmt::print("SwapChain destroyed successfully\n");
+    SPDLOG_INFO("SwapChain destroyed successfully");
 }
 
 void SwapChain::init() {
@@ -96,7 +97,7 @@ void SwapChain::createSwapChain()
     createInfo.oldSwapchain = VK_NULL_HANDLE;
 
     if (vkCreateSwapchainKHR(m_logicalDevice.get(), &createInfo, nullptr, &m_swapChain) != VK_SUCCESS) {
-        fmt::print("Failed to create swap chain!\n");
+        SPDLOG_ERROR("Failed to create swap chain!");
         throw std::runtime_error("failed to create swap chain!");
     }
 
@@ -107,8 +108,8 @@ void SwapChain::createSwapChain()
     m_swapChainImageFormat = surfaceFormat.format;
     m_swapChainExtent = extent;
 
-    fmt::print("Swap chain created with {} images\n", imageCount);
-    fmt::print("VSync: {}\n", m_settings.isVsyncEnabled() ? "enabled" : "disabled");
+    SPDLOG_INFO("Swap chain created with {} images", imageCount);
+    SPDLOG_INFO("VSync: {}", m_settings.isVsyncEnabled() ? "enabled" : "disabled");
 }
 
 VkPresentModeKHR SwapChain::getVulkanPresentMode(const std::vector<VkPresentModeKHR>& availablePresentModes) const {
@@ -184,10 +185,10 @@ void SwapChain::recreateSwapChain()
 
     try {
         init();
-        fmt::print("Swap chain recreated successfully\n");
+        SPDLOG_INFO("Swap chain recreated successfully");
     }
     catch (const std::exception& e) {
-        fmt::print("Error during SwapChain recreation: {}\n", e.what());
+        SPDLOG_ERROR("Error during SwapChain recreation: {}", e.what());
         throw;
     }
 }
@@ -207,7 +208,7 @@ void SwapChain::cleanupSwapChain()
 
     vkDestroySwapchainKHR(m_logicalDevice.get(), m_swapChain, nullptr);
 
-    fmt::print("Swap chain cleaned up\n");
+    SPDLOG_DEBUG("Swap chain cleaned up");
 }
 
 void SwapChain::createImageViews() {
@@ -230,12 +231,12 @@ void SwapChain::createImageViews() {
         viewInfo.subresourceRange.layerCount = 1;
 
         if (vkCreateImageView(m_logicalDevice.get(), &viewInfo, nullptr, &m_swapChainImageViews[i]) != VK_SUCCESS) {
-            fmt::print("Failed to create swap chain image view for image {}\n", i);
+            SPDLOG_ERROR("Failed to create swap chain image view for image {}", i);
             throw std::runtime_error(fmt::format("Failed to create swap chain image view {}", i));
         }
     }
 
-    fmt::print("Created {} swap chain image views\n", m_swapChainImages.size());
+    SPDLOG_DEBUG("Created {} swap chain image views", m_swapChainImages.size());
 }
 
 void SwapChain::registerImagesWithVramManager() {

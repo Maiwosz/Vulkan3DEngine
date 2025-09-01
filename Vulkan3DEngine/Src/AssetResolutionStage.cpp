@@ -1,4 +1,5 @@
 #include "AssetResolutionStage.h"
+#include "MeshRenderOrder.h"
 
 AssetResolutionStage::AssetResolutionStage(Registry& registry, AssetSystem& assetSystem)
     : m_registry(registry), m_assetManager(assetSystem.assetManager())

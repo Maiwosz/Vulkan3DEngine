@@ -5,6 +5,7 @@
 #include "imgui.h"
 #include "imgui_impl_glfw.h"
 #include "imgui_impl_vulkan.h"
+#include "MeshRenderOrder.h"
 
 RenderStage::RenderStage(Renderer& renderer, AssetSystem& assetSystem)
     : m_renderer(renderer),
@@ -16,7 +17,7 @@ RenderStage::RenderStage(Renderer& renderer, AssetSystem& assetSystem)
     m_framebufferManager(renderer.framebufferManager()),
     m_renderPassManager(renderer.renderPassManager()),
     m_pipelineManager(renderer.pipelineManager()),
-    m_meshManager(assetSystem.meshManager()),
+    m_assetSystem(assetSystem),
     m_depthAttachmentHandle(renderer.depthAttachmentHandle()),
     m_msColorAttachmentHandle(renderer.msColorAttachmentHandle()),
     m_mainRenderPassHandle(renderer.renderPass()),
@@ -499,7 +500,7 @@ void RenderStage::executeRenderCommands(
     for (const auto& order : renderOrders) {
         if (order->getType() == RenderOrderType::Mesh) {
             auto meshOrder = static_cast<MeshRenderOrder*>(order.get());
-            executeMeshRenderOrder(commandBuffer, meshOrder);
+            meshOrder->execute(commandBuffer, m_renderer, m_assetSystem);
         }
         else {
             SPDLOG_WARN("Unsupported render order type: {}", static_cast<int>(order->getType()));
@@ -508,256 +509,6 @@ void RenderStage::executeRenderCommands(
 
     // Renderuj UI na końcu (po wszystkich obiektach 3D)
     renderUI(commandBuffer);
-}
-
-void RenderStage::executeMeshRenderOrder(VkCommandBuffer commandBuffer, MeshRenderOrder* meshOrder) {
-    if (!meshOrder) {
-        SPDLOG_ERROR("MeshRenderOrder is null");
-        return;
-    }
-
-    // Validate pipeline handle
-    if (!meshOrder->pipelineHandle.isValid()) {
-        SPDLOG_ERROR("Invalid pipeline handle in mesh render order");
-        return;
-    }
-
-    // Validate mesh handle
-    if (!meshOrder->meshHandle.isValid()) {
-        SPDLOG_ERROR("Invalid mesh handle in mesh render order");
-        return;
-    }
-
-    uint32_t pipelineId = meshOrder->pipelineHandle.id;
-    uint32_t meshId = meshOrder->meshHandle.id;
-    SPDLOG_DEBUG("Processing mesh render order, pipeline handle: {}, mesh handle: {}", pipelineId, meshId);
-
-    // Validate pipeline exists
-    try {
-        Pipeline* pipeline = &m_pipelineManager.get(meshOrder->pipelineHandle);
-        if (!pipeline) {
-            SPDLOG_ERROR("Failed to get pipeline from handle: {}", pipelineId);
-            return;
-        }
-
-        // Validate mesh exists
-        const Mesh* mesh = m_meshManager.getMesh(meshOrder->meshHandle);
-        if (!mesh) {
-            SPDLOG_ERROR("Mesh not found for handle: {}", meshId);
-            return;
-        }
-
-        // Validate mesh buffers
-        if (!mesh->vertexBuffer.isValid() || !mesh->indexBuffer.isValid()) {
-            SPDLOG_ERROR("Invalid mesh buffers - vertex: {}, index: {}",
-                mesh->vertexBuffer.isValid(), mesh->indexBuffer.isValid());
-            return;
-        }
-
-        // Validate mesh has geometry
-        if (mesh->vertexCount == 0 || mesh->indexCount == 0) {
-            SPDLOG_WARN("Mesh has no geometry - vertices: {}, indices: {}",
-                mesh->vertexCount, mesh->indexCount);
-            return;
-        }
-
-        bindPipeline(commandBuffer, meshOrder->pipelineHandle);
-        setViewportAndScissor(commandBuffer);
-        bindDescriptorSets(commandBuffer, pipeline->getLayout(), meshOrder);
-        bindVertexAndIndexBuffers(commandBuffer, mesh);
-        drawMesh(commandBuffer, mesh);
-    }
-    catch (const std::exception& e) {
-        SPDLOG_ERROR("Exception in executeMeshRenderOrder: {}", e.what());
-        return;
-    }
-}
-
-void RenderStage::bindPipeline(VkCommandBuffer commandBuffer, PipelineHandle pipelineHandle) {
-    Pipeline* pipeline = &m_pipelineManager.get(pipelineHandle);
-    vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline->get());
-    SPDLOG_DEBUG("Pipeline bound");
-}
-
-void RenderStage::setViewportAndScissor(VkCommandBuffer commandBuffer) {
-    VkViewport viewport{};
-    viewport.x = 0.0f;
-    viewport.y = 0.0f;
-    viewport.width = static_cast<float>(m_swapChain.getSwapChainExtent().width);
-    viewport.height = static_cast<float>(m_swapChain.getSwapChainExtent().height);
-    viewport.minDepth = 0.0f;
-    viewport.maxDepth = 1.0f;
-    vkCmdSetViewport(commandBuffer, 0, 1, &viewport);
-
-    VkRect2D scissor{};
-    scissor.offset = { 0, 0 };
-    scissor.extent = m_swapChain.getSwapChainExtent();
-    vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
-
-    // Fix: Store values in variables to avoid reference issues
-    float width = viewport.width;
-    float height = viewport.height;
-    SPDLOG_DEBUG("Viewport and scissor set: {}x{}", width, height);
-}
-
-void RenderStage::bindDescriptorSets(VkCommandBuffer commandBuffer, VkPipelineLayout pipelineLayout, MeshRenderOrder* meshOrder) {
-    if (!meshOrder) {
-        SPDLOG_ERROR("MeshRenderOrder is null");
-        return;
-    }
-
-    if (pipelineLayout == VK_NULL_HANDLE) {
-        SPDLOG_ERROR("Pipeline layout is null");
-        return;
-    }
-
-	UINT32 frameIndex = m_frameManager.getCurrentFrameIndex();
-    SmartHandle<DescriptorSetHandle, VkDescriptorSet> globalDescSetHandle = meshOrder->globalDescriptorSetHandle;
-    SmartHandle<DescriptorSetHandle, VkDescriptorSet> objectDescSetHandle = meshOrder->objectDescriptorSetHandle;
-    SmartHandle<DescriptorSetHandle, VkDescriptorSet> materialDescSetHandle = meshOrder->materialDescriptorSetHandle;
-
-    // Validate and bind global descriptor set
-    if (globalDescSetHandle.isValid()) {
-        try {
-            VkDescriptorSet globalDescSet = m_descriptorAllocator.getDescriptorSet(globalDescSetHandle.handle());
-            if (globalDescSet != VK_NULL_HANDLE) {
-                vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &globalDescSet, 0, nullptr);
-                m_descriptorAllocator.markDescriptorAsUsedByGPU(globalDescSetHandle.handle(), frameIndex);
-                uint32_t handleId = globalDescSetHandle.handle().id;
-                SPDLOG_DEBUG("Global descriptor set bound, handle ID: {}", handleId);
-            }
-            else {
-                SPDLOG_WARN("Global descriptor set is null for valid handle");
-            }
-        }
-        catch (const std::exception& e) {
-            SPDLOG_ERROR("Failed to bind global descriptor set: {}", e.what());
-        }
-    }
-    else {
-        SPDLOG_WARN("Global descriptor set handle is invalid");
-    }
-
-    // Validate and bind object descriptor set
-    if (objectDescSetHandle.isValid()) {
-        try {
-            VkDescriptorSet objectDescSet = m_descriptorAllocator.getDescriptorSet(objectDescSetHandle.handle());
-            if (objectDescSet != VK_NULL_HANDLE) {
-                vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 1, 1, &objectDescSet, 0, nullptr);
-                uint32_t handleId = objectDescSetHandle.handle().id;
-                m_descriptorAllocator.markDescriptorAsUsedByGPU(objectDescSetHandle.handle(), frameIndex);
-                SPDLOG_DEBUG("Object descriptor set bound, handle ID: {}", handleId);
-            }
-            else {
-                SPDLOG_WARN("Object descriptor set is null for valid handle");
-            }
-        }
-        catch (const std::exception& e) {
-            SPDLOG_ERROR("Failed to bind object descriptor set: {}", e.what());
-        }
-    }
-    else {
-        SPDLOG_WARN("Object descriptor set handle is invalid");
-    }
-
-    // Validate and bind material descriptor set
-    if (materialDescSetHandle.isValid()) {
-        try {
-            VkDescriptorSet materialDescSet = m_descriptorAllocator.getDescriptorSet(materialDescSetHandle.handle());
-            if (materialDescSet != VK_NULL_HANDLE) {
-                vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 2, 1, &materialDescSet, 0, nullptr);
-                m_descriptorAllocator.markDescriptorAsUsedByGPU(materialDescSetHandle.handle(), frameIndex);
-                uint32_t handleId = materialDescSetHandle.handle().id;
-                SPDLOG_DEBUG("Material descriptor set bound, handle ID: {}", handleId);
-            }
-            else {
-                SPDLOG_WARN("Material descriptor set is null for valid handle");
-            }
-        }
-        catch (const std::exception& e) {
-            SPDLOG_ERROR("Failed to bind material descriptor set: {}", e.what());
-        }
-    }
-    else {
-        SPDLOG_WARN("Material descriptor set handle is invalid");
-    }
-}
-
-void RenderStage::bindVertexAndIndexBuffers(VkCommandBuffer commandBuffer, const Mesh* mesh) {
-    if (!mesh) {
-        SPDLOG_ERROR("Mesh pointer is null");
-        return;
-    }
-
-    uint32_t vertexCount = mesh->vertexCount;
-    uint32_t indexCount = mesh->indexCount;
-    SPDLOG_DEBUG("Using mesh: vertices={}, indices={}", vertexCount, indexCount);
-
-    // Validate and get vertex buffer
-
-    auto* vertexBufferResource = m_vramManager.getResource<Buffer>(mesh->vertexBuffer);
-    if (!vertexBufferResource) {
-        SPDLOG_ERROR("Vertex buffer resource is null for handle: {}", mesh->vertexBuffer.id);
-        return;
-    }
-
-    VkBuffer vertexBuffer = vertexBufferResource->get();
-    if (vertexBuffer == VK_NULL_HANDLE) {
-        SPDLOG_ERROR("Vertex buffer VkBuffer is null");
-        return;
-    }
-
-    auto* indexBufferResource = m_vramManager.getResource<Buffer>(mesh->indexBuffer);
-    if (!indexBufferResource) {
-        SPDLOG_ERROR("Index buffer resource is null for handle: {}", mesh->indexBuffer.id);
-        return;
-    }
-
-    VkBuffer indexBuffer = indexBufferResource->get();
-    if (indexBuffer == VK_NULL_HANDLE) {
-        SPDLOG_ERROR("Index buffer VkBuffer is null");
-        return;
-    }
-
-    // Validate buffer sizes
-    size_t expectedIndexSize = mesh->indexCount * mesh->getIndexSize();
-    if (indexBufferResource->getSize() < expectedIndexSize) {
-        SPDLOG_ERROR("Index buffer too small: expected {}, got {}",
-            expectedIndexSize, indexBufferResource->getSize());
-        return;
-    }
-
-    // Bind buffers
-    VkDeviceSize offsets[] = { 0 };
-    vkCmdBindVertexBuffers(commandBuffer, 0, 1, &vertexBuffer, offsets);
-    SPDLOG_DEBUG("Vertex buffer bound: {:#x}", reinterpret_cast<uint64_t>(vertexBuffer));
-
-    VkIndexType vkIndexType = (mesh->indexType == 0) ? VK_INDEX_TYPE_UINT16 : VK_INDEX_TYPE_UINT32;
-    vkCmdBindIndexBuffer(commandBuffer, indexBuffer, 0, vkIndexType);
-    SPDLOG_DEBUG("Index buffer bound: {:#x}, type: {}",
-        reinterpret_cast<uint64_t>(indexBuffer),
-        (vkIndexType == VK_INDEX_TYPE_UINT16 ? "UINT16" : "UINT32"));
-}
-
-void RenderStage::drawMesh(VkCommandBuffer commandBuffer, const Mesh* mesh) {
-    size_t indexSize = mesh->getIndexSize();
-    uint32_t indexCount = mesh->indexCount;
-    VkDeviceSize expectedSize = indexSize * indexCount;
-    VkDeviceSize actualSize = m_vramManager.getResource<Buffer>(mesh->indexBuffer)->getSize();
-
-    SPDLOG_DEBUG("Index buffer: expected size={}, actual size={}, indexSize={}",
-        expectedSize, actualSize, indexSize);
-
-    if (expectedSize > actualSize) {
-        SPDLOG_ERROR("Index buffer too small: expected {} bytes, got {} bytes", expectedSize, actualSize);
-        uint32_t safeCount = static_cast<uint32_t>(actualSize / indexSize);
-        vkCmdDrawIndexed(commandBuffer, safeCount, 1, 0, 0, 0);
-        SPDLOG_WARN("Drawing with reduced index count: {}", safeCount);
-    }
-    else {
-        vkCmdDrawIndexed(commandBuffer, indexCount, 1, 0, 0, 0);
-        SPDLOG_INFO("Drawing indexed: count={}", indexCount);
-    }
 }
 
 void RenderStage::renderUI(VkCommandBuffer commandBuffer) {

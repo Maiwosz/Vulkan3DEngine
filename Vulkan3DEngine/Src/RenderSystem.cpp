@@ -1,4 +1,7 @@
 #include "RenderSystem.h"
+#include "MeshRenderOrder.h"
+#include "CameraRenderOrder.h"
+#include "LightRenderOrder.h"
 
 RenderSystem::RenderSystem(Registry& registry, AssetSystem& assetSystem, Renderer& renderer, Settings& settings)
     : m_registry(registry), m_assetSystem(assetSystem), m_renderer(renderer), m_settings(settings) {

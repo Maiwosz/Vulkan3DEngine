@@ -14,6 +14,9 @@
 #include "DescriptorWriter.h"
 #include "DescriptorLayoutManager.h"
 #include "LogicalDevice.h"
+#include "LightRenderOrder.h"
+#include "CameraRenderOrder.h"
+#include "MeshRenderOrder.h"
 
 // Forward declarations
 class Registry;

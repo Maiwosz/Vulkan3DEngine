@@ -299,6 +299,21 @@
     <ClCompile Include="Src\SettingsWindow.cpp">
       <Filter>Editor\EditorUI\SettingsWindow</Filter>
     </ClCompile>
+    <ClCompile Include="Src\RenderNodeManager.cpp">
+      <Filter>Engine\Renderer\RenderNodeManager</Filter>
+    </ClCompile>
+    <ClCompile Include="Src\RenderNode.cpp">
+      <Filter>Engine\Renderer\RenderNodeManager\RenderNode</Filter>
+    </ClCompile>
+    <ClCompile Include="Src\AttachmentFactory.cpp">
+      <Filter>Engine\Renderer\AttachmentManager\AttachmentFactory</Filter>
+    </ClCompile>
+    <ClCompile Include="Src\MeshRenderOrder.cpp">
+      <Filter>Engine\RenderSystem\RenderOrder\RenderOrders\MeshRenderOrder</Filter>
+    </ClCompile>
+    <ClCompile Include="Src\EditorUIRenderOrder.cpp">
+      <Filter>Engine\RenderSystem\RenderOrder\RenderOrders\EditorUIRenderOrder</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Src\Prerequisites.h" />
@@ -516,9 +531,6 @@
       <Filter>Engine\Renderer\PipelineManager\PipelineLayoutManager</Filter>
     </ClInclude>
     <ClInclude Include="Src\Paths.h" />
-    <ClInclude Include="Src\RenderOrder.h">
-      <Filter>Engine\RenderSystem</Filter>
-    </ClInclude>
     <ClInclude Include="Src\ProcessingStage.h">
       <Filter>Engine\RenderSystem</Filter>
     </ClInclude>
@@ -665,6 +677,36 @@
     </ClInclude>
     <ClInclude Include="Src\SettingsWindow.h">
       <Filter>Editor\EditorUI\SettingsWindow</Filter>
+    </ClInclude>
+    <ClInclude Include="Src\RenderNodeManager.h">
+      <Filter>Engine\Renderer\RenderNodeManager</Filter>
+    </ClInclude>
+    <ClInclude Include="Src\RenderNode.h">
+      <Filter>Engine\Renderer\RenderNodeManager\RenderNode</Filter>
+    </ClInclude>
+    <ClInclude Include="Src\RenderNodeTemplate.h">
+      <Filter>Engine\Renderer\RenderNodeManager\RenderNodeTemplates</Filter>
+    </ClInclude>
+    <ClInclude Include="Src\RenderTypes.h">
+      <Filter>Engine\Renderer\RenderNodeManager</Filter>
+    </ClInclude>
+    <ClInclude Include="Src\AttachmentFactory.h">
+      <Filter>Engine\Renderer\AttachmentManager\AttachmentFactory</Filter>
+    </ClInclude>
+    <ClInclude Include="Src\RenderOrder.h">
+      <Filter>Engine\RenderSystem\RenderOrder</Filter>
+    </ClInclude>
+    <ClInclude Include="Src\CameraRenderOrder.h">
+      <Filter>Engine\RenderSystem\RenderOrder\RenderOrders</Filter>
+    </ClInclude>
+    <ClInclude Include="Src\LightRenderOrder.h">
+      <Filter>Engine\RenderSystem\RenderOrder\RenderOrders</Filter>
+    </ClInclude>
+    <ClInclude Include="Src\MeshRenderOrder.h">
+      <Filter>Engine\RenderSystem\RenderOrder\RenderOrders\MeshRenderOrder</Filter>
+    </ClInclude>
+    <ClInclude Include="Src\EditorUIRenderOrder.h">
+      <Filter>Engine\RenderSystem\RenderOrder\RenderOrders\EditorUIRenderOrder</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
@@ -978,6 +1020,30 @@
     </Filter>
     <Filter Include="Editor\EditorUI\SettingsWindow">
       <UniqueIdentifier>{f98a6b91-a335-4e86-9ade-5a53fbc03c22}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Engine\Renderer\RenderNodeManager">
+      <UniqueIdentifier>{626a9429-c305-4ea5-ba20-2beb2d9c832e}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Engine\Renderer\RenderNodeManager\RenderNode">
+      <UniqueIdentifier>{9ea6f99f-95b7-47c8-9ef7-7f20f7b3952e}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Engine\Renderer\AttachmentManager\AttachmentFactory">
+      <UniqueIdentifier>{9b51e9c3-49f9-4d22-91d7-ad1684bf2c58}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Engine\Renderer\RenderNodeManager\RenderNodeTemplates">
+      <UniqueIdentifier>{946eb435-5b25-4dde-bad4-7a16fd58330f}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Engine\RenderSystem\RenderOrder">
+      <UniqueIdentifier>{6036f410-da6d-4d9a-83ca-7c1fa237f71a}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Engine\RenderSystem\RenderOrder\RenderOrders">
+      <UniqueIdentifier>{c541bbbe-c257-4ad5-b80f-29e1971fcf18}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Engine\RenderSystem\RenderOrder\RenderOrders\MeshRenderOrder">
+      <UniqueIdentifier>{1d312278-ed2b-4f48-8423-ae2f7826ba96}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Engine\RenderSystem\RenderOrder\RenderOrders\EditorUIRenderOrder">
+      <UniqueIdentifier>{08773ed0-94df-4ece-8f4b-d861595b5aaa}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
 </Project>

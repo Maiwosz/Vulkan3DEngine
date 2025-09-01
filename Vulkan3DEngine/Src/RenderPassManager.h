@@ -13,30 +13,10 @@ class LogicalDevice;
 
 // Structure to uniquely identify render pass configurations
 struct RenderPassConfig {
-    struct AttachmentDesc {
-        VkFormat format;
-        VkSampleCountFlagBits samples;
-        VkAttachmentLoadOp loadOp;
-        VkAttachmentStoreOp storeOp;
-        VkImageLayout initialLayout;
-        VkImageLayout finalLayout;
-        AttachmentType type;
-
-        bool operator==(const AttachmentDesc& other) const {
-            return format == other.format &&
-                samples == other.samples &&
-                loadOp == other.loadOp &&
-                storeOp == other.storeOp &&
-                initialLayout == other.initialLayout &&
-                finalLayout == other.finalLayout &&
-                type == other.type;
-        }
-    };
-
-    std::vector<AttachmentDesc> attachments;
+    std::vector<AttachmentSpec> attachments;
     std::vector<uint32_t> colorAttachmentIndices;
-    uint32_t depthAttachmentIndex = UINT32_MAX;  // Invalid by default
-    uint32_t resolveAttachmentIndex = UINT32_MAX;  // Invalid by default
+    uint32_t depthAttachmentIndex = UINT32_MAX;
+    uint32_t resolveAttachmentIndex = UINT32_MAX;
 
     // Hash function for the config
     size_t hash() const;
@@ -65,7 +45,7 @@ public:
 
     // Get or create a render pass with the specified configuration
     RenderPassHandle acquireRenderPass(const RenderPassConfig& config);
-    
+
     // Recreate render pass with new configuration while keeping the same handle
     void recreateRenderPass(RenderPassHandle handle, const RenderPassConfig& newConfig);
 

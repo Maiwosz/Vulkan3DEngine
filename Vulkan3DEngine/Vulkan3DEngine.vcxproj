@@ -172,6 +172,11 @@
     <ClCompile Include="..\Libs\imgui\imgui_impl_vulkan.cpp" />
     <ClCompile Include="..\Libs\imgui\imgui_tables.cpp" />
     <ClCompile Include="..\Libs\imgui\imgui_widgets.cpp" />
+    <ClCompile Include="Src\EditorUIRenderOrder.cpp" />
+    <ClCompile Include="Src\MeshRenderOrder.cpp" />
+    <ClCompile Include="Src\AttachmentFactory.cpp" />
+    <ClCompile Include="Src\RenderNode.cpp" />
+    <ClCompile Include="Src\RenderNodeManager.cpp" />
     <ClCompile Include="Src\SettingsWindow.cpp" />
     <ClCompile Include="Src\MaterialCreatorUI.cpp" />
     <ClCompile Include="Src\MaterialCreator.cpp" />
@@ -275,6 +280,15 @@
     <ClInclude Include="..\Libs\imgui\imstb_rectpack.h" />
     <ClInclude Include="..\Libs\imgui\imstb_textedit.h" />
     <ClInclude Include="..\Libs\imgui\imstb_truetype.h" />
+    <ClInclude Include="Src\CameraRenderOrder.h" />
+    <ClInclude Include="Src\EditorUIRenderOrder.h" />
+    <ClInclude Include="Src\LightRenderOrder.h" />
+    <ClInclude Include="Src\MeshRenderOrder.h" />
+    <ClInclude Include="Src\AttachmentFactory.h" />
+    <ClInclude Include="Src\RenderNodeTemplate.h" />
+    <ClInclude Include="Src\RenderTypes.h" />
+    <ClInclude Include="Src\RenderNode.h" />
+    <ClInclude Include="Src\RenderNodeManager.h" />
     <ClInclude Include="Src\SettingsWindow.h" />
     <ClInclude Include="Src\MaterialCreatorUI.h" />
     <ClInclude Include="Src\MaterialCreator.h" />

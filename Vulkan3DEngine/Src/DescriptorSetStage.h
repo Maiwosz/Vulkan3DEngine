@@ -12,6 +12,7 @@
 #include "Renderer.h"
 #include "ImageSamplerManager.h"
 #include "AssetSystem.h"
+#include "MeshRenderOrder.h"
 
 class DescriptorSetStage : public OrderProcessingStage {
 public:

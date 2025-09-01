@@ -41,7 +41,7 @@ private:
     FrameBufferManager& m_framebufferManager;
     RenderPassManager& m_renderPassManager;
     PipelineManager& m_pipelineManager;
-    MeshManager& m_meshManager;
+    AssetSystem& m_assetSystem;
     DescriptorAllocator& m_descriptorAllocator;
 
     // UI rendering callback
@@ -88,13 +88,6 @@ private:
         uint32_t imageIndex,
         const std::vector<std::shared_ptr<RenderOrder>>& renderOrders
     );
-
-    void executeMeshRenderOrder(VkCommandBuffer commandBuffer, MeshRenderOrder* meshOrder);
-    void bindPipeline(VkCommandBuffer commandBuffer, PipelineHandle pipelineHandle);
-    void setViewportAndScissor(VkCommandBuffer commandBuffer);
-    void bindDescriptorSets(VkCommandBuffer commandBuffer, VkPipelineLayout pipelineLayout, MeshRenderOrder* meshOrder);
-    void bindVertexAndIndexBuffers(VkCommandBuffer commandBuffer, const Mesh* mesh);
-    void drawMesh(VkCommandBuffer commandBuffer, const Mesh* mesh);
 
     // UI rendering
     void renderUI(VkCommandBuffer commandBuffer);

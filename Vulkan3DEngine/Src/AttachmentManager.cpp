@@ -95,17 +95,19 @@ AttachmentHandle AttachmentManager::registerExternalImage(
     VkImageLayout finalLayout,
     AttachmentType type
 ) {
-
-    // Create spec for this external image
-    AttachmentSpec spec{
+    // Use the factory to create spec for this external image
+    AttachmentSpec spec = m_factory.createSwapchainColorAttachment(
         format,
         extent,
-        VK_SAMPLE_COUNT_1_BIT,  // External images are typically not multisampled
-        VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,  // Default usage for swapchain images
         initialLayout,
-        finalLayout,
-        type
-    };
+        finalLayout
+    );
+
+    // Override the type if different from color
+    if (type != AttachmentType::Color) {
+        spec.type = type;
+        spec.usage = m_factory.getDefaultUsageFlags(type);
+    }
 
     // Create image view for this external image
     VkImageView imageView = createImageView(imageHandle, spec);
@@ -130,7 +132,7 @@ AttachmentHandle AttachmentManager::createAttachment(const AttachmentSpec& spec)
     // Determine image usage flags
     VkImageUsageFlags usage = spec.usage;
     if (usage == 0) {
-        usage = getDefaultUsageFlags(spec.type);
+        usage = m_factory.getDefaultUsageFlags(spec.type);
     }
 
     // Create image
@@ -206,19 +208,6 @@ void AttachmentManager::destroyAttachment(AttachmentHandle handle) {
 
         // Remove the attachment from the map
         m_attachments.erase(it);
-    }
-}
-
-VkImageUsageFlags AttachmentManager::getDefaultUsageFlags(AttachmentType type) const {
-    switch (type) {
-    case AttachmentType::Depth:
-    case AttachmentType::DepthStencil:
-        return VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
-    case AttachmentType::Resolve:
-        return VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
-    case AttachmentType::Color:
-    default:
-        return VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
     }
 }
 

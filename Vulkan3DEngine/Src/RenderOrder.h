@@ -11,11 +11,14 @@
 
 // Forward declarations
 class Buffer;
+class Renderer;
+class AssetSystem;
 
 enum class RenderOrderType {
     Mesh,
     Light,
-    Camera
+    Camera,
+    EditorUI
 };
 
 // Convert RenderOrderType to string for logging purposes
@@ -24,6 +27,7 @@ inline std::string renderOrderTypeToString(RenderOrderType type) {
     case RenderOrderType::Mesh: return "Mesh";
     case RenderOrderType::Light: return "Light";
     case RenderOrderType::Camera: return "Camera";
+    case RenderOrderType::EditorUI: return "EditorUI";
     default: return "Unknown";
     }
 }
@@ -31,53 +35,16 @@ inline std::string renderOrderTypeToString(RenderOrderType type) {
 class RenderOrder {
 public:
     virtual ~RenderOrder() = default;
+
+    // Type identification
     virtual RenderOrderType getType() const = 0;
-    Entity entity;
-};
 
-class MeshRenderOrder : public RenderOrder {
-public:
-    RenderOrderType getType() const override { return RenderOrderType::Mesh; }
-
-    // Asset resolution stage
-    MeshHandle meshHandle;
-    MaterialHandle materialHandle;
-
-    // Uniform buffer stage - używamy SmartHandle dla automatycznego zarządzania
-    SmartHandle<UniformBufferHandle, Buffer> globalUBOHandle;
-    SmartHandle<UniformBufferHandle, Buffer> objectUBOHandle;
-
-    // Descriptor sets stage - używamy SmartHandle dla automatycznego zarządzania  
-    SmartHandle<DescriptorSetHandle, VkDescriptorSet> globalDescriptorSetHandle;
-    SmartHandle<DescriptorSetHandle, VkDescriptorSet> objectDescriptorSetHandle;
-    SmartHandle<DescriptorSetHandle, VkDescriptorSet> materialDescriptorSetHandle;
-
-    // Pipeline assignment stage
-    PipelineHandle pipelineHandle;
-
-    // Metody pomocnicze do sprawdzania ważności zasobów
-    bool hasValidGlobalUBO() const { return globalUBOHandle.isValid(); }
-    bool hasValidObjectUBO() const { return objectUBOHandle.isValid(); }
-    bool hasValidGlobalDescriptorSet() const { return globalDescriptorSetHandle.isValid(); }
-    bool hasValidObjectDescriptorSet() const { return objectDescriptorSetHandle.isValid(); }
-    bool hasValidMaterialDescriptorSet() const { return materialDescriptorSetHandle.isValid(); }
-
-    // Metoda do sprawdzenia czy wszystkie krytyczne zasoby są dostępne
-    bool isReadyForRendering() const {
-        return meshHandle.isValid() &&
-            materialHandle.isValid() &&
-            pipelineHandle.isValid() &&
-            hasValidGlobalUBO() &&
-            hasValidObjectUBO();
+    // Polymorphic execution - each render order type implements its own rendering logic
+    virtual void execute(VkCommandBuffer commandBuffer, Renderer& renderer, AssetSystem& assetSystem) {
+        // Default implementation for unsupported render order types
+        SPDLOG_ERROR("RenderOrder::execute() called for unsupported type: {}",
+            renderOrderTypeToString(getType()));
     }
-};
 
-class LightRenderOrder : public RenderOrder {
-public:
-    RenderOrderType getType() const override { return RenderOrderType::Light; }
-};
-
-class CameraRenderOrder : public RenderOrder {
-public:
-    RenderOrderType getType() const override { return RenderOrderType::Camera; }
+    Entity entity;
 };
