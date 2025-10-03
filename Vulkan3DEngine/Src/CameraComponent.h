@@ -1,6 +1,7 @@
 #pragma once
 #include "Component.h"
 #include "BinaryWriter.h"
+#include "RenderTarget.h"
 #include <glm/glm.hpp>
 
 struct TransformComponent;
@@ -39,6 +40,11 @@ public:
         incrementVersion();
     }
 
+    void setRenderTarget(const RenderTarget& target) {
+        m_renderTarget = target;
+        incrementVersion();
+    }
+
     // Getters
     const char* getName() const override {
         return "CameraComponent";
@@ -49,6 +55,7 @@ public:
     float getOrthographicSize() const { return m_orthographicSize; }
     float getNearClip() const { return m_nearClip; }
     float getFarClip() const { return m_farClip; }
+    const RenderTarget& getRenderTarget() const { return m_renderTarget; }
 
     // Helper functions
     glm::mat4 getProjectionMatrix() const {
@@ -77,6 +84,13 @@ public:
         j["orthographicSize"] = m_orthographicSize;
         j["nearClip"] = m_nearClip;
         j["farClip"] = m_farClip;
+
+        // Serialize render target
+        j["renderTargetType"] = (m_renderTarget.isSwapchain()) ? "swapchain" : "texture";
+        if (m_renderTarget.isTexture()) {
+            j["renderTargetHandle"] = m_renderTarget.getTextureHandle().handle().id;
+        }
+
         return j;
     }
 
@@ -100,10 +114,14 @@ public:
         if (j.contains("farClip") && j["farClip"].is_number()) {
             m_farClip = j["farClip"];
         }
+
+        // Note: Render target deserialization is complex and may need special handling
+        // For now, we'll default to swapchain - texture handles would need to be resolved
+        // through the asset system during a separate post-deserialization phase
+
         incrementVersion();
     }
 
-    // Add to CameraComponent.cpp (or inline in header):
     void renderUI() override {
         ImGui::Text("Camera Component");
 
@@ -148,6 +166,17 @@ public:
         if (ImGui::DragFloat("Far", &farClip, 1.0f, nearClip + 1.0f, 10000.0f)) {
             setClippingPlanes(nearClip, farClip);
         }
+
+        // Render target info (read-only for now)
+        ImGui::Separator();
+        ImGui::Text("Render Target");
+        if (m_renderTarget.isSwapchain()) {
+            ImGui::Text("Type: Swapchain");
+        }
+        else {
+            ImGui::Text("Type: Texture");
+            ImGui::Text("Handle ID: %u", m_renderTarget.getTextureHandle().handle().id);
+        }
     }
 
 private:
@@ -157,4 +186,5 @@ private:
     float m_orthographicSize = 10.0f;
     float m_nearClip = 0.1f;
     float m_farClip = 1000.0f;
+    RenderTarget m_renderTarget = RenderTarget::createSwapChainTarget();
 };

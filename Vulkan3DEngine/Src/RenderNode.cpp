@@ -1,52 +1,23 @@
 #include "RenderNode.h"
-#include "RenderOrder.h"
-#include "Renderer.h"
-#include "RenderPassManager.h"
-#include "FrameBufferManager.h"
+#include "RenderNodeTemplate.h"
 #include <stdexcept>
 
-RenderNode::RenderNode(RenderTemplateType templateType,
-    RenderPassHandle renderPassHandle,
-    const RenderPassMetadata& metadata)
-    : m_templateType(templateType)
-    , m_renderPassHandle(renderPassHandle)
-    , m_metadata(metadata) {
+RenderNode::RenderNode(const RenderNodeTemplate* nodeTemplate,
+    const RenderTarget& renderTarget,
+    VkExtent2D extent,
+    SmartRenderPassHandle smartRenderPassHandle)
+    : m_template(nodeTemplate)
+    , m_renderTarget(renderTarget)
+    , m_extent(extent)
+    , m_smartRenderPassHandle(std::move(smartRenderPassHandle)) {
 }
 
-void RenderNode::execute(VkCommandBuffer commandBuffer,
-    FrameBufferHandle framebufferHandle,
-    const std::vector<RenderOrder*>& renderOrders,
-    Renderer& renderer,
-    AssetSystem& assetSystem) {
-    // Get render pass and framebuffer from managers
-    VkRenderPass* renderPass = renderer.renderPassManager().getResource(m_renderPassHandle);
-    if (!renderPass) {
-        throw std::runtime_error("Invalid render pass handle");
-    }
+std::type_index RenderNode::getTemplateTypeIndex() const {
+    return m_template ? m_template->getTypeIndex() : std::type_index(typeid(void));
+}
 
-    FrameBufferResource* framebufferResource = renderer.framebufferManager().getResource(framebufferHandle);
-    if (!framebufferResource) {
-        throw std::runtime_error("Invalid framebuffer handle");
-    }
-
-    // Pre-render pass hook
-    onBeforeRenderPass(commandBuffer, renderer);
-
-    // Begin render pass
-    beginRenderPass(commandBuffer, *renderPass, framebufferResource->frameBuffer);
-
-    // Execute all render orders polymorphically
-    for (RenderOrder* renderOrder : renderOrders) {
-        if (renderOrder) {
-            renderOrder->execute(commandBuffer, renderer, assetSystem);
-        }
-    }
-
-    // End render pass
-    endRenderPass(commandBuffer);
-
-    // Post-render pass hook
-    onAfterRenderPass(commandBuffer, renderer);
+const char* RenderNode::getTemplateName() const {
+    return m_template ? m_template->getTemplateName() : "Unknown";
 }
 
 void RenderNode::addColorAttachment(AttachmentHandle handle, uint32_t index) {
@@ -57,16 +28,29 @@ void RenderNode::addDepthAttachment(AttachmentHandle handle, uint32_t index) {
     if (m_depthAttachment) {
         throw std::runtime_error("RenderNode can only have one depth attachment");
     }
-    m_depthAttachment = new NodeAttachment(handle, index);
+    m_depthAttachment = std::make_unique<NodeAttachment>(handle, index);
 }
 
 void RenderNode::addResolveAttachment(AttachmentHandle handle, uint32_t index) {
     if (m_resolveAttachment) {
         throw std::runtime_error("RenderNode can only have one resolve attachment");
     }
-    m_resolveAttachment = new NodeAttachment(handle, index);
+    m_resolveAttachment = std::make_unique<NodeAttachment>(handle, index);
 }
 
+void RenderNode::addSwapchainColorAttachment(uint32_t index) {
+    m_colorAttachments.push_back(NodeAttachment::createSwapchainAttachment(index));
+    m_usesSwapchainColor = true;
+}
+
+void RenderNode::addSwapchainResolveAttachment(uint32_t index) {
+    if (m_resolveAttachment) {
+        throw std::runtime_error("RenderNode can only have one resolve attachment");
+    }
+    m_resolveAttachment = std::make_unique<NodeAttachment>(
+        NodeAttachment::createSwapchainAttachment(index));
+    m_usesSwapchainResolve = true;
+}
 std::vector<AttachmentHandle> RenderNode::getAllAttachmentHandles() const {
     std::vector<AttachmentHandle> handles;
 
@@ -94,52 +78,39 @@ bool RenderNode::isComplete() const {
         return false;
     }
 
-    // If metadata indicates depth is needed, we must have depth attachment
-    if (m_metadata.hasDepth && !m_depthAttachment) {
+    // Check if smart render pass handle is valid
+    if (!m_smartRenderPassHandle.isValid()) {
         return false;
     }
 
-    // If metadata indicates resolve is needed, we must have resolve attachment
-    if (m_metadata.hasResolve && !m_resolveAttachment) {
-        return false;
-    }
-
+    // Additional validation could be added based on template requirements
+    // For now, basic validation is sufficient
     return true;
 }
 
 void RenderNode::beginRenderPass(VkCommandBuffer commandBuffer,
-    VkRenderPass renderPass,
-    VkFramebuffer framebuffer) const {
-    // Setup clear values based on attachments
-    std::vector<VkClearValue> clearValues;
+    VkFramebuffer framebuffer,
+    const VkExtent2D& renderArea) const {
 
-    // Color attachments
-    for (const auto& colorAttachment : m_colorAttachments) {
-        VkClearValue clearValue = {};
-        clearValue.color = { {0.0f, 0.0f, 0.0f, 1.0f} };
-        clearValues.push_back(clearValue);
+    // Verify we have a valid render pass
+    if (!m_smartRenderPassHandle.isValid()) {
+        throw std::runtime_error("RenderNode has invalid render pass handle");
     }
 
-    // Depth attachment
-    if (m_depthAttachment) {
-        VkClearValue clearValue = {};
-        clearValue.depthStencil = { 1.0f, 0 };
-        clearValues.push_back(clearValue);
+    VkRenderPass renderPass = getRenderPass();
+    if (renderPass == VK_NULL_HANDLE) {
+        throw std::runtime_error("Failed to get VkRenderPass from smart handle");
     }
 
-    // Resolve attachment (no clear value needed)
-    if (m_resolveAttachment) {
-        VkClearValue clearValue = {};
-        clearValue.color = { {0.0f, 0.0f, 0.0f, 1.0f} };
-        clearValues.push_back(clearValue);
-    }
+    // Setup clear values based on actual attachment order and indices
+    std::vector<VkClearValue> clearValues = createClearValues();
 
     VkRenderPassBeginInfo beginInfo = {};
     beginInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
     beginInfo.renderPass = renderPass;
     beginInfo.framebuffer = framebuffer;
     beginInfo.renderArea.offset = { 0, 0 };
-    beginInfo.renderArea.extent = m_metadata.extent;
+    beginInfo.renderArea.extent = renderArea;
     beginInfo.clearValueCount = static_cast<uint32_t>(clearValues.size());
     beginInfo.pClearValues = clearValues.data();
 
@@ -148,4 +119,43 @@ void RenderNode::beginRenderPass(VkCommandBuffer commandBuffer,
 
 void RenderNode::endRenderPass(VkCommandBuffer commandBuffer) const {
     vkCmdEndRenderPass(commandBuffer);
+}
+
+std::vector<VkClearValue> RenderNode::createClearValues() const {
+    // Create a map of attachment index to clear value
+    std::map<uint32_t, VkClearValue> indexToClearValue;
+
+    // Add color attachments
+    for (const auto& colorAttachment : m_colorAttachments) {
+        VkClearValue clearValue = {};
+        clearValue.color = { {0.0f, 0.0f, 0.0f, 1.0f} };
+        indexToClearValue[colorAttachment.attachmentIndex] = clearValue;
+    }
+
+    // Add depth attachment
+    if (m_depthAttachment) {
+        VkClearValue clearValue = {};
+        clearValue.depthStencil = { 1.0f, 0 };
+        indexToClearValue[m_depthAttachment->attachmentIndex] = clearValue;
+    }
+
+    // Add resolve attachment
+    if (m_resolveAttachment) {
+        VkClearValue clearValue = {};
+        clearValue.color = { {0.0f, 0.0f, 0.0f, 1.0f} };
+        indexToClearValue[m_resolveAttachment->attachmentIndex] = clearValue;
+    }
+
+    // Convert map to vector, ensuring proper order by index
+    std::vector<VkClearValue> clearValues;
+    if (!indexToClearValue.empty()) {
+        uint32_t maxIndex = indexToClearValue.rbegin()->first;
+        clearValues.resize(maxIndex + 1);
+
+        for (const auto& [index, clearValue] : indexToClearValue) {
+            clearValues[index] = clearValue;
+        }
+    }
+
+    return clearValues;
 }

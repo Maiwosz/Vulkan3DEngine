@@ -127,6 +127,13 @@ public:
     // Smart handles będą ich używać automatycznie, podczas gdy zwykłe handles wymagają
     // ręcznego wywołania przez programistę
 
+protected:
+    // Protected factory method for derived classes to create smart handles
+    // This allows derived managers to create smart handles using their own 'this' pointer
+    SmartHandle<HandleType, ResourceType> makeSmartHandle(HandleType handle) {
+        return SmartHandle<HandleType, ResourceType>(handle, this);
+    }
+
 private:
     friend class SmartHandle<HandleType, ResourceType>;
 };

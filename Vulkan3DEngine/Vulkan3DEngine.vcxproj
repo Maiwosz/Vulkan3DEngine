@@ -172,8 +172,22 @@
     <ClCompile Include="..\Libs\imgui\imgui_impl_vulkan.cpp" />
     <ClCompile Include="..\Libs\imgui\imgui_tables.cpp" />
     <ClCompile Include="..\Libs\imgui\imgui_widgets.cpp" />
-    <ClCompile Include="Src\EditorUIRenderOrder.cpp" />
-    <ClCompile Include="Src\MeshRenderOrder.cpp" />
+    <ClCompile Include="Src\ForwardRenderGraphTemplate.cpp" />
+    <ClCompile Include="Src\ForwardRenderNodeTemplate.cpp" />
+    <ClCompile Include="Src\RenderGraphExecutor.cpp" />
+    <ClCompile Include="Src\DrawCall.cpp" />
+    <ClCompile Include="Src\RenderGraphTemplate.cpp" />
+    <ClCompile Include="Src\RenderNodeTemplate.cpp" />
+    <ClCompile Include="Src\SemaphoreManager.cpp" />
+    <ClCompile Include="Src\MeshRenderer.cpp" />
+    <ClCompile Include="Src\Renderer.cpp" />
+    <ClCompile Include="Src\RenderPipelineAssignmentStage.cpp" />
+    <ClCompile Include="Src\RenderGraph.cpp" />
+    <ClCompile Include="Src\RenderGraphManager.cpp" />
+    <ClCompile Include="Src\CameraProcessingStage.cpp" />
+    <ClCompile Include="Src\MeshCullingStage.cpp" />
+    <ClCompile Include="Src\ProcessingPipeline.cpp" />
+    <ClCompile Include="Src\ProcessingContext.cpp" />
     <ClCompile Include="Src\AttachmentFactory.cpp" />
     <ClCompile Include="Src\RenderNode.cpp" />
     <ClCompile Include="Src\RenderNodeManager.cpp" />
@@ -250,7 +264,7 @@
     <ClCompile Include="Src\Image.cpp" />
     <ClCompile Include="Src\InputSystem.cpp" />
     <ClCompile Include="Src\main.cpp" />
-    <ClCompile Include="Src\Renderer.cpp" />
+    <ClCompile Include="Src\EngineCore.cpp" />
     <ClCompile Include="Src\Scene.cpp" />
     <ClCompile Include="Src\SwapChain.cpp" />
     <ClCompile Include="Src\SystemManager.cpp" />
@@ -270,6 +284,8 @@
     <ClCompile Include="Src\UniformBufferManager.cpp" />
     <ClCompile Include="Src\UniformBufferStage.cpp" />
     <ClCompile Include="Src\TransferManager.cpp" />
+    <ClCompile Include="Src\SynchronizationStages.cpp" />
+    <ClCompile Include="Src\UIRenderer.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\Libs\imgui\imconfig.h" />
@@ -280,6 +296,25 @@
     <ClInclude Include="..\Libs\imgui\imstb_rectpack.h" />
     <ClInclude Include="..\Libs\imgui\imstb_textedit.h" />
     <ClInclude Include="..\Libs\imgui\imstb_truetype.h" />
+    <ClInclude Include="Src\ForwardRenderGraphTemplate.h" />
+    <ClInclude Include="Src\RenderGraphExecutor.h" />
+    <ClInclude Include="Src\DrawCall.h" />
+    <ClInclude Include="Src\GpuCall.h" />
+    <ClInclude Include="Src\SemaphoreManager.h" />
+    <ClInclude Include="Src\MeshRenderer.h" />
+    <ClInclude Include="Src\Renderer.h" />
+    <ClInclude Include="Src\RenderPipelineAssignmentStage.h" />
+    <ClInclude Include="Src\RenderGraphManager.h" />
+    <ClInclude Include="Src\CameraProcessingStage.h" />
+    <ClInclude Include="Src\ForwardRenderNodeTemplate.h" />
+    <ClInclude Include="Src\MeshCullingStage.h" />
+    <ClInclude Include="Src\LightStorageStage.h" />
+    <ClInclude Include="Src\MeshStorageStage.h" />
+    <ClInclude Include="Src\ProcessingPipeline.h" />
+    <ClInclude Include="Src\ProcessingContext.h" />
+    <ClInclude Include="Src\RenderGraph.h" />
+    <ClInclude Include="Src\RenderGraphTemplate.h" />
+    <ClInclude Include="Src\RenderTarget.h" />
     <ClInclude Include="Src\CameraRenderOrder.h" />
     <ClInclude Include="Src\EditorUIRenderOrder.h" />
     <ClInclude Include="Src\LightRenderOrder.h" />
@@ -383,7 +418,7 @@
     <ClInclude Include="Src\Image.h" />
     <ClInclude Include="Src\InputSystem.h" />
     <ClInclude Include="Src\Prerequisites.h" />
-    <ClInclude Include="Src\Renderer.h" />
+    <ClInclude Include="Src\EngineCore.h" />
     <ClInclude Include="Src\Scene.h" />
     <ClInclude Include="Src\SwapChain.h" />
     <ClInclude Include="Src\TextureManager.h" />
@@ -404,6 +439,8 @@
     <ClInclude Include="Src\UniformBufferStage.h" />
     <ClInclude Include="Src\TransferManager.h" />
     <ClInclude Include="Src\SystemsRegistry.h" />
+    <ClInclude Include="Src\SynchronizationStages.h" />
+    <ClInclude Include="Src\UIRenderer.h" />
   </ItemGroup>
   <ItemGroup>
     <None Include="..\Libs\imgui\.gitattributes" />

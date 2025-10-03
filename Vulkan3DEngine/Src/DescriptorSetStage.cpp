@@ -2,12 +2,15 @@
 #include "ShaderModuleManager.h"
 #include "Material.h"
 #include "Buffer.h"
+#include <spdlog/spdlog.h>
 
 DescriptorSetStage::DescriptorSetStage(
-    Renderer& renderer,
+    ProcessingContext& context,
+    EngineCore& renderer,
     AssetSystem& assetSystem
 )
-    : m_renderer(renderer),
+    : ProcessingStage(context),
+    m_renderer(renderer),
     m_assetSystem(assetSystem),
     m_shaderManager(assetSystem.shaderManager()),
     m_materialManager(assetSystem.materialManager()),
@@ -21,38 +24,42 @@ DescriptorSetStage::DescriptorSetStage(
         m_uniformBufferManager,
         m_descriptorAllocator)
 {
-    SPDLOG_INFO("Initializing DescriptorSetStage");
+    SPDLOG_INFO("Initialized DescriptorSetStage");
 }
 
-void DescriptorSetStage::process(std::shared_ptr<RenderOrder> order) {
+ProcessingResult DescriptorSetStage::process(std::shared_ptr<RenderOrder> order) {
     if (!order) {
-        SPDLOG_WARN("Attempted to process null render order");
-        return;
+        SPDLOG_WARN("DescriptorSetStage received null render order");
+        return ProcessingResult::Failure;
     }
 
     // Process based on order type
     switch (order->getType()) {
     case RenderOrderType::Mesh: {
         auto meshOrder = std::static_pointer_cast<MeshRenderOrder>(order);
-        processMeshOrder(meshOrder);
-        break;
+        return processMeshOrder(meshOrder);
     }
+    case RenderOrderType::Camera: {
+        auto cameraOrder = std::static_pointer_cast<CameraRenderOrder>(order);
+        return processCameraOrder(cameraOrder);
+    }
+    case RenderOrderType::Light:
+        SPDLOG_DEBUG("DescriptorSetStage skipping light order - no descriptor sets needed");
+        return ProcessingResult::Success; // Light orders are valid but don't need descriptor sets
     default:
-        SPDLOG_WARN("Unknown render order type");
-        break;
+        SPDLOG_WARN("DescriptorSetStage received unknown render order type: {}",
+            renderOrderTypeToString(order->getType()));
+        return ProcessingResult::Failure; // Unknown order types should be rejected
     }
-
-    // Forward the order to the next stage
-    forwardToNextStage(order);
 }
 
-void DescriptorSetStage::processMeshOrder(std::shared_ptr<MeshRenderOrder> order) {
+ProcessingResult DescriptorSetStage::processMeshOrder(std::shared_ptr<MeshRenderOrder> order) {
     if (!order) {
         SPDLOG_WARN("Null mesh render order provided");
-        return;
+        return ProcessingResult::Failure;
     }
 
-    SPDLOG_DEBUG("Processing descriptor sets for mesh handle {}", order->meshHandle.id);
+    SPDLOG_DEBUG("Processing descriptor sets for mesh entity: {}", order->entity.id);
 
     // Get material if specified in the order
     Material* material = nullptr;
@@ -70,24 +77,56 @@ void DescriptorSetStage::processMeshOrder(std::shared_ptr<MeshRenderOrder> order
     }
 
     if (!shaderHandle) {
-        SPDLOG_ERROR("Invalid shader handle for mesh render order");
-        return;
+        SPDLOG_ERROR("Invalid shader handle for mesh render order entity: {}", order->entity.id);
+        return ProcessingResult::Failure;
     }
 
-    // Create object descriptor set
-    createObjectDescriptorSet(order, shaderHandle);
+    // Create object descriptor set (set=1 typically)
+    if (!createObjectDescriptorSet(order, shaderHandle)) {
+        SPDLOG_ERROR("Failed to create object descriptor set for mesh entity: {}", order->entity.id);
+        return ProcessingResult::Failure;
+    }
 
-    // Assign material descriptor set - assuming MaterialManager returns SmartHandle
+    // Assign material descriptor set if available
     if (order->materialHandle) {
-        // If MaterialManager doesn't support SmartHandle yet, this might need adjustment
         auto materialDescriptorSet = m_materialManager.getDescriptorSet(order->materialHandle);
         if (materialDescriptorSet.isValid()) {
-            order->materialDescriptorSetHandle = materialDescriptorSet;
+            order->drawCall->setMaterialDescriptorSet(materialDescriptorSet);
+            SPDLOG_DEBUG("Assigned material descriptor set to mesh entity: {}", order->entity.id);
+        }
+        else {
+            SPDLOG_WARN("Failed to get material descriptor set for mesh entity: {}", order->entity.id);
+            return ProcessingResult::Failure;
         }
     }
+
+    return ProcessingResult::Success;
 }
 
-void DescriptorSetStage::createObjectDescriptorSet(std::shared_ptr<MeshRenderOrder> order, ShaderHandle shader) {
+ProcessingResult DescriptorSetStage::processCameraOrder(std::shared_ptr<CameraRenderOrder> order) {
+    if (!order) {
+        SPDLOG_WARN("Null camera render order provided");
+        return ProcessingResult::Failure;
+    }
+
+    SPDLOG_DEBUG("Processing descriptor sets for camera entity: {}", order->entity.id);
+
+    // Camera should have global UBO from previous stage
+    if (!order->globalUBOHandle.isValid()) {
+        SPDLOG_ERROR("Camera order missing global UBO handle, entity: {}", order->entity.id);
+        return ProcessingResult::Failure;
+    }
+
+    // Create global descriptor set for this camera
+    if (!createGlobalDescriptorSet(order)) {
+        SPDLOG_ERROR("Failed to create global descriptor set for camera entity: {}", order->entity.id);
+        return ProcessingResult::Failure;
+    }
+
+    return ProcessingResult::Success;
+}
+
+bool DescriptorSetStage::createObjectDescriptorSet(std::shared_ptr<MeshRenderOrder> order, ShaderHandle shader) {
     // Get shader resources (descriptor layouts, pipeline layout)
     const ShaderResources& shaderResources = m_shaderManager.getShaderResources(shader);
 
@@ -103,10 +142,12 @@ void DescriptorSetStage::createObjectDescriptorSet(std::shared_ptr<MeshRenderOrd
         // Write object UBO to descriptor set if available
         if (order->objectUBOHandle.isValid()) {
             m_writer.writeUniformBuffer(0, order->objectUBOHandle);
-            SPDLOG_DEBUG("Added object UBO to object descriptor set at binding 0");
+            SPDLOG_DEBUG("Added object UBO to object descriptor set at binding 0 for entity: {}",
+                order->entity.id);
         }
         else {
-            SPDLOG_WARN("Missing valid object UBO handle in render order");
+            SPDLOG_WARN("Missing valid object UBO handle for mesh entity: {}", order->entity.id);
+            return false;
         }
 
         // Create descriptor set using writer - this returns SmartHandle automatically
@@ -114,14 +155,63 @@ void DescriptorSetStage::createObjectDescriptorSet(std::shared_ptr<MeshRenderOrd
 
         if (smartObjectDescriptorSet.isValid()) {
             // Store SmartHandle in render order - automatic cleanup when order is destroyed
-            order->objectDescriptorSetHandle = smartObjectDescriptorSet;
-            SPDLOG_DEBUG("Created object descriptor set with SmartHandle");
+            order->drawCall->setObjectDescriptorSet(smartObjectDescriptorSet);
+            SPDLOG_DEBUG("Created object descriptor set with SmartHandle for entity: {}",
+                order->entity.id);
+            return true;
         }
         else {
-            SPDLOG_ERROR("Failed to create object descriptor set");
+            SPDLOG_ERROR("Failed to create object descriptor set for entity: {}", order->entity.id);
+            return false;
         }
     }
     else {
-        SPDLOG_DEBUG("No descriptor layout found for object set (set=1)");
+        SPDLOG_DEBUG("No descriptor layout found for object set (set=1) for entity: {}",
+            order->entity.id);
+        return true; // Not an error if no descriptor set is needed
+    }
+}
+
+bool DescriptorSetStage::createGlobalDescriptorSet(std::shared_ptr<CameraRenderOrder> order) {
+    if (!order->globalUBOHandle.isValid()) {
+        SPDLOG_ERROR("Cannot create global descriptor set without valid global UBO for camera: {}",
+            order->entity.id);
+        return false;
+    }
+
+    try {
+        // Get global descriptor set layout from built-in layouts
+        VkDescriptorSetLayout globalLayout =
+            m_layoutManager.getBuiltInVkLayout(DescriptorLayoutManager::BuiltInLayout::Global);
+
+        if (globalLayout == VK_NULL_HANDLE) {
+            SPDLOG_ERROR("Global descriptor set layout not found for camera: {}", order->entity.id);
+            return false;
+        }
+
+        // Clear writer for new descriptor set
+        m_writer.clear();
+
+        // Write global UBO to descriptor set
+        m_writer.writeUniformBuffer(0, order->globalUBOHandle);
+
+        // Create descriptor set using writer - this returns SmartHandle automatically
+        auto globalDescriptorSet = m_writer.createDescriptorSet(globalLayout);
+
+        if (globalDescriptorSet.isValid()) {
+            // Store SmartHandle in camera order
+            order->globalDescriptorSetHandle = globalDescriptorSet;
+            SPDLOG_DEBUG("Created global descriptor set for camera entity: {}", order->entity.id);
+            return true;
+        }
+        else {
+            SPDLOG_ERROR("Failed to create global descriptor set for camera: {}", order->entity.id);
+            return false;
+        }
+    }
+    catch (const std::exception& e) {
+        SPDLOG_ERROR("Exception while creating global descriptor set for camera {}: {}",
+            order->entity.id, e.what());
+        return false;
     }
 }

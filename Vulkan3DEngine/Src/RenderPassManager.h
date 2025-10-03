@@ -6,14 +6,17 @@
 #include <functional>
 #include "AttachmentManager.h"
 #include "Handle.h"
-#include "IResourceManager.h"
+#include "ISmartHandleManager.h"
 
 // Forward declarations
 class LogicalDevice;
 
+// Type aliases for convenience
+using SmartRenderPassHandle = SmartHandle<RenderPassHandle, VkRenderPass>;
+
 // Structure to uniquely identify render pass configurations
 struct RenderPassConfig {
-    std::vector<AttachmentSpec> attachments;
+    std::vector<RenderPassAttachment> attachments;
     std::vector<uint32_t> colorAttachmentIndices;
     uint32_t depthAttachmentIndex = UINT32_MAX;
     uint32_t resolveAttachmentIndex = UINT32_MAX;
@@ -34,7 +37,7 @@ namespace std {
     };
 }
 
-class RenderPassManager : public IResourceManager<RenderPassHandle, VkRenderPass> {
+class RenderPassManager : public ISmartHandleManager<RenderPassHandle, VkRenderPass> {
 public:
     RenderPassManager(const LogicalDevice& logicalDevice);
     ~RenderPassManager();
@@ -43,8 +46,11 @@ public:
     RenderPassManager(const RenderPassManager&) = delete;
     RenderPassManager& operator=(const RenderPassManager&) = delete;
 
-    // Get or create a render pass with the specified configuration
+    // Get or create a render pass with the specified configuration (returns raw handle)
     RenderPassHandle acquireRenderPass(const RenderPassConfig& config);
+
+    // Get or create a smart render pass with the specified configuration
+    SmartRenderPassHandle acquireSmartRenderPass(const RenderPassConfig& config);
 
     // Recreate render pass with new configuration while keeping the same handle
     void recreateRenderPass(RenderPassHandle handle, const RenderPassConfig& newConfig);
@@ -71,6 +77,7 @@ private:
     struct RenderPassEntry {
         VkRenderPass renderPass;
         RenderPassConfig config;
+        uint32_t referenceCount = 0;  // Reference counting for automatic cleanup
     };
     std::unordered_map<RenderPassHandle, RenderPassEntry> m_renderPasses;
 

@@ -12,8 +12,6 @@ public:
 
     RenderOrderType getType() const override { return RenderOrderType::EditorUI; }
 
-    void execute(VkCommandBuffer commandBuffer, Renderer& renderer, AssetSystem& assetSystem) override;
-
     void setCallback(UICallback callback) { m_callback = callback; }
     bool hasCallback() const { return m_callback != nullptr; }
 

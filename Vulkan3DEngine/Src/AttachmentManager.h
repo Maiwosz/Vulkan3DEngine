@@ -1,14 +1,14 @@
 #pragma once
+#include <vulkan/vulkan.h>
+#include <vector>
+#include <unordered_map>
+#include <memory>
+#include <functional>
 #include "VramManager.h"
 #include "Image.h"
 #include "IResourceManager.h"
 #include "Handle.h"
 #include "AttachmentFactory.h"
-#include <unordered_map>
-#include <memory>
-#include <string>
-#include <vector>
-#include <functional>
 
 // Forward declarations
 class VulkanContext;
@@ -22,68 +22,122 @@ enum class AttachmentType {
     Resolve
 };
 
-struct AttachmentSpec {
+// Structure for image creation (separated from render pass concerns)
+struct AttachmentImageSpec {
     VkFormat format;
     VkExtent2D extent;
     VkSampleCountFlagBits samples;
     VkImageUsageFlags usage;
-    VkImageLayout initialLayout;
-    VkImageLayout finalLayout;
     AttachmentType type;
 
-    // Render pass specific operations
-    VkAttachmentLoadOp loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-    VkAttachmentStoreOp storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-    VkAttachmentLoadOp stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
-    VkAttachmentStoreOp stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-
-    bool operator==(const AttachmentSpec& other) const {
+    bool operator==(const AttachmentImageSpec& other) const {
         return format == other.format &&
             extent.width == other.extent.width &&
             extent.height == other.extent.height &&
             samples == other.samples &&
             usage == other.usage &&
-            initialLayout == other.initialLayout &&
-            finalLayout == other.finalLayout &&
-            type == other.type &&
-            loadOp == other.loadOp &&
-            storeOp == other.storeOp &&
-            stencilLoadOp == other.stencilLoadOp &&
-            stencilStoreOp == other.stencilStoreOp;
+            type == other.type;
+    }
+
+    size_t hash() const {
+        size_t hash = 0;
+        hash_combine(hash, format);
+        hash_combine(hash, extent.width);
+        hash_combine(hash, extent.height);
+        hash_combine(hash, samples);
+        hash_combine(hash, usage);
+        hash_combine(hash, static_cast<int>(type));
+        return hash;
+    }
+
+private:
+    template <typename T>
+    void hash_combine(size_t& seed, const T& val) const {
+        seed ^= std::hash<T>()(val) + 0x9e3779b9 + (seed << 6) + (seed >> 2);
     }
 };
 
-// Custom hash implementation for AttachmentSpec
-namespace std {
-    template<> struct hash<AttachmentSpec> {
-        size_t operator()(const AttachmentSpec& spec) const {
-            size_t hash = 0;
-            hash_combine(hash, spec.format);
-            hash_combine(hash, spec.extent.width);
-            hash_combine(hash, spec.extent.height);
-            hash_combine(hash, spec.samples);
-            hash_combine(hash, spec.usage);
-            hash_combine(hash, static_cast<int>(spec.initialLayout));
-            hash_combine(hash, static_cast<int>(spec.finalLayout));
-            hash_combine(hash, static_cast<int>(spec.type));
-            hash_combine(hash, static_cast<int>(spec.loadOp));
-            hash_combine(hash, static_cast<int>(spec.storeOp));
-            hash_combine(hash, static_cast<int>(spec.stencilLoadOp));
-            hash_combine(hash, static_cast<int>(spec.stencilStoreOp));
-            return hash;
-        }
+// Structure for render pass attachment (extends VkAttachmentDescription)
+struct RenderPassAttachment {
+    VkAttachmentDescription desc;
+    uint32_t imageIndex;  // Index into the image array/vector
 
-    private:
-        template <typename T>
-        void hash_combine(size_t& seed, const T& val) const {
-            seed ^= std::hash<T>()(val) + 0x9e3779b9 + (seed << 6) + (seed >> 2);
+    RenderPassAttachment() = default;
+
+    RenderPassAttachment(const AttachmentImageSpec& imageSpec,
+        VkImageLayout initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
+        VkImageLayout finalLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+        VkAttachmentLoadOp loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
+        VkAttachmentStoreOp storeOp = VK_ATTACHMENT_STORE_OP_STORE,
+        VkAttachmentLoadOp stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE,
+        VkAttachmentStoreOp stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
+        VkAttachmentDescriptionFlags flags = 0,
+        uint32_t imgIndex = 0)
+        : imageIndex(imgIndex) {
+        desc.flags = flags;
+        desc.format = imageSpec.format;
+        desc.samples = imageSpec.samples;
+        desc.loadOp = loadOp;
+        desc.storeOp = storeOp;
+        desc.stencilLoadOp = stencilLoadOp;
+        desc.stencilStoreOp = stencilStoreOp;
+        desc.initialLayout = initialLayout;
+        desc.finalLayout = finalLayout;
+    }
+
+    bool operator==(const RenderPassAttachment& other) const {
+        return desc.flags == other.desc.flags &&
+            desc.format == other.desc.format &&
+            desc.samples == other.desc.samples &&
+            desc.loadOp == other.desc.loadOp &&
+            desc.storeOp == other.desc.storeOp &&
+            desc.stencilLoadOp == other.desc.stencilLoadOp &&
+            desc.stencilStoreOp == other.desc.stencilStoreOp &&
+            desc.initialLayout == other.desc.initialLayout &&
+            desc.finalLayout == other.desc.finalLayout &&
+            imageIndex == other.imageIndex;
+    }
+
+    size_t hash() const {
+        size_t hash = 0;
+        hash_combine(hash, desc.flags);
+        hash_combine(hash, desc.format);
+        hash_combine(hash, desc.samples);
+        hash_combine(hash, static_cast<int>(desc.loadOp));
+        hash_combine(hash, static_cast<int>(desc.storeOp));
+        hash_combine(hash, static_cast<int>(desc.stencilLoadOp));
+        hash_combine(hash, static_cast<int>(desc.stencilStoreOp));
+        hash_combine(hash, static_cast<int>(desc.initialLayout));
+        hash_combine(hash, static_cast<int>(desc.finalLayout));
+        hash_combine(hash, imageIndex);
+        return hash;
+    }
+
+private:
+    template <typename T>
+    void hash_combine(size_t& seed, const T& val) const {
+        seed ^= std::hash<T>()(val) + 0x9e3779b9 + (seed << 6) + (seed >> 2);
+    }
+};
+
+// Custom hash implementations
+namespace std {
+    template<> struct hash<AttachmentImageSpec> {
+        size_t operator()(const AttachmentImageSpec& spec) const {
+            return spec.hash();
+        }
+    };
+
+    template<> struct hash<RenderPassAttachment> {
+        size_t operator()(const RenderPassAttachment& attachment) const {
+            return attachment.hash();
         }
     };
 }
 
 class Attachment {
 public:
-    Attachment(VramHandle imageHandle, VkImageView imageView, const AttachmentSpec& spec)
+    Attachment(VramHandle imageHandle, VkImageView imageView, const AttachmentImageSpec& spec)
         : m_imageHandle(imageHandle), m_imageView(imageView), m_spec(spec) {
     }
 
@@ -91,7 +145,7 @@ public:
 
     VramHandle getImageHandle() const { return m_imageHandle; }
     VkImageView getImageView() const { return m_imageView; }
-    const AttachmentSpec& getSpec() const { return m_spec; }
+    const AttachmentImageSpec& getSpec() const { return m_spec; }
 
     // Get image aspect based on attachment type
     VkImageAspectFlags getAspectMask() const;
@@ -99,7 +153,7 @@ public:
 private:
     VramHandle m_imageHandle;
     VkImageView m_imageView;
-    AttachmentSpec m_spec;
+    AttachmentImageSpec m_spec;
 };
 
 class AttachmentManager : public IResourceManager<AttachmentHandle, Attachment> {
@@ -119,17 +173,23 @@ public:
     void removeReference(AttachmentHandle handle) override;
 
     // AttachmentManager specific methods
-    // Create or get an attachment based on specification
-    AttachmentHandle acquireAttachment(const AttachmentSpec& spec);
+    // Create or get an attachment based on image specification
+    AttachmentHandle acquireAttachment(const AttachmentImageSpec& spec);
 
     // Register an external image as an attachment (for swapchain images)
     AttachmentHandle registerExternalImage(
         VramHandle imageHandle,
         VkFormat format,
         VkExtent2D extent,
-        VkImageLayout initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
-        VkImageLayout finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
-        AttachmentType type = AttachmentType::Color
+        AttachmentType type = AttachmentType::Color,
+        VkSampleCountFlagBits samples = VK_SAMPLE_COUNT_1_BIT,
+        VkImageUsageFlags usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT
+    );
+
+    // Recreate an existing attachment with new parameters (keeps the same handle)
+    void recreateAttachment(
+        AttachmentHandle handle,
+        const AttachmentImageSpec& newSpec
     );
 
     // Access to the attachment factory
@@ -147,10 +207,10 @@ private:
     };
 
     // Create a new attachment from a specification
-    AttachmentHandle createAttachment(const AttachmentSpec& spec);
+    AttachmentHandle createAttachment(const AttachmentImageSpec& spec);
 
     // Helper functions
-    VkImageView createImageView(VramHandle imageHandle, const AttachmentSpec& spec);
+    VkImageView createImageView(VramHandle imageHandle, const AttachmentImageSpec& spec);
     void destroyAttachment(AttachmentHandle handle);
 
     const LogicalDevice& m_device;
@@ -158,7 +218,7 @@ private:
     AttachmentFactory m_factory;  // Attachment factory instance
 
     // Maps from spec to handle for quick lookup
-    std::unordered_map<AttachmentSpec, AttachmentHandle> m_specToHandle;
+    std::unordered_map<AttachmentImageSpec, AttachmentHandle> m_specToHandle;
 
     // Maps from handle to attachment objects with reference counting
     std::unordered_map<AttachmentHandle, AttachmentData> m_attachments;

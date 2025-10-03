@@ -15,22 +15,22 @@
       <Filter>Engine\InputSystem</Filter>
     </ClCompile>
     <ClCompile Include="Src\Buffer.cpp">
-      <Filter>Engine\Renderer\VramManager\AllocatedResource\Buffer</Filter>
+      <Filter>Engine\EngineCore\VramManager\AllocatedResource\Buffer</Filter>
     </ClCompile>
     <ClCompile Include="Src\Image.cpp">
-      <Filter>Engine\Renderer\VramManager\AllocatedResource\Image</Filter>
+      <Filter>Engine\EngineCore\VramManager\AllocatedResource\Image</Filter>
     </ClCompile>
-    <ClCompile Include="Src\Renderer.cpp">
-      <Filter>Engine\Renderer</Filter>
+    <ClCompile Include="Src\EngineCore.cpp">
+      <Filter>Engine\EngineCore</Filter>
     </ClCompile>
     <ClCompile Include="Src\Scene.cpp">
       <Filter>Engine\Scene</Filter>
     </ClCompile>
     <ClCompile Include="Src\SwapChain.cpp">
-      <Filter>Engine\Renderer\SwapChain</Filter>
+      <Filter>Engine\EngineCore\SwapChain</Filter>
     </ClCompile>
     <ClCompile Include="Src\Instance.cpp">
-      <Filter>Engine\Renderer\VulkanContext\Instance</Filter>
+      <Filter>Engine\EngineCore\VulkanContext\Instance</Filter>
     </ClCompile>
     <ClCompile Include="Src\MeshRenderSystem.cpp">
       <Filter>Engine\Scene\EntityComponentSystem\Registry\SystemManager\Systems\MeshRenderSystem</Filter>
@@ -48,13 +48,13 @@
       <Filter>Engine\Scene\EntityComponentSystem\Registry</Filter>
     </ClCompile>
     <ClCompile Include="Src\ImGuiWrapper.cpp">
-      <Filter>Engine\Renderer\ImGuiWrapper</Filter>
+      <Filter>Engine\EngineCore\ImGuiWrapper</Filter>
     </ClCompile>
     <ClCompile Include="Src\CommandBuffer.cpp">
-      <Filter>Engine\Renderer\CommandBufferManager\CommandBuffer</Filter>
+      <Filter>Engine\EngineCore\CommandBufferManager\CommandBuffer</Filter>
     </ClCompile>
     <ClCompile Include="Src\FrameManager.cpp">
-      <Filter>Engine\Renderer\FrameManager</Filter>
+      <Filter>Engine\EngineCore\FrameManager</Filter>
     </ClCompile>
     <ClCompile Include="Src\AssetLoader.cpp">
       <Filter>Engine\AssetSystem\AssetManager\AssetLoader</Filter>
@@ -66,79 +66,79 @@
       <Filter>Engine\AssetSystem\AssetManager</Filter>
     </ClCompile>
     <ClCompile Include="Src\VramManager.cpp">
-      <Filter>Engine\Renderer\VramManager</Filter>
+      <Filter>Engine\EngineCore\VramManager</Filter>
     </ClCompile>
     <ClCompile Include="Src\DebugMessenger.cpp">
-      <Filter>Engine\Renderer\VulkanContext\DebugMessenger</Filter>
+      <Filter>Engine\EngineCore\VulkanContext\DebugMessenger</Filter>
     </ClCompile>
     <ClCompile Include="Src\CommandPool.cpp">
-      <Filter>Engine\Renderer\VulkanContext\CommandPool</Filter>
+      <Filter>Engine\EngineCore\VulkanContext\CommandPool</Filter>
     </ClCompile>
     <ClCompile Include="Src\LogicalDevice.cpp">
-      <Filter>Engine\Renderer\VulkanContext\LogicalDevice</Filter>
+      <Filter>Engine\EngineCore\VulkanContext\LogicalDevice</Filter>
     </ClCompile>
     <ClCompile Include="Src\PhysicalDevice.cpp">
-      <Filter>Engine\Renderer\VulkanContext\PhysicalDevice</Filter>
+      <Filter>Engine\EngineCore\VulkanContext\PhysicalDevice</Filter>
     </ClCompile>
     <ClCompile Include="Src\VulkanUtilities.cpp">
-      <Filter>Engine\Renderer\VulkanContext\VulkanUtilities</Filter>
+      <Filter>Engine\EngineCore\VulkanContext\VulkanUtilities</Filter>
     </ClCompile>
     <ClCompile Include="Src\VulkanContext.cpp">
-      <Filter>Engine\Renderer\VulkanContext</Filter>
+      <Filter>Engine\EngineCore\VulkanContext</Filter>
     </ClCompile>
     <ClCompile Include="Src\Surface.cpp">
-      <Filter>Engine\Renderer\VulkanContext\Surface</Filter>
+      <Filter>Engine\EngineCore\VulkanContext\Surface</Filter>
     </ClCompile>
     <ClCompile Include="Src\AllocatedResource.cpp">
-      <Filter>Engine\Renderer\VramManager\AllocatedResource</Filter>
+      <Filter>Engine\EngineCore\VramManager\AllocatedResource</Filter>
     </ClCompile>
     <ClCompile Include="Src\AttachmentManager.cpp">
-      <Filter>Engine\Renderer\AttachmentManager</Filter>
+      <Filter>Engine\EngineCore\AttachmentManager</Filter>
     </ClCompile>
     <ClCompile Include="Src\FrameBufferManager.cpp">
-      <Filter>Engine\Renderer\FrameBufferManager</Filter>
+      <Filter>Engine\EngineCore\FrameBufferManager</Filter>
     </ClCompile>
     <ClCompile Include="Src\RenderPassManager.cpp">
-      <Filter>Engine\Renderer\RenderPassManager</Filter>
+      <Filter>Engine\EngineCore\RenderPassManager</Filter>
     </ClCompile>
     <ClCompile Include="Src\Pipeline.cpp">
-      <Filter>Engine\Renderer\PipelineManager\Pipeline</Filter>
+      <Filter>Engine\EngineCore\PipelineManager\Pipeline</Filter>
     </ClCompile>
     <ClCompile Include="Src\PipelineManager.cpp">
-      <Filter>Engine\Renderer\PipelineManager</Filter>
+      <Filter>Engine\EngineCore\PipelineManager</Filter>
     </ClCompile>
     <ClCompile Include="Src\ShaderModule.cpp">
-      <Filter>Engine\Renderer\ShaderModuleManager\ShaderModule</Filter>
+      <Filter>Engine\EngineCore\ShaderModuleManager\ShaderModule</Filter>
     </ClCompile>
     <ClCompile Include="Src\ShaderModuleManager.cpp">
-      <Filter>Engine\Renderer\ShaderModuleManager</Filter>
+      <Filter>Engine\EngineCore\ShaderModuleManager</Filter>
     </ClCompile>
     <ClCompile Include="Src\DescriptorAllocator.cpp">
-      <Filter>Engine\Renderer\DescriptorSystem\DescriptorAllocator</Filter>
+      <Filter>Engine\EngineCore\DescriptorSystem\DescriptorAllocator</Filter>
     </ClCompile>
     <ClCompile Include="Src\DescriptorLayoutBuilder.cpp">
-      <Filter>Engine\Renderer\DescriptorSystem\DescriptorLayoutManager\DescriptorLayoutBuilder</Filter>
+      <Filter>Engine\EngineCore\DescriptorSystem\DescriptorLayoutManager\DescriptorLayoutBuilder</Filter>
     </ClCompile>
     <ClCompile Include="Src\DescriptorWriter.cpp">
-      <Filter>Engine\Renderer\DescriptorSystem\DescriptorWriter</Filter>
+      <Filter>Engine\EngineCore\DescriptorSystem\DescriptorWriter</Filter>
     </ClCompile>
     <ClCompile Include="Src\DescriptorLayoutManager.cpp">
-      <Filter>Engine\Renderer\DescriptorSystem\DescriptorLayoutManager</Filter>
+      <Filter>Engine\EngineCore\DescriptorSystem\DescriptorLayoutManager</Filter>
     </ClCompile>
     <ClCompile Include="Src\SynchronizationResourceManager.cpp">
-      <Filter>Engine\Renderer\SynchronizationResourceManager</Filter>
+      <Filter>Engine\EngineCore\SynchronizationResourceManager</Filter>
     </ClCompile>
     <ClCompile Include="Src\ImageSamplerManager.cpp">
-      <Filter>Engine\Renderer\ImageSamplerManager</Filter>
+      <Filter>Engine\EngineCore\ImageSamplerManager</Filter>
     </ClCompile>
     <ClCompile Include="Src\ImageSampler.cpp">
-      <Filter>Engine\Renderer\ImageSamplerManager\ImageSampler</Filter>
+      <Filter>Engine\EngineCore\ImageSamplerManager\ImageSampler</Filter>
     </ClCompile>
     <ClCompile Include="Src\CommandBufferManager.cpp">
-      <Filter>Engine\Renderer\CommandBufferManager</Filter>
+      <Filter>Engine\EngineCore\CommandBufferManager</Filter>
     </ClCompile>
     <ClCompile Include="Src\StagingBufferManager.cpp">
-      <Filter>Engine\Renderer\VramManager\StagingBufferManager</Filter>
+      <Filter>Engine\EngineCore\VramManager\StagingBufferManager</Filter>
     </ClCompile>
     <ClCompile Include="Src\Settings.cpp">
       <Filter>Engine\Settings</Filter>
@@ -177,13 +177,13 @@
       <Filter>Engine\AssetSystem\AssetManager\AssetHandlers\MaterialManager</Filter>
     </ClCompile>
     <ClCompile Include="Src\UniformBufferManager.cpp">
-      <Filter>Engine\Renderer\UniformBufferManager</Filter>
+      <Filter>Engine\EngineCore\UniformBufferManager</Filter>
     </ClCompile>
     <ClCompile Include="Src\PipelineConfig.cpp">
-      <Filter>Engine\Renderer\PipelineManager\PipelineConfig</Filter>
+      <Filter>Engine\EngineCore\PipelineManager\PipelineConfig</Filter>
     </ClCompile>
     <ClCompile Include="Src\PipelineLayoutManager.cpp">
-      <Filter>Engine\Renderer\PipelineManager\PipelineLayoutManager</Filter>
+      <Filter>Engine\EngineCore\PipelineManager\PipelineLayoutManager</Filter>
     </ClCompile>
     <ClCompile Include="Src\RenderSystem.cpp">
       <Filter>Engine\RenderSystem</Filter>
@@ -204,7 +204,7 @@
       <Filter>Engine\RenderSystem\ProcessingStages\RenderStage</Filter>
     </ClCompile>
     <ClCompile Include="Src\TransferManager.cpp">
-      <Filter>Engine\Renderer\VramManager\TransferManager</Filter>
+      <Filter>Engine\EngineCore\VramManager\TransferManager</Filter>
     </ClCompile>
     <ClCompile Include="Src\GlobalStateManager.cpp">
       <Filter>Engine\RenderSystem\GlobalStateManager</Filter>
@@ -300,19 +300,67 @@
       <Filter>Editor\EditorUI\SettingsWindow</Filter>
     </ClCompile>
     <ClCompile Include="Src\RenderNodeManager.cpp">
-      <Filter>Engine\Renderer\RenderNodeManager</Filter>
+      <Filter>Engine\EngineCore\RenderGraphSystem\RenderNodeManager</Filter>
     </ClCompile>
     <ClCompile Include="Src\RenderNode.cpp">
-      <Filter>Engine\Renderer\RenderNodeManager\RenderNode</Filter>
+      <Filter>Engine\EngineCore\RenderGraphSystem\RenderNodeManager\RenderNode</Filter>
     </ClCompile>
     <ClCompile Include="Src\AttachmentFactory.cpp">
-      <Filter>Engine\Renderer\AttachmentManager\AttachmentFactory</Filter>
+      <Filter>Engine\EngineCore\AttachmentManager\AttachmentFactory</Filter>
     </ClCompile>
-    <ClCompile Include="Src\MeshRenderOrder.cpp">
-      <Filter>Engine\RenderSystem\RenderOrder\RenderOrders\MeshRenderOrder</Filter>
+    <ClCompile Include="Src\ProcessingContext.cpp">
+      <Filter>Engine\RenderSystem\ProcessingContext</Filter>
     </ClCompile>
-    <ClCompile Include="Src\EditorUIRenderOrder.cpp">
-      <Filter>Engine\RenderSystem\RenderOrder\RenderOrders\EditorUIRenderOrder</Filter>
+    <ClCompile Include="Src\ProcessingPipeline.cpp">
+      <Filter>Engine\RenderSystem\ProcessingPipeline</Filter>
+    </ClCompile>
+    <ClCompile Include="Src\SynchronizationStages.cpp">
+      <Filter>Engine\RenderSystem\ProcessingStages\SynchronizationStages</Filter>
+    </ClCompile>
+    <ClCompile Include="Src\MeshCullingStage.cpp">
+      <Filter>Engine\RenderSystem\ProcessingStages\MeshCullingStage</Filter>
+    </ClCompile>
+    <ClCompile Include="Src\CameraProcessingStage.cpp">
+      <Filter>Engine\RenderSystem\ProcessingStages\CameraProcessingStage</Filter>
+    </ClCompile>
+    <ClCompile Include="Src\RenderGraphManager.cpp">
+      <Filter>Engine\EngineCore\RenderGraphSystem\RenderGraphManager</Filter>
+    </ClCompile>
+    <ClCompile Include="Src\RenderGraph.cpp">
+      <Filter>Engine\EngineCore\RenderGraphSystem\RenderGraphManager\RenderGraph</Filter>
+    </ClCompile>
+    <ClCompile Include="Src\RenderPipelineAssignmentStage.cpp">
+      <Filter>Engine\RenderSystem\ProcessingStages\RenderPipelineAssignmentStage</Filter>
+    </ClCompile>
+    <ClCompile Include="Src\Renderer.cpp">
+      <Filter>Engine\EngineCore\Renderer</Filter>
+    </ClCompile>
+    <ClCompile Include="Src\MeshRenderer.cpp">
+      <Filter>Engine\EngineCore\Renderer\MeshRenderer</Filter>
+    </ClCompile>
+    <ClCompile Include="Src\UIRenderer.cpp">
+      <Filter>Engine\EngineCore\Renderer\UIRenderer</Filter>
+    </ClCompile>
+    <ClCompile Include="Src\SemaphoreManager.cpp">
+      <Filter>Engine\RenderSystem\SemaphoreManager</Filter>
+    </ClCompile>
+    <ClCompile Include="Src\DrawCall.cpp">
+      <Filter>Engine\EngineCore\Renderer\GpuCalls\DrawCall</Filter>
+    </ClCompile>
+    <ClCompile Include="Src\RenderGraphExecutor.cpp">
+      <Filter>Engine\EngineCore\RenderGraphSystem\RenderGraphExecutor</Filter>
+    </ClCompile>
+    <ClCompile Include="Src\ForwardRenderNodeTemplate.cpp">
+      <Filter>Engine\EngineCore\RenderGraphSystem\RenderNodeManager\RenderNodeTemplates\ForwardRenderNodeTemplate</Filter>
+    </ClCompile>
+    <ClCompile Include="Src\ForwardRenderGraphTemplate.cpp">
+      <Filter>Engine\EngineCore\RenderGraphSystem\RenderGraphManager\RenderGraphTemplates\ForwardRenderGraphTemplate</Filter>
+    </ClCompile>
+    <ClCompile Include="Src\RenderNodeTemplate.cpp">
+      <Filter>Engine\EngineCore\RenderGraphSystem\RenderNodeManager\RenderNodeTemplates</Filter>
+    </ClCompile>
+    <ClCompile Include="Src\RenderGraphTemplate.cpp">
+      <Filter>Engine\EngineCore\RenderGraphSystem\RenderGraphManager\RenderGraphTemplates</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -330,22 +378,22 @@
       <Filter>Engine\InputSystem</Filter>
     </ClInclude>
     <ClInclude Include="Src\Buffer.h">
-      <Filter>Engine\Renderer\VramManager\AllocatedResource\Buffer</Filter>
+      <Filter>Engine\EngineCore\VramManager\AllocatedResource\Buffer</Filter>
     </ClInclude>
     <ClInclude Include="Src\Image.h">
-      <Filter>Engine\Renderer\VramManager\AllocatedResource\Image</Filter>
+      <Filter>Engine\EngineCore\VramManager\AllocatedResource\Image</Filter>
     </ClInclude>
-    <ClInclude Include="Src\Renderer.h">
-      <Filter>Engine\Renderer</Filter>
+    <ClInclude Include="Src\EngineCore.h">
+      <Filter>Engine\EngineCore</Filter>
     </ClInclude>
     <ClInclude Include="Src\Scene.h">
       <Filter>Engine\Scene</Filter>
     </ClInclude>
     <ClInclude Include="Src\SwapChain.h">
-      <Filter>Engine\Renderer\SwapChain</Filter>
+      <Filter>Engine\EngineCore\SwapChain</Filter>
     </ClInclude>
     <ClInclude Include="Src\Instance.h">
-      <Filter>Engine\Renderer\VulkanContext\Instance</Filter>
+      <Filter>Engine\EngineCore\VulkanContext\Instance</Filter>
     </ClInclude>
     <ClInclude Include="Src\Entity.h">
       <Filter>Engine\Scene\EntityComponentSystem</Filter>
@@ -387,16 +435,16 @@
       <Filter>Engine\Scene\EntityComponentSystem\Registry\SystemManager</Filter>
     </ClInclude>
     <ClInclude Include="Src\ImGuiWrapper.h">
-      <Filter>Engine\Renderer\ImGuiWrapper</Filter>
+      <Filter>Engine\EngineCore\ImGuiWrapper</Filter>
     </ClInclude>
     <ClInclude Include="Src\CommandBuffer.h">
-      <Filter>Engine\Renderer\CommandBufferManager\CommandBuffer</Filter>
+      <Filter>Engine\EngineCore\CommandBufferManager\CommandBuffer</Filter>
     </ClInclude>
     <ClInclude Include="Src\FrameManager.h">
-      <Filter>Engine\Renderer\FrameManager</Filter>
+      <Filter>Engine\EngineCore\FrameManager</Filter>
     </ClInclude>
     <ClInclude Include="Src\RenderPassManager.h">
-      <Filter>Engine\Renderer\RenderPassManager</Filter>
+      <Filter>Engine\EngineCore\RenderPassManager</Filter>
     </ClInclude>
     <ClInclude Include="Src\AssetLoader.h">
       <Filter>Engine\AssetSystem\AssetManager\AssetLoader</Filter>
@@ -408,82 +456,82 @@
       <Filter>Engine\AssetSystem\AssetManager</Filter>
     </ClInclude>
     <ClInclude Include="Src\VramManager.h">
-      <Filter>Engine\Renderer\VramManager</Filter>
+      <Filter>Engine\EngineCore\VramManager</Filter>
     </ClInclude>
     <ClInclude Include="Src\DebugMessenger.h">
-      <Filter>Engine\Renderer\VulkanContext\DebugMessenger</Filter>
+      <Filter>Engine\EngineCore\VulkanContext\DebugMessenger</Filter>
     </ClInclude>
     <ClInclude Include="Src\CommandPool.h">
-      <Filter>Engine\Renderer\VulkanContext\CommandPool</Filter>
+      <Filter>Engine\EngineCore\VulkanContext\CommandPool</Filter>
     </ClInclude>
     <ClInclude Include="Src\LogicalDevice.h">
-      <Filter>Engine\Renderer\VulkanContext\LogicalDevice</Filter>
+      <Filter>Engine\EngineCore\VulkanContext\LogicalDevice</Filter>
     </ClInclude>
     <ClInclude Include="Src\PhysicalDevice.h">
-      <Filter>Engine\Renderer\VulkanContext\PhysicalDevice</Filter>
+      <Filter>Engine\EngineCore\VulkanContext\PhysicalDevice</Filter>
     </ClInclude>
     <ClInclude Include="Src\VulkanUtilities.h">
-      <Filter>Engine\Renderer\VulkanContext\VulkanUtilities</Filter>
+      <Filter>Engine\EngineCore\VulkanContext\VulkanUtilities</Filter>
     </ClInclude>
     <ClInclude Include="Src\VulkanContext.h">
-      <Filter>Engine\Renderer\VulkanContext</Filter>
+      <Filter>Engine\EngineCore\VulkanContext</Filter>
     </ClInclude>
     <ClInclude Include="Src\Surface.h">
-      <Filter>Engine\Renderer\VulkanContext\Surface</Filter>
+      <Filter>Engine\EngineCore\VulkanContext\Surface</Filter>
     </ClInclude>
     <ClInclude Include="Src\AssetHandle.h">
       <Filter>Engine\AssetSystem\AssetManager</Filter>
     </ClInclude>
     <ClInclude Include="Src\GraphicsTypes.h">
-      <Filter>Engine\Renderer\VramManager</Filter>
+      <Filter>Engine\EngineCore\VramManager</Filter>
     </ClInclude>
     <ClInclude Include="Src\AllocatedResource.h">
-      <Filter>Engine\Renderer\VramManager\AllocatedResource</Filter>
+      <Filter>Engine\EngineCore\VramManager\AllocatedResource</Filter>
     </ClInclude>
     <ClInclude Include="Src\AttachmentManager.h">
-      <Filter>Engine\Renderer\AttachmentManager</Filter>
+      <Filter>Engine\EngineCore\AttachmentManager</Filter>
     </ClInclude>
     <ClInclude Include="Src\FrameBufferManager.h">
-      <Filter>Engine\Renderer\FrameBufferManager</Filter>
+      <Filter>Engine\EngineCore\FrameBufferManager</Filter>
     </ClInclude>
     <ClInclude Include="Src\Pipeline.h">
-      <Filter>Engine\Renderer\PipelineManager\Pipeline</Filter>
+      <Filter>Engine\EngineCore\PipelineManager\Pipeline</Filter>
     </ClInclude>
     <ClInclude Include="Src\PipelineManager.h">
-      <Filter>Engine\Renderer\PipelineManager</Filter>
+      <Filter>Engine\EngineCore\PipelineManager</Filter>
     </ClInclude>
     <ClInclude Include="Src\ShaderModule.h">
-      <Filter>Engine\Renderer\ShaderModuleManager\ShaderModule</Filter>
+      <Filter>Engine\EngineCore\ShaderModuleManager\ShaderModule</Filter>
     </ClInclude>
     <ClInclude Include="Src\ShaderModuleManager.h">
-      <Filter>Engine\Renderer\ShaderModuleManager</Filter>
+      <Filter>Engine\EngineCore\ShaderModuleManager</Filter>
     </ClInclude>
     <ClInclude Include="Src\DescriptorAllocator.h">
-      <Filter>Engine\Renderer\DescriptorSystem\DescriptorAllocator</Filter>
+      <Filter>Engine\EngineCore\DescriptorSystem\DescriptorAllocator</Filter>
     </ClInclude>
     <ClInclude Include="Src\DescriptorWriter.h">
-      <Filter>Engine\Renderer\DescriptorSystem\DescriptorWriter</Filter>
+      <Filter>Engine\EngineCore\DescriptorSystem\DescriptorWriter</Filter>
     </ClInclude>
     <ClInclude Include="Src\DescriptorLayoutBuilder.h">
-      <Filter>Engine\Renderer\DescriptorSystem\DescriptorLayoutManager\DescriptorLayoutBuilder</Filter>
+      <Filter>Engine\EngineCore\DescriptorSystem\DescriptorLayoutManager\DescriptorLayoutBuilder</Filter>
     </ClInclude>
     <ClInclude Include="Src\DescriptorLayoutManager.h">
-      <Filter>Engine\Renderer\DescriptorSystem\DescriptorLayoutManager</Filter>
+      <Filter>Engine\EngineCore\DescriptorSystem\DescriptorLayoutManager</Filter>
     </ClInclude>
     <ClInclude Include="Src\SynchronizationResourceManager.h">
-      <Filter>Engine\Renderer\SynchronizationResourceManager</Filter>
+      <Filter>Engine\EngineCore\SynchronizationResourceManager</Filter>
     </ClInclude>
     <ClInclude Include="Src\ImageSamplerManager.h">
-      <Filter>Engine\Renderer\ImageSamplerManager</Filter>
+      <Filter>Engine\EngineCore\ImageSamplerManager</Filter>
     </ClInclude>
     <ClInclude Include="Src\ImageSampler.h">
-      <Filter>Engine\Renderer\ImageSamplerManager\ImageSampler</Filter>
+      <Filter>Engine\EngineCore\ImageSamplerManager\ImageSampler</Filter>
     </ClInclude>
     <ClInclude Include="Src\CommandBufferManager.h">
-      <Filter>Engine\Renderer\CommandBufferManager</Filter>
+      <Filter>Engine\EngineCore\CommandBufferManager</Filter>
     </ClInclude>
     <ClInclude Include="Src\StagingBufferManager.h">
-      <Filter>Engine\Renderer\VramManager\StagingBufferManager</Filter>
+      <Filter>Engine\EngineCore\VramManager\StagingBufferManager</Filter>
     </ClInclude>
     <ClInclude Include="Src\Settings.h">
       <Filter>Engine\Settings</Filter>
@@ -522,13 +570,13 @@
       <Filter>Engine\AssetSystem\AssetManager\AssetHandlers\MaterialManager</Filter>
     </ClInclude>
     <ClInclude Include="Src\UniformBufferManager.h">
-      <Filter>Engine\Renderer\UniformBufferManager</Filter>
+      <Filter>Engine\EngineCore\UniformBufferManager</Filter>
     </ClInclude>
     <ClInclude Include="Src\PipelineConfig.h">
-      <Filter>Engine\Renderer\PipelineManager\PipelineConfig</Filter>
+      <Filter>Engine\EngineCore\PipelineManager\PipelineConfig</Filter>
     </ClInclude>
     <ClInclude Include="Src\PipelineLayoutManager.h">
-      <Filter>Engine\Renderer\PipelineManager\PipelineLayoutManager</Filter>
+      <Filter>Engine\EngineCore\PipelineManager\PipelineLayoutManager</Filter>
     </ClInclude>
     <ClInclude Include="Src\Paths.h" />
     <ClInclude Include="Src\ProcessingStage.h">
@@ -538,7 +586,7 @@
       <Filter>Engine\RenderSystem</Filter>
     </ClInclude>
     <ClInclude Include="Src\ImageSamplerUtils.h">
-      <Filter>Engine\Renderer\ImageSamplerManager</Filter>
+      <Filter>Engine\EngineCore\ImageSamplerManager</Filter>
     </ClInclude>
     <ClInclude Include="Src\UniformBufferStage.h">
       <Filter>Engine\RenderSystem\ProcessingStages\UniformBufferStage</Filter>
@@ -559,7 +607,7 @@
       <Filter>Engine\RenderSystem\ProcessingStages\RenderStage</Filter>
     </ClInclude>
     <ClInclude Include="Src\TransferManager.h">
-      <Filter>Engine\Renderer\VramManager\TransferManager</Filter>
+      <Filter>Engine\EngineCore\VramManager\TransferManager</Filter>
     </ClInclude>
     <ClInclude Include="Src\GlobalStateManager.h">
       <Filter>Engine\RenderSystem\GlobalStateManager</Filter>
@@ -679,19 +727,16 @@
       <Filter>Editor\EditorUI\SettingsWindow</Filter>
     </ClInclude>
     <ClInclude Include="Src\RenderNodeManager.h">
-      <Filter>Engine\Renderer\RenderNodeManager</Filter>
+      <Filter>Engine\EngineCore\RenderGraphSystem\RenderNodeManager</Filter>
     </ClInclude>
     <ClInclude Include="Src\RenderNode.h">
-      <Filter>Engine\Renderer\RenderNodeManager\RenderNode</Filter>
+      <Filter>Engine\EngineCore\RenderGraphSystem\RenderNodeManager\RenderNode</Filter>
     </ClInclude>
     <ClInclude Include="Src\RenderNodeTemplate.h">
-      <Filter>Engine\Renderer\RenderNodeManager\RenderNodeTemplates</Filter>
-    </ClInclude>
-    <ClInclude Include="Src\RenderTypes.h">
-      <Filter>Engine\Renderer\RenderNodeManager</Filter>
+      <Filter>Engine\EngineCore\RenderGraphSystem\RenderNodeManager\RenderNodeTemplates</Filter>
     </ClInclude>
     <ClInclude Include="Src\AttachmentFactory.h">
-      <Filter>Engine\Renderer\AttachmentManager\AttachmentFactory</Filter>
+      <Filter>Engine\EngineCore\AttachmentManager\AttachmentFactory</Filter>
     </ClInclude>
     <ClInclude Include="Src\RenderOrder.h">
       <Filter>Engine\RenderSystem\RenderOrder</Filter>
@@ -707,6 +752,72 @@
     </ClInclude>
     <ClInclude Include="Src\EditorUIRenderOrder.h">
       <Filter>Engine\RenderSystem\RenderOrder\RenderOrders\EditorUIRenderOrder</Filter>
+    </ClInclude>
+    <ClInclude Include="Src\ProcessingContext.h">
+      <Filter>Engine\RenderSystem\ProcessingContext</Filter>
+    </ClInclude>
+    <ClInclude Include="Src\ProcessingPipeline.h">
+      <Filter>Engine\RenderSystem\ProcessingPipeline</Filter>
+    </ClInclude>
+    <ClInclude Include="Src\SynchronizationStages.h">
+      <Filter>Engine\RenderSystem\ProcessingStages\SynchronizationStages</Filter>
+    </ClInclude>
+    <ClInclude Include="Src\LightStorageStage.h">
+      <Filter>Engine\RenderSystem\ProcessingStages</Filter>
+    </ClInclude>
+    <ClInclude Include="Src\MeshStorageStage.h">
+      <Filter>Engine\RenderSystem\ProcessingStages</Filter>
+    </ClInclude>
+    <ClInclude Include="Src\MeshCullingStage.h">
+      <Filter>Engine\RenderSystem\ProcessingStages\MeshCullingStage</Filter>
+    </ClInclude>
+    <ClInclude Include="Src\CameraProcessingStage.h">
+      <Filter>Engine\RenderSystem\ProcessingStages\CameraProcessingStage</Filter>
+    </ClInclude>
+    <ClInclude Include="Src\RenderGraphManager.h">
+      <Filter>Engine\EngineCore\RenderGraphSystem\RenderGraphManager</Filter>
+    </ClInclude>
+    <ClInclude Include="Src\RenderGraphTemplate.h">
+      <Filter>Engine\EngineCore\RenderGraphSystem\RenderGraphManager\RenderGraphTemplates</Filter>
+    </ClInclude>
+    <ClInclude Include="Src\RenderTarget.h">
+      <Filter>Engine\EngineCore\RenderGraphSystem</Filter>
+    </ClInclude>
+    <ClInclude Include="Src\RenderGraph.h">
+      <Filter>Engine\EngineCore\RenderGraphSystem\RenderGraphManager\RenderGraph</Filter>
+    </ClInclude>
+    <ClInclude Include="Src\RenderPipelineAssignmentStage.h">
+      <Filter>Engine\RenderSystem\ProcessingStages\RenderPipelineAssignmentStage</Filter>
+    </ClInclude>
+    <ClInclude Include="Src\Renderer.h">
+      <Filter>Engine\EngineCore\Renderer</Filter>
+    </ClInclude>
+    <ClInclude Include="Src\MeshRenderer.h">
+      <Filter>Engine\EngineCore\Renderer\MeshRenderer</Filter>
+    </ClInclude>
+    <ClInclude Include="Src\UIRenderer.h">
+      <Filter>Engine\EngineCore\Renderer\UIRenderer</Filter>
+    </ClInclude>
+    <ClInclude Include="Src\SemaphoreManager.h">
+      <Filter>Engine\RenderSystem\SemaphoreManager</Filter>
+    </ClInclude>
+    <ClInclude Include="Src\GpuCall.h">
+      <Filter>Engine\EngineCore\Renderer\GpuCalls</Filter>
+    </ClInclude>
+    <ClInclude Include="Src\DrawCall.h">
+      <Filter>Engine\EngineCore\Renderer\GpuCalls\DrawCall</Filter>
+    </ClInclude>
+    <ClInclude Include="Src\RenderGraphExecutor.h">
+      <Filter>Engine\EngineCore\RenderGraphSystem\RenderGraphExecutor</Filter>
+    </ClInclude>
+    <ClInclude Include="Src\ForwardRenderNodeTemplate.h">
+      <Filter>Engine\EngineCore\RenderGraphSystem\RenderNodeManager\RenderNodeTemplates\ForwardRenderNodeTemplate</Filter>
+    </ClInclude>
+    <ClInclude Include="Src\ForwardRenderGraphTemplate.h">
+      <Filter>Engine\EngineCore\RenderGraphSystem\RenderGraphManager\RenderGraphTemplates\ForwardRenderGraphTemplate</Filter>
+    </ClInclude>
+    <ClInclude Include="Src\RenderTypes.h">
+      <Filter>Engine\EngineCore\RenderGraphSystem</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
@@ -739,84 +850,6 @@
     <Filter Include="Engine\Scene\EntityComponentSystem\Registry">
       <UniqueIdentifier>{9dd751ea-fc9d-4ea4-9d37-90f3ac6c7643}</UniqueIdentifier>
     </Filter>
-    <Filter Include="Engine\Renderer">
-      <UniqueIdentifier>{b79260e3-062a-4728-84f2-9c64cf576825}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Engine\Renderer\FrameManager">
-      <UniqueIdentifier>{0067b0cd-64a4-42d9-8b2b-0a25936a1ffd}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Engine\Renderer\VramManager">
-      <UniqueIdentifier>{082bd51d-8acb-4b76-bae8-333da768f666}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Engine\Renderer\VramManager\AllocatedResource">
-      <UniqueIdentifier>{f1cea55a-69e4-42ce-a5f5-fd7c8c6306f7}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Engine\Renderer\VramManager\AllocatedResource\Image">
-      <UniqueIdentifier>{3a3430b4-4efd-4523-a0e9-917935898179}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Engine\Renderer\VramManager\AllocatedResource\Buffer">
-      <UniqueIdentifier>{e228bf09-f249-420b-a12e-cf9d6bd631fe}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Engine\Renderer\VramManager\StagingBufferManager">
-      <UniqueIdentifier>{dfe72a4e-6a52-4d7e-988e-279d5e218df1}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Engine\Renderer\VulkanContext">
-      <UniqueIdentifier>{e57cc994-619d-4a0a-a1d1-38cc8e9544ab}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Engine\Renderer\VulkanContext\Instance">
-      <UniqueIdentifier>{65e632e9-2abf-4ffb-bfb8-8b06beabb7fe}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Engine\Renderer\VulkanContext\LogicalDevice">
-      <UniqueIdentifier>{0889c65b-24da-4e28-b1de-8610367b9fca}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Engine\Renderer\VulkanContext\PhysicalDevice">
-      <UniqueIdentifier>{10b29c9a-c71d-4a8b-8a1b-15948ef34ad8}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Engine\Renderer\VulkanContext\CommandPool">
-      <UniqueIdentifier>{43085a5c-c954-48c7-9046-b004b6ee43c3}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Engine\Renderer\VulkanContext\VulkanUtilities">
-      <UniqueIdentifier>{12320106-0ceb-4438-a698-4ee4c1ca945c}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Engine\Renderer\VulkanContext\Surface">
-      <UniqueIdentifier>{059b9d99-993c-477f-9156-075d8f5d8b3f}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Engine\Renderer\VulkanContext\DebugMessenger">
-      <UniqueIdentifier>{2b2cdc98-f07e-45cc-a1ce-28ab2d93e640}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Engine\Renderer\SynchronizationResourceManager">
-      <UniqueIdentifier>{e87da695-7a96-4681-84a2-1205a4a03d08}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Engine\Renderer\AttachmentManager">
-      <UniqueIdentifier>{02a1dbdc-d8dc-4cce-a523-ebc19073d56b}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Engine\Renderer\FrameBufferManager">
-      <UniqueIdentifier>{5dd61040-8ad2-43a0-b4c9-d2bb910495cd}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Engine\Renderer\PipelineManager">
-      <UniqueIdentifier>{3305a6c6-4e4f-490f-a302-875b4ca473f1}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Engine\Renderer\PipelineManager\Pipeline">
-      <UniqueIdentifier>{49055de0-52f5-47d8-8772-142e65a47245}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Engine\Renderer\RenderPassManager">
-      <UniqueIdentifier>{f740f6ed-08ff-4a46-8a71-8db3d3a50785}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Engine\Renderer\SwapChain">
-      <UniqueIdentifier>{f89a2610-55c3-4650-90b7-cb8a53396734}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Engine\Renderer\ImageSamplerManager">
-      <UniqueIdentifier>{9b59260c-341c-40fa-aea2-788d52adecff}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Engine\Renderer\ImageSamplerManager\ImageSampler">
-      <UniqueIdentifier>{8b666ad6-38e4-4af6-992f-00caf10cab15}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Engine\Renderer\CommandBufferManager">
-      <UniqueIdentifier>{258ed1d3-3f1f-4b82-9971-b6620ddfff97}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Engine\Renderer\CommandBufferManager\CommandBuffer">
-      <UniqueIdentifier>{ec43ca6a-d206-4b26-a935-fc2683c2a6dd}</UniqueIdentifier>
-    </Filter>
     <Filter Include="Engine\InputSystem">
       <UniqueIdentifier>{7217a741-b806-438c-b4ce-f62c51bc381b}</UniqueIdentifier>
     </Filter>
@@ -841,15 +874,6 @@
     <Filter Include="Engine\Settings">
       <UniqueIdentifier>{44729301-b6f0-4f28-9279-57fd9a1e2b28}</UniqueIdentifier>
     </Filter>
-    <Filter Include="Engine\Renderer\UniformBufferManager">
-      <UniqueIdentifier>{f4f12b53-9db7-47a6-9c37-5077623ee1c0}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Engine\Renderer\PipelineManager\PipelineConfig">
-      <UniqueIdentifier>{ff06bd8c-aafe-42b5-ab1d-43433f146e62}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Engine\Renderer\PipelineManager\PipelineLayoutManager">
-      <UniqueIdentifier>{54e58653-20b1-4091-88df-3a5f72b98035}</UniqueIdentifier>
-    </Filter>
     <Filter Include="Engine\RenderSystem">
       <UniqueIdentifier>{37c1d1a0-17bc-4ca7-8018-e94d912ebafa}</UniqueIdentifier>
     </Filter>
@@ -867,9 +891,6 @@
     </Filter>
     <Filter Include="Engine\RenderSystem\ProcessingStages\RenderStage">
       <UniqueIdentifier>{99aaa877-e779-48c1-a547-ee837d07b171}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Engine\Renderer\VramManager\TransferManager">
-      <UniqueIdentifier>{6423c72c-d74d-44a4-884e-81e849d45c75}</UniqueIdentifier>
     </Filter>
     <Filter Include="Engine\RenderSystem\GlobalStateManager">
       <UniqueIdentifier>{882842c2-b9ed-4d8a-8848-c37083718aaf}</UniqueIdentifier>
@@ -892,29 +913,8 @@
     <Filter Include="Engine\AssetSystem\AssetManager\AssetHandlers\TextureManager">
       <UniqueIdentifier>{6c158321-f629-42c8-9575-11a75750bbb3}</UniqueIdentifier>
     </Filter>
-    <Filter Include="Engine\Renderer\DescriptorSystem">
-      <UniqueIdentifier>{91c5c937-c5c2-4cc0-9d19-37d16231a80e}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Engine\Renderer\DescriptorSystem\DescriptorAllocator">
-      <UniqueIdentifier>{2659d45c-9a77-4568-9b56-485650558fe2}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Engine\Renderer\DescriptorSystem\DescriptorWriter">
-      <UniqueIdentifier>{9e6b4c44-45b3-4d7d-964a-ea170325c0da}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Engine\Renderer\DescriptorSystem\DescriptorLayoutManager">
-      <UniqueIdentifier>{82b31a41-ac8c-4730-be48-acb73fb57196}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Engine\Renderer\DescriptorSystem\DescriptorLayoutManager\DescriptorLayoutBuilder">
-      <UniqueIdentifier>{21ffb734-cbfa-4098-b9e3-32a172bd2e29}</UniqueIdentifier>
-    </Filter>
     <Filter Include="Engine\AssetSystem\AssetManager\AssetHandlers\ShaderManager">
       <UniqueIdentifier>{106800e0-480b-4b59-aa29-5a04e36f4ca0}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Engine\Renderer\ShaderModuleManager">
-      <UniqueIdentifier>{ac2b5c6e-3c1d-42c4-81ce-71e973923c15}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Engine\Renderer\ShaderModuleManager\ShaderModule">
-      <UniqueIdentifier>{73f3a81a-7cd0-4e0c-82b8-9b6ac6429520}</UniqueIdentifier>
     </Filter>
     <Filter Include="Engine\ResourceManager">
       <UniqueIdentifier>{5587388f-a680-462a-a8b3-96c6b546d75f}</UniqueIdentifier>
@@ -991,9 +991,6 @@
     <Filter Include="Engine\Scene\EntityComponentSystem\Registry\ComponentManager\Components\TransformComponent">
       <UniqueIdentifier>{21cc2400-9f18-40be-b258-8966508d7727}</UniqueIdentifier>
     </Filter>
-    <Filter Include="Engine\Renderer\ImGuiWrapper">
-      <UniqueIdentifier>{771687ec-623b-4f20-99f4-8a37762989e3}</UniqueIdentifier>
-    </Filter>
     <Filter Include="Editor\EditorUI">
       <UniqueIdentifier>{d37dc8c6-0257-428c-80e1-d4ded56dcd60}</UniqueIdentifier>
     </Filter>
@@ -1021,18 +1018,6 @@
     <Filter Include="Editor\EditorUI\SettingsWindow">
       <UniqueIdentifier>{f98a6b91-a335-4e86-9ade-5a53fbc03c22}</UniqueIdentifier>
     </Filter>
-    <Filter Include="Engine\Renderer\RenderNodeManager">
-      <UniqueIdentifier>{626a9429-c305-4ea5-ba20-2beb2d9c832e}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Engine\Renderer\RenderNodeManager\RenderNode">
-      <UniqueIdentifier>{9ea6f99f-95b7-47c8-9ef7-7f20f7b3952e}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Engine\Renderer\AttachmentManager\AttachmentFactory">
-      <UniqueIdentifier>{9b51e9c3-49f9-4d22-91d7-ad1684bf2c58}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Engine\Renderer\RenderNodeManager\RenderNodeTemplates">
-      <UniqueIdentifier>{946eb435-5b25-4dde-bad4-7a16fd58330f}</UniqueIdentifier>
-    </Filter>
     <Filter Include="Engine\RenderSystem\RenderOrder">
       <UniqueIdentifier>{6036f410-da6d-4d9a-83ca-7c1fa237f71a}</UniqueIdentifier>
     </Filter>
@@ -1044,6 +1029,189 @@
     </Filter>
     <Filter Include="Engine\RenderSystem\RenderOrder\RenderOrders\EditorUIRenderOrder">
       <UniqueIdentifier>{08773ed0-94df-4ece-8f4b-d861595b5aaa}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Engine\RenderSystem\ProcessingContext">
+      <UniqueIdentifier>{71b407de-17c7-4c14-b5d9-bf427c590135}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Engine\RenderSystem\ProcessingPipeline">
+      <UniqueIdentifier>{cf564e8f-b758-4bf1-83b5-21c930f4dc26}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Engine\RenderSystem\ProcessingStages\SynchronizationStages">
+      <UniqueIdentifier>{6209fe51-b8a6-4061-8aff-62442492e835}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Engine\RenderSystem\ProcessingStages\CameraProcessingStage">
+      <UniqueIdentifier>{fdda5d1a-5be7-4893-8089-cb984788ecd2}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Engine\RenderSystem\ProcessingStages\MeshCullingStage">
+      <UniqueIdentifier>{d73ffedf-1894-4fc0-8ced-6060e8d31d06}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Engine\EngineCore">
+      <UniqueIdentifier>{b79260e3-062a-4728-84f2-9c64cf576825}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Engine\EngineCore\FrameManager">
+      <UniqueIdentifier>{0067b0cd-64a4-42d9-8b2b-0a25936a1ffd}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Engine\EngineCore\VramManager">
+      <UniqueIdentifier>{082bd51d-8acb-4b76-bae8-333da768f666}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Engine\EngineCore\VramManager\AllocatedResource">
+      <UniqueIdentifier>{f1cea55a-69e4-42ce-a5f5-fd7c8c6306f7}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Engine\EngineCore\VramManager\AllocatedResource\Image">
+      <UniqueIdentifier>{3a3430b4-4efd-4523-a0e9-917935898179}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Engine\EngineCore\VramManager\AllocatedResource\Buffer">
+      <UniqueIdentifier>{e228bf09-f249-420b-a12e-cf9d6bd631fe}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Engine\EngineCore\VramManager\StagingBufferManager">
+      <UniqueIdentifier>{dfe72a4e-6a52-4d7e-988e-279d5e218df1}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Engine\EngineCore\VramManager\TransferManager">
+      <UniqueIdentifier>{6423c72c-d74d-44a4-884e-81e849d45c75}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Engine\EngineCore\VulkanContext">
+      <UniqueIdentifier>{e57cc994-619d-4a0a-a1d1-38cc8e9544ab}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Engine\EngineCore\VulkanContext\Instance">
+      <UniqueIdentifier>{65e632e9-2abf-4ffb-bfb8-8b06beabb7fe}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Engine\EngineCore\VulkanContext\LogicalDevice">
+      <UniqueIdentifier>{0889c65b-24da-4e28-b1de-8610367b9fca}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Engine\EngineCore\VulkanContext\PhysicalDevice">
+      <UniqueIdentifier>{10b29c9a-c71d-4a8b-8a1b-15948ef34ad8}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Engine\EngineCore\VulkanContext\CommandPool">
+      <UniqueIdentifier>{43085a5c-c954-48c7-9046-b004b6ee43c3}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Engine\EngineCore\VulkanContext\VulkanUtilities">
+      <UniqueIdentifier>{12320106-0ceb-4438-a698-4ee4c1ca945c}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Engine\EngineCore\VulkanContext\Surface">
+      <UniqueIdentifier>{059b9d99-993c-477f-9156-075d8f5d8b3f}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Engine\EngineCore\VulkanContext\DebugMessenger">
+      <UniqueIdentifier>{2b2cdc98-f07e-45cc-a1ce-28ab2d93e640}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Engine\EngineCore\SynchronizationResourceManager">
+      <UniqueIdentifier>{e87da695-7a96-4681-84a2-1205a4a03d08}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Engine\EngineCore\AttachmentManager">
+      <UniqueIdentifier>{02a1dbdc-d8dc-4cce-a523-ebc19073d56b}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Engine\EngineCore\AttachmentManager\AttachmentFactory">
+      <UniqueIdentifier>{9b51e9c3-49f9-4d22-91d7-ad1684bf2c58}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Engine\EngineCore\FrameBufferManager">
+      <UniqueIdentifier>{5dd61040-8ad2-43a0-b4c9-d2bb910495cd}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Engine\EngineCore\PipelineManager">
+      <UniqueIdentifier>{3305a6c6-4e4f-490f-a302-875b4ca473f1}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Engine\EngineCore\PipelineManager\Pipeline">
+      <UniqueIdentifier>{49055de0-52f5-47d8-8772-142e65a47245}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Engine\EngineCore\PipelineManager\PipelineConfig">
+      <UniqueIdentifier>{ff06bd8c-aafe-42b5-ab1d-43433f146e62}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Engine\EngineCore\PipelineManager\PipelineLayoutManager">
+      <UniqueIdentifier>{54e58653-20b1-4091-88df-3a5f72b98035}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Engine\EngineCore\RenderPassManager">
+      <UniqueIdentifier>{f740f6ed-08ff-4a46-8a71-8db3d3a50785}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Engine\EngineCore\SwapChain">
+      <UniqueIdentifier>{f89a2610-55c3-4650-90b7-cb8a53396734}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Engine\EngineCore\ImageSamplerManager">
+      <UniqueIdentifier>{9b59260c-341c-40fa-aea2-788d52adecff}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Engine\EngineCore\ImageSamplerManager\ImageSampler">
+      <UniqueIdentifier>{8b666ad6-38e4-4af6-992f-00caf10cab15}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Engine\EngineCore\CommandBufferManager">
+      <UniqueIdentifier>{258ed1d3-3f1f-4b82-9971-b6620ddfff97}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Engine\EngineCore\CommandBufferManager\CommandBuffer">
+      <UniqueIdentifier>{ec43ca6a-d206-4b26-a935-fc2683c2a6dd}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Engine\EngineCore\UniformBufferManager">
+      <UniqueIdentifier>{f4f12b53-9db7-47a6-9c37-5077623ee1c0}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Engine\EngineCore\DescriptorSystem">
+      <UniqueIdentifier>{91c5c937-c5c2-4cc0-9d19-37d16231a80e}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Engine\EngineCore\DescriptorSystem\DescriptorAllocator">
+      <UniqueIdentifier>{2659d45c-9a77-4568-9b56-485650558fe2}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Engine\EngineCore\DescriptorSystem\DescriptorWriter">
+      <UniqueIdentifier>{9e6b4c44-45b3-4d7d-964a-ea170325c0da}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Engine\EngineCore\DescriptorSystem\DescriptorLayoutManager">
+      <UniqueIdentifier>{82b31a41-ac8c-4730-be48-acb73fb57196}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Engine\EngineCore\DescriptorSystem\DescriptorLayoutManager\DescriptorLayoutBuilder">
+      <UniqueIdentifier>{21ffb734-cbfa-4098-b9e3-32a172bd2e29}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Engine\EngineCore\ShaderModuleManager">
+      <UniqueIdentifier>{ac2b5c6e-3c1d-42c4-81ce-71e973923c15}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Engine\EngineCore\ShaderModuleManager\ShaderModule">
+      <UniqueIdentifier>{73f3a81a-7cd0-4e0c-82b8-9b6ac6429520}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Engine\EngineCore\ImGuiWrapper">
+      <UniqueIdentifier>{771687ec-623b-4f20-99f4-8a37762989e3}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Engine\EngineCore\RenderGraphSystem">
+      <UniqueIdentifier>{4055ac2c-62fb-4e6c-ae98-eff03a558c5a}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Engine\EngineCore\RenderGraphSystem\RenderGraphManager">
+      <UniqueIdentifier>{3694c671-8390-4508-81e9-4ab6a279d2ef}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Engine\EngineCore\RenderGraphSystem\RenderGraphManager\RenderGraphTemplates">
+      <UniqueIdentifier>{411743e1-de56-4282-9b76-52261cf7f9ec}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Engine\EngineCore\RenderGraphSystem\RenderGraphManager\RenderGraph">
+      <UniqueIdentifier>{950ad5d5-68b3-40b2-b663-c7cb55d0238a}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Engine\EngineCore\RenderGraphSystem\RenderNodeManager">
+      <UniqueIdentifier>{626a9429-c305-4ea5-ba20-2beb2d9c832e}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Engine\EngineCore\RenderGraphSystem\RenderNodeManager\RenderNode">
+      <UniqueIdentifier>{9ea6f99f-95b7-47c8-9ef7-7f20f7b3952e}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Engine\EngineCore\RenderGraphSystem\RenderNodeManager\RenderNodeTemplates">
+      <UniqueIdentifier>{946eb435-5b25-4dde-bad4-7a16fd58330f}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Engine\RenderSystem\ProcessingStages\RenderPipelineAssignmentStage">
+      <UniqueIdentifier>{8582e231-24c7-4153-8297-d248715c943f}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Engine\EngineCore\Renderer">
+      <UniqueIdentifier>{18c58c56-3add-4721-bede-e20a27bf7aa8}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Engine\EngineCore\Renderer\MeshRenderer">
+      <UniqueIdentifier>{b0127dd9-5657-4158-a9ec-5346d9f9f2b4}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Engine\EngineCore\Renderer\UIRenderer">
+      <UniqueIdentifier>{d6294c5e-aa4b-4527-b695-ccd65fcf2010}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Engine\RenderSystem\SemaphoreManager">
+      <UniqueIdentifier>{68d1906a-da0b-4bfd-9530-1648040fbee9}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Engine\EngineCore\Renderer\GpuCalls">
+      <UniqueIdentifier>{4d51e947-5dd9-488b-a8d7-90c8fb772d3f}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Engine\EngineCore\Renderer\GpuCalls\DrawCall">
+      <UniqueIdentifier>{5be6ac9d-df7b-4ea6-8cba-8aeae450a450}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Engine\EngineCore\RenderGraphSystem\RenderGraphExecutor">
+      <UniqueIdentifier>{86baad61-1275-464f-a740-35c5fbc30f7c}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Engine\EngineCore\RenderGraphSystem\RenderGraphManager\RenderGraphTemplates\ForwardRenderGraphTemplate">
+      <UniqueIdentifier>{2f64df50-d212-427f-b249-ec4649269623}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Engine\EngineCore\RenderGraphSystem\RenderNodeManager\RenderNodeTemplates\ForwardRenderNodeTemplate">
+      <UniqueIdentifier>{5807df38-54d0-445d-a2ae-8ef1df5b0863}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
 </Project>

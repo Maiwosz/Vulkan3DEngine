@@ -7,7 +7,7 @@
 #include <vulkan/vulkan.h>
 
 #include "Registry.h"
-#include "Renderer.h"
+#include "EngineCore.h"
 #include "TransformComponent.h"
 #include "CameraComponent.h"
 #include "LightComponent.h"
@@ -20,7 +20,7 @@
 
 // Forward declarations
 class Registry;
-class Renderer;
+class EngineCore;
 class UniformBufferManager;
 class DescriptorAllocator;
 class DescriptorLayoutManager;
@@ -29,7 +29,7 @@ class Buffer;
 
 class GlobalStateManager {
 public:
-    GlobalStateManager(Registry& registry, Renderer& renderer);
+    GlobalStateManager(Registry& registry, EngineCore& renderer);
 
     // Process camera data and store for the frame
     void processCamera(std::shared_ptr<CameraRenderOrder> camera);

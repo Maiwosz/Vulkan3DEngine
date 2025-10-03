@@ -3,16 +3,20 @@
 #include "Mesh.h"
 #include "Engine.h"
 #include "MeshRenderOrder.h"
+#include "CameraRenderOrder.h"
 
-PipelineAssignmentStage::PipelineAssignmentStage(Renderer& renderer, AssetSystem& assetSystem, Settings& settings)
-    :
+PipelineAssignmentStage::PipelineAssignmentStage(
+    ProcessingContext& context,
+    EngineCore& renderer,
+    AssetSystem& assetSystem,
+    Settings& settings
+)
+    : ProcessingStage(context),
     m_settings(settings),
-    m_pipelineManager(renderer.pipelineManager()),
     m_shaderManager(assetSystem.shaderManager()),
     m_materialManager(assetSystem.materialManager()),
     m_meshManager(assetSystem.meshManager()),
-    m_renderPassManager(renderer.renderPassManager()),
-    m_defaultRenderPassHandle(renderer.renderPass())
+    m_renderPassManager(renderer.renderPassManager())
 {
     SPDLOG_INFO("Initializing PipelineAssignmentStage");
 }
@@ -21,102 +25,84 @@ PipelineAssignmentStage::~PipelineAssignmentStage() {
     SPDLOG_INFO("Destroying PipelineAssignmentStage");
 }
 
-void PipelineAssignmentStage::process(std::shared_ptr<RenderOrder> order) {
+ProcessingResult PipelineAssignmentStage::process(std::shared_ptr<RenderOrder> order) {
     if (!order) {
         SPDLOG_WARN("Attempted to process null render order");
-        return;
+        return ProcessingResult::Failure;
     }
 
-    // Check if this is a mesh render order
-    if (order->getType() != RenderOrderType::Mesh) {
-        // Forward to next stage and return
-        forwardToNextStage(order);
-        return;
+    // Handle different render order types
+    switch (order->getType()) {
+    case RenderOrderType::Mesh:
+        return processMeshOrder(std::static_pointer_cast<MeshRenderOrder>(order));
+    default:
+        // Other types (Light, EditorUI) pass through unchanged
+        SPDLOG_DEBUG("PipelineAssignmentStage: unexpected render order type: {}",
+            renderOrderTypeToString(order->getType()));
+        return ProcessingResult::Failure;
+    }
+}
+
+ProcessingResult PipelineAssignmentStage::processMeshOrder(std::shared_ptr<MeshRenderOrder> meshOrder) {
+    if (!meshOrder) {
+        SPDLOG_ERROR("Null mesh order in processMeshOrder");
+        return ProcessingResult::Failure;
     }
 
-    // Cast to mesh render order
-    auto meshOrder = std::static_pointer_cast<MeshRenderOrder>(order);
+    SPDLOG_DEBUG("Processing camera order for entity {}",
+        meshOrder->entity.id);
+
+    // Process each culled mesh in the camera's list
+    if (!meshOrder) {
+        SPDLOG_WARN("Null mesh order in camera's culled meshes list");
+        return ProcessingResult::Failure;
+    }
 
     // Skip if mesh is invalid
     const Mesh* mesh = m_meshManager.getMesh(meshOrder->meshHandle);
     if (!mesh) {
-        SPDLOG_WARN("Invalid mesh handle for entity {}", meshOrder->entity.id);
-        forwardToNextStage(order);
-        return;
+        SPDLOG_WARN("Invalid mesh handle for entity {} in camera's culled list",
+            meshOrder->entity.id);
+        return ProcessingResult::Failure;
     }
 
-    // TODO: Determine the appropriate RenderPassHandle based on render settings
-    // For now, use the default render pass handle
-    RenderPassHandle renderPassHandle = m_defaultRenderPassHandle;
-
-    // Get or create a pipeline for this material and mesh combination
-    PipelineHandle pipelineHandle = getPipelineForMaterialAndMesh(
+    // Get or create a pipeline for this material and mesh combination using camera's render pass
+    GraphicsPipelineConfig pipelineconfig = createPipelineConfig(
         meshOrder->materialHandle,
-        meshOrder->meshHandle,
-        renderPassHandle
+        meshOrder->meshHandle
     );
 
-    if (pipelineHandle.id == 0) {
-        SPDLOG_ERROR("Failed to get valid pipeline handle for entity {}", meshOrder->entity.id);
-    }
+    // Assign the pipeline handle to the mesh render order
+    meshOrder->drawCall->setPipelineConfig(pipelineconfig);
 
-    // Add the pipeline handle to the mesh render order
-    meshOrder->pipelineHandle = pipelineHandle;
+    SPDLOG_TRACE("Created pipelineConfig to mesh entity {}",
+        meshOrder->entity.id);
 
-    // Forward to next stage
-    forwardToNextStage(order);
+    // Return true if at least some meshes were processed successfully
+    return ProcessingResult::Success;
 }
 
-PipelineHandle PipelineAssignmentStage::getPipelineForMaterialAndMesh(
+GraphicsPipelineConfig PipelineAssignmentStage::createPipelineConfig(
     MaterialHandle materialHandle,
-    const MeshHandle& meshHandle,
-    RenderPassHandle renderPassHandle
+    const MeshHandle& meshHandle
 ) {
     Material* material = m_materialManager.getMaterial(materialHandle);
     if (!material) {
         SPDLOG_ERROR("Cannot get pipeline: invalid material handle");
-        return PipelineHandle{};
+        return GraphicsPipelineConfig{};
     }
 
     const Mesh* mesh = m_meshManager.getMesh(meshHandle);
     if (!mesh) {
         SPDLOG_ERROR("Cannot get pipeline: invalid mesh handle");
-        return PipelineHandle{};
+        return GraphicsPipelineConfig{};
     }
 
-    SPDLOG_DEBUG("Creating pipeline for material '{}' and mesh attributes {}",
+    SPDLOG_DEBUG("Creating pipeline for material '{}', mesh attributes {}",
         material->name(), mesh->attributes);
 
     // Create a pipeline configuration
-    GraphicsPipelineConfig config = createPipelineConfig(materialHandle, *mesh, renderPassHandle);
-
-    // Let PipelineManager handle creation and caching
-    PipelineHandle pipelineHandle = m_pipelineManager.createGraphicsPipeline(config);
-
-    if (pipelineHandle.id == 0) {
-        SPDLOG_ERROR("Failed to create graphics pipeline for material '{}' and mesh attributes {}",
-            material->name(), mesh->attributes);
-        return PipelineHandle{};
-    }
-
-    return pipelineHandle;
-}
-
-GraphicsPipelineConfig PipelineAssignmentStage::createPipelineConfig(
-    MaterialHandle materialHandle,
-    const Mesh& mesh,
-    RenderPassHandle renderPassHandle
-) {
     GraphicsPipelineConfig config;
-    SPDLOG_INFO("Creating pipeline configuration for material {} and mesh {}",
-        materialHandle.id, mesh.attributes);
-
-    // Get the material
-    Material* material = m_materialManager.getMaterial(materialHandle);
-    if (!material) {
-        SPDLOG_WARN("Invalid material handle in createPipelineConfig, returning default config");
-        return config;
-    }
 
     // Get the shader from the material
     ShaderHandle shaderHandle = material->shader();
@@ -165,7 +151,7 @@ GraphicsPipelineConfig PipelineAssignmentStage::createPipelineConfig(
     SPDLOG_DEBUG("Using pipeline layout from shader resources");
 
     // Configure vertex input based on mesh format
-    config.vertexInput = createVertexInputConfig(mesh);
+    config.vertexInput = createVertexInputConfig(*mesh);
 
     // Configure viewport - similar to debug code, set both dynamic and default values
     config.viewport.dynamicViewport = true;
@@ -200,13 +186,8 @@ GraphicsPipelineConfig PipelineAssignmentStage::createPipelineConfig(
         VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT |
         VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
 
-    // Set render pass - be explicit and validate
-    VkRenderPass renderPass = *m_renderPassManager.getResource(renderPassHandle);
-    if (renderPass == VK_NULL_HANDLE) {
-        SPDLOG_ERROR("Invalid render pass handle in pipeline config");
-    }
-
-    config.renderPass.renderPass = renderPass;
+	// Render pass will be assigned later in the render graph
+    config.renderPass.renderPass = 0;
     config.renderPass.subpass = 0;
 
     SPDLOG_INFO("Pipeline configuration created successfully");

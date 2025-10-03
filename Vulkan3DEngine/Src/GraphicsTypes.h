@@ -73,7 +73,7 @@ namespace Graphics {
         Settings::MsaaSampleCount samples = Settings::MsaaSampleCount::Samples1;
     };
 
-    // Konwersje do Vulkanowych typów
+    // Konwersje do Vulkanowych typÃ³w
     inline VkBufferUsageFlags convertBufferUsage(Graphics::BufferUsageType usage) {
         switch (usage) {
         case BufferUsageType::Staging:
@@ -144,7 +144,7 @@ namespace Graphics {
         return flags;
     }
 
-    // Konwersje z Vulkanowych typów
+    // Konwersje z Vulkanowych typÃ³w
     inline BufferUsageType convertVkBufferUsage(VkBufferUsageFlags flags) {
         if (flags & VK_BUFFER_USAGE_TRANSFER_SRC_BIT)         return BufferUsageType::TransferSrc;
         if (flags & VK_BUFFER_USAGE_TRANSFER_DST_BIT)         return BufferUsageType::TransferDst;
@@ -256,7 +256,7 @@ namespace Graphics {
         case VK_FORMAT_R8_SRGB:
             return static_cast<VkDeviceSize>(width) * height;
 
-            // 16-bit formats (8-bit × 2 components or 16-bit × 1 component)
+            // 16-bit formats (8-bit Ã— 2 components or 16-bit Ã— 1 component)
         case VK_FORMAT_R8G8_UNORM:
         case VK_FORMAT_R8G8_SNORM:
         case VK_FORMAT_R8G8_USCALED:
@@ -273,7 +273,7 @@ namespace Graphics {
         case VK_FORMAT_R16_SFLOAT:
             return static_cast<VkDeviceSize>(width) * height * 2;
 
-            // 24-bit formats (8-bit × 3 components)
+            // 24-bit formats (8-bit Ã— 3 components)
         case VK_FORMAT_R8G8B8_UNORM:
         case VK_FORMAT_R8G8B8_SNORM:
         case VK_FORMAT_R8G8B8_USCALED:
@@ -290,7 +290,7 @@ namespace Graphics {
         case VK_FORMAT_B8G8R8_SRGB:
             return static_cast<VkDeviceSize>(width) * height * 3;
 
-            // 32-bit formats (8-bit × 4 components or 16-bit × 2 components or 32-bit × 1 component)
+            // 32-bit formats (8-bit Ã— 4 components or 16-bit Ã— 2 components or 32-bit Ã— 1 component)
         case VK_FORMAT_R8G8B8A8_UNORM:
         case VK_FORMAT_R8G8B8A8_SNORM:
         case VK_FORMAT_R8G8B8A8_USCALED:
@@ -341,7 +341,7 @@ namespace Graphics {
         case VK_FORMAT_D24_UNORM_S8_UINT:
             return static_cast<VkDeviceSize>(width) * height * 4;
 
-            // 48-bit formats (16-bit × 3 components)
+            // 48-bit formats (16-bit Ã— 3 components)
         case VK_FORMAT_R16G16B16_UNORM:
         case VK_FORMAT_R16G16B16_SNORM:
         case VK_FORMAT_R16G16B16_USCALED:
@@ -351,7 +351,7 @@ namespace Graphics {
         case VK_FORMAT_R16G16B16_SFLOAT:
             return static_cast<VkDeviceSize>(width) * height * 6;
 
-            // 64-bit formats (16-bit × 4 components or 32-bit × 2 components)
+            // 64-bit formats (16-bit Ã— 4 components or 32-bit Ã— 2 components)
         case VK_FORMAT_R16G16B16A16_UNORM:
         case VK_FORMAT_R16G16B16A16_SNORM:
         case VK_FORMAT_R16G16B16A16_USCALED:
@@ -365,37 +365,37 @@ namespace Graphics {
         case VK_FORMAT_D32_SFLOAT_S8_UINT:
             return static_cast<VkDeviceSize>(width) * height * 8;
 
-            // 96-bit formats (32-bit × 3 components)
+            // 96-bit formats (32-bit Ã— 3 components)
         case VK_FORMAT_R32G32B32_UINT:
         case VK_FORMAT_R32G32B32_SINT:
         case VK_FORMAT_R32G32B32_SFLOAT:
             return static_cast<VkDeviceSize>(width) * height * 12;
 
-            // 128-bit formats (32-bit × 4 components)
+            // 128-bit formats (32-bit Ã— 4 components)
         case VK_FORMAT_R32G32B32A32_UINT:
         case VK_FORMAT_R32G32B32A32_SINT:
         case VK_FORMAT_R32G32B32A32_SFLOAT:
             return static_cast<VkDeviceSize>(width) * height * 16;
 
-            // 64-bit formats (64-bit × 1 component)
+            // 64-bit formats (64-bit Ã— 1 component)
         case VK_FORMAT_R64_UINT:
         case VK_FORMAT_R64_SINT:
         case VK_FORMAT_R64_SFLOAT:
             return static_cast<VkDeviceSize>(width) * height * 8;
 
-            // 128-bit formats (64-bit × 2 components)
+            // 128-bit formats (64-bit Ã— 2 components)
         case VK_FORMAT_R64G64_UINT:
         case VK_FORMAT_R64G64_SINT:
         case VK_FORMAT_R64G64_SFLOAT:
             return static_cast<VkDeviceSize>(width) * height * 16;
 
-            // 192-bit formats (64-bit × 3 components)
+            // 192-bit formats (64-bit Ã— 3 components)
         case VK_FORMAT_R64G64B64_UINT:
         case VK_FORMAT_R64G64B64_SINT:
         case VK_FORMAT_R64G64B64_SFLOAT:
             return static_cast<VkDeviceSize>(width) * height * 24;
 
-            // 256-bit formats (64-bit × 4 components)
+            // 256-bit formats (64-bit Ã— 4 components)
         case VK_FORMAT_R64G64B64A64_UINT:
         case VK_FORMAT_R64G64B64A64_SINT:
         case VK_FORMAT_R64G64B64A64_SFLOAT:

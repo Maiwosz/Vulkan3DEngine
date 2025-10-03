@@ -1,41 +1,37 @@
 #pragma once
 #include "AssetSystem.h"
 #include "ProcessingStage.h"
-#include "PipelineManager.h"
 #include "RenderPassManager.h"
 #include "ShaderModuleManager.h"
 #include "Handle.h"
-#include "Renderer.h"
+#include "EngineCore.h"
 
 // Forward declarations
 class MaterialManager;
+class MeshRenderOrder;
 
-class PipelineAssignmentStage : public OrderProcessingStage {
+class PipelineAssignmentStage : public ProcessingStage {
 public:
     PipelineAssignmentStage(
-        Renderer& renderer,
+        ProcessingContext& context,
+        EngineCore& renderer,
         AssetSystem& assetSystem,
         Settings& settings
     );
 
     ~PipelineAssignmentStage();
 
-    // Process a single render order
-    void process(std::shared_ptr<RenderOrder> order) override;
-
-    // Pipeline creation
-    PipelineHandle getPipelineForMaterialAndMesh(
-        MaterialHandle materialHandle,
-        const MeshHandle& meshHandle,
-        RenderPassHandle renderPassHandle
-    );
+    // Process a single render order - only accepts MeshRenderOrder
+    ProcessingResult process(std::shared_ptr<RenderOrder> order) override;
 
 private:
+    // Process mesh render order and assign pipeline config to its draw call
+    ProcessingResult processMeshOrder(std::shared_ptr<MeshRenderOrder> meshOrder);
+
     // Create a pipeline configuration for the material and mesh
     GraphicsPipelineConfig createPipelineConfig(
         MaterialHandle materialHandle,
-        const Mesh& mesh,
-        RenderPassHandle renderPassHandle
+        const MeshHandle& mesh
     );
 
     // Create vertex input configuration based on mesh format
@@ -43,13 +39,11 @@ private:
 
     // References to required managers
     Settings& m_settings;
-    PipelineManager& m_pipelineManager;
     ShaderManager& m_shaderManager;
     MaterialManager& m_materialManager;
     RenderPassManager& m_renderPassManager;
     MeshManager& m_meshManager;
 
     // Default render pass handle for when one isn't specified
-    // This will be used temporarily until proper render pass handling is implemented
     RenderPassHandle m_defaultRenderPassHandle;
 };

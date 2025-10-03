@@ -1,33 +1,68 @@
 #pragma once
 #include "RenderTypes.h"
+#include "RenderTarget.h"
 #include "Handle.h"
-#include <vulkan/vulkan.h>
+#include "CommandBuffer.h"
+#include "ISmartHandleManager.h"
 #include <vector>
-#include <string>
+#include <memory>
+#include <map>
 
 // Forward declarations
-class AttachmentManager;
-class RenderPassManager;
-class Renderer;
-class AssetSystem;
-class RenderOrder;
+class RenderNodeTemplate;
 
-// Structure describing an attachment used by a render node
-struct NodeAttachment {
-    AttachmentHandle handle;
-    uint32_t attachmentIndex;
+// Smart handle type for render pass
+using SmartRenderPassHandle = SmartHandle<RenderPassHandle, VkRenderPass>;
 
-    NodeAttachment(AttachmentHandle h, uint32_t idx)
-        : handle(h), attachmentIndex(idx) {
-    }
+/**
+ * Runtime render node instance with Vulkan resources.
+ *
+ * Architecture Role:
+ * - Holds actual Vulkan resources (render pass, attachments)
+ * - Created by templates, cached and reused by RenderNodeManager
+ * - Provides render pass management and attachment binding
+ * - Template reference allows accessing static metadata
+ *
+ * Nodes are lightweight - heavy lifting done during creation by template
+ */
+
+enum class AttachmentSource {
+    Managed,      // Zwykły attachment z AttachmentManager
+    Swapchain     // Attachment pochodzi ze SwapChain
 };
 
-// Base class for statically cached render nodes
+ // Attachment binding information
+struct NodeAttachment {
+    AttachmentHandle handle;           // Dla Managed
+    uint32_t attachmentIndex;          // Pozycja w render pass
+    AttachmentSource source;           // Skąd pochodzi attachment
+
+    // Konstruktor dla managed attachments
+    NodeAttachment(AttachmentHandle h, uint32_t idx)
+        : handle(h), attachmentIndex(idx), source(AttachmentSource::Managed) {
+    }
+
+    // Konstruktor dla swapchain attachments
+    static NodeAttachment createSwapchainAttachment(uint32_t idx) {
+        NodeAttachment attachment;
+        attachment.handle = AttachmentHandle(0); // Nieważny, nie używany
+        attachment.attachmentIndex = idx;
+        attachment.source = AttachmentSource::Swapchain;
+        return attachment;
+    }
+
+private:
+    NodeAttachment() = default;
+};
+
+// Configured render node with Vulkan resources
 class RenderNode {
 public:
-    RenderNode(RenderTemplateType templateType,
-        RenderPassHandle renderPassHandle,
-        const RenderPassMetadata& metadata);
+    RenderNode(const RenderNodeTemplate* nodeTemplate,
+        const RenderTarget& renderTarget,
+        VkExtent2D extent,
+        SmartRenderPassHandle smartRenderPassHandle);
+
     virtual ~RenderNode() = default;
 
     // Non-copyable but movable
@@ -36,53 +71,80 @@ public:
     RenderNode(RenderNode&&) = default;
     RenderNode& operator=(RenderNode&&) = default;
 
-    // Basic getters
-    RenderTemplateType getTemplateType() const { return m_templateType; }
-    RenderPassHandle getRenderPassHandle() const { return m_renderPassHandle; }
-    const RenderPassMetadata& getMetadata() const { return m_metadata; }
-    VkExtent2D getRenderArea() const { return m_metadata.extent; }
+    // Basic properties
+    const RenderNodeTemplate* getTemplate() const { return m_template; }
+    const RenderTarget& getRenderTarget() const { return m_renderTarget; }
+    VkExtent2D getExtent() const { return m_extent; }
+
+    // Smart handle access
+    const SmartRenderPassHandle& getSmartRenderPassHandle() const { return m_smartRenderPassHandle; }
+
+    // Legacy compatibility - returns raw handle
+    RenderPassHandle getRenderPassHandle() const { return m_smartRenderPassHandle.handle(); }
+
+    // Direct access to VkRenderPass through smart handle
+    VkRenderPass getRenderPass() const { return m_smartRenderPassHandle.isValid() ? *m_smartRenderPassHandle : VK_NULL_HANDLE; }
+
+    // Template convenience methods
+    std::type_index getTemplateTypeIndex() const;
+    const char* getTemplateName() const;
 
     // Attachment access
     const std::vector<NodeAttachment>& getColorAttachments() const { return m_colorAttachments; }
-    const NodeAttachment* getDepthAttachment() const { return m_depthAttachment; }
-    const NodeAttachment* getResolveAttachment() const { return m_resolveAttachment; }
+    const NodeAttachment* getDepthAttachment() const { return m_depthAttachment.get(); }
+    const NodeAttachment* getResolveAttachment() const { return m_resolveAttachment.get(); }
 
-    // Get all attachments for framebuffer creation
+    // Sprawdź czy node używa swapchain
+    bool usesSwapchainAttachment() const {
+        return m_usesSwapchainColor || m_usesSwapchainResolve;
+    }
+
+    bool hasSwapchainColorAttachment() const { return m_usesSwapchainColor; }
+    bool hasSwapchainResolveAttachment() const { return m_usesSwapchainResolve; }
+
+    // Framebuffer creation helper
     std::vector<AttachmentHandle> getAllAttachmentHandles() const;
-
-    // Main execution method - orchestrates render pass execution
-    void execute(VkCommandBuffer commandBuffer,
-        FrameBufferHandle framebufferHandle,
-        const std::vector<RenderOrder*>& renderOrders,
-        Renderer& renderer,
-        AssetSystem& assetSystem);
 
     // Validation
     bool isComplete() const;
 
+    // Render pass control
+    void beginRenderPass(VkCommandBuffer commandBuffer,
+        VkFramebuffer framebuffer,
+        const VkExtent2D& renderArea) const;
+    void endRenderPass(VkCommandBuffer commandBuffer) const;
+
 protected:
-    // Helper methods for derived classes
+    // Setup interface - used by templates during node creation
     void addColorAttachment(AttachmentHandle handle, uint32_t index);
     void addDepthAttachment(AttachmentHandle handle, uint32_t index);
     void addResolveAttachment(AttachmentHandle handle, uint32_t index);
 
-    // Render pass management
-    void beginRenderPass(VkCommandBuffer commandBuffer,
-        VkRenderPass renderPass,
-        VkFramebuffer framebuffer) const;
-    void endRenderPass(VkCommandBuffer commandBuffer) const;
+    // swapchain attachments
+    void addSwapchainColorAttachment(uint32_t index);
+    void addSwapchainResolveAttachment(uint32_t index);
 
-    // Virtual method for custom render node behavior (optional override)
-    virtual void onBeforeRenderPass(VkCommandBuffer commandBuffer, Renderer& renderer) {}
-    virtual void onAfterRenderPass(VkCommandBuffer commandBuffer, Renderer& renderer) {}
+    // Extension points for derived classes
+    virtual void onBeforeRenderPass(CommandBuffer& commandBuffer) {}
+    virtual void onAfterRenderPass(CommandBuffer& commandBuffer) {}
 
 private:
-    RenderTemplateType m_templateType;
-    RenderPassHandle m_renderPassHandle;
-    RenderPassMetadata m_metadata;
+    const RenderNodeTemplate* m_template;       // Static template reference
+    RenderTarget m_renderTarget;                // Target specification
+    VkExtent2D m_extent;                       // Cached dimensions
+    SmartRenderPassHandle m_smartRenderPassHandle; // Smart handle to render pass
 
-    // Attachment storage
+    // Attachment configuration
     std::vector<NodeAttachment> m_colorAttachments;
-    NodeAttachment* m_depthAttachment = nullptr;
-    NodeAttachment* m_resolveAttachment = nullptr;
+    std::unique_ptr<NodeAttachment> m_depthAttachment;    // Single depth attachment
+    std::unique_ptr<NodeAttachment> m_resolveAttachment;  // Single resolve target
+
+    bool m_usesSwapchainColor = false;
+    bool m_usesSwapchainResolve = false;
+
+    // Helper method to create properly ordered clear values
+    std::vector<VkClearValue> createClearValues() const;
+
+    friend class RenderNodeTemplate;  // Allow template to call protected setup methods
+    friend class ForwardRenderNodeTemplate;
 };

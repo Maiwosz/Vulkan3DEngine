@@ -150,7 +150,7 @@ void Engine::initializeComponents(const InitParams& params) {
 
     // Renderer
     SPDLOG_DEBUG("Creating renderer");
-    m_renderer = std::make_unique<Renderer>(*m_settings, *m_window);
+    m_renderer = std::make_unique<EngineCore>(*m_settings, *m_window);
 
     // Asset system
     SPDLOG_DEBUG("Initializing asset system");
@@ -204,7 +204,6 @@ void Engine::update() {
     // Process rendering
     try {
         m_renderSystem->processOrders();
-        m_renderSystem->renderFrame();
     }
     catch (const std::exception& e) {
         SPDLOG_ERROR("Render error: {}", e.what());

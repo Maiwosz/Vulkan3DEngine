@@ -12,17 +12,19 @@
 #include <array>
 #include <UBODefinitions.h>
 #include "MaterialManager.h"
-#include "Renderer.h"
+#include "EngineCore.h"
 #include "MeshRenderOrder.h"
+#include "Registry.h"
 
+class Registry;
 
-class UniformBufferStage : public OrderProcessingStage {
+class UniformBufferStage : public ProcessingStage {
 public:
-    UniformBufferStage(Registry& registry, Renderer& renderer, AssetSystem& assetSystem);
+    UniformBufferStage(ProcessingContext& context, Registry& registry, EngineCore& renderer, AssetSystem& assetSystem);
     ~UniformBufferStage() override = default;
 
     // Process a single render order
-    void process(std::shared_ptr<RenderOrder> order) override;
+    ProcessingResult process(std::shared_ptr<RenderOrder> order) override;
 
 private:
     // References to needed systems
@@ -32,5 +34,5 @@ private:
     MaterialManager& m_materialManager;
 
     // Process specific order types
-    void processMeshOrder(std::shared_ptr<MeshRenderOrder> order);
+    ProcessingResult processMeshOrder(std::shared_ptr<MeshRenderOrder> order);
 };

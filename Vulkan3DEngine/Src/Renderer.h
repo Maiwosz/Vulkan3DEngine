@@ -1,95 +1,121 @@
 #pragma once
 #include "Prerequisites.h"
-#include "Window.h"
-#include "SwapChain.h"
-#include "ImGuiWrapper.h"
-#include "ShaderModuleManager.h"
-#include "CommandBuffer.h"
-#include "FrameManager.h"
-#include "RenderPassManager.h"
-#include "RenderNodeManager.h"
+#include "EngineCore.h"
 #include "VulkanContext.h"
+#include "FrameManager.h"
+#include "SwapChain.h"
 #include "AttachmentManager.h"
 #include "FrameBufferManager.h"
-#include "Event.h"
-#include "PipelineManager.h"
-#include "UniformBufferManager.h"
-#include "PipelineLayoutManager.h"
-#include "DescriptorLayoutManager.h"
-#include "ImageSamplerManager.h"
+#include "RenderPassManager.h"
+#include "VramManager.h"
 #include "DescriptorAllocator.h"
-#include "Settings.h"
+#include "PipelineManager.h"
+#include "RenderGraphExecutor.h"
+#include <memory>
+#include <vector>
 
-class Renderer
-{
+// Forward declarations
+class GpuCall;
+class MeshRenderer;
+class UIRenderer;
+class ImGuiWrapper;
+class RenderGraph;
+
+/**
+ * Core Renderer - orchestrates frame lifecycle and provides GPU context
+ * Simplified to focus on coordination rather than specific rendering operations
+ */
+class Renderer {
 public:
-    Renderer(Settings& settings, Window& window);
+    explicit Renderer(
+        EngineCore& engineCore,
+        VulkanContext& vulkanContext,
+        FrameManager& frameManager,
+        VramManager& vramManager,
+        SwapChain& swapChain,
+        AttachmentManager& attachmentManager,
+        FrameBufferManager& framebufferManager,
+        RenderPassManager& renderPassManager,
+        DescriptorAllocator& descriptorAllocator,
+        PipelineManager& pipelineManager,
+        ImGuiWrapper& imguiWrapper
+    );
     ~Renderer();
 
-    void advanceFrame();
+    // Frame lifecycle - main responsibility
+    bool beginFrame();
+    void endFrame();
 
-    void waitIdle() { vkDeviceWaitIdle(m_vulkanContext->logical().get()); }
+    // RenderGraph assignment
+    void assignRenderGraph(RenderGraph* renderGraph);
+    bool hasAssignedRenderGraph() const;
+    RenderGraph* getAssignedRenderGraph() const;
 
-    VulkanContext& vulkanContext() { return *m_vulkanContext; }
-    ShaderModuleManager& shaderModuleManager() { return *m_shaderModuleManager; }
-    CommandBufferManager& commandBufferManager() { return *m_commandBufferManager; }
-    SynchronizationResourceManager& synchronizationResourceManager() { return *m_syncResourceManager; }
-    FrameManager& frameManager() { return *m_frameManager; }
-    VramManager& vramManager() { return *m_vramManager; }
-    UniformBufferManager& uniformBufferManager() { return *m_uniformBufferManager; }
-    DescriptorLayoutManager& descriptorLayoutManager() { return *m_descriptorLayoutManager; }
-    PipelineLayoutManager& pipelineLayoutManager() { return *m_pipelineLayoutManager; }
-    SwapChain& swapChain() { return *m_swapChain; }
-    ImageSamplerManager& imageSamplerManager() { return *m_samplerManager; }
-    AttachmentManager& attachmentManager() { return *m_attachmentManager; }
-    RenderPassManager& renderPassManager() { return *m_renderPassManager; }
-	RenderNodeManager& renderNodeManager() { return *m_renderNodeManager; }
-    FrameBufferManager& framebufferManager() { return *m_framebufferManager; }
-    PipelineManager& pipelineManager() { return *m_pipelineManager; }
-    DescriptorAllocator& descriptorAllocator() { return *m_descriptorAllocator; }
-    ImGuiWrapper& imguiWrapper() { return *m_imguiWrapper; }
+    // GpuCall execution - simplified interface
+    bool executeGpuCall(GpuCall& gpuCall);
+    bool executeGpuCalls(const std::vector<std::unique_ptr<GpuCall>>& gpuCalls);
 
-    RenderPassHandle renderPass() {
-        SPDLOG_INFO("renderPass() called, m_mainRenderPassHandle.id = {}", m_mainRenderPassHandle.id);
-        RenderPassHandle result = m_mainRenderPassHandle;
-        SPDLOG_INFO("renderPass() returning, result.id = {}", result.id);
-        return result;
-    }
-    AttachmentHandle depthAttachmentHandle() { return m_depthAttachmentHandle; }
-    AttachmentHandle msColorAttachmentHandle() { return m_msColorAttachmentHandle; }
+    // RenderGraph-based execution - NEW
+    bool executeRenderGraph(const std::vector<std::unique_ptr<GpuCall>>& gpuCalls);
 
-    void recreateSwapChain();
-    void recreateRenderPass();
-    void recreateAttachments();
+    // Global rendering state management
+    bool bindPipeline(PipelineHandle pipelineHandle);
+    bool bindDescriptorSets(const std::vector<DescriptorSetHandle>& descriptorHandles);
+
+    // State queries
+    bool isFrameActive() const { return m_frameActive; }
+    bool isPipelineBound() const { return m_currentPipeline.isValid(); }
+    PipelineHandle getCurrentPipeline() const { return m_currentPipeline; }
+    uint32_t getCurrentImageIndex() const { return m_currentImageIndex; }
+
+    // Command buffer access
+    VkCommandBuffer getCurrentCommandBuffer() const;
+    VkCommandBuffer getTransferCommandBuffer() const;
+    VkCommandBuffer getImGuiCommandBuffer() const;
+
+    // Viewport management
+    void setViewport(VkExtent2D extent, float minDepth = 0.0f, float maxDepth = 1.0f);
+    void setViewport(uint32_t x, uint32_t y, uint32_t width, uint32_t height, float minDepth = 0.0f, float maxDepth = 1.0f);
+    void setScissor(VkExtent2D extent, VkOffset2D offset = { 0, 0 });
+    void setScissor(uint32_t x, uint32_t y, uint32_t width, uint32_t height);
+
+    // Renderer Sub Systems
+    MeshRenderer& meshRenderer() { return *m_meshRenderer; }
+    UIRenderer& uiRenderer() { return *m_uiRenderer; }
+    RenderGraphExecutor& renderGraphExecutor() { return *m_renderGraphExecutor; }
 
 private:
-    Settings& m_settings;
-    Window& m_window;
-    std::unique_ptr<VulkanContext> m_vulkanContext;
-    std::unique_ptr<ShaderModuleManager> m_shaderModuleManager;
-    std::unique_ptr<CommandBufferManager> m_commandBufferManager;
-    std::unique_ptr<SynchronizationResourceManager> m_syncResourceManager;
-    std::unique_ptr<FrameManager> m_frameManager;
-    std::unique_ptr<VramManager> m_vramManager;
-    std::unique_ptr<UniformBufferManager> m_uniformBufferManager;
-    std::unique_ptr<DescriptorLayoutManager> m_descriptorLayoutManager;
-    std::unique_ptr<PipelineLayoutManager> m_pipelineLayoutManager;
-    std::unique_ptr<SwapChain> m_swapChain;
-    std::unique_ptr<ImageSamplerManager> m_samplerManager;
-    std::unique_ptr<AttachmentManager> m_attachmentManager;
-    std::unique_ptr<RenderPassManager> m_renderPassManager;
-    std::unique_ptr<RenderNodeManager> m_renderNodeManager;
-    std::unique_ptr<FrameBufferManager> m_framebufferManager;
-    std::unique_ptr<PipelineManager> m_pipelineManager;
-    std::unique_ptr<DescriptorAllocator> m_descriptorAllocator;
-    std::unique_ptr<ImGuiWrapper> m_imguiWrapper;
+    // Engine references
+    EngineCore& m_engineCore;
+    VulkanContext& m_vulkanContext;
+    FrameManager& m_frameManager;
+    VramManager& m_vramManager;
+    SwapChain& m_swapChain;
+    AttachmentManager& m_attachmentManager;
+    FrameBufferManager& m_framebufferManager;
+    RenderPassManager& m_renderPassManager;
+    DescriptorAllocator& m_descriptorAllocator;
+    PipelineManager& m_pipelineManager;
+    ImGuiWrapper& m_imguiWrapper;
 
-    // Main render pass and resources
-    RenderPassHandle m_mainRenderPassHandle;
-    AttachmentHandle m_depthAttachmentHandle;
-    AttachmentHandle m_msColorAttachmentHandle;
+    // Service objects
+    std::unique_ptr<MeshRenderer> m_meshRenderer;
+    std::unique_ptr<UIRenderer> m_uiRenderer;
+    std::unique_ptr<RenderGraphExecutor> m_renderGraphExecutor;
 
-    // Helper methods
-    void createMainRenderPass();
-    void createImGuiWrapper();
+    // Frame state - SIMPLIFIED
+    bool m_frameActive = false;
+    uint32_t m_currentImageIndex = 0;
+
+    // Global rendering state
+    PipelineHandle m_currentPipeline;
+    VkPipelineLayout m_currentPipelineLayout = VK_NULL_HANDLE;
+
+    // Internal frame lifecycle methods
+    void prepareFrame();
+    uint32_t acquireSwapchainImage();
+    void submitAndPresent();
+    void cleanupFrame();
+    void handleSwapchainRecreation();
+    void ensureFrameActive() const;
 };

@@ -1,110 +1,117 @@
 #include "RenderNodeManager.h"
-#include "Renderer.h"
+#include "RenderNodeTemplate.h"
+#include "SwapChain.h"
 #include <stdexcept>
+#include "EngineCore.h"
 
-RenderNodeManager::RenderNodeManager(RenderPassManager& renderPassManager,
-    AttachmentManager& attachmentManager)
-    : m_renderPassManager(renderPassManager)
-    , m_attachmentManager(attachmentManager) {
+RenderNodeManager::RenderNodeManager(EngineCore& engineCore)
+	: m_engineCore(engineCore)
+    , m_renderPassManager(engineCore.renderPassManager())
+    , m_attachmentManager(engineCore.attachmentManager())
+    , m_swapChain(engineCore.swapChain()) {
 }
 
 RenderNodeManager::~RenderNodeManager() {
-    clearCache();
+    // Resources will be automatically destroyed when map is destroyed
+    // No need to manually clean up since we own all resources
 }
 
-void RenderNodeManager::registerTemplate(std::unique_ptr<RenderNodeTemplate> nodeTemplate) {
-    if (!nodeTemplate) {
-        throw std::invalid_argument("Cannot register null render node template");
+RenderNode* RenderNodeManager::getResource(RenderNodeHandle handle) {
+    auto it = m_resources.find(handle);
+    if (it != m_resources.end()) {
+        return it->second.node.get();
     }
-
-    RenderTemplateType templateType = nodeTemplate->getTemplateType();
-    size_t index = static_cast<size_t>(templateType);
-
-    if (index >= m_templates.size()) {
-        throw std::invalid_argument("Invalid template type");
-    }
-
-    if (m_templates[index]) {
-        throw std::invalid_argument("Template already registered for this type");
-    }
-
-    m_templates[index] = std::move(nodeTemplate);
+    return nullptr;
 }
 
-RenderNode* RenderNodeManager::getCachedNode(RenderTemplateType templateType,
-    const RenderPassMetadata& metadata) {
-    // Create cache key
-    RenderNodeCacheKey key = { templateType, metadata };
-
-    // Check cache first
-    auto it = m_nodeCache.find(key);
-    if (it != m_nodeCache.end()) {
-        return it->second.get();
-    }
-
-    // Create new node
-    auto node = createRenderNode(templateType, metadata);
-    if (!node) {
-        return nullptr;
-    }
-
-    RenderNode* nodePtr = node.get();
-    m_nodeCache[key] = std::move(node);
-
-    return nodePtr;
+bool RenderNodeManager::isValid(RenderNodeHandle handle) const {
+    auto it = m_resources.find(handle);
+    return it != m_resources.end() && !it->second.markedForDeletion;
 }
 
-void RenderNodeManager::executeRenderPass(RenderTemplateType templateType,
-    const RenderPassMetadata& metadata,
-    VkCommandBuffer commandBuffer,
-    FrameBufferHandle framebufferHandle,
-    const std::vector<RenderOrder*>& renderOrders,
-    Renderer& renderer,
-    AssetSystem& assetSystem) {
-    // Get cached node for this template type
-    RenderNode* node = getCachedNode(templateType, metadata);
-    if (!node) {
-        throw std::runtime_error("Failed to get render node for template type");
-    }
+void RenderNodeManager::releaseResource(RenderNodeHandle handle) {
+    auto it = m_resources.find(handle);
+    if (it != m_resources.end()) {
+        it->second.markedForDeletion = true;
 
-    // Execute the render pass
-    node->execute(commandBuffer, framebufferHandle, renderOrders, renderer, assetSystem);
+        // If no references, actually remove it
+        if (it->second.referenceCount == 0) {
+            // Remove from all type caches
+            for (auto& [typeIndex, typeCache] : m_nodeCache) {
+                for (auto cacheIt = typeCache.begin(); cacheIt != typeCache.end(); ++cacheIt) {
+                    if (cacheIt->second == handle) {
+                        typeCache.erase(cacheIt);
+                        break;
+                    }
+                }
+            }
+
+            m_resources.erase(it);
+        }
+    }
+}
+
+void RenderNodeManager::addReference(RenderNodeHandle handle) {
+    auto it = m_resources.find(handle);
+    if (it != m_resources.end()) {
+        it->second.referenceCount++;
+        it->second.markedForDeletion = false; // Un-mark for deletion if referenced again
+    }
+}
+
+void RenderNodeManager::removeReference(RenderNodeHandle handle) {
+    auto it = m_resources.find(handle);
+    if (it != m_resources.end() && it->second.referenceCount > 0) {
+        it->second.referenceCount--;
+
+        // If marked for deletion and no references, remove it
+        if (it->second.referenceCount == 0 && it->second.markedForDeletion) {
+            // Remove from all type caches
+            for (auto& [typeIndex, typeCache] : m_nodeCache) {
+                for (auto cacheIt = typeCache.begin(); cacheIt != typeCache.end(); ++cacheIt) {
+                    if (cacheIt->second == handle) {
+                        typeCache.erase(cacheIt);
+                        break;
+                    }
+                }
+            }
+
+            m_resources.erase(it);
+        }
+    }
 }
 
 void RenderNodeManager::clearCache() {
+    // Mark all cached nodes for deletion
+    for (const auto& [typeIndex, typeCache] : m_nodeCache) {
+        for (const auto& [keyHash, handle] : typeCache) {
+            auto resourceIt = m_resources.find(handle);
+            if (resourceIt != m_resources.end()) {
+                resourceIt->second.markedForDeletion = true;
+
+                // If no references, remove immediately
+                if (resourceIt->second.referenceCount == 0) {
+                    m_resources.erase(resourceIt);
+                }
+            }
+        }
+    }
+
     m_nodeCache.clear();
 }
 
 size_t RenderNodeManager::getCacheSize() const {
-    return m_nodeCache.size();
+    size_t totalSize = 0;
+    for (const auto& [typeIndex, typeCache] : m_nodeCache) {
+        totalSize += typeCache.size();
+    }
+    return totalSize;
 }
 
-bool RenderNodeManager::hasTemplate(RenderTemplateType templateType) const {
-    size_t index = static_cast<size_t>(templateType);
-    return index < m_templates.size() && m_templates[index] != nullptr;
+RenderNodeHandle RenderNodeManager::generateHandle() {
+    return RenderNodeHandle(m_nextHandleId++);
 }
 
-RenderNodeTemplate* RenderNodeManager::getTemplate(RenderTemplateType templateType) const {
-    size_t index = static_cast<size_t>(templateType);
-    if (index >= m_templates.size()) {
-        return nullptr;
-    }
-    return m_templates[index].get();
-}
-
-std::unique_ptr<RenderNode> RenderNodeManager::createRenderNode(RenderTemplateType templateType,
-    const RenderPassMetadata& metadata) {
-    // Get template
-    RenderNodeTemplate* nodeTemplate = getTemplate(templateType);
-    if (!nodeTemplate) {
-        throw std::runtime_error("No template registered for template type");
-    }
-
-    // Check compatibility
-    if (!nodeTemplate->isCompatible(metadata)) {
-        throw std::runtime_error("Metadata not compatible with template");
-    }
-
-    // Create render node
-    return nodeTemplate->createRenderNode(m_renderPassManager, m_attachmentManager, metadata);
+SmartHandle<RenderNodeHandle, RenderNode> RenderNodeManager::createSmartHandle(RenderNodeHandle handle) {
+    return makeSmartHandle(handle);
 }

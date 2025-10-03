@@ -1,39 +1,40 @@
 #pragma once
 #include <memory>
 #include <vector>
-#include <unordered_map>
-#include <functional>
 #include "RenderOrder.h"
-#include "Registry.h"
+#include "ProcessingContext.h"
 
-class OrderProcessingStage {
+// Result of processing a render order through a stage
+enum class ProcessingResult {
+    Success,    // Order processed successfully, continue to next stage
+    Failure,    // Order failed processing, discard completely
+    Blocked     // Order is blocked waiting for conditions, retry later
+};
+
+// Convert ProcessingResult to string for logging
+inline std::string processingResultToString(ProcessingResult result) {
+    switch (result) {
+    case ProcessingResult::Success: return "Success";
+    case ProcessingResult::Failure: return "Failure";
+    case ProcessingResult::Blocked: return "Blocked";
+    default: return "Unknown";
+    }
+}
+
+class ProcessingStage {
 public:
-    virtual ~OrderProcessingStage() = default;
+    ProcessingStage(ProcessingContext& context) : m_context(context) {}
+    virtual ~ProcessingStage() = default;
 
-    // Process a single render order and optionally pass it to next stages
-    virtual void process(std::shared_ptr<RenderOrder> order) = 0;
+    // Non-copyable, non-movable
+    ProcessingStage(const ProcessingStage&) = delete;
+    ProcessingStage& operator=(const ProcessingStage&) = delete;
+    ProcessingStage(ProcessingStage&&) = delete;
+    ProcessingStage& operator=(ProcessingStage&&) = delete;
 
-    // Process a batch of render orders
-    virtual void processBatch(const std::vector<std::shared_ptr<RenderOrder>>& orders) {
-        for (const auto& order : orders) {
-            process(order);
-        }
-    }
-
-    // Connect this stage to next stages based on render order type
-    void connectTo(RenderOrderType type, std::shared_ptr<OrderProcessingStage> nextStage) {
-        m_nextStages[type] = nextStage;
-    }
-
+    // Main processing method - each stage implements its own logic
+    // Returns ProcessingResult indicating success, failure, or blocked state
+    virtual ProcessingResult process(std::shared_ptr<RenderOrder> order) = 0;
 protected:
-    // Forward render order to the next appropriate stage
-    void forwardToNextStage(std::shared_ptr<RenderOrder> order) {
-        auto type = order->getType();
-        auto it = m_nextStages.find(type);
-        if (it != m_nextStages.end() && it->second) {
-            it->second->process(order);
-        }
-    }
-
-    std::unordered_map<RenderOrderType, std::shared_ptr<OrderProcessingStage>> m_nextStages;
+    ProcessingContext& m_context;
 };

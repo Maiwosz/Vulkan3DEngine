@@ -1,94 +1,64 @@
 #pragma once
-#include "Prerequisites.h"
 #include "ProcessingStage.h"
-#include "RenderOrder.h"
+#include "CameraRenderOrder.h"
+#include "MeshRenderOrder.h"
 #include "Renderer.h"
+#include "MeshRenderer.h"
 #include "AssetSystem.h"
-#include "VulkanContext.h"
-#include "FrameManager.h"
-#include "VramManager.h"
-#include "SwapChain.h"
-#include "AttachmentManager.h"
-#include "FrameBufferManager.h"
-#include "RenderPassManager.h"
-#include "PipelineManager.h"
-#include "MeshManager.h"
-#include "DescriptorAllocator.h"
-#include "ImGuiWrapper.h"
+#include <spdlog/spdlog.h>
 #include <memory>
 #include <vector>
-#include <functional>
 
-class RenderStage: public OrderProcessingStage {
+// Forward declarations
+class GpuCall;
+class DrawCall;
+
+/**
+ * RenderStage - executes camera render orders using RenderGraphExecutor
+ *
+ * UPDATED ARCHITECTURE:
+ * For each camera render order:
+ * 1. Assign RenderGraph from camera order to renderer
+ * 2. Begin frame
+ * 3. Collect already prepared DrawCall commands from all culled meshes (created in AssetResolutionStage)
+ * 4. Execute all DrawCalls through RenderGraphExecutor (which handles render pass management)
+ * 5. End frame
+ *
+ * RenderGraphExecutor handles:
+ * - Render graph traversal and execution
+ * - Render pass lifecycle per node
+ * - Framebuffer management
+ * - Viewport/scissor setup
+ *
+ * DrawCall handles:
+ * - Mesh geometry binding and drawing
+ * - Validation of mesh data
+ * - Pipeline configuration
+ *
+ * AssetResolutionStage handles:
+ * - Creating and configuring DrawCall with mesh data
+ */
+class RenderStage : public ProcessingStage {
 public:
-    using UIRenderCallback = std::function<void()>;
+    RenderStage(ProcessingContext& context, EngineCore& engineCore, AssetSystem& assetSystem);
+    ~RenderStage() override = default;
 
-    RenderStage(Renderer& renderer, AssetSystem& assetSystem);
-    ~RenderStage() = default;
+    ProcessingResult process(std::shared_ptr<RenderOrder> order) override;
 
-    void process(std::shared_ptr<RenderOrder> order);
-    void executeRenderPass();
-
-    void setUIRenderCallback(UIRenderCallback callback) { m_uiRenderCallback = callback; }
 private:
-    // References to renderer components
     Renderer& m_renderer;
-    VulkanContext& m_vulkanContext;
-    FrameManager& m_frameManager;
-    VramManager& m_vramManager;
-    SwapChain& m_swapChain;
-    AttachmentManager& m_attachmentManager;
-    FrameBufferManager& m_framebufferManager;
-    RenderPassManager& m_renderPassManager;
-    PipelineManager& m_pipelineManager;
     AssetSystem& m_assetSystem;
-    DescriptorAllocator& m_descriptorAllocator;
 
-    // UI rendering callback
-    UIRenderCallback m_uiRenderCallback;
+    // Process camera render order using updated architecture
+    ProcessingResult processCameraOrder(std::shared_ptr<CameraRenderOrder> cameraOrder);
 
-    // Render pass and attachment handles
-    AttachmentHandle m_depthAttachmentHandle;
-    AttachmentHandle m_msColorAttachmentHandle;
-    RenderPassHandle m_mainRenderPassHandle;
+    // Assign render graph from camera order to renderer
+    bool assignRenderGraphToRenderer(const CameraRenderOrder& cameraOrder);
 
-    // Frame synchronization helpers
-    void waitForPreviousFrame();
-    void signalFenceToPreventDeadlock(VkFence fence);
+    // Collect already prepared DrawCall commands from all meshes in camera order
+    std::vector<std::unique_ptr<GpuCall>> collectDrawCallsFromCamera(const CameraRenderOrder& cameraOrder);
 
-    // Command buffer management
-    void resetAndBeginCommandBuffers();
-    void endCommandBuffersOnError();
-
-    // Transfer operations
-    void executeTransferOperations();
-
-    // Swapchain operations
-    uint32_t acquireSwapchainImage();
-    void handleSwapchainRecreation();
-    void presentImage(uint32_t imageIndex);
-
-    // Framebuffer management
-    void releaseCurrentFramebuffer();
-    FrameBufferHandle createFramebufferForImage(uint32_t imageIndex);
-
-    // Render pass execution
-    void beginRenderPass(FrameBufferHandle framebufferHandle);
-    void endRenderPass();
-
-    // Command submission
-    void submitGraphicsCommands();
-
-    // Cleanup
-    void cleanupFrame();
-
-    // Render command execution
-    void executeRenderCommands(
-        VkCommandBuffer commandBuffer,
-        uint32_t imageIndex,
-        const std::vector<std::shared_ptr<RenderOrder>>& renderOrders
-    );
-
-    // UI rendering
-    void renderUI(VkCommandBuffer commandBuffer);
+    // Validation helpers
+    bool validateCameraOrder(const CameraRenderOrder& cameraOrder) const;
+    bool validateMeshOrder(const MeshRenderOrder& meshOrder) const;
 };

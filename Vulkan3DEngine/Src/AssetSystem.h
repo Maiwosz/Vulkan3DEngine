@@ -11,11 +11,11 @@
 #include "ComponentManager.h"
 #include <memory>
 
-class Renderer; // Forward declaration
+class EngineCore; // Forward declaration
 
 class AssetSystem {
 public:
-    AssetSystem(Renderer& renderer);
+    AssetSystem(EngineCore& renderer);
     ~AssetSystem();
 
     // Core asset system methods
@@ -30,7 +30,7 @@ public:
     PrefabManager& prefabManager() { return *m_prefabManager; }
     SceneManager& sceneManager() { return *m_sceneManager; }
 private:
-    Renderer& m_renderer;
+    EngineCore& m_renderer;
     std::unique_ptr<AssetManager> m_assetManager;
 
     // Asset handlers

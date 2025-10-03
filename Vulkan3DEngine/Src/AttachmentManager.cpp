@@ -75,7 +75,7 @@ void AttachmentManager::removeReference(AttachmentHandle handle) {
 }
 
 // AttachmentManager specific methods
-AttachmentHandle AttachmentManager::acquireAttachment(const AttachmentSpec& spec) {
+AttachmentHandle AttachmentManager::acquireAttachment(const AttachmentImageSpec& spec) {
     // Check if an attachment with this spec already exists
     auto it = m_specToHandle.find(spec);
     if (it != m_specToHandle.end()) {
@@ -91,23 +91,17 @@ AttachmentHandle AttachmentManager::registerExternalImage(
     VramHandle imageHandle,
     VkFormat format,
     VkExtent2D extent,
-    VkImageLayout initialLayout,
-    VkImageLayout finalLayout,
-    AttachmentType type
+    AttachmentType type,
+    VkSampleCountFlagBits samples,
+    VkImageUsageFlags usage
 ) {
-    // Use the factory to create spec for this external image
-    AttachmentSpec spec = m_factory.createSwapchainColorAttachment(
-        format,
-        extent,
-        initialLayout,
-        finalLayout
-    );
-
-    // Override the type if different from color
-    if (type != AttachmentType::Color) {
-        spec.type = type;
-        spec.usage = m_factory.getDefaultUsageFlags(type);
-    }
+    // Create image spec for this external image
+    AttachmentImageSpec spec;
+    spec.format = format;
+    spec.extent = extent;
+    spec.samples = samples;
+    spec.usage = usage;
+    spec.type = type;
 
     // Create image view for this external image
     VkImageView imageView = createImageView(imageHandle, spec);
@@ -125,7 +119,66 @@ AttachmentHandle AttachmentManager::registerExternalImage(
     return handle;
 }
 
-AttachmentHandle AttachmentManager::createAttachment(const AttachmentSpec& spec) {
+void AttachmentManager::recreateAttachment(
+    AttachmentHandle handle,
+    const AttachmentImageSpec& newSpec
+) {
+    auto it = m_attachments.find(handle);
+    if (it == m_attachments.end()) {
+        return; // Handle doesn't exist
+    }
+
+    AttachmentData& data = it->second;
+    const AttachmentImageSpec& oldSpec = data.attachment->getSpec();
+
+    // Remove old spec mapping
+    m_specToHandle.erase(oldSpec);
+
+    // Destroy old image view
+    vkDestroyImageView(m_device.get(), data.attachment->getImageView(), nullptr);
+
+    // Free old image resource
+    m_vramManager.freeResource(data.attachment->getImageHandle());
+
+    // Determine image usage flags
+    VkImageUsageFlags usage = newSpec.usage;
+    if (usage == 0) {
+        usage = m_factory.getDefaultUsageFlags(newSpec.type);
+    }
+
+    // Create new image
+    VkImageCreateInfo imageInfo{};
+    imageInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+    imageInfo.imageType = VK_IMAGE_TYPE_2D;
+    imageInfo.extent.width = newSpec.extent.width;
+    imageInfo.extent.height = newSpec.extent.height;
+    imageInfo.extent.depth = 1;
+    imageInfo.mipLevels = 1;
+    imageInfo.arrayLayers = 1;
+    imageInfo.format = newSpec.format;
+    imageInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
+    imageInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    imageInfo.usage = usage;
+    imageInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+    imageInfo.samples = newSpec.samples;
+    imageInfo.flags = 0;
+
+    VramHandle newImageHandle = m_vramManager.createImage(
+        imageInfo,
+        VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT
+    );
+
+    // Create new image view
+    VkImageView newImageView = createImageView(newImageHandle, newSpec);
+
+    // Update attachment with new data
+    data.attachment = std::make_unique<Attachment>(newImageHandle, newImageView, newSpec);
+
+    // Add new spec mapping
+    m_specToHandle[newSpec] = handle;
+}
+
+AttachmentHandle AttachmentManager::createAttachment(const AttachmentImageSpec& spec) {
     // Ensure the attachment doesn't already exist
     assert(m_specToHandle.find(spec) == m_specToHandle.end());
 
@@ -211,7 +264,7 @@ void AttachmentManager::destroyAttachment(AttachmentHandle handle) {
     }
 }
 
-VkImageView AttachmentManager::createImageView(VramHandle imageHandle, const AttachmentSpec& spec) {
+VkImageView AttachmentManager::createImageView(VramHandle imageHandle, const AttachmentImageSpec& spec) {
     // Get the image from VRAM manager
     Image* image = m_vramManager.getResource<Image>(imageHandle);
     if (!image) {

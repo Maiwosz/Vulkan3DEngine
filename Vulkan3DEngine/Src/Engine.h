@@ -3,7 +3,7 @@
 #include "Settings.h"
 #include "Window.h"
 #include "InputSystem.h"
-#include "Renderer.h"
+#include "EngineCore.h"
 #include "ThreadPool.h"
 #include "AssetSystem.h"
 #include "RenderSystem.h"
@@ -15,7 +15,7 @@
 class Window;
 class Settings;
 class InputSystem;
-class Renderer;
+class EngineCore;
 class ThreadPool;
 class AssetSystem;
 class RenderSystem;
@@ -51,7 +51,7 @@ public:
     Settings& settings() const { return *m_settings; }
     Window& window() const { return *m_window; }
     InputSystem& inputSystem() const { return *m_inputSystem; }
-    Renderer& renderer() const { return *m_renderer; }
+    EngineCore& renderer() const { return *m_renderer; }
     Scene& scene() const { return *m_scene; }
     ThreadPool& threadPool() const { return *m_threadPool; }
     AssetSystem& assetSystem() const { return *m_assetSystem; }
@@ -97,7 +97,7 @@ private:
     std::unique_ptr<Window> m_window;
     std::unique_ptr<ThreadPool> m_threadPool;
     std::unique_ptr<InputSystem> m_inputSystem;
-    std::unique_ptr<Renderer> m_renderer;
+    std::unique_ptr<EngineCore> m_renderer;
     std::unique_ptr<Registry> m_registry;
     std::unique_ptr<AssetSystem> m_assetSystem;
     std::unique_ptr<Scene> m_scene;

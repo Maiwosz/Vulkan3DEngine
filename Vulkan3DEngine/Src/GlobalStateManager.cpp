@@ -4,7 +4,7 @@
 #include <UBOStandardDefinitions.h>
 
 
-GlobalStateManager::GlobalStateManager(Registry& registry, Renderer& renderer)
+GlobalStateManager::GlobalStateManager(Registry& registry, EngineCore& renderer)
     : m_registry(registry),
     m_uniformBufferManager(renderer.uniformBufferManager()),
     m_descriptorAllocator(renderer.descriptorAllocator()),
@@ -206,8 +206,8 @@ void GlobalStateManager::applyGlobalDataToMesh(std::shared_ptr<MeshRenderOrder> 
     }
 
     // Set global SmartHandle references on the mesh - SmartHandle automatycznie zarządza referencjami
-    mesh->globalUBOHandle = m_globalUBO;
-    mesh->globalDescriptorSetHandle = m_globalDescriptorSet;
+    //mesh->globalUBOHandle = m_globalUBO;
+    //mesh->globalDescriptorSetHandle = m_globalDescriptorSet;
 
     SPDLOG_DEBUG("Applied global data to mesh, entity: {}", mesh->entity.id);
 }

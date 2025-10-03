@@ -55,12 +55,21 @@ public:
         const std::vector<AssetLib::MipLevel>& mipLevels = {}
     );
 
-    // Execute all queued transfers
+    // Execute all queued transfers - handles the complete transfer process
     // Should be called at the beginning of each frame before any rendering
     void executeTransfers(CommandBuffer& transferCmd, CommandBuffer& graphicsCmd);
 
+    // New method: Execute complete transfer pass including command buffer management
+    void executeCompleteTransferPass();
+
     // Check if there are any pending transfers
     bool hasPendingTransfers() const;
+
+    // Check if transfers were executed in the current frame
+    bool hadTransfersThisFrame() const { return m_hadTransfersThisFrame; }
+
+    // Reset frame state - called at frame cleanup
+    void resetFrameState();
 
 private:
     VulkanContext& m_context;
@@ -71,4 +80,11 @@ private:
     mutable std::mutex m_mutex;
     std::vector<BufferTransferRequest> m_pendingBufferTransfers;
     std::vector<ImageTransferRequest> m_pendingImageTransfers;
+
+    // Frame state tracking
+    bool m_hadTransfersThisFrame = false;
+
+    // Internal helper methods
+    void processBufferTransfers(const std::vector<BufferTransferRequest>& bufferTransfers, CommandBuffer& transferCmd);
+    void processImageTransfers(const std::vector<ImageTransferRequest>& imageTransfers, CommandBuffer& transferCmd, CommandBuffer& graphicsCmd);
 };

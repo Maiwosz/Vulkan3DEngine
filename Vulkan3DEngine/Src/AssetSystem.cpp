@@ -4,7 +4,7 @@
 #include "Engine.h"
 #include <spdlog/spdlog.h>
 
-AssetSystem::AssetSystem(Renderer& renderer)
+AssetSystem::AssetSystem(EngineCore& renderer)
     : m_renderer(renderer)
 {
     SPDLOG_DEBUG("Creating AssetSystem");

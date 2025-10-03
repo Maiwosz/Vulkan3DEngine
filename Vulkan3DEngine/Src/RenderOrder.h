@@ -11,7 +11,7 @@
 
 // Forward declarations
 class Buffer;
-class Renderer;
+class EngineCore;
 class AssetSystem;
 
 enum class RenderOrderType {
@@ -38,13 +38,6 @@ public:
 
     // Type identification
     virtual RenderOrderType getType() const = 0;
-
-    // Polymorphic execution - each render order type implements its own rendering logic
-    virtual void execute(VkCommandBuffer commandBuffer, Renderer& renderer, AssetSystem& assetSystem) {
-        // Default implementation for unsupported render order types
-        SPDLOG_ERROR("RenderOrder::execute() called for unsupported type: {}",
-            renderOrderTypeToString(getType()));
-    }
 
     Entity entity;
 };

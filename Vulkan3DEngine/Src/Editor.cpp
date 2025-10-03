@@ -3,6 +3,7 @@
 #include "Paths.h"
 #include <filesystem>
 #include <iostream>
+#include "UIRenderer.h"
 
 Editor::Editor(const std::string& sourceRelative, const std::string& destRelative)
     : m_sourceRelative(sourceRelative)
@@ -45,7 +46,7 @@ Editor::Editor(const std::string& sourceRelative, const std::string& destRelativ
     // Initialize EditorUI with engine reference
     m_editorUI = std::make_unique<EditorUI>(*m_engine);
 
-    m_engine->renderSystem().renderStage().setUIRenderCallback(
+    m_engine->renderer().renderer().uiRenderer().addCallback(
         [this]() {
             m_editorUI->renderWindows();
         }

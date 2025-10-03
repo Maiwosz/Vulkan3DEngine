@@ -1,348 +1,406 @@
 #include "Renderer.h"
-#include "VulkanUtilities.h"
+#include "MeshRenderer.h"
+#include "UIRenderer.h"
+#include "ImGuiWrapper.h"
+#include "Pipeline.h"
+#include "GpuCall.h"
 #include <stdexcept>
-#include "Engine.h"
-#include "GraphicsTypes.h"
+#include <array>
+#include <spdlog/spdlog.h>
 
-Renderer::Renderer(Settings& settings, Window& window) :m_settings(settings), m_window(window) {
-    try {
-        // Configure instance
-        Instance::Config instanceConfig;
-        instanceConfig.enableValidationLayers = true;
-        instanceConfig.enableDebugPrintf = false;
-        instanceConfig.validationLayers = { "VK_LAYER_KHRONOS_validation" };
-        instanceConfig.requiredExtensions = VulkanUtils::getRequiredExtensions(instanceConfig.enableValidationLayers);
+Renderer::Renderer(
+    EngineCore& engineCore,
+    VulkanContext& vulkanContext,
+    FrameManager& frameManager,
+    VramManager& vramManager,
+    SwapChain& swapChain,
+    AttachmentManager& attachmentManager,
+    FrameBufferManager& framebufferManager,
+    RenderPassManager& renderPassManager,
+    DescriptorAllocator& descriptorAllocator,
+    PipelineManager& pipelineManager,
+    ImGuiWrapper& imguiWrapper)
+    : m_engineCore(engineCore),
+    m_vulkanContext(vulkanContext),
+    m_frameManager(frameManager),
+    m_vramManager(vramManager),
+    m_swapChain(swapChain),
+    m_attachmentManager(attachmentManager),
+    m_framebufferManager(framebufferManager),
+    m_renderPassManager(renderPassManager),
+    m_descriptorAllocator(descriptorAllocator),
+    m_pipelineManager(pipelineManager),
+    m_imguiWrapper(imguiWrapper) {
 
-        // Create Vulkan context
-        m_vulkanContext = std::make_unique<VulkanContext>(
-            instanceConfig,
-            m_window,
-            m_settings,
-            std::vector<const char*>{VK_KHR_SWAPCHAIN_EXTENSION_NAME}
-        );
+    // Create service objects - simplified initialization
+    m_meshRenderer = std::make_unique<MeshRenderer>(m_vulkanContext, m_vramManager);
+    m_uiRenderer = std::make_unique<UIRenderer>(*this, m_imguiWrapper);
 
-        // Initialize managers
-        m_commandBufferManager = std::make_unique<CommandBufferManager>(*m_vulkanContext);
-        m_syncResourceManager = std::make_unique<SynchronizationResourceManager>(m_vulkanContext->logical());
-        m_frameManager = std::make_unique<FrameManager>(
-            *m_vulkanContext,
-            *m_syncResourceManager,
-            *m_commandBufferManager,
-            m_settings.getFramesInFlight()
-        );
-        m_vramManager = std::make_unique<VramManager>(
-            *m_vulkanContext,
-            *m_frameManager,
-            *m_commandBufferManager,
-            *m_syncResourceManager
-        );
-        m_shaderModuleManager = std::make_unique<ShaderModuleManager>(
-            m_vulkanContext->logical()
-        );
-        m_descriptorLayoutManager = std::make_unique<DescriptorLayoutManager>(
-            m_vulkanContext->logical()
-        );
-        m_uniformBufferManager = std::make_unique<UniformBufferManager>(
-            *m_vramManager
-        );
-        m_pipelineLayoutManager = std::make_unique<PipelineLayoutManager>(
-            m_vulkanContext->logical()
-        );
-        m_swapChain = std::make_unique<SwapChain>(
-            m_vulkanContext->surface(),
-            m_vulkanContext->physical(),
-            m_vulkanContext->logical(),
-            *m_vramManager,
-            window,
-            settings
-        );
-        SamplerSettings samplerSettings;
-        samplerSettings.textureFiltering = m_settings.getTextureFiltering();
-        samplerSettings.mipmapMode = m_settings.getMipmapMode();
-        samplerSettings.maxAnisotropy = m_settings.getCurrentAnisotropyValue();
-        samplerSettings.anisotropySupported = m_settings.getHardwareLimits().anisotropySupported;
-
-        m_samplerManager = std::make_unique<ImageSamplerManager>(
-            m_vulkanContext->logical(),
-            samplerSettings
-        );
-        m_attachmentManager = std::make_unique<AttachmentManager>(
-            m_vulkanContext->logical(),
-            *m_vramManager
-        );
-        m_renderPassManager = std::make_unique<RenderPassManager>(
-            m_vulkanContext->logical()
-        );
-        m_framebufferManager = std::make_unique<FrameBufferManager>(
-            m_vulkanContext->logical(),
-            *m_renderPassManager,
-            *m_attachmentManager
-        );
-        m_pipelineManager = std::make_unique<PipelineManager>(
-            m_vulkanContext->logical(),
-            *m_shaderModuleManager,
-            *m_pipelineLayoutManager
-        );
-        DescriptorAllocator::PoolConfig allocConfig;
-        allocConfig.initialSets = 512;
-        allocConfig.ratios = {
-            { VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1.0f },
-            { VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 4.0f }
-        };
-        allocConfig.growthFactor = 1.5f;
-
-        m_descriptorAllocator = std::make_unique<DescriptorAllocator>(
-            m_vulkanContext->logical(),
-            allocConfig
-        );
-
-        // Create main render pass
-        createMainRenderPass();
-
-        // Create ImGui wrapper after render pass is created
-        createImGuiWrapper();
-
-    }
-    catch (const std::exception& e) {
-        throw std::runtime_error("Renderer initialization failed: " + std::string(e.what()));
-    }
+    m_renderGraphExecutor = std::make_unique<RenderGraphExecutor>(
+        engineCore,
+        *this
+    );
 }
 
 Renderer::~Renderer() {
-    // Wait for all operations to complete before destroying resources
-    if (m_vulkanContext && m_vulkanContext->logical().get() != VK_NULL_HANDLE) {
-        vkDeviceWaitIdle(m_vulkanContext->logical().get());
+    if (m_frameActive) {
+        cleanupFrame();
+    }
+}
+
+bool Renderer::executeGpuCall(GpuCall& gpuCall) {
+    if (!m_frameActive) {
+        SPDLOG_ERROR("Renderer: Cannot execute GPU call - no active frame");
+        return false;
     }
 
-    // Reset frame manager to ensure no pending frames hold references
-    if (m_frameManager) {
-        m_frameManager->waitForAllFrames();
+    return gpuCall.execute(*this, m_engineCore);
+}
+
+bool Renderer::executeGpuCalls(const std::vector<std::unique_ptr<GpuCall>>& gpuCalls) {
+    if (!m_frameActive) {
+        SPDLOG_ERROR("Renderer: Cannot execute GPU calls - no active frame");
+        return false;
     }
 
-    m_imguiWrapper.reset();
-
-    // Now destroy managers in proper order
-    // Destroy high-level managers first
-    m_frameManager.reset();
-    m_commandBufferManager.reset();
-
-    // Destroy rendering resources
-    m_framebufferManager.reset();
-    m_pipelineManager.reset();
-    m_renderPassManager.reset();
-    m_pipelineLayoutManager.reset();
-    m_descriptorAllocator.reset();
-    m_descriptorLayoutManager.reset();
-    m_shaderModuleManager.reset();
-
-    // Destroy resource managers
-    m_attachmentManager.reset();
-    m_samplerManager.reset();
-    m_uniformBufferManager.reset();
-    m_swapChain.reset();
-
-    // Destroy core managers
-    m_vramManager.reset();
-    m_syncResourceManager.reset();
-
-    // Finally destroy the Vulkan context
-    m_vulkanContext.reset();
-}
-
-void Renderer::advanceFrame()
-{
-    m_frameManager->advanceFrame();
-}
-
-void Renderer::recreateSwapChain() {
-    SPDLOG_INFO("Starting swapchain recreation");
-
-    // First, wait for all queues to be idle - this is safer than waiting for fences
-    vkQueueWaitIdle(m_vulkanContext->logical().getQueue(LogicalDevice::QueueType::Graphics));
-    vkQueueWaitIdle(m_vulkanContext->logical().getQueue(LogicalDevice::QueueType::Transfer));
-
-    // Wait for all frames to complete to ensure no descriptor sets are in use
-    m_frameManager->waitForAllFrames();
-
-    // Reset all frame command buffers to a clean state
-    m_frameManager->resetAllFrames();
-
-    // Now wait for device to be completely idle
-    vkDeviceWaitIdle(m_vulkanContext->logical().get());
-
-    SPDLOG_INFO("Device is idle, proceeding with swapchain recreation");
-
-    // Recreate the swap chain
-    m_swapChain->recreateSwapChain();
-
-    // Swap chain recreation affects attachments and render pass
-    recreateAttachments();
-    recreateRenderPass();
-    m_imguiWrapper->recreate();
-
-    SPDLOG_INFO("Swapchain recreation completed successfully");
-}
-
-void Renderer::recreateAttachments() {
-    // Get current settings
-    VkSampleCountFlagBits samples = Graphics::convertSampleCount(m_settings.getMsaaSamples());
-    VkExtent2D newExtent = m_swapChain->getSwapChainExtent();
-    VkFormat depthFormat = m_vulkanContext->physical().findDepthFormat();
-
-    // Release existing attachments
-    if (m_attachmentManager->isValid(m_msColorAttachmentHandle)) {
-        m_attachmentManager->releaseResource(m_msColorAttachmentHandle);
-    }
-    if (m_attachmentManager->isValid(m_depthAttachmentHandle)) {
-        m_attachmentManager->releaseResource(m_depthAttachmentHandle);
+    bool allSucceeded = true;
+    for (const auto& gpuCall : gpuCalls) {
+        if (!gpuCall->execute(*this, m_engineCore)) {
+            SPDLOG_ERROR("Renderer: GpuCall execution failed");
+            allSucceeded = false;
+            // Continue executing other calls or break here depending on desired behavior
+        }
     }
 
-    // Get attachment factory
-    AttachmentFactory& factory = m_attachmentManager->getFactory();
-
-    // Create new MSAA color attachment using factory
-    AttachmentSpec msColorSpec = factory.createMSAAColorAttachment(
-        m_swapChain->getImageFormat(),
-        newExtent,
-        samples
-    );
-
-    // Create new depth attachment using factory
-    AttachmentSpec depthSpec = factory.createMSAADepthAttachment(
-        depthFormat,
-        newExtent,
-        samples
-    );
-
-    // Acquire new attachments
-    m_msColorAttachmentHandle = m_attachmentManager->acquireAttachment(msColorSpec);
-    m_depthAttachmentHandle = m_attachmentManager->acquireAttachment(depthSpec);
-
-    // Notify framebuffer manager of the resize
-    m_framebufferManager->onResize(newExtent);
+    return allSucceeded;
 }
 
-void Renderer::recreateRenderPass() {
-    // Get current settings
-    VkSampleCountFlagBits samples = Graphics::convertSampleCount(m_settings.getMsaaSamples());
-    VkFormat depthFormat = m_vulkanContext->physical().findDepthFormat();
+bool Renderer::executeRenderGraph(const std::vector<std::unique_ptr<GpuCall>>& gpuCalls) {
+    if (!m_frameActive) {
+        SPDLOG_ERROR("Renderer: Cannot execute render graph - no active frame");
+        return false;
+    }
 
-    // Get attachment factory
-    AttachmentFactory& factory = m_attachmentManager->getFactory();
+    if (!m_renderGraphExecutor) {
+        SPDLOG_ERROR("Renderer: RenderGraphExecutor not initialized");
+        return false;
+    }
 
-    // Create new render pass configuration using factory
-    RenderPassConfig renderPassConfig;
+    if (!hasAssignedRenderGraph()) {
+        SPDLOG_ERROR("Renderer: No render graph assigned");
+        return false;
+    }
 
-    // MSAA color attachment - use factory method
-    AttachmentSpec msColorAttachDesc = factory.createMSAAColorAttachment(
-        m_swapChain->getImageFormat(),
-        m_swapChain->getSwapChainExtent(),
-        samples
-    );
+    try {
+        bool success = m_renderGraphExecutor->executeGpuCalls(gpuCalls);
 
-    // Resolve attachment - use factory method
-    AttachmentSpec resolveAttachDesc = factory.createResolveAttachment(
-        m_swapChain->getImageFormat(),
-        m_swapChain->getSwapChainExtent(),
-        0, // Use default usage
-        VK_IMAGE_LAYOUT_UNDEFINED,
-        VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
-        VK_ATTACHMENT_LOAD_OP_DONT_CARE,
-        VK_ATTACHMENT_STORE_OP_STORE
-    );
+        if (success) {
+            SPDLOG_DEBUG("Renderer: Successfully executed render graph with {} GPU calls",
+                gpuCalls.size());
+        }
+        else {
+            SPDLOG_ERROR("Renderer: Failed to execute render graph");
+        }
 
-    // Depth attachment - use factory method
-    AttachmentSpec depthAttachDesc = factory.createMSAADepthAttachment(
-        depthFormat,
-        m_swapChain->getSwapChainExtent(),
-        samples
-    );
-
-    // Configure render pass
-    renderPassConfig.attachments = { msColorAttachDesc, resolveAttachDesc, depthAttachDesc };
-    renderPassConfig.colorAttachmentIndices = { 0 };
-    renderPassConfig.resolveAttachmentIndex = 1;
-    renderPassConfig.depthAttachmentIndex = 2;
-
-    // Recreate render pass with new configuration
-    m_renderPassManager->recreateRenderPass(m_mainRenderPassHandle, renderPassConfig);
+        return success;
+    }
+    catch (const std::exception& e) {
+        SPDLOG_ERROR("Renderer: Exception during render graph execution: {}", e.what());
+        return false;
+    }
 }
 
-void Renderer::createMainRenderPass() {
-    VkSampleCountFlagBits samples = Graphics::convertSampleCount(m_settings.getMsaaSamples());
-    VkFormat depthFormat = m_vulkanContext->physical().findDepthFormat();
+bool Renderer::beginFrame() {
+    if (m_frameActive) {
+        return false;
+    }
 
-    // Get attachment factory
-    AttachmentFactory& factory = m_attachmentManager->getFactory();
+    try {
+        prepareFrame();
+        m_currentImageIndex = acquireSwapchainImage();
 
-    // Create MSAA color attachment using factory
-    AttachmentSpec msColorSpec = factory.createMSAAColorAttachment(
-        m_swapChain->getImageFormat(),
-        m_swapChain->getSwapChainExtent(),
-        samples
-    );
+        m_frameActive = true;
 
-    // Create depth attachment using factory
-    AttachmentSpec depthSpec = factory.createMSAADepthAttachment(
-        depthFormat,
-        m_swapChain->getSwapChainExtent(),
-        samples
-    );
-
-    // Acquire attachments
-    m_msColorAttachmentHandle = m_attachmentManager->acquireAttachment(msColorSpec);
-    m_depthAttachmentHandle = m_attachmentManager->acquireAttachment(depthSpec);
-
-    // Configure render pass using factory
-    RenderPassConfig renderPassConfig;
-
-    // MSAA color attachment description
-    AttachmentSpec msColorAttachDesc = factory.createMSAAColorAttachment(
-        m_swapChain->getImageFormat(),
-        m_swapChain->getSwapChainExtent(),
-        samples
-    );
-
-    // Resolve attachment description (for the swapchain image)
-    AttachmentSpec resolveAttachDesc = factory.createResolveAttachment(
-        m_swapChain->getImageFormat(),
-        m_swapChain->getSwapChainExtent(),
-        0, // Use default usage
-        VK_IMAGE_LAYOUT_UNDEFINED,
-        VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
-        VK_ATTACHMENT_LOAD_OP_DONT_CARE,
-        VK_ATTACHMENT_STORE_OP_STORE
-    );
-
-    // Depth attachment description
-    AttachmentSpec depthAttachDesc = factory.createMSAADepthAttachment(
-        depthFormat,
-        m_swapChain->getSwapChainExtent(),
-        samples
-    );
-
-    // Add attachments to config
-    renderPassConfig.attachments = { msColorAttachDesc, resolveAttachDesc, depthAttachDesc };
-    renderPassConfig.colorAttachmentIndices = { 0 };
-    renderPassConfig.resolveAttachmentIndex = 1;
-    renderPassConfig.depthAttachmentIndex = 2;
-
-    // Create/retrieve the render pass
-    m_mainRenderPassHandle = m_renderPassManager->acquireRenderPass(renderPassConfig);
+        return true;
+    }
+    catch (const std::exception&) {
+        cleanupFrame();
+        return false;
+    }
 }
 
-void Renderer::createImGuiWrapper() {
-    uint32_t imageCount = m_settings.getFramesInFlight();
-    uint32_t minImageCount = imageCount;
-    VkSampleCountFlagBits samples = Graphics::convertSampleCount(m_settings.getMsaaSamples());
+void Renderer::endFrame() {
+    if (!m_frameActive) {
+        return;
+    }
 
-    m_imguiWrapper = std::make_unique<ImGuiWrapper>(
-        m_window,
-        *m_vulkanContext,
-        m_mainRenderPassHandle,
-        *m_renderPassManager,
-        minImageCount,
-        imageCount,
-        samples
+    try {
+        if (m_uiRenderer->hasCallbacks()) {
+            //m_uiRenderer->render();
+        }
+
+        submitAndPresent();
+    }
+    catch (const std::exception&) {
+        // Frame will be cleaned up regardless
+    }
+
+    cleanupFrame();
+    m_engineCore.advanceFrame();
+}
+
+bool Renderer::bindPipeline(PipelineHandle pipelineHandle) {
+    ensureFrameActive();
+
+    if (!pipelineHandle.isValid() || !m_pipelineManager.isValid(pipelineHandle)) {
+        SPDLOG_ERROR("Invalid pipeline handle: {}", pipelineHandle.id);
+        return false;
+    }
+
+    try {
+        Pipeline& pipeline = m_pipelineManager.get(pipelineHandle);
+        VkPipeline vkPipeline = pipeline.get();
+        VkPipelineLayout layout = pipeline.getLayout();
+
+        if (vkPipeline == VK_NULL_HANDLE || layout == VK_NULL_HANDLE) {
+            SPDLOG_ERROR("Pipeline or layout is null");
+            return false;
+        }
+
+        vkCmdBindPipeline(getCurrentCommandBuffer(), VK_PIPELINE_BIND_POINT_GRAPHICS, vkPipeline);
+
+        m_currentPipeline = pipelineHandle;
+        m_currentPipelineLayout = layout;
+
+        SPDLOG_DEBUG("Pipeline bound: {}", pipelineHandle.id);
+        return true;
+    }
+    catch (const std::exception& e) {
+        SPDLOG_ERROR("Exception binding pipeline: {}", e.what());
+        return false;
+    }
+}
+
+bool Renderer::bindDescriptorSets(const std::vector<DescriptorSetHandle>& descriptorHandles) {
+    ensureFrameActive();
+
+    if (m_currentPipelineLayout == VK_NULL_HANDLE) {
+        SPDLOG_ERROR("Cannot bind descriptors - no pipeline bound");
+        return false;
+    }
+
+    if (descriptorHandles.empty()) {
+        SPDLOG_DEBUG("No descriptor sets to bind");
+        return true;
+    }
+
+    // Konwertuj uchwyty na VkDescriptorSet i waliduj
+    std::vector<VkDescriptorSet> descriptorSets;
+    descriptorSets.reserve(descriptorHandles.size());
+
+    for (size_t i = 0; i < descriptorHandles.size(); ++i) {
+        const auto& handle = descriptorHandles[i];
+
+        if (!handle.isValid()) {
+            SPDLOG_ERROR("Invalid descriptor set handle at index {}", i);
+            return false;
+        }
+
+        VkDescriptorSet descriptorSet = m_descriptorAllocator.getDescriptorSet(handle);
+        if (descriptorSet == VK_NULL_HANDLE) {
+            SPDLOG_ERROR("Null descriptor set at index {} (handle: {})", i, handle.id);
+            return false;
+        }
+
+        descriptorSets.push_back(descriptorSet);
+    }
+
+    // KLUCZOWE: Oznacz wszystkie deskryptory jako używane przez GPU PRZED bindowaniem
+    uint32_t currentFrameIndex = m_frameManager.getCurrentFrameIndex();
+    for (const auto& handle : descriptorHandles) {
+        m_descriptorAllocator.markDescriptorAsUsedByGPU(handle, currentFrameIndex);
+    }
+
+    // Dopiero teraz zbinduj deskryptory do command buffera
+    vkCmdBindDescriptorSets(
+        getCurrentCommandBuffer(),
+        VK_PIPELINE_BIND_POINT_GRAPHICS,
+        m_currentPipelineLayout,
+        0,
+        static_cast<uint32_t>(descriptorSets.size()),
+        descriptorSets.data(),
+        0,
+        nullptr
     );
+
+    SPDLOG_DEBUG("Descriptor sets bound: {} (frame: {})", descriptorSets.size(), currentFrameIndex);
+    return true;
+}
+
+// FIXED IMPLEMENTATION - Command buffer access methods
+VkCommandBuffer Renderer::getCurrentCommandBuffer() const {
+    ensureFrameActive();
+    return m_frameManager.getCurrentFrame().graphicsCommandBuffer->handle();
+}
+
+VkCommandBuffer Renderer::getTransferCommandBuffer() const {
+    ensureFrameActive();
+    return m_frameManager.getCurrentFrame().transferCommandBuffer->handle();
+}
+
+VkCommandBuffer Renderer::getImGuiCommandBuffer() const {
+    ensureFrameActive();
+    return m_frameManager.getCurrentFrame().imguiCommandBuffer->handle();
+}
+
+void Renderer::prepareFrame() {
+    auto inFlightFence = m_frameManager.getInFlightFence();
+    vkWaitForFences(m_vulkanContext.logical().get(), 1, &inFlightFence, VK_TRUE, UINT64_MAX);
+    vkResetFences(m_vulkanContext.logical().get(), 1, &inFlightFence);
+    m_descriptorAllocator.markFrameCompleted(m_frameManager.getCurrentFrameIndex());
+
+    auto& currentFrame = m_frameManager.getCurrentFrame();
+
+    auto resetAndBegin = [](auto& cmdBuffer) {
+        if (cmdBuffer->isRecording()) {
+            cmdBuffer->end();
+        }
+        cmdBuffer->reset();
+        cmdBuffer->begin(VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
+        };
+
+    resetAndBegin(currentFrame.graphicsCommandBuffer);
+    resetAndBegin(currentFrame.transferCommandBuffer);
+
+    if (m_vramManager.transferManager().hasPendingTransfers()) {
+        m_vramManager.transferManager().executeCompleteTransferPass();
+    }
+}
+
+uint32_t Renderer::acquireSwapchainImage() {
+    uint32_t imageIndex;
+    VkResult result = m_swapChain.acquireNextImage(m_frameManager.getImageAvailableSemaphore(), &imageIndex);
+
+    if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR) {
+        handleSwapchainRecreation();
+        throw std::runtime_error("Swapchain recreation needed");
+    }
+
+    if (result != VK_SUCCESS) {
+        auto& currentFrame = m_frameManager.getCurrentFrame();
+        auto cmdBuffer = currentFrame.graphicsCommandBuffer.get();
+
+        if (!cmdBuffer->isRecording()) {
+            cmdBuffer->begin(VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
+        }
+        cmdBuffer->end();
+        cmdBuffer->submit(
+            m_vulkanContext.logical().getQueue(LogicalDevice::QueueType::Graphics),
+            {}, {}, {}, m_frameManager.getInFlightFence()
+        );
+
+        throw std::runtime_error("Failed to acquire swapchain image");
+    }
+
+    return imageIndex;
+}
+
+void Renderer::submitAndPresent() {
+    auto& currentFrame = m_frameManager.getCurrentFrame();
+
+    if (currentFrame.graphicsCommandBuffer->isRecording()) {
+        currentFrame.graphicsCommandBuffer->end();
+    }
+
+    std::vector<VkSemaphore> waitSemaphores = { m_frameManager.getImageAvailableSemaphore() };
+    std::vector<VkPipelineStageFlags> waitStages = { VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT };
+
+    if (m_vramManager.transferManager().hadTransfersThisFrame()) {
+        waitSemaphores.push_back(m_frameManager.gettransferFinishedSemaphore());
+        waitStages.push_back(VK_PIPELINE_STAGE_TRANSFER_BIT);
+    }
+
+    std::vector<VkSemaphore> signalSemaphores = { m_frameManager.getRenderFinishedSemaphore() };
+
+    currentFrame.graphicsCommandBuffer->submit(
+        m_vulkanContext.logical().getQueue(LogicalDevice::QueueType::Graphics),
+        waitSemaphores, waitStages, signalSemaphores,
+        m_frameManager.getInFlightFence()
+    );
+
+    VkResult result = m_swapChain.presentImage(m_currentImageIndex, m_frameManager.getRenderFinishedSemaphore());
+
+    if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR) {
+        handleSwapchainRecreation();
+        throw std::runtime_error("Swapchain recreation after present");
+    }
+
+    if (result != VK_SUCCESS) {
+        throw std::runtime_error("Failed to present image");
+    }
+}
+
+void Renderer::cleanupFrame() {
+    auto& currentFrame = m_frameManager.getCurrentFrame();
+
+    if (currentFrame.graphicsCommandBuffer && currentFrame.graphicsCommandBuffer->isRecording()) {
+        currentFrame.graphicsCommandBuffer->end();
+    }
+    if (currentFrame.transferCommandBuffer && currentFrame.transferCommandBuffer->isRecording()) {
+        currentFrame.transferCommandBuffer->end();
+    }
+
+    m_currentPipeline = PipelineHandle(0);
+    m_currentPipelineLayout = VK_NULL_HANDLE;
+
+    m_frameActive = false;
+    m_currentImageIndex = 0;
+    m_vramManager.transferManager().resetFrameState();
+}
+
+void Renderer::setViewport(VkExtent2D extent, float minDepth, float maxDepth) {
+    setViewport(0, 0, extent.width, extent.height, minDepth, maxDepth);
+}
+
+void Renderer::setViewport(uint32_t x, uint32_t y, uint32_t width, uint32_t height, float minDepth, float maxDepth) {
+    ensureFrameActive();
+
+    VkViewport viewport{};
+    viewport.x = static_cast<float>(x);
+    viewport.y = static_cast<float>(y);
+    viewport.width = static_cast<float>(width);
+    viewport.height = static_cast<float>(height);
+    viewport.minDepth = minDepth;
+    viewport.maxDepth = maxDepth;
+
+    vkCmdSetViewport(getCurrentCommandBuffer(), 0, 1, &viewport);
+}
+
+void Renderer::setScissor(VkExtent2D extent, VkOffset2D offset) {
+    setScissor(offset.x, offset.y, extent.width, extent.height);
+}
+
+void Renderer::setScissor(uint32_t x, uint32_t y, uint32_t width, uint32_t height) {
+    ensureFrameActive();
+
+    VkRect2D scissor{};
+    scissor.offset = { static_cast<int32_t>(x), static_cast<int32_t>(y) };
+    scissor.extent = { width, height };
+
+    vkCmdSetScissor(getCurrentCommandBuffer(), 0, 1, &scissor);
+}
+
+void Renderer::handleSwapchainRecreation() {
+    cleanupFrame();
+
+    vkQueueWaitIdle(m_vulkanContext.logical().getQueue(LogicalDevice::QueueType::Graphics));
+    vkQueueWaitIdle(m_vulkanContext.logical().getQueue(LogicalDevice::QueueType::Transfer));
+
+    m_engineCore.recreateSwapChain();
+}
+
+void Renderer::ensureFrameActive() const {
+    if (!m_frameActive) {
+        throw std::runtime_error("No active frame");
+    }
 }

@@ -16,7 +16,7 @@
 using namespace ShaderLib;
 using namespace ShaderLib::TypeConversion;
 
-bool usePritnf = false;
+bool usePritnf = false; // Remember that Vulkan configurator must be on for this to work
 
 namespace Shader {
 

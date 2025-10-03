@@ -10,7 +10,7 @@ size_t RenderPassConfig::hash() const {
 
     // Hash each attachment specification
     for (const auto& attachment : attachments) {
-        h ^= std::hash<AttachmentSpec>()(attachment);
+        h ^= attachment.hash();
     }
 
     // Hash subpass configuration
@@ -57,6 +57,11 @@ RenderPassHandle RenderPassManager::acquireRenderPass(const RenderPassConfig& co
     return createRenderPass(config);
 }
 
+SmartRenderPassHandle RenderPassManager::acquireSmartRenderPass(const RenderPassConfig& config) {
+    RenderPassHandle handle = acquireRenderPass(config);
+    return createSmartHandle(handle);
+}
+
 void RenderPassManager::recreateRenderPass(RenderPassHandle handle, const RenderPassConfig& newConfig) {
     if (!isValid(handle)) {
         throw std::runtime_error("Invalid render pass handle for recreation");
@@ -79,9 +84,11 @@ void RenderPassManager::recreateRenderPass(RenderPassHandle handle, const Render
     // Create new render pass with new configuration
     VkRenderPass newRenderPass = createVkRenderPass(newConfig);
 
-    // Update stored data
+    // Update stored data (preserve reference count)
+    uint32_t currentRefCount = it->second.referenceCount;
     it->second.renderPass = newRenderPass;
     it->second.config = newConfig;
+    it->second.referenceCount = currentRefCount;
     m_configToHandle[newConfig] = handle;
 }
 
@@ -107,20 +114,58 @@ bool RenderPassManager::isValid(RenderPassHandle handle) const {
 }
 
 void RenderPassManager::releaseResource(RenderPassHandle handle) {
-    // No-op - render passes are kept until manager destruction
-    (void)handle; // Suppress unused parameter warning
+    if (!isValid(handle)) {
+        return;
+    }
+
+    auto it = m_renderPasses.find(handle);
+    if (it == m_renderPasses.end()) {
+        return;
+    }
+
+    // Only actually release if reference count is zero
+    if (it->second.referenceCount == 0) {
+        // Remove config mapping
+        auto configIt = m_configToHandle.find(it->second.config);
+        if (configIt != m_configToHandle.end()) {
+            m_configToHandle.erase(configIt);
+        }
+
+        // Destroy Vulkan render pass
+        vkDestroyRenderPass(m_device.get(), it->second.renderPass, nullptr);
+
+        // Remove from storage
+        m_renderPasses.erase(it);
+    }
 }
 
 void RenderPassManager::addReference(RenderPassHandle handle) {
-    // No-op - render passes are shared resources, no reference counting needed
-    // This manager keeps all render passes until destruction
-    (void)handle; // Suppress unused parameter warning
+    if (!isValid(handle)) {
+        return;
+    }
+
+    auto it = m_renderPasses.find(handle);
+    if (it != m_renderPasses.end()) {
+        it->second.referenceCount++;
+    }
 }
 
 void RenderPassManager::removeReference(RenderPassHandle handle) {
-    // No-op - render passes are shared resources, no reference counting needed
-    // This manager keeps all render passes until destruction
-    (void)handle; // Suppress unused parameter warning
+    if (!isValid(handle)) {
+        return;
+    }
+
+    auto it = m_renderPasses.find(handle);
+    if (it != m_renderPasses.end()) {
+        if (it->second.referenceCount > 0) {
+            it->second.referenceCount--;
+        }
+
+        // Automatically release resource if no references remain
+        if (it->second.referenceCount == 0) {
+            releaseResource(handle);
+        }
+    }
 }
 
 RenderPassHandle RenderPassManager::createRenderPass(const RenderPassConfig& config) {
@@ -131,7 +176,7 @@ RenderPassHandle RenderPassManager::createRenderPass(const RenderPassConfig& con
     RenderPassHandle newHandle(m_nextHandleId++);
 
     // Store the render pass
-    RenderPassEntry entry{ renderPass, config };
+    RenderPassEntry entry{ renderPass, config, 0 };
     m_renderPasses[newHandle] = entry;
     m_configToHandle[config] = newHandle;
 
@@ -149,17 +194,8 @@ VkRenderPass RenderPassManager::createVkRenderPass(const RenderPassConfig& confi
     attachmentDescriptions.reserve(config.attachments.size());
 
     for (const auto& attachment : config.attachments) {
-        VkAttachmentDescription desc{};
-        desc.format = attachment.format;
-        desc.samples = attachment.samples;
-        desc.loadOp = attachment.loadOp;
-        desc.storeOp = attachment.storeOp;
-        desc.stencilLoadOp = attachment.stencilLoadOp;
-        desc.stencilStoreOp = attachment.stencilStoreOp;
-        desc.initialLayout = attachment.initialLayout;
-        desc.finalLayout = attachment.finalLayout;
-
-        attachmentDescriptions.push_back(desc);
+        // Use the VkAttachmentDescription directly from RenderPassAttachment
+        attachmentDescriptions.push_back(attachment.desc);
     }
 
     // Set up the subpass - we support one subpass for now

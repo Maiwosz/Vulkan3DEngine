@@ -180,6 +180,80 @@ bool TransferManager::hasPendingTransfers() const {
     return !m_pendingBufferTransfers.empty() || !m_pendingImageTransfers.empty();
 }
 
+void TransferManager::executeCompleteTransferPass() {
+    // Reset frame state
+    m_hadTransfersThisFrame = false;
+
+    // Check if we have any transfers to execute
+    if (!hasPendingTransfers()) {
+        return;
+    }
+
+    auto& currentFrame = m_frameManager.getCurrentFrame();
+
+    SPDLOG_INFO("Executing pending VRAM transfers");
+
+    // Ensure command buffers are in correct state
+    if (!currentFrame.transferCommandBuffer) {
+        SPDLOG_ERROR("Transfer command buffer is null!");
+        return;
+    }
+
+    if (!currentFrame.graphicsCommandBuffer) {
+        SPDLOG_ERROR("Graphics command buffer is null!");
+        return;
+    }
+
+    try {
+        // Make sure transfer command buffer is ready
+        if (currentFrame.transferCommandBuffer->isRecording()) {
+            currentFrame.transferCommandBuffer->end();
+        }
+        currentFrame.transferCommandBuffer->reset();
+        currentFrame.transferCommandBuffer->begin(VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
+
+        // Make sure graphics command buffer is recording (it should be at this point)
+        if (!currentFrame.graphicsCommandBuffer->isRecording()) {
+            currentFrame.graphicsCommandBuffer->begin(VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
+        }
+
+        // Execute the actual transfers
+        executeTransfers(*currentFrame.transferCommandBuffer, *currentFrame.graphicsCommandBuffer);
+
+        // End and submit the transfer command buffer
+        if (currentFrame.transferCommandBuffer->isRecording()) {
+            currentFrame.transferCommandBuffer->end();
+        }
+
+        VkSemaphore signalSemaphore = currentFrame.transferFinished;
+        currentFrame.transferCommandBuffer->submit(
+            m_context.logical().getQueue(LogicalDevice::QueueType::Transfer),
+            {}, {},
+            std::span<const VkSemaphore>(&signalSemaphore, 1),
+            VK_NULL_HANDLE
+        );
+
+        SPDLOG_DEBUG("Transfer commands submitted");
+        m_hadTransfersThisFrame = true;
+
+    }
+    catch (const std::exception& e) {
+        SPDLOG_ERROR("Error in executeCompleteTransferPass: {}", e.what());
+        // Clean up command buffer state on error
+        if (currentFrame.transferCommandBuffer && currentFrame.transferCommandBuffer->isRecording()) {
+            currentFrame.transferCommandBuffer->end();
+        }
+        throw;
+    }
+
+    // Reclaim staging buffers after transfers are submitted
+    m_stagingManager.reclaimBuffers();
+}
+
+void TransferManager::resetFrameState() {
+    m_hadTransfersThisFrame = false;
+}
+
 void TransferManager::executeTransfers(CommandBuffer& transferCmd, CommandBuffer& graphicsCmd) {
     std::vector<BufferTransferRequest> bufferTransfers;
     std::vector<ImageTransferRequest> imageTransfers;
@@ -206,237 +280,253 @@ void TransferManager::executeTransfers(CommandBuffer& transferCmd, CommandBuffer
         graphicsCmd.begin(VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
     }
 
-    // Process buffer transfers
+    // Process transfers
     if (!bufferTransfers.empty()) {
-        // Calculate total buffer size needed
-        VkDeviceSize totalBufferSize = 0;
-        for (const auto& request : bufferTransfers) {
-            totalBufferSize += request.size;
+        processBufferTransfers(bufferTransfers, transferCmd);
+    }
+
+    if (!imageTransfers.empty()) {
+        processImageTransfers(imageTransfers, transferCmd, graphicsCmd);
+    }
+}
+
+void TransferManager::processBufferTransfers(
+    const std::vector<BufferTransferRequest>& bufferTransfers,
+    CommandBuffer& transferCmd) {
+
+    // Calculate total buffer size needed
+    VkDeviceSize totalBufferSize = 0;
+    for (const auto& request : bufferTransfers) {
+        totalBufferSize += request.size;
+    }
+
+    // Request a staging buffer for all buffer transfers
+    Buffer* bufferStagingBuffer = m_stagingManager.requestBuffer(
+        totalBufferSize,
+        m_frameManager.getInFlightFence()
+    );
+
+    if (!bufferStagingBuffer) {
+        SPDLOG_ERROR("Failed to allocate staging buffer for buffer transfers");
+        return;
+    }
+
+    // Ensure staging buffer is valid
+    if (bufferStagingBuffer->get() == VK_NULL_HANDLE) {
+        SPDLOG_ERROR("Staging buffer returned by StagingBufferManager is null");
+        return;
+    }
+
+    // Copy all buffer data to the staging buffer
+    void* mappedBuffer = bufferStagingBuffer->map();
+    if (!mappedBuffer) {
+        SPDLOG_ERROR("Failed to map staging buffer for buffer transfers");
+        return;
+    }
+
+    VkDeviceSize bufferOffset = 0;
+    for (const auto& request : bufferTransfers) {
+        // Use the stored VkBuffer handle instead of querying the destination pointer
+        VkBuffer destinationBuffer = request.destinationBuffer;
+        if (destinationBuffer == VK_NULL_HANDLE) {
+            SPDLOG_WARN("Skipping buffer transfer - destination buffer handle is null");
+            bufferOffset += request.size;
+            continue;
         }
 
-        // Request a staging buffer for all buffer transfers
-        Buffer* bufferStagingBuffer = m_stagingManager.requestBuffer(
-            totalBufferSize,
-            m_frameManager.getInFlightFence()
+        // Copy the data to the staging buffer
+        uint8_t* dstPtr = static_cast<uint8_t*>(mappedBuffer) + bufferOffset;
+        memcpy(dstPtr, request.data.data(), request.size);
+
+        // Record the copy command
+        VkBufferCopy copyRegion{};
+        copyRegion.srcOffset = bufferOffset;
+        copyRegion.dstOffset = 0;
+        copyRegion.size = request.size;
+
+        vkCmdCopyBuffer(
+            transferCmd.handle(),
+            bufferStagingBuffer->get(),
+            destinationBuffer,
+            1,
+            &copyRegion
         );
 
-        if (!bufferStagingBuffer) {
-            SPDLOG_ERROR("Failed to allocate staging buffer for buffer transfers");
-            return;
-        }
-
-        // Ensure staging buffer is valid
-        if (bufferStagingBuffer->get() == VK_NULL_HANDLE) {
-            SPDLOG_ERROR("Staging buffer returned by StagingBufferManager is null");
-            return;
-        }
-
-        // Copy all buffer data to the staging buffer
-        void* mappedBuffer = bufferStagingBuffer->map();
-        if (!mappedBuffer) {
-            SPDLOG_ERROR("Failed to map staging buffer for buffer transfers");
-            return;
-        }
-
-        VkDeviceSize bufferOffset = 0;
-        for (const auto& request : bufferTransfers) {
-            // Use the stored VkBuffer handle instead of querying the destination pointer
-            VkBuffer destinationBuffer = request.destinationBuffer;
-            if (destinationBuffer == VK_NULL_HANDLE) {
-                SPDLOG_WARN("Skipping buffer transfer - destination buffer handle is null");
-                bufferOffset += request.size;
-                continue;
-            }
-
-            // Copy the data to the staging buffer
-            uint8_t* dstPtr = static_cast<uint8_t*>(mappedBuffer) + bufferOffset;
-            memcpy(dstPtr, request.data.data(), request.size);
-
-            // Record the copy command
-            VkBufferCopy copyRegion{};
-            copyRegion.srcOffset = bufferOffset;
-            copyRegion.dstOffset = 0;
-            copyRegion.size = request.size;
-
-            vkCmdCopyBuffer(
-                transferCmd.handle(),
-                bufferStagingBuffer->get(),
-                destinationBuffer,
-                1,
-                &copyRegion
-            );
-
-            SPDLOG_DEBUG("Copying buffer: size={}, src_offset={}, dst={}",
-                request.size, bufferOffset, (void*)destinationBuffer);
-            bufferOffset += request.size;
-        }
-
-        bufferStagingBuffer->unmap();
+        SPDLOG_DEBUG("Copying buffer: size={}, src_offset={}, dst={}",
+            request.size, bufferOffset, (void*)destinationBuffer);
+        bufferOffset += request.size;
     }
 
-    // Process image transfers
-    if (!imageTransfers.empty()) {
-        // Calculate total image size needed
-        VkDeviceSize totalImageSize = 0;
-        for (const auto& request : imageTransfers) {
-            if (!request.data.empty()) {
-                totalImageSize += request.data.size();
-            }
-        }
+    bufferStagingBuffer->unmap();
+}
 
-        if (totalImageSize > 0) {
-            // Request a staging buffer for all image transfers
-            Buffer* imageStagingBuffer = m_stagingManager.requestBuffer(
-                totalImageSize,
-                m_frameManager.getInFlightFence()
-            );
+void TransferManager::processImageTransfers(
+    const std::vector<ImageTransferRequest>& imageTransfers,
+    CommandBuffer& transferCmd,
+    CommandBuffer& graphicsCmd) {
 
-            if (!imageStagingBuffer) {
-                SPDLOG_ERROR("Failed to allocate staging buffer for image transfers");
-                return;
-            }
-
-            // Ensure staging buffer is valid
-            if (imageStagingBuffer->get() == VK_NULL_HANDLE) {
-                SPDLOG_ERROR("Staging buffer returned by StagingBufferManager is null");
-                return;
-            }
-
-            // Copy all image data to the staging buffer
-            void* mappedImage = imageStagingBuffer->map();
-            if (!mappedImage) {
-                SPDLOG_ERROR("Failed to map staging buffer for image transfers");
-                return;
-            }
-
-            VkDeviceSize imageOffset = 0;
-            for (const auto& request : imageTransfers) {
-                // Use the stored VkImage handle instead of querying the destination pointer
-                VkImage destinationImage = request.destinationImage;
-                if (destinationImage == VK_NULL_HANDLE) {
-                    SPDLOG_WARN("Skipping image transfer - destination image handle is null");
-                    imageOffset += request.data.size();
-                    continue;
-                }
-
-                // Copy the data to the staging buffer
-                uint8_t* dstPtr = static_cast<uint8_t*>(mappedImage) + imageOffset;
-                memcpy(dstPtr, request.data.data(), request.data.size());
-
-                // Get the image aspect from the destination image if available, otherwise calculate it
-                VkImageAspectFlags aspectMask;
-                if (request.destination && request.destination->get() != VK_NULL_HANDLE) {
-                    aspectMask = Image::getImageAspect(request.destination->getFormat());
-                }
-                else {
-                    aspectMask = Image::getImageAspect(request.imageInfo.format);
-                }
-
-                // Transition the image layout from UNDEFINED to TRANSFER_DST_OPTIMAL
-                VkImageMemoryBarrier preTransferBarrier{};
-                preTransferBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
-                preTransferBarrier.srcAccessMask = 0;
-                preTransferBarrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
-                preTransferBarrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-                preTransferBarrier.newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
-                preTransferBarrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-                preTransferBarrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-                preTransferBarrier.image = destinationImage;
-                preTransferBarrier.subresourceRange.aspectMask = aspectMask;
-                preTransferBarrier.subresourceRange.baseMipLevel = 0;
-                preTransferBarrier.subresourceRange.levelCount = request.imageInfo.mipLevels;
-                preTransferBarrier.subresourceRange.baseArrayLayer = 0;
-                preTransferBarrier.subresourceRange.layerCount = request.imageInfo.arrayLayers;
-
-                vkCmdPipelineBarrier(
-                    transferCmd.handle(),
-                    VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
-                    VK_PIPELINE_STAGE_TRANSFER_BIT,
-                    0,
-                    0, nullptr,
-                    0, nullptr,
-                    1, &preTransferBarrier
-                );
-
-                // Prepare buffer-to-image copy regions for each mip level
-                std::vector<VkBufferImageCopy> copyRegions;
-                copyRegions.reserve(request.imageInfo.mipLevels);
-
-                // Use the mipLevels directly from the request
-                for (uint32_t i = 0; i < request.mipLevels.size(); i++) {
-                    const auto& mipLevel = request.mipLevels[i];
-
-                    VkBufferImageCopy region{};
-                    region.bufferOffset = imageOffset + mipLevel.dataOffset;
-                    region.bufferRowLength = 0;   // Tightly packed
-                    region.bufferImageHeight = 0; // Tightly packed
-                    region.imageSubresource.aspectMask = aspectMask;
-                    region.imageSubresource.mipLevel = i;
-                    region.imageSubresource.baseArrayLayer = 0;
-                    region.imageSubresource.layerCount = request.imageInfo.arrayLayers;
-                    region.imageOffset = { 0, 0, 0 };
-                    region.imageExtent = {
-                        mipLevel.width,
-                        mipLevel.height,
-                        1
-                    };
-
-                    copyRegions.push_back(region);
-                }
-
-                // Record the copy command for this image
-                vkCmdCopyBufferToImage(
-                    transferCmd.handle(),
-                    imageStagingBuffer->get(),
-                    destinationImage,
-                    VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-                    static_cast<uint32_t>(copyRegions.size()),
-                    copyRegions.data()
-                );
-
-                SPDLOG_DEBUG("Copying image: width={}, height={}, mips={}, format={}, dst={}",
-                    request.imageInfo.extent.width,
-                    request.imageInfo.extent.height,
-                    request.imageInfo.mipLevels,
-                    (uint32_t)request.imageInfo.format,
-                    (void*)destinationImage);
-
-                // Transition the image layout from TRANSFER_DST_OPTIMAL to SHADER_READ_ONLY_OPTIMAL
-                // This is done on the graphics command buffer to ensure proper execution order
-                VkImageMemoryBarrier postTransferBarrier{};
-                postTransferBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
-                postTransferBarrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
-                postTransferBarrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
-                postTransferBarrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
-                postTransferBarrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-                postTransferBarrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-                postTransferBarrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-                postTransferBarrier.image = destinationImage;
-                postTransferBarrier.subresourceRange.aspectMask = aspectMask;
-                postTransferBarrier.subresourceRange.baseMipLevel = 0;
-                postTransferBarrier.subresourceRange.levelCount = request.imageInfo.mipLevels;
-                postTransferBarrier.subresourceRange.baseArrayLayer = 0;
-                postTransferBarrier.subresourceRange.layerCount = request.imageInfo.arrayLayers;
-
-                vkCmdPipelineBarrier(
-                    graphicsCmd.handle(),
-                    VK_PIPELINE_STAGE_TRANSFER_BIT,
-                    VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
-                    0,
-                    0, nullptr,
-                    0, nullptr,
-                    1, &postTransferBarrier
-                );
-
-                // Update the image's layout tracking if the destination object is still valid
-                if (request.destination && request.destination->get() == destinationImage) {
-                    request.destination->setLayout(VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
-                }
-
-                imageOffset += request.data.size();
-            }
-
-            imageStagingBuffer->unmap();
+    // Calculate total image size needed
+    VkDeviceSize totalImageSize = 0;
+    for (const auto& request : imageTransfers) {
+        if (!request.data.empty()) {
+            totalImageSize += request.data.size();
         }
     }
+
+    if (totalImageSize == 0) {
+        return;
+    }
+
+    // Request a staging buffer for all image transfers
+    Buffer* imageStagingBuffer = m_stagingManager.requestBuffer(
+        totalImageSize,
+        m_frameManager.getInFlightFence()
+    );
+
+    if (!imageStagingBuffer) {
+        SPDLOG_ERROR("Failed to allocate staging buffer for image transfers");
+        return;
+    }
+
+    // Ensure staging buffer is valid
+    if (imageStagingBuffer->get() == VK_NULL_HANDLE) {
+        SPDLOG_ERROR("Staging buffer returned by StagingBufferManager is null");
+        return;
+    }
+
+    // Copy all image data to the staging buffer
+    void* mappedImage = imageStagingBuffer->map();
+    if (!mappedImage) {
+        SPDLOG_ERROR("Failed to map staging buffer for image transfers");
+        return;
+    }
+
+    VkDeviceSize imageOffset = 0;
+    for (const auto& request : imageTransfers) {
+        // Use the stored VkImage handle instead of querying the destination pointer
+        VkImage destinationImage = request.destinationImage;
+        if (destinationImage == VK_NULL_HANDLE) {
+            SPDLOG_WARN("Skipping image transfer - destination image handle is null");
+            imageOffset += request.data.size();
+            continue;
+        }
+
+        // Copy the data to the staging buffer
+        uint8_t* dstPtr = static_cast<uint8_t*>(mappedImage) + imageOffset;
+        memcpy(dstPtr, request.data.data(), request.data.size());
+
+        // Get the image aspect from the destination image if available, otherwise calculate it
+        VkImageAspectFlags aspectMask;
+        if (request.destination && request.destination->get() != VK_NULL_HANDLE) {
+            aspectMask = Image::getImageAspect(request.destination->getFormat());
+        }
+        else {
+            aspectMask = Image::getImageAspect(request.imageInfo.format);
+        }
+
+        // Transition the image layout from UNDEFINED to TRANSFER_DST_OPTIMAL
+        VkImageMemoryBarrier preTransferBarrier{};
+        preTransferBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+        preTransferBarrier.srcAccessMask = 0;
+        preTransferBarrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+        preTransferBarrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+        preTransferBarrier.newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+        preTransferBarrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        preTransferBarrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        preTransferBarrier.image = destinationImage;
+        preTransferBarrier.subresourceRange.aspectMask = aspectMask;
+        preTransferBarrier.subresourceRange.baseMipLevel = 0;
+        preTransferBarrier.subresourceRange.levelCount = request.imageInfo.mipLevels;
+        preTransferBarrier.subresourceRange.baseArrayLayer = 0;
+        preTransferBarrier.subresourceRange.layerCount = request.imageInfo.arrayLayers;
+
+        vkCmdPipelineBarrier(
+            transferCmd.handle(),
+            VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+            VK_PIPELINE_STAGE_TRANSFER_BIT,
+            0,
+            0, nullptr,
+            0, nullptr,
+            1, &preTransferBarrier
+        );
+
+        // Prepare buffer-to-image copy regions for each mip level
+        std::vector<VkBufferImageCopy> copyRegions;
+        copyRegions.reserve(request.imageInfo.mipLevels);
+
+        // Use the mipLevels directly from the request
+        for (uint32_t i = 0; i < request.mipLevels.size(); i++) {
+            const auto& mipLevel = request.mipLevels[i];
+
+            VkBufferImageCopy region{};
+            region.bufferOffset = imageOffset + mipLevel.dataOffset;
+            region.bufferRowLength = 0;   // Tightly packed
+            region.bufferImageHeight = 0; // Tightly packed
+            region.imageSubresource.aspectMask = aspectMask;
+            region.imageSubresource.mipLevel = i;
+            region.imageSubresource.baseArrayLayer = 0;
+            region.imageSubresource.layerCount = request.imageInfo.arrayLayers;
+            region.imageOffset = { 0, 0, 0 };
+            region.imageExtent = {
+                mipLevel.width,
+                mipLevel.height,
+                1
+            };
+
+            copyRegions.push_back(region);
+        }
+
+        // Record the copy command for this image
+        vkCmdCopyBufferToImage(
+            transferCmd.handle(),
+            imageStagingBuffer->get(),
+            destinationImage,
+            VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+            static_cast<uint32_t>(copyRegions.size()),
+            copyRegions.data()
+        );
+
+        SPDLOG_DEBUG("Copying image: width={}, height={}, mips={}, format={}, dst={}",
+            request.imageInfo.extent.width,
+            request.imageInfo.extent.height,
+            request.imageInfo.mipLevels,
+            (uint32_t)request.imageInfo.format,
+            (void*)destinationImage);
+
+        // Transition the image layout from TRANSFER_DST_OPTIMAL to SHADER_READ_ONLY_OPTIMAL
+        // This is done on the graphics command buffer to ensure proper execution order
+        VkImageMemoryBarrier postTransferBarrier{};
+        postTransferBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+        postTransferBarrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+        postTransferBarrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+        postTransferBarrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+        postTransferBarrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+        postTransferBarrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        postTransferBarrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        postTransferBarrier.image = destinationImage;
+        postTransferBarrier.subresourceRange.aspectMask = aspectMask;
+        postTransferBarrier.subresourceRange.baseMipLevel = 0;
+        postTransferBarrier.subresourceRange.levelCount = request.imageInfo.mipLevels;
+        postTransferBarrier.subresourceRange.baseArrayLayer = 0;
+        postTransferBarrier.subresourceRange.layerCount = request.imageInfo.arrayLayers;
+
+        vkCmdPipelineBarrier(
+            graphicsCmd.handle(),
+            VK_PIPELINE_STAGE_TRANSFER_BIT,
+            VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+            0,
+            0, nullptr,
+            0, nullptr,
+            1, &postTransferBarrier
+        );
+
+        // Update the image's layout tracking if the destination object is still valid
+        if (request.destination && request.destination->get() == destinationImage) {
+            request.destination->setLayout(VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+        }
+
+        imageOffset += request.data.size();
+    }
+
+    imageStagingBuffer->unmap();
 }
