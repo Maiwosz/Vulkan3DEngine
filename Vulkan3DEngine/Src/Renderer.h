@@ -37,8 +37,7 @@ public:
         FrameBufferManager& framebufferManager,
         RenderPassManager& renderPassManager,
         DescriptorAllocator& descriptorAllocator,
-        PipelineManager& pipelineManager,
-        ImGuiWrapper& imguiWrapper
+        PipelineManager& pipelineManager
     );
     ~Renderer();
 
@@ -51,11 +50,7 @@ public:
     bool hasAssignedRenderGraph() const;
     RenderGraph* getAssignedRenderGraph() const;
 
-    // GpuCall execution - simplified interface
-    bool executeGpuCall(GpuCall& gpuCall);
-    bool executeGpuCalls(const std::vector<std::unique_ptr<GpuCall>>& gpuCalls);
-
-    // RenderGraph-based execution - NEW
+    // RenderGraph-based execution
     bool executeRenderGraph(const std::vector<std::unique_ptr<GpuCall>>& gpuCalls);
 
     // Global rendering state management
@@ -96,7 +91,6 @@ private:
     RenderPassManager& m_renderPassManager;
     DescriptorAllocator& m_descriptorAllocator;
     PipelineManager& m_pipelineManager;
-    ImGuiWrapper& m_imguiWrapper;
 
     // Service objects
     std::unique_ptr<MeshRenderer> m_meshRenderer;

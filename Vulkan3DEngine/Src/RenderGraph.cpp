@@ -31,21 +31,3 @@ void RenderGraph::addNode(SmartHandle<RenderNodeHandle, RenderNode> nodeHandle) 
 
     m_nodes.emplace_back(std::move(nodeHandle));
 }
-
-void RenderGraph::addOrderToNode(size_t nodeIndex, RenderOrder* order) {
-    if (nodeIndex >= m_nodes.size()) {
-        throw std::out_of_range("Node index out of range");
-    }
-
-    if (!order) {
-        throw std::invalid_argument("Cannot add null render order to node");
-    }
-
-    m_nodes[nodeIndex].renderOrders.push_back(order);
-}
-
-void RenderGraph::clearOrders() {
-    for (auto& node : m_nodes) {
-        node.renderOrders.clear();
-    }
-}

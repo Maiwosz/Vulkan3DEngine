@@ -29,6 +29,7 @@ public:
 	const std::vector<VramHandle>& getImageHandles() const { return m_imageHandles; }
 	const std::vector<AttachmentHandle>& getAttachmentHandles() const { return m_attachmentHandles; }
 	Settings::MsaaSampleCount getMsaaSamples() const { return m_settings.getMsaaSamples(); }
+	uint32_t getFramesInFlight() const { return m_framesInFlight; }
 
 	VkResult acquireNextImage(VkSemaphore imageAvailableSemaphore, uint32_t* pImageIndex, uint64_t timeout = UINT64_MAX);
 	VkResult presentImage(uint32_t imageIndex, VkSemaphore renderFinishedSemaphore);
@@ -59,4 +60,5 @@ private:
 	std::vector<VkImageView> m_swapChainImageViews;
 	std::vector<VramHandle> m_imageHandles;
 	std::vector<AttachmentHandle> m_attachmentHandles;
+	uint32_t m_framesInFlight;
 };

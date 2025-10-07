@@ -172,6 +172,11 @@
     <ClCompile Include="..\Libs\imgui\imgui_impl_vulkan.cpp" />
     <ClCompile Include="..\Libs\imgui\imgui_tables.cpp" />
     <ClCompile Include="..\Libs\imgui\imgui_widgets.cpp" />
+    <ClCompile Include="Src\ImGuiDrawCall.cpp" />
+    <ClCompile Include="Src\ImGuiRenderNode.cpp" />
+    <ClCompile Include="Src\ImGuiRenderNodeTemplate.cpp" />
+    <ClCompile Include="Src\ImGuiCore.cpp" />
+    <ClCompile Include="Src\ImGuiRenderPass.cpp" />
     <ClCompile Include="Src\ForwardRenderGraphTemplate.cpp" />
     <ClCompile Include="Src\ForwardRenderNodeTemplate.cpp" />
     <ClCompile Include="Src\RenderGraphExecutor.cpp" />
@@ -296,6 +301,12 @@
     <ClInclude Include="..\Libs\imgui\imstb_rectpack.h" />
     <ClInclude Include="..\Libs\imgui\imstb_textedit.h" />
     <ClInclude Include="..\Libs\imgui\imstb_truetype.h" />
+    <ClInclude Include="Src\ImGuiDrawCall.h" />
+    <ClInclude Include="Src\ImGuiRenderNode.h" />
+    <ClInclude Include="Src\ImGuiRenderNodeTemplate.h" />
+    <ClInclude Include="Src\GpuCallTypes.h" />
+    <ClInclude Include="Src\ImGuiCore.h" />
+    <ClInclude Include="Src\ImGuiRenderPass.h" />
     <ClInclude Include="Src\ForwardRenderGraphTemplate.h" />
     <ClInclude Include="Src\RenderGraphExecutor.h" />
     <ClInclude Include="Src\DrawCall.h" />

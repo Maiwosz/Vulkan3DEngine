@@ -91,7 +91,7 @@ ProcessingResult DescriptorSetStage::processMeshOrder(std::shared_ptr<MeshRender
     if (order->materialHandle) {
         auto materialDescriptorSet = m_materialManager.getDescriptorSet(order->materialHandle);
         if (materialDescriptorSet.isValid()) {
-            order->drawCall->setMaterialDescriptorSet(materialDescriptorSet);
+            order->drawCall->setCustomDescriptorSet(materialDescriptorSet);
             SPDLOG_DEBUG("Assigned material descriptor set to mesh entity: {}", order->entity.id);
         }
         else {

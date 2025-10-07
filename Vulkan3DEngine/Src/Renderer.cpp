@@ -18,8 +18,7 @@ Renderer::Renderer(
     FrameBufferManager& framebufferManager,
     RenderPassManager& renderPassManager,
     DescriptorAllocator& descriptorAllocator,
-    PipelineManager& pipelineManager,
-    ImGuiWrapper& imguiWrapper)
+    PipelineManager& pipelineManager)
     : m_engineCore(engineCore),
     m_vulkanContext(vulkanContext),
     m_frameManager(frameManager),
@@ -29,12 +28,12 @@ Renderer::Renderer(
     m_framebufferManager(framebufferManager),
     m_renderPassManager(renderPassManager),
     m_descriptorAllocator(descriptorAllocator),
-    m_pipelineManager(pipelineManager),
-    m_imguiWrapper(imguiWrapper) {
+    m_pipelineManager(pipelineManager)
+{
 
     // Create service objects - simplified initialization
     m_meshRenderer = std::make_unique<MeshRenderer>(m_vulkanContext, m_vramManager);
-    m_uiRenderer = std::make_unique<UIRenderer>(*this, m_imguiWrapper);
+    m_uiRenderer = std::make_unique<UIRenderer>(*this);
 
     m_renderGraphExecutor = std::make_unique<RenderGraphExecutor>(
         engineCore,
@@ -46,33 +45,6 @@ Renderer::~Renderer() {
     if (m_frameActive) {
         cleanupFrame();
     }
-}
-
-bool Renderer::executeGpuCall(GpuCall& gpuCall) {
-    if (!m_frameActive) {
-        SPDLOG_ERROR("Renderer: Cannot execute GPU call - no active frame");
-        return false;
-    }
-
-    return gpuCall.execute(*this, m_engineCore);
-}
-
-bool Renderer::executeGpuCalls(const std::vector<std::unique_ptr<GpuCall>>& gpuCalls) {
-    if (!m_frameActive) {
-        SPDLOG_ERROR("Renderer: Cannot execute GPU calls - no active frame");
-        return false;
-    }
-
-    bool allSucceeded = true;
-    for (const auto& gpuCall : gpuCalls) {
-        if (!gpuCall->execute(*this, m_engineCore)) {
-            SPDLOG_ERROR("Renderer: GpuCall execution failed");
-            allSucceeded = false;
-            // Continue executing other calls or break here depending on desired behavior
-        }
-    }
-
-    return allSucceeded;
 }
 
 bool Renderer::executeRenderGraph(const std::vector<std::unique_ptr<GpuCall>>& gpuCalls) {

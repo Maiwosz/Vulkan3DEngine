@@ -8,8 +8,6 @@
 #include "SwapChain.h"
 #include <spdlog/spdlog.h>
 #include <stdexcept>
-#include "DrawCall.h"
-#include "PipelineManager.h"
 
 RenderGraphExecutor::RenderGraphExecutor(EngineCore& engineCore, Renderer& renderer)
     : m_engineCore(engineCore),
@@ -126,10 +124,11 @@ bool RenderGraphExecutor::executeNodeGpuCalls(RenderNode& renderNode,
         return false;
     }
 
-    // Begin render pass for this node using RenderNode's own method
+    // Begin render pass for this node
     beginNodeRenderPass(renderNode, framebufferHandle);
 
     // Execute all GPU calls within this render pass
+    // Each GpuCall now has access to the RenderNode context
     bool success = true;
     for (const auto& gpuCall : gpuCalls) {
         if (!gpuCall) {
@@ -138,29 +137,9 @@ bool RenderGraphExecutor::executeNodeGpuCalls(RenderNode& renderNode,
             break;
         }
 
-        // Check if this is a DrawCall that needs pipeline management
-        DrawCall* drawCall = dynamic_cast<DrawCall*>(gpuCall.get());
-        if (drawCall && drawCall->hasPipelineConfig()) {
-            // Get or create pipeline with render pass information
-            PipelineHandle pipelineHandle = getOrCreatePipeline(*drawCall,
-                renderNode.getRenderPassHandle());
-
-            if (!pipelineHandle.isValid()) {
-                SPDLOG_ERROR("Failed to get pipeline for DrawCall");
-                success = false;
-                break;
-            }
-
-            // Bind the pipeline before executing the draw call
-            if (!m_renderer.bindPipeline(pipelineHandle)) {
-                SPDLOG_ERROR("Failed to bind pipeline for DrawCall");
-                success = false;
-                break;
-            }
-        }
-
-        // Execute the GPU call - it has access to renderer context
-        if (!gpuCall->execute(m_renderer, m_engineCore)) {
+        // Execute the GPU call with render node context
+        // DrawCalls will handle their own pipeline management
+        if (!gpuCall->execute(m_renderer, m_engineCore, renderNode)) {
             SPDLOG_ERROR("Failed to execute GPU call");
             success = false;
             break;
@@ -179,16 +158,14 @@ FrameBufferHandle RenderGraphExecutor::setupNodeFramebuffer(RenderNode& renderNo
         return FrameBufferHandle(0);
     }
 
-    // Pobierz attachments z render node
+    // Get attachments from render node
     std::vector<AttachmentHandle> attachmentHandles;
 
-    // Jeśli node używa swapchain, potrzebujemy aktualnego image index
+    // If node uses swapchain, we need current image index
     uint32_t swapchainImageIndex = 0;
     if (renderNode.usesSwapchainAttachment()) {
-        // Pobierz aktualny image index z renderer lub engine core
         swapchainImageIndex = m_renderer.getCurrentImageIndex();
 
-        // Pobierz swapchain attachments
         const auto& swapchainAttachments = m_swapChain.getAttachmentHandles();
         if (swapchainImageIndex >= swapchainAttachments.size()) {
             SPDLOG_ERROR("Invalid swapchain image index: {}", swapchainImageIndex);
@@ -196,7 +173,7 @@ FrameBufferHandle RenderGraphExecutor::setupNodeFramebuffer(RenderNode& renderNo
         }
     }
 
-    // Zbierz wszystkie attachments w odpowiedniej kolejności
+    // Collect all attachments in proper order
     attachmentHandles = resolveNodeAttachments(renderNode, swapchainImageIndex);
 
     if (attachmentHandles.empty()) {
@@ -238,7 +215,6 @@ void RenderGraphExecutor::beginNodeRenderPass(RenderNode& renderNode, FrameBuffe
     }
 
     // Use RenderNode's render pass management
-    // This delegates to the node's own render pass logic which handles clear values properly
     renderNode.beginRenderPass(
         m_renderer.getCurrentCommandBuffer(),
         framebuffer->frameBuffer,
@@ -261,7 +237,6 @@ void RenderGraphExecutor::endNodeRenderPass(RenderNode& renderNode) {
         return;
     }
 
-    // Use RenderNode's render pass management
     renderNode.endRenderPass(m_renderer.getCurrentCommandBuffer());
 
     m_nodeRenderPassActive = false;
@@ -275,7 +250,7 @@ void RenderGraphExecutor::endNodeRenderPass() {
         return;
     }
 
-    // Fallback version for exception cleanup - direct Vulkan call
+    // Fallback version for exception cleanup
     vkCmdEndRenderPass(m_renderer.getCurrentCommandBuffer());
 
     m_nodeRenderPassActive = false;
@@ -284,43 +259,8 @@ void RenderGraphExecutor::endNodeRenderPass() {
     SPDLOG_DEBUG("Ended render pass for node (fallback)");
 }
 
-PipelineHandle RenderGraphExecutor::getOrCreatePipeline(const DrawCall& drawCall,
-    RenderPassHandle renderPassHandle,
-    uint32_t subpass) {
-    if (!drawCall.hasPipelineConfig()) {
-        SPDLOG_ERROR("DrawCall does not have pipeline configuration");
-        return PipelineHandle(0);
-    }
-
-    // Get the base pipeline configuration from DrawCall
-    GraphicsPipelineConfig config = drawCall.getPipelineConfig();
-
-    // Get the VkRenderPass from RenderPassHandle
-    VkRenderPass* renderPassResource = m_renderPassManager.getResource(renderPassHandle);
-    if (!renderPassResource) {
-        SPDLOG_ERROR("Invalid render pass handle");
-        return PipelineHandle(0);
-    }
-
-    // Complete the pipeline configuration with render pass information
-    config.renderPass.renderPass = *renderPassResource;
-    config.renderPass.subpass = subpass;
-
-    // Create or retrieve cached pipeline from PipelineManager
-    PipelineHandle pipelineHandle = m_pipelineManager.createGraphicsPipeline(config);
-
-    if (!pipelineHandle.isValid()) {
-        SPDLOG_ERROR("Failed to create graphics pipeline");
-        return PipelineHandle(0);
-    }
-
-    SPDLOG_DEBUG("Successfully created/retrieved pipeline for DrawCall");
-    return pipelineHandle;
-}
-
 VkExtent2D RenderGraphExecutor::getRenderTargetExtent(const RenderTarget& renderTarget) {
     if (renderTarget.isSwapchain()) {
-        // Get extent from swapchain
         return m_swapChain.getSwapChainExtent();
     }
     else if (renderTarget.isTexture()) {
@@ -328,7 +268,6 @@ VkExtent2D RenderGraphExecutor::getRenderTargetExtent(const RenderTarget& render
         if (textureHandle.isValid()) {
             auto* textureInfo = textureHandle.get();
             if (textureInfo) {
-                // Convert from texture dimensions to VkExtent2D
                 return {
                     static_cast<uint32_t>(textureInfo->width),
                     static_cast<uint32_t>(textureInfo->height)
@@ -363,7 +302,6 @@ std::vector<AttachmentHandle> RenderGraphExecutor::resolveNodeAttachments(
 
     // Depth attachment
     if (const auto* depthAttachment = renderNode.getDepthAttachment()) {
-        // Depth zawsze managed
         handles.push_back(depthAttachment->handle);
     }
 

@@ -5,8 +5,8 @@
 #include <stdexcept>
 #include <imgui.h>
 
-UIRenderer::UIRenderer(Renderer& renderer, ImGuiWrapper& imguiWrapper)
-    : m_renderer(renderer), m_imguiWrapper(imguiWrapper) {
+UIRenderer::UIRenderer(Renderer& renderer)
+    : m_renderer(renderer) {
     // Reserve some capacity to avoid frequent reallocations
     m_callbacks.reserve(16);
 }
@@ -84,7 +84,7 @@ void UIRenderer::render() {
     }
 
     // Use ImGuiWrapper to render
-    m_imguiWrapper.render(m_renderer.getCurrentCommandBuffer());
+    //m_imguiWrapper.render(m_renderer.getCurrentCommandBuffer());
 }
 
 uint32_t UIRenderer::clampPriority(uint32_t priority) const {

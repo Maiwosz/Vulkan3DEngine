@@ -2,7 +2,7 @@
 #include "Prerequisites.h"
 #include "Window.h"
 #include "SwapChain.h"
-#include "ImGuiWrapper.h"
+#include "ImGuiCore.h"
 #include "ShaderModuleManager.h"
 #include "CommandBuffer.h"
 #include "FrameManager.h"
@@ -59,7 +59,7 @@ public:
 		DescriptorAllocator& alloc = *m_descriptorAllocator;
         return alloc;
     }
-    ImGuiWrapper& imguiWrapper() { return *m_imguiWrapper; }
+    ImGuiCore& imguiCore() { return *m_imguiCore; }
     Renderer& renderer() { return *m_renderer; }
 
     void recreateSwapChain();
@@ -86,10 +86,9 @@ private:
     std::unique_ptr<FrameBufferManager> m_framebufferManager;
     std::unique_ptr<PipelineManager> m_pipelineManager;
     std::unique_ptr<DescriptorAllocator> m_descriptorAllocator;
-    std::unique_ptr<ImGuiWrapper> m_imguiWrapper;
+    std::unique_ptr<ImGuiCore> m_imguiCore;
     std::unique_ptr<Renderer> m_renderer;
 
     // Helper methods
     void initializeRenderGraphSystem();
-    void createImGuiWrapper();
 };

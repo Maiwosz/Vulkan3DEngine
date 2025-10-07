@@ -99,6 +99,11 @@ PhysicalDevice::PhysicalDevice(VkInstance instance, VkSurfaceKHR surface, const 
     m_surface = surface;
     vkGetPhysicalDeviceProperties(m_device, &m_deviceProperties);
     vkGetPhysicalDeviceFeatures(m_device, &m_deviceFeatures);
+
+    // Pobierz minimalna liczbe obrazow z surface capabilities
+    VkSurfaceCapabilitiesKHR surfaceCapabilities;
+    vkGetPhysicalDeviceSurfaceCapabilitiesKHR(m_device, m_surface, &surfaceCapabilities);
+    m_minImageCount = surfaceCapabilities.minImageCount;
 }
 
 int PhysicalDevice::rateSuitability(VkPhysicalDevice device,
@@ -116,7 +121,7 @@ int PhysicalDevice::rateSuitability(VkPhysicalDevice device,
         score += 1000;
     }
 
-    // Wiêksze tekstury = lepsza wydajnoœæ
+    // WiÃªksze tekstury = lepsza wydajnoÅ“Ã¦
     if (props.limits.maxImageDimension2D > 0) {
         score += static_cast<int>(std::log2(props.limits.maxImageDimension2D));
     }
@@ -126,7 +131,7 @@ int PhysicalDevice::rateSuitability(VkPhysicalDevice device,
         return 0;
     }
 
-    // Wsparcie dla wymaganych rozszerzeñ
+    // Wsparcie dla wymaganych rozszerzeÃ±
     if (!checkExtensionSupport(device, requiredExtensions)) {
         return 0;
     }
@@ -137,7 +142,7 @@ int PhysicalDevice::rateSuitability(VkPhysicalDevice device,
         return 0;
     }
 
-    // Wymagane funkcje sprzêtowe
+    // Wymagane funkcje sprzÃªtowe
     if (!features.samplerAnisotropy) {
         return 0;
     }

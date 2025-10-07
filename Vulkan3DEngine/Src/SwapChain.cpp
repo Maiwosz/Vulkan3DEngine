@@ -18,7 +18,8 @@ SwapChain::SwapChain(
     m_vramManager(vramManager),
     m_attachmentManager(attachmentManager),
     m_window(window),
-    m_settings(settings)
+    m_settings(settings),
+    m_framesInFlight(0)
 {
     try {
         init();
@@ -56,15 +57,18 @@ void SwapChain::createSwapChain()
 
     // Use frames in flight from settings
     uint32_t imageCount = m_settings.getFramesInFlight();
+    m_framesInFlight = imageCount;
 
     // Make sure image count is compatible with hardware capabilities
     if (imageCount < swapChainSupport.capabilities.minImageCount) {
         imageCount = swapChainSupport.capabilities.minImageCount;
+        m_framesInFlight = imageCount;
     }
 
     if (swapChainSupport.capabilities.maxImageCount > 0 &&
         imageCount > swapChainSupport.capabilities.maxImageCount) {
         imageCount = swapChainSupport.capabilities.maxImageCount;
+        m_framesInFlight = imageCount;
     }
 
     VkSwapchainCreateInfoKHR createInfo{};

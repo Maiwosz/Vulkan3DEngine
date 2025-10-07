@@ -109,10 +109,10 @@ public:
     bool isComplete() const;
 
     // Render pass control
-    void beginRenderPass(VkCommandBuffer commandBuffer,
+    virtual void beginRenderPass(VkCommandBuffer commandBuffer,
         VkFramebuffer framebuffer,
         const VkExtent2D& renderArea) const;
-    void endRenderPass(VkCommandBuffer commandBuffer) const;
+    virtual void endRenderPass(VkCommandBuffer commandBuffer) const;
 
 protected:
     // Setup interface - used by templates during node creation
@@ -147,4 +147,5 @@ private:
 
     friend class RenderNodeTemplate;  // Allow template to call protected setup methods
     friend class ForwardRenderNodeTemplate;
+    friend class ImGuiRenderNodeTemplate;
 };

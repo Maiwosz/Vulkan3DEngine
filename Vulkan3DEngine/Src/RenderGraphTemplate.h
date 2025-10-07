@@ -2,10 +2,10 @@
 #include "RenderGraph.h"
 #include <memory>
 #include <typeindex>
+#include "RenderNodeManager.h"
 
 // Forward declarations
 class EngineCore;
-class RenderNodeManager;
 
 /**
  * Abstract factory for creating render graphs with access to engine systems.
@@ -18,9 +18,7 @@ class RenderNodeManager;
  */
 class RenderGraphTemplate {
 public:
-    explicit RenderGraphTemplate(EngineCore& engineCore)
-        : m_engineCore(engineCore) {
-    }
+    explicit RenderGraphTemplate(EngineCore& engineCore);
 
     virtual ~RenderGraphTemplate() = default;
 
@@ -44,16 +42,18 @@ public:
 
 protected:
     EngineCore& m_engineCore;
+    RenderNodeManager& m_nodeManager;
 
-    // Helper for derived classes to create graph using type index
     std::unique_ptr<RenderGraph> createBaseGraph(
         const RenderTarget& target,
         VkExtent2D extent) const {
         return std::make_unique<RenderGraph>(getTypeIndex(), target, extent);
     }
 
-    // Helper to get node from RenderNodeManager
+    // Implementacja inline w nagłówku
     template<typename NodeTemplateType>
     SmartHandle<RenderNodeHandle, RenderNode> acquireNode(
-        const RenderTarget& target) const;
+        const RenderTarget& target) const {
+        return m_nodeManager.acquireSmartNode<NodeTemplateType>(target);
+    }
 };

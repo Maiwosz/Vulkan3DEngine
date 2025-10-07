@@ -362,6 +362,21 @@
     <ClCompile Include="Src\RenderGraphTemplate.cpp">
       <Filter>Engine\EngineCore\RenderGraphSystem\RenderGraphManager\RenderGraphTemplates</Filter>
     </ClCompile>
+    <ClCompile Include="Src\ImGuiCore.cpp">
+      <Filter>Engine\EngineCore\ImGuiWrapper\ImGuiContext</Filter>
+    </ClCompile>
+    <ClCompile Include="Src\ImGuiRenderPass.cpp">
+      <Filter>Engine\EngineCore\ImGuiWrapper\ImGuiRenderPass</Filter>
+    </ClCompile>
+    <ClCompile Include="Src\ImGuiRenderNodeTemplate.cpp">
+      <Filter>Engine\EngineCore\RenderGraphSystem\RenderNodeManager\RenderNodeTemplates\ImGuiRenderNodeTemplate</Filter>
+    </ClCompile>
+    <ClCompile Include="Src\ImGuiDrawCall.cpp">
+      <Filter>Engine\EngineCore\Renderer\GpuCalls\ImGuiDrawCall</Filter>
+    </ClCompile>
+    <ClCompile Include="Src\ImGuiRenderNode.cpp">
+      <Filter>Engine\EngineCore\RenderGraphSystem\RenderNodeManager\RenderNode\ImGuiRenderNode</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Src\Prerequisites.h" />
@@ -819,6 +834,24 @@
     <ClInclude Include="Src\RenderTypes.h">
       <Filter>Engine\EngineCore\RenderGraphSystem</Filter>
     </ClInclude>
+    <ClInclude Include="Src\ImGuiCore.h">
+      <Filter>Engine\EngineCore\ImGuiWrapper\ImGuiContext</Filter>
+    </ClInclude>
+    <ClInclude Include="Src\ImGuiRenderPass.h">
+      <Filter>Engine\EngineCore\ImGuiWrapper\ImGuiRenderPass</Filter>
+    </ClInclude>
+    <ClInclude Include="Src\GpuCallTypes.h">
+      <Filter>Engine\EngineCore\Renderer\GpuCalls</Filter>
+    </ClInclude>
+    <ClInclude Include="Src\ImGuiRenderNodeTemplate.h">
+      <Filter>Engine\EngineCore\RenderGraphSystem\RenderNodeManager\RenderNodeTemplates\ImGuiRenderNodeTemplate</Filter>
+    </ClInclude>
+    <ClInclude Include="Src\ImGuiDrawCall.h">
+      <Filter>Engine\EngineCore\Renderer\GpuCalls\ImGuiDrawCall</Filter>
+    </ClInclude>
+    <ClInclude Include="Src\ImGuiRenderNode.h">
+      <Filter>Engine\EngineCore\RenderGraphSystem\RenderNodeManager\RenderNode\ImGuiRenderNode</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <None Include="..\Libs\imgui\.gitattributes">
@@ -1212,6 +1245,21 @@
     </Filter>
     <Filter Include="Engine\EngineCore\RenderGraphSystem\RenderNodeManager\RenderNodeTemplates\ForwardRenderNodeTemplate">
       <UniqueIdentifier>{5807df38-54d0-445d-a2ae-8ef1df5b0863}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Engine\EngineCore\ImGuiWrapper\ImGuiContext">
+      <UniqueIdentifier>{23f98ccf-5df7-41fa-b262-956c3fa78985}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Engine\EngineCore\ImGuiWrapper\ImGuiRenderPass">
+      <UniqueIdentifier>{a8acab9c-e575-4fd3-a634-fce8b94af944}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Engine\EngineCore\RenderGraphSystem\RenderNodeManager\RenderNodeTemplates\ImGuiRenderNodeTemplate">
+      <UniqueIdentifier>{08c4621b-c322-4ac1-a78a-25aa906c5752}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Engine\EngineCore\Renderer\GpuCalls\ImGuiDrawCall">
+      <UniqueIdentifier>{a6862d8a-c3ba-4176-8b93-6a4e3fac6df6}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Engine\EngineCore\RenderGraphSystem\RenderNodeManager\RenderNode\ImGuiRenderNode">
+      <UniqueIdentifier>{b6d08f33-5af7-4225-b51a-2cd60f644a75}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
 </Project>

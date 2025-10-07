@@ -1,15 +1,21 @@
 #pragma once
 #include "GpuCall.h"
+#include "GpuCallTypes.h"
 #include "Prerequisites.h"
 #include "Handle.h"
 #include "PipelineConfig.h"
 #include "DescriptorAllocator.h"
 
+// Forward declarations
+class RenderNode;
+class EngineCore;
+
 /**
  * GPU command for mesh geometry rendering
  * Contains all data needed for execution and implements its own logic
+ * including pipeline management based on render node context
  */
-class DrawCall : public GpuCall {
+class DrawCall : public TypedGpuCall<DrawCall> {
 public:
     struct MeshData {
         VramHandle vertexBuffer = VramHandle();
@@ -24,7 +30,7 @@ public:
     // Constructor for empty DrawCall (to be filled later)
     DrawCall(uint32_t instanceCount = 1);
 
-    bool execute(Renderer& renderer, EngineCore& engineCore) override;
+    bool execute(Renderer& renderer, EngineCore& engineCore, RenderNode& renderNode) override;
 
     const MeshData& getMeshData() const { return m_meshData; }
     uint32_t getInstanceCount() const { return m_instanceCount; }
@@ -52,36 +58,31 @@ public:
             m_meshData.indexCount > 0;
     }
 
-	// Descriptor set management
-    void setObjectDescriptorSet(const SmartHandle<DescriptorSetHandle, VkDescriptorSet>& descriptorSet) {
-        m_objectDescriptorSetHandle = descriptorSet;
+    // Descriptor set management
+    void setDescriptorSet(uint32_t slot, const SmartHandle<DescriptorSetHandle, VkDescriptorSet>& handle);
+    const SmartHandle<DescriptorSetHandle, VkDescriptorSet>& getDescriptorSet(uint32_t slot) const;
+
+    void setGlobalDescriptorSet(const SmartHandle<DescriptorSetHandle, VkDescriptorSet>& ds) {
+        setDescriptorSet(ShaderLib::GLOBAL_DESCRIPTOR_SET, ds);
     }
-    void setMaterialDescriptorSet(const SmartHandle<DescriptorSetHandle, VkDescriptorSet>& descriptorSet) {
-        m_materialDescriptorSetHandle = descriptorSet;
+    void setObjectDescriptorSet(const SmartHandle<DescriptorSetHandle, VkDescriptorSet>& ds) {
+        setDescriptorSet(ShaderLib::OBJECT_DESCRIPTOR_SET, ds);
     }
-    void setGlobalDescriptorSet(const SmartHandle<DescriptorSetHandle, VkDescriptorSet>& descriptorSet) {
-        m_globalDescriptorSetHandle = descriptorSet;
+    void setCustomDescriptorSet(const SmartHandle<DescriptorSetHandle, VkDescriptorSet>& ds) {
+        setDescriptorSet(ShaderLib::CUSTOM_DESCRIPTOR_SET, ds);
     }
-    const SmartHandle<DescriptorSetHandle, VkDescriptorSet>& getObjectDescriptorSet() const {
-        return m_objectDescriptorSetHandle;
-    }
-    const SmartHandle<DescriptorSetHandle, VkDescriptorSet>& getMaterialDescriptorSet() const {
-        return m_materialDescriptorSetHandle;
-    }
-    const SmartHandle<DescriptorSetHandle, VkDescriptorSet>& getGlobalDescriptorSet() const {
-        return m_globalDescriptorSetHandle;
-	}
 
 private:
     MeshData m_meshData;
     uint32_t m_instanceCount = 0;
     GraphicsPipelineConfig m_pipelineConfig = GraphicsPipelineConfig();
     bool m_hasPipelineConfig = false;
-    SmartHandle<DescriptorSetHandle, VkDescriptorSet> m_objectDescriptorSetHandle;
-    SmartHandle<DescriptorSetHandle, VkDescriptorSet> m_materialDescriptorSetHandle;
-    SmartHandle<DescriptorSetHandle, VkDescriptorSet> m_globalDescriptorSetHandle;
+    std::vector<SmartHandle<DescriptorSetHandle, VkDescriptorSet>> m_descriptorSets;
 
     // Internal validation and execution helpers
     bool validateMeshData(Renderer& renderer) const;
     bool executeDrawCommand(Renderer& renderer) const;
+
+    // Pipeline management (moved from RenderGraphExecutor)
+    PipelineHandle getOrCreatePipeline(EngineCore& engineCore, RenderNode& renderNode);
 };

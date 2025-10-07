@@ -15,7 +15,6 @@ class AttachmentManager;
 class RenderPassManager;
 class SwapChain;
 class PipelineManager;
-class DrawCall;
 
 /**
  * RenderGraphExecutor - interprets and executes RenderGraph structures
@@ -24,6 +23,9 @@ class DrawCall;
  * Takes a RenderGraph and executes all GpuCalls across all nodes in sequence.
  * Uses the existing Renderer for actual GPU command submission while handling
  * the graph traversal and render pass management internally.
+ *
+ * Each GpuCall receives the RenderNode context, allowing them to handle their
+ * own state management (e.g., DrawCall manages its own pipeline creation).
  */
 class RenderGraphExecutor {
 public:
@@ -77,14 +79,14 @@ private:
     FrameBufferHandle setupNodeFramebuffer(RenderNode& renderNode);
 
     /**
-     * Begin render pass for a node using RenderNode's own management
+     * Begin render pass for a node
      * @param renderNode The node to begin render pass for
      * @param framebufferHandle Handle to the framebuffer
      */
     void beginNodeRenderPass(RenderNode& renderNode, FrameBufferHandle framebufferHandle);
 
     /**
-     * End render pass for a node using RenderNode's own management
+     * End render pass for a node
      * @param renderNode The node to end render pass for
      */
     void endNodeRenderPass(RenderNode& renderNode);
@@ -93,17 +95,6 @@ private:
      * End render pass (fallback for exception cleanup)
      */
     void endNodeRenderPass();
-
-    /**
-     * Get or create pipeline for DrawCall with render pass information
-     * @param drawCall The DrawCall containing pipeline configuration
-     * @param renderPassHandle Handle to the current render pass
-     * @param subpass Current subpass index
-     * @return Pipeline handle for the configured pipeline
-     */
-    PipelineHandle getOrCreatePipeline(const DrawCall& drawCall,
-        RenderPassHandle renderPassHandle,
-        uint32_t subpass = 0);
 
     /**
      * Get extent for render target

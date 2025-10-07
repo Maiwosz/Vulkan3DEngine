@@ -3,6 +3,7 @@
 #include <functional>
 #include <typeindex>
 #include <type_traits>
+#include <string_view>
 #include "RenderTarget.h"
 
 /**
@@ -18,25 +19,34 @@
  // Forward declaration to avoid circular dependency
 class RenderTarget;
 
+// Compile-time FNV-1a hash for string literals
+namespace detail {
+    constexpr size_t fnv1a_hash(std::string_view str) {
+        constexpr size_t basis = 14695981039346656037ULL;
+        constexpr size_t prime = 1099511628211ULL;
+        size_t hash = basis;
+        for (char c : str) {
+            hash ^= static_cast<size_t>(c);
+            hash *= prime;
+        }
+        return hash;
+    }
+}
+
+// Forward declarations for SFINAE checks
+template<typename T, typename = void>
+struct has_static_name : std::false_type {};
+
+template<typename T>
+struct has_static_name<T, std::void_t<decltype(T::name)>> : std::true_type {};
+
 // Base template type trait - all templates must specialize this
 template<typename T>
-struct TemplateTypeTraits {
-    static_assert(std::is_base_of_v<class RenderNodeTemplate, T>, "Template type must derive from RenderNodeTemplate");
-    // Each template specialization must define:
-    // - static constexpr RenderTemplateInfo getStaticTemplateInfo()
-    // - static constexpr const char* name
-    // - static constexpr size_t type_hash()
-};
+struct TemplateTypeTraits;
 
 // Base graph template type trait - all graph templates must specialize this
 template<typename T>
-struct GraphTemplateTypeTraits {
-    static_assert(std::is_base_of_v<class RenderGraphTemplate, T>, "Graph template type must derive from RenderGraphTemplate");
-    // Each graph template specialization must define:
-    // - static constexpr RenderGraphTemplateInfo getStaticTemplateInfo()
-    // - static constexpr const char* name
-    // - static constexpr size_t type_hash()
-};
+struct GraphTemplateTypeTraits;
 
 // Template metadata - now defined per template, not globally
 struct RenderTemplateInfo {
@@ -45,7 +55,7 @@ struct RenderTemplateInfo {
     // Capability flags
     bool requiresDepthBuffer;
     bool requiresColorBuffer;
-    bool supportsMSAA;  // Whether this template CAN work with MSAA (actual sample count from target)
+    bool supportsMSAA;
 
     // Preferred formats - templates can override these based on render target
     VkFormat preferredColorFormat;
@@ -104,7 +114,6 @@ template<typename TemplateType>
 struct std::hash<RenderNodeCacheKey<TemplateType>> {
     size_t operator()(const RenderNodeCacheKey<TemplateType>& key) const {
         size_t hash = 0;
-        // Use template-specific hash from traits
         hash ^= TemplateTypeTraits<TemplateType>::type_hash() + 0x9e3779b9 + (hash << 6) + (hash >> 2);
         hash ^= std::hash<int>{}(static_cast<int>(key.targetType)) + 0x9e3779b9 + (hash << 6) + (hash >> 2);
         hash ^= std::hash<uint32_t>{}(key.extent.width) + 0x9e3779b9 + (hash << 6) + (hash >> 2);
@@ -118,7 +127,6 @@ template<typename TemplateType>
 struct std::hash<RenderGraphCacheKey<TemplateType>> {
     size_t operator()(const RenderGraphCacheKey<TemplateType>& key) const {
         size_t hash = 0;
-        // Use graph template-specific hash from traits
         hash ^= GraphTemplateTypeTraits<TemplateType>::type_hash() + 0x9e3779b9 + (hash << 6) + (hash >> 2);
         hash ^= std::hash<int>{}(static_cast<int>(key.targetType)) + 0x9e3779b9 + (hash << 6) + (hash >> 2);
         hash ^= std::hash<uint32_t>{}(key.extent.width) + 0x9e3779b9 + (hash << 6) + (hash >> 2);

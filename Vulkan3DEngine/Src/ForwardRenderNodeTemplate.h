@@ -5,6 +5,7 @@
 #include <memory>
 
 class EngineCore;
+class DrawCall;
 struct RenderPassConfig;
 
 /**
@@ -15,10 +16,13 @@ public:
     explicit ForwardRenderNodeTemplate(EngineCore& engineCore);
     virtual ~ForwardRenderNodeTemplate() = default;
 
+    // Template name - unique identifier
+    static constexpr const char* name = "Forward";
+
     // Static template information
     static constexpr RenderTemplateInfo getStaticTemplateInfo() {
         return RenderTemplateInfo(
-            "Forward",
+            name,
             true,  // requiresDepthBuffer
             true,  // requiresColorBuffer
             true,  // supportsMSAA
@@ -44,7 +48,6 @@ public:
     // Configuration
     struct ForwardConfig {
         bool enableMSAA = true;
-        VkSampleCountFlagBits preferredSamples = VK_SAMPLE_COUNT_4_BIT;
         bool enableDepthTesting = true;
         bool optimizeForTextures = false;
     };
@@ -52,6 +55,9 @@ public:
     void setConfig(const ForwardConfig& config) { m_config = config; }
     const ForwardConfig& getConfig() const { return m_config; }
 
+    std::unordered_set<std::type_index> getAcceptedGpuCallTypes() const override {
+        return makeTypeSet<DrawCall>(); // Only accepts DrawCalls
+    }
 private:
     ForwardConfig m_config;
 
@@ -70,21 +76,18 @@ private:
     VkImageLayout selectFinalColorLayout(const RenderTarget& target) const;
 };
 
+// Template type traits specialization
 template<>
 struct TemplateTypeTraits<ForwardRenderNodeTemplate> {
     using template_type = ForwardRenderNodeTemplate;
-    static constexpr const char* name = "Forward";
+    static constexpr const char* name = ForwardRenderNodeTemplate::name;
 
     static constexpr RenderTemplateInfo getStaticTemplateInfo() {
         return ForwardRenderNodeTemplate::getStaticTemplateInfo();
     }
 
+    // Universal type_hash based on name
     static constexpr size_t type_hash() {
-        constexpr std::string_view type_name = "ForwardRenderNodeTemplate";
-        size_t hash = 0;
-        for (char c : type_name) {
-            hash = hash * 31 + static_cast<size_t>(c);
-        }
-        return hash;
+        return detail::fnv1a_hash(name);
     }
 };

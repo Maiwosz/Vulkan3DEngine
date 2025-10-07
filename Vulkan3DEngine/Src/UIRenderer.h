@@ -24,7 +24,7 @@ public:
     static constexpr uint32_t LOWEST_PRIORITY = 1000;
     static constexpr uint32_t DEFAULT_PRIORITY = 500;
 
-    explicit UIRenderer(Renderer& renderer, ImGuiWrapper& imguiWrapper);
+    explicit UIRenderer(Renderer& renderer);
     ~UIRenderer() = default;
 
     // Callback management
@@ -52,7 +52,6 @@ private:
     };
 
     Renderer& m_renderer;
-    ImGuiWrapper& m_imguiWrapper;
     std::vector<CallbackEntry> m_callbacks;
     CallbackId m_nextId = 1;
     bool m_needsSort = false;

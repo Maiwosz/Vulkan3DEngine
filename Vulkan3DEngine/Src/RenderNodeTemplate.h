@@ -5,11 +5,15 @@
 #include <memory>
 #include <typeindex>
 #include "RenderPassManager.h"
+#include "DrawCall.h"
+#include "ImGuiDrawCall.h"
 
 // Forward declarations
 class RenderNode;
 class EngineCore;
 class SwapChain;
+class DrawCall;
+class ImGuiDrawCall;
 
 // Smart handle type for render pass
 using SmartRenderPassHandle = SmartHandle<RenderPassHandle, VkRenderPass>;
@@ -67,6 +71,30 @@ public:
     virtual std::unique_ptr<RenderNode> createRenderNode(
         const RenderTarget& target,
         VkExtent2D extent) const = 0;
+
+    /**
+     * Check if this template can handle a specific GpuCall type
+     */
+    virtual bool acceptsGpuCallType(std::type_index callType) const {
+        const auto& accepted = getAcceptedGpuCallTypes();
+        return accepted.empty() || accepted.count(callType) > 0;
+    }
+
+    /**
+     * Override to specify which GpuCall types this template accepts
+     * Empty set means accept all types
+     */
+    virtual std::unordered_set<std::type_index> getAcceptedGpuCallTypes() const {
+        return {}; // Default: accept all
+    }
+
+    /**
+     * Convenience helper for templates to declare accepted types at compile-time
+     */
+    template<typename... GpuCallTypes>
+    static std::unordered_set<std::type_index> makeTypeSet() {
+        return { std::type_index(typeid(GpuCallTypes))... };
+    }
 
 protected:
     EngineCore& m_engineCore;

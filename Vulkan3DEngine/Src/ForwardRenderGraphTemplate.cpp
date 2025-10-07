@@ -2,6 +2,7 @@
 #include "RenderGraph.h"
 #include "EngineCore.h"
 #include "ForwardRenderNodeTemplate.h"
+#include "ImGuiRenderNodeTemplate.h"
 #include <stdexcept>
 
 ForwardRenderGraphTemplate::ForwardRenderGraphTemplate(EngineCore& engineCore)
@@ -25,13 +26,24 @@ std::unique_ptr<RenderGraph> ForwardRenderGraphTemplate::createRenderGraph(
     }
 
     auto renderGraph = createBaseGraph(target, extent);
-    auto forwardNodeHandle = acquireNode<ForwardRenderNodeTemplate>(target);
 
+    // Step 1: Add forward rendering node
+    // Node templates are pre-configured during registration
+    auto forwardNodeHandle = acquireNode<ForwardRenderNodeTemplate>(target);
     if (!forwardNodeHandle.isValid()) {
         throw std::runtime_error("ForwardRenderGraphTemplate: Failed to acquire ForwardRenderNode");
     }
-
     renderGraph->addNode(std::move(forwardNodeHandle));
+
+    // Step 2: Optionally add ImGui overlay node
+    if (m_config.enableImGui) {
+        auto imguiNodeHandle = acquireNode<ImGuiRenderNodeTemplate>(target);
+        if (!imguiNodeHandle.isValid()) {
+            throw std::runtime_error("ForwardRenderGraphTemplate: Failed to acquire ImGuiRenderNode");
+        }
+        renderGraph->addNode(std::move(imguiNodeHandle));
+    }
+
     return renderGraph;
 }
 

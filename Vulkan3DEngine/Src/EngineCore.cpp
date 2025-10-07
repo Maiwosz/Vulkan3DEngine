@@ -122,12 +122,14 @@ EngineCore::EngineCore(Settings& settings, Window& window) :m_settings(settings)
             *m_framebufferManager,
             *m_renderPassManager,
             *m_descriptorAllocator,
-            *m_pipelineManager,
-            *m_imguiWrapper
+            *m_pipelineManager
         );
 
-        // Create ImGui wrapper after render pass is created
-        createImGuiWrapper();
+        m_imguiCore = std::make_unique<ImGuiCore>(
+            m_window,
+            *m_vulkanContext,
+            *m_swapChain
+        );
 
     }
     catch (const std::exception& e) {
@@ -146,7 +148,7 @@ EngineCore::~EngineCore() {
         m_frameManager->waitForAllFrames();
     }
 
-    m_imguiWrapper.reset();
+    m_imguiCore.reset();
 
     // Destroy managers in proper order
     m_renderer.reset();
@@ -208,10 +210,7 @@ void EngineCore::recreateSwapChain() {
     m_swapChain->recreateSwapChain();
 
     // Clear render graph cache to force recreation with new dimensions
-    m_renderGraphManager->clearCache();
-
-    // Recreate ImGui
-    m_imguiWrapper->recreate();
+    //m_renderGraphManager->clearCache();
 
     SPDLOG_INFO("Swapchain recreation completed successfully");
 }
@@ -225,6 +224,7 @@ void EngineCore::initializeRenderGraphSystem() {
     config.enableMSAA = (Graphics::convertSampleCount(m_settings.getMsaaSamples()) > 1);
     config.enableDepthTesting = true;
     config.optimizeForTextures = false;
+	config.enableImGui = true; // Enable ImGui overlay by default
     
     forwardTemplate->setConfig(config);
     
@@ -232,30 +232,3 @@ void EngineCore::initializeRenderGraphSystem() {
     m_renderGraphManager->registerTemplate(std::move(forwardTemplate));
 }
 
-
-void EngineCore::createImGuiWrapper() {
-    //// Extract render pass from the main render graph
-    //auto* renderGraph = m_mainRenderGraph.get();
-    //if (!renderGraph) {
-    //    throw std::runtime_error("Cannot create ImGui wrapper without valid render graph");
-    //}
-
-    //// Get the render pass handle from the graph
-    //// Note: This assumes the ForwardRenderGraph exposes its render pass
-    //// You may need to add a method to RenderGraph to get the main render pass
-    //RenderPassHandle mainRenderPass = renderGraph->getNode(0)->renderNodeHandle->getRenderPassHandle();
-
-    //uint32_t imageCount = m_settings.getFramesInFlight();
-    //uint32_t minImageCount = imageCount;
-    //VkSampleCountFlagBits samples = Graphics::convertSampleCount(m_settings.getMsaaSamples());
-
-    //m_imguiWrapper = std::make_unique<ImGuiWrapper>(
-    //    m_window,
-    //    *m_vulkanContext,
-    //    mainRenderPass,
-    //    *m_renderPassManager,
-    //    minImageCount,
-    //    imageCount,
-    //    samples
-    //);
-}

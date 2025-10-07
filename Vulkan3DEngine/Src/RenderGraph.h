@@ -59,10 +59,6 @@ public:
 
     // Setup interface - used by templates during creation
     void addNode(SmartHandle<RenderNodeHandle, RenderNode> nodeHandle);
-    void addOrderToNode(size_t nodeIndex, RenderOrder* order);
-
-    // Clear all render orders (for dynamic reconfiguration)
-    void clearOrders();
 
 private:
     std::type_index m_templateTypeIndex;        // Template type used to create this graph
