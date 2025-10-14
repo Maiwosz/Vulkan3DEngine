@@ -164,6 +164,8 @@ void ComponentManager::registerComponent() {
     // Register factory function for deserialization
     m_deserializerFunctions[name] = [this](Entity entity, const nlohmann::json& data) {
         T component;
+        component.setEngine(&m_engine);
+        component.setRegistry(&m_registry);
         component.deserialize(data);
         addComponent<T>(entity, std::move(component));
         };

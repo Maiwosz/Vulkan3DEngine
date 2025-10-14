@@ -9,6 +9,7 @@
 #include "VramManager.h"
 #include "LogicalDevice.h"
 #include "ComponentManager.h"
+#include "RenderGraphTemplateManager.h"
 #include <memory>
 
 class EngineCore; // Forward declaration
@@ -29,6 +30,7 @@ public:
     ShaderManager& shaderManager() { return *m_shaderManager; }
     PrefabManager& prefabManager() { return *m_prefabManager; }
     SceneManager& sceneManager() { return *m_sceneManager; }
+    RenderGraphTemplateManager& renderGraphTemplateManager() { return *m_renderGraphTemplateManager; }
 private:
     EngineCore& m_renderer;
     std::unique_ptr<AssetManager> m_assetManager;
@@ -40,6 +42,7 @@ private:
     std::shared_ptr<ShaderManager> m_shaderManager;
     std::shared_ptr<PrefabManager> m_prefabManager;
     std::shared_ptr<SceneManager> m_sceneManager;
+    std::shared_ptr<RenderGraphTemplateManager> m_renderGraphTemplateManager;
 
     // Register all handlers with the asset manager
     void registerAssetHandlers();

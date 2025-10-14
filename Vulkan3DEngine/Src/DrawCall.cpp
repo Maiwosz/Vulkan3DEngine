@@ -59,8 +59,7 @@ PipelineHandle DrawCall::getOrCreatePipeline(EngineCore& engineCore, RenderNode&
     GraphicsPipelineConfig config = m_pipelineConfig;
 
     // Get the VkRenderPass from RenderNode's render pass handle
-    RenderPassHandle renderPassHandle = renderNode.getRenderPassHandle();
-    VkRenderPass* renderPassResource = renderPassManager.getResource(renderPassHandle);
+    VkRenderPass renderPassResource = renderNode.getRenderPass();
 
     if (!renderPassResource) {
         SPDLOG_ERROR("DrawCall: Invalid render pass handle from render node");
@@ -68,7 +67,7 @@ PipelineHandle DrawCall::getOrCreatePipeline(EngineCore& engineCore, RenderNode&
     }
 
     // Complete the pipeline configuration with render pass information
-    config.renderPass.renderPass = *renderPassResource;
+    config.renderPass.renderPass = renderPassResource;
     config.renderPass.subpass = 0; // Default to first subpass
 
     // Create or retrieve cached pipeline from PipelineManager

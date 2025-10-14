@@ -13,7 +13,7 @@
 EditorUI::EditorUI(Engine& engine)
     : m_engine(engine)
     , m_registry(engine.registry())
-    , m_frameManager(engine.renderer().frameManager())
+    , m_frameManager(engine.engineCore().frameManager())
     , m_showOpenSceneDialog(false)
     , m_showSaveSceneDialog(false)
     , m_selectedSceneIndex(-1)

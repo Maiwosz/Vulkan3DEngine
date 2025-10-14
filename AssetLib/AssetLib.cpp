@@ -208,6 +208,21 @@ namespace AssetLib {
             info.entityCount = j["entityCount"].get<uint32_t>();
             return info;
         }
+
+        // Serializacja/Deserializacja RenderGraphInfo
+        json SerializeRenderGraphInfo(const RenderGraphInfo& info) {
+            return {
+                {"nodeCount", info.nodeCount},
+                {"connectionCount", info.connectionCount}
+            };
+        }
+
+        RenderGraphInfo DeserializeRenderGraphInfo(const json& j) {
+            RenderGraphInfo info;
+            info.nodeCount = j["nodeCount"].get<uint32_t>();
+            info.connectionCount = j["connectionCount"].get<uint32_t>();
+            return info;
+        }
     }
 
     bool ValidateHeader(const Header& header) {
@@ -605,6 +620,61 @@ namespace AssetLib {
         nlohmann::json sceneData = nlohmann::json::parse(jsonString);
 
         return { info, sceneData };
+    }
+
+    AssetData WriteRenderGraph(
+        const std::string& sourceName,
+        const RenderGraphInfo& info,
+        const nlohmann::json& graphData,
+        CompressionType compression) {
+
+        AssetData asset;
+        asset.header.assetType = AssetType::RenderGraph;
+        asset.header.compression = compression;
+
+        // Serializacja JSON do string, potem do binary
+        std::string jsonString = graphData.dump();
+        std::vector<uint8_t> jsonBytes(jsonString.begin(), jsonString.end());
+
+        asset.header.decompressedSize = jsonBytes.size();
+
+        // Metadata
+        asset.metadata["source"] = sourceName.empty() ? "generated_graph" : sourceName;
+        asset.metadata["renderGraph"] = SerializeRenderGraphInfo(info);
+
+        // Kompresja danych
+        asset.compressedData = Compress(jsonBytes.data(), jsonBytes.size(), compression);
+
+        return asset;
+    }
+
+    std::pair<RenderGraphInfo, nlohmann::json> ReadRenderGraph(const AssetData& asset) {
+        if (asset.header.assetType != AssetType::RenderGraph) {
+            throw std::runtime_error("Not a render graph asset");
+        }
+
+        RenderGraphInfo info = DeserializeRenderGraphInfo(asset.metadata["renderGraph"]);
+
+        std::vector<uint8_t> data;
+
+        // Dekompresja jeśli potrzebna
+        if (asset.header.compression == CompressionType::None) {
+            data = asset.compressedData;
+        }
+        else if (asset.header.compression == CompressionType::LZ4) {
+            data = Decompress(asset.compressedData.data(),
+                asset.compressedData.size(),
+                asset.header.decompressedSize);
+        }
+        else {
+            throw std::runtime_error("Unsupported compression type in render graph");
+        }
+
+        // Konwertuj bajty z powrotem na string i parsuj JSON
+        std::string jsonString(data.begin(), data.end());
+        nlohmann::json graphData = nlohmann::json::parse(jsonString);
+
+        return { info, graphData };
     }
 
     // Helper type conversion functions

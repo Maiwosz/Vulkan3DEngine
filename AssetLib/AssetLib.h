@@ -18,7 +18,8 @@ namespace AssetLib {
         Material = 2,
         Shader = 3,
         Prefab = 4,
-        Scene = 5
+        Scene = 5,
+        RenderGraph = 6
     };
 
     enum class CompressionType : uint8_t {
@@ -152,6 +153,14 @@ namespace AssetLib {
         uint32_t entityCount;     // Liczba entity w scenie
     };
 
+    // =============================================
+	// Render Graphs
+    // =============================================
+
+    struct RenderGraphInfo {
+        uint32_t nodeCount;        // Liczba węzłów w grafie
+        uint32_t connectionCount;  // Liczba połączeń między węzłami
+    };
 
     // =============================================
     // Wspólna struktura nagłówka
@@ -242,6 +251,20 @@ namespace AssetLib {
     std::pair<SceneInfo, nlohmann::json> ReadScene(const AssetData& asset);
 
     // =============================================
+	// Funkcje dla Render Graphów
+    // =============================================
+
+    AssetData WriteRenderGraph(
+        const std::string& sourceName,  // Nazwa grafu
+        const RenderGraphInfo& info,
+        const nlohmann::json& graphData,
+        CompressionType compression = CompressionType::None
+    );
+
+    // Odczyt render graph
+    std::pair<RenderGraphInfo, nlohmann::json> ReadRenderGraph(const AssetData& asset);
+
+    // =============================================
     // Funkcje
     // =============================================
     std::vector<uint8_t> Compress(const void* data, size_t size, CompressionType compressionType, int compressionLevel = 1);
@@ -256,25 +279,27 @@ namespace AssetLib {
     namespace Utilities {
         constexpr std::string_view GetAssetExtension(AssetType type) {
             switch (type) {
-            case AssetType::Texture:   return ".atex";
-            case AssetType::Mesh:      return ".amsh";
-            case AssetType::Material:  return ".amat";
-            case AssetType::Shader:    return ".ashd";
-            case AssetType::Prefab:    return ".apfb";
-            case AssetType::Scene:     return ".ascn";
-            default:                   return "";
+            case AssetType::Texture:     return ".atex";
+            case AssetType::Mesh:        return ".amsh";
+            case AssetType::Material:    return ".amat";
+            case AssetType::Shader:      return ".ashd";
+            case AssetType::Prefab:      return ".apfb";
+            case AssetType::Scene:       return ".ascn";
+            case AssetType::RenderGraph: return ".argr";
+            default:                     return "";
             }
         }
 
         constexpr std::string_view GetAssetTypeName(AssetType type) {
             switch (type) {
-            case AssetType::Texture:   return "Texture";
-            case AssetType::Mesh:      return "Mesh";
-            case AssetType::Material:  return "Material";
-            case AssetType::Shader:    return "Shader";
-            case AssetType::Prefab:    return "Prefab";
-            case AssetType::Scene:     return "Scene";
-            default:                   return "Unknown";
+            case AssetType::Texture:     return "Texture";
+            case AssetType::Mesh:        return "Mesh";
+            case AssetType::Material:    return "Material";
+            case AssetType::Shader:      return "Shader";
+            case AssetType::Prefab:      return "Prefab";
+            case AssetType::Scene:       return "Scene";
+            case AssetType::RenderGraph: return "RenderGraph";
+            default:                     return "Unknown";
             }
         }
     } // namespace Utilities

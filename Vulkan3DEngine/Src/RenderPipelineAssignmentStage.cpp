@@ -3,14 +3,16 @@
 #include "CameraComponent.h"
 #include "EngineCore.h"
 #include "Registry.h"
-#include "ForwardRenderGraphTemplate.h"
+#include "BuiltInGraphTemplates.h"
+#include "AssetSystem.h"
 #include <spdlog/spdlog.h>
 
 RenderPipelineAssignmentStage::RenderPipelineAssignmentStage(
     ProcessingContext& context,
+    AssetSystem& assetSystem,
     EngineCore& engineCore,
     Registry& registry)
-    : ProcessingStage(context), m_engineCore(engineCore), m_registry(registry) {
+    : ProcessingStage(context), m_assetSystem(assetSystem), m_engineCore(engineCore), m_registry(registry) {
     SPDLOG_DEBUG("RenderPipelineAssignmentStage created");
 }
 
@@ -47,8 +49,19 @@ ProcessingResult RenderPipelineAssignmentStage::processCameraOrder(std::shared_p
             cameraOrder->entity.id,
             renderTarget.isSwapchain() ? "swapchain" : "texture");
 
+        // Get the template manager and acquire smart handle to forward rendering template
+        auto& templateManager = m_assetSystem.renderGraphTemplateManager();
+        auto templateHandle = templateManager.getTemplateSmartHandle("ForwardRendering");
+
+        if (!templateHandle.isValid()) {
+            SPDLOG_ERROR("RenderPipelineAssignmentStage: Failed to get ForwardRendering template for camera entity {}",
+                cameraOrder->entity.id);
+            return ProcessingResult::Failure;
+        }
+
         // Acquire the appropriate render graph for this render target
-        auto renderGraphHandle = m_engineCore.renderGraphManager().acquireSmartGraph<ForwardRenderGraphTemplate>(
+        auto renderGraphHandle = m_engineCore.renderGraphManager().acquireSmartRenderGraph(
+            templateHandle,
             renderTarget
         );
 

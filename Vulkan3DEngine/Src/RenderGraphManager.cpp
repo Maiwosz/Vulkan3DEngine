@@ -1,138 +1,178 @@
 #include "RenderGraphManager.h"
-#include "RenderNodeManager.h"
 #include "RenderGraphTemplate.h"
-#include "SwapChain.h"
+#include "RenderTarget.h"
 #include <stdexcept>
-#include "EngineCore.h"
 
-RenderGraphManager::RenderGraphManager(EngineCore& engineCore)
-	: m_engineCore(engineCore)
-    , m_nodeManager(engineCore.renderNodeManager())
-    , m_renderPassManager(engineCore.renderPassManager())
-    , m_attachmentManager(engineCore.attachmentManager())
-    , m_framebufferManager(engineCore.framebufferManager())
-    , m_swapchain(engineCore.swapChain()) {
+RenderGraphManager::RenderGraphManager(
+    AttachmentManager& attachmentMgr,
+    RenderPassManager& renderPassMgr)
+    : m_attachmentManager(attachmentMgr)
+    , m_renderPassManager(renderPassMgr) {
 }
 
 RenderGraphManager::~RenderGraphManager() {
-    // Resources will be automatically destroyed when maps are destroyed
+    m_cache.clear();
+    m_renderGraphs.clear();
+}
+
+RenderGraphHandle RenderGraphManager::acquireRenderGraph(
+    const SmartRenderGraphTemplateHandle& graphTemplate,
+    const RenderTarget& target) {
+
+    if (!graphTemplate.isValid()) {
+        throw std::runtime_error("RenderGraphManager: invalid template handle");
+    }
+
+    RenderGraphCacheKey key(graphTemplate.handle(), target);
+
+    // Check cache first
+    auto cacheIt = m_cache.find(key);
+    if (cacheIt != m_cache.end()) {
+        RenderGraphHandle handle = cacheIt->second;
+        addReference(handle);
+        return handle;
+    }
+
+    // Create new render graph
+    return createRenderGraph(graphTemplate, target);
+}
+
+SmartRenderGraphHandle RenderGraphManager::acquireSmartRenderGraph(
+    const SmartRenderGraphTemplateHandle& graphTemplate,
+    const RenderTarget& target) {
+
+    RenderGraphHandle handle = acquireRenderGraph(graphTemplate, target);
+    return makeSmartHandle(handle);
+}
+
+RenderGraphHandle RenderGraphManager::createRenderGraph(
+    const SmartRenderGraphTemplateHandle& graphTemplate,
+    const RenderTarget& target) {
+
+    if (!graphTemplate.isValid()) {
+        throw std::runtime_error("RenderGraphManager: invalid template handle");
+    }
+
+    // Get template through smart handle - uses internal manager pointer
+    const RenderGraphTemplate* tmpl = graphTemplate.get();
+    if (!tmpl) {
+        throw std::runtime_error("RenderGraphManager: failed to get template");
+    }
+
+    // Create the concrete render graph
+    auto graph = tmpl->createRenderGraph(
+        target,
+        m_attachmentManager,
+        m_renderPassManager);
+
+    if (!graph || !graph->isValid()) {
+        throw std::runtime_error("RenderGraphManager: failed to create valid render graph");
+    }
+
+    // Allocate handle
+    RenderGraphHandle handle(m_nextHandleId);
+    ++m_nextHandleId;
+
+    // Store in cache
+    RenderGraphCacheKey key(graphTemplate.handle(), target);
+    m_cache[key] = handle;
+
+    // Store entry with a copy of the smart handle to keep template alive
+    m_renderGraphs.emplace(
+        std::piecewise_construct,
+        std::forward_as_tuple(handle),
+        std::forward_as_tuple(
+            std::move(graph),
+            key,
+            graphTemplate,  // Copy smart handle - keeps template alive
+            1)
+    );
+
+    return handle;
+}
+
+void RenderGraphManager::invalidateTarget(const RenderTarget& target) {
+    std::vector<RenderGraphHandle> toRemove;
+
+    // Find all graphs for this target
+    for (const auto& [handle, entry] : m_renderGraphs) {
+        if (entry.cacheKey.target == target) {
+            toRemove.push_back(handle);
+        }
+    }
+
+    // Remove from cache and storage
+    for (RenderGraphHandle handle : toRemove) {
+        removeFromCache(handle);
+        m_renderGraphs.erase(handle);
+    }
+}
+
+void RenderGraphManager::invalidateTemplate(RenderGraphTemplateHandle templateHandle) {
+    std::vector<RenderGraphHandle> toRemove;
+
+    // Find all graphs using this template
+    for (const auto& [handle, entry] : m_renderGraphs) {
+        if (entry.cacheKey.templateHandle == templateHandle) {
+            toRemove.push_back(handle);
+        }
+    }
+
+    // Remove from cache and storage
+    for (RenderGraphHandle handle : toRemove) {
+        removeFromCache(handle);
+        m_renderGraphs.erase(handle);
+    }
+}
+
+void RenderGraphManager::invalidateAll() {
+    m_cache.clear();
+    m_renderGraphs.clear();
+}
+
+void RenderGraphManager::removeFromCache(RenderGraphHandle handle) {
+    auto it = m_renderGraphs.find(handle);
+    if (it != m_renderGraphs.end()) {
+        m_cache.erase(it->second.cacheKey);
+    }
 }
 
 RenderGraph* RenderGraphManager::getResource(RenderGraphHandle handle) {
-    auto it = m_resources.find(handle);
-    if (it != m_resources.end() && !it->second.markedForDeletion) {
-        return it->second.graph.get();
+    auto it = m_renderGraphs.find(handle);
+    if (it == m_renderGraphs.end()) {
+        return nullptr;
     }
-    return nullptr;
+    return it->second.graph.get();
 }
 
 bool RenderGraphManager::isValid(RenderGraphHandle handle) const {
-    auto it = m_resources.find(handle);
-    return it != m_resources.end() && !it->second.markedForDeletion;
+    return m_renderGraphs.find(handle) != m_renderGraphs.end();
 }
 
 void RenderGraphManager::releaseResource(RenderGraphHandle handle) {
-    auto it = m_resources.find(handle);
-    if (it != m_resources.end()) {
-        it->second.markedForDeletion = true;
+    auto it = m_renderGraphs.find(handle);
+    if (it == m_renderGraphs.end()) {
+        return;
+    }
 
-        // If no references, actually remove it
-        if (it->second.referenceCount == 0) {
-            // Remove from cache first
-            for (auto& [typeIndex, typeCache] : m_graphCache) {
-                for (auto cacheIt = typeCache.begin(); cacheIt != typeCache.end(); ++cacheIt) {
-                    if (cacheIt->second == handle) {
-                        typeCache.erase(cacheIt);
-                        break;
-                    }
-                }
-                if (typeCache.empty()) {
-                    m_graphCache.erase(typeIndex);
-                    break;
-                }
-            }
-            m_resources.erase(it);
-        }
+    if (it->second.referenceCount > 0) {
+        --it->second.referenceCount;
+    }
+
+    // Remove if no more references
+    if (it->second.referenceCount == 0) {
+        removeFromCache(handle);
+        m_renderGraphs.erase(it);
     }
 }
 
 void RenderGraphManager::addReference(RenderGraphHandle handle) {
-    auto it = m_resources.find(handle);
-    if (it != m_resources.end()) {
-        it->second.referenceCount++;
-        it->second.markedForDeletion = false; // Un-mark for deletion if referenced again
+    auto it = m_renderGraphs.find(handle);
+    if (it != m_renderGraphs.end()) {
+        ++it->second.referenceCount;
     }
 }
 
 void RenderGraphManager::removeReference(RenderGraphHandle handle) {
-    auto it = m_resources.find(handle);
-    if (it != m_resources.end() && it->second.referenceCount > 0) {
-        it->second.referenceCount--;
-
-        // If marked for deletion and no references, remove it
-        if (it->second.referenceCount == 0 && it->second.markedForDeletion) {
-            // Remove from cache first
-            for (auto& [typeIndex, typeCache] : m_graphCache) {
-                for (auto cacheIt = typeCache.begin(); cacheIt != typeCache.end(); ++cacheIt) {
-                    if (cacheIt->second == handle) {
-                        typeCache.erase(cacheIt);
-                        break;
-                    }
-                }
-                if (typeCache.empty()) {
-                    m_graphCache.erase(typeIndex);
-                    break;
-                }
-            }
-            m_resources.erase(it);
-        }
-    }
-}
-
-void RenderGraphManager::clearCache() {
-    // Mark all cached graphs for deletion
-    for (const auto& [typeIndex, typeCache] : m_graphCache) {
-        for (const auto& [keyHash, handle] : typeCache) {
-            auto resourceIt = m_resources.find(handle);
-            if (resourceIt != m_resources.end()) {
-                resourceIt->second.markedForDeletion = true;
-
-                // If no references, remove immediately
-                if (resourceIt->second.referenceCount == 0) {
-                    m_resources.erase(resourceIt);
-                }
-            }
-        }
-    }
-
-    m_graphCache.clear();
-}
-
-size_t RenderGraphManager::getCacheSize() const {
-    size_t total = 0;
-    for (const auto& [typeIndex, typeCache] : m_graphCache) {
-        total += typeCache.size();
-    }
-    return total;
-}
-
-VkExtent2D RenderGraphManager::extractDimensions(const RenderTarget& target) const {
-    if (target.isSwapchain()) {
-        return m_swapchain.getSwapChainExtent();
-    }
-    else if (target.isTexture()) {
-        // RenderTarget handles texture dimension extraction internally
-        return target.getDimensions(&m_swapchain);
-    }
-    else {
-        throw std::runtime_error("Unknown render target type");
-    }
-}
-
-RenderGraphHandle RenderGraphManager::generateHandle() {
-    return RenderGraphHandle(m_nextHandleId++);
-}
-
-SmartHandle<RenderGraphHandle, RenderGraph> RenderGraphManager::createSmartHandle(RenderGraphHandle handle) {
-    return makeSmartHandle(handle);
+    releaseResource(handle);
 }

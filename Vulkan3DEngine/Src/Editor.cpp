@@ -3,7 +3,7 @@
 #include "Paths.h"
 #include <filesystem>
 #include <iostream>
-#include "UIRenderer.h"
+#include "DearImGuiProvider.h"
 
 Editor::Editor(const std::string& sourceRelative, const std::string& destRelative)
     : m_sourceRelative(sourceRelative)
@@ -46,7 +46,16 @@ Editor::Editor(const std::string& sourceRelative, const std::string& destRelativ
     // Initialize EditorUI with engine reference
     m_editorUI = std::make_unique<EditorUI>(*m_engine);
 
-    m_engine->renderer().renderer().uiRenderer().addCallback(
+    auto imguiProvider = std::make_shared<DearImGuiProvider>(
+        m_engine->window(),
+		m_engine->engineCore().vulkanContext(),
+        m_engine->engineCore().swapChain()
+    );
+
+	auto& renderGraphExecutor = m_engine->engineCore().renderer().renderGraphExecutor();
+
+	renderGraphExecutor.attachImGuiProvider(imguiProvider);
+    renderGraphExecutor.getImGuiProvider()->registerCallback(
         [this]() {
             m_editorUI->renderWindows();
         }

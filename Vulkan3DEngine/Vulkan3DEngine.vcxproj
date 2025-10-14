@@ -172,17 +172,14 @@
     <ClCompile Include="..\Libs\imgui\imgui_impl_vulkan.cpp" />
     <ClCompile Include="..\Libs\imgui\imgui_tables.cpp" />
     <ClCompile Include="..\Libs\imgui\imgui_widgets.cpp" />
-    <ClCompile Include="Src\ImGuiDrawCall.cpp" />
-    <ClCompile Include="Src\ImGuiRenderNode.cpp" />
-    <ClCompile Include="Src\ImGuiRenderNodeTemplate.cpp" />
-    <ClCompile Include="Src\ImGuiCore.cpp" />
-    <ClCompile Include="Src\ImGuiRenderPass.cpp" />
-    <ClCompile Include="Src\ForwardRenderGraphTemplate.cpp" />
-    <ClCompile Include="Src\ForwardRenderNodeTemplate.cpp" />
+    <ClCompile Include="Src\DearImGuiProvider.cpp" />
+    <ClCompile Include="Src\RenderGraphTemplateManager.cpp" />
+    <ClCompile Include="Src\CameraComponent.cpp" />
+    <ClCompile Include="Src\RenderGraphBuilder.cpp" />
     <ClCompile Include="Src\RenderGraphExecutor.cpp" />
     <ClCompile Include="Src\DrawCall.cpp" />
     <ClCompile Include="Src\RenderGraphTemplate.cpp" />
-    <ClCompile Include="Src\RenderNodeTemplate.cpp" />
+    <ClCompile Include="Src\RenderTarget.cpp" />
     <ClCompile Include="Src\SemaphoreManager.cpp" />
     <ClCompile Include="Src\MeshRenderer.cpp" />
     <ClCompile Include="Src\Renderer.cpp" />
@@ -195,7 +192,6 @@
     <ClCompile Include="Src\ProcessingContext.cpp" />
     <ClCompile Include="Src\AttachmentFactory.cpp" />
     <ClCompile Include="Src\RenderNode.cpp" />
-    <ClCompile Include="Src\RenderNodeManager.cpp" />
     <ClCompile Include="Src\SettingsWindow.cpp" />
     <ClCompile Include="Src\MaterialCreatorUI.cpp" />
     <ClCompile Include="Src\MaterialCreator.cpp" />
@@ -257,7 +253,6 @@
     <ClCompile Include="Src\AssetWatcher.cpp" />
     <ClCompile Include="Src\CommandBuffer.cpp" />
     <ClCompile Include="Src\FrameManager.cpp" />
-    <ClCompile Include="Src\ImGuiWrapper.cpp" />
     <ClCompile Include="Src\CameraSystem.cpp" />
     <ClCompile Include="Src\LightSystem.cpp" />
     <ClCompile Include="Src\RenderPassManager.cpp" />
@@ -290,7 +285,6 @@
     <ClCompile Include="Src\UniformBufferStage.cpp" />
     <ClCompile Include="Src\TransferManager.cpp" />
     <ClCompile Include="Src\SynchronizationStages.cpp" />
-    <ClCompile Include="Src\UIRenderer.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\Libs\imgui\imconfig.h" />
@@ -301,13 +295,13 @@
     <ClInclude Include="..\Libs\imgui\imstb_rectpack.h" />
     <ClInclude Include="..\Libs\imgui\imstb_textedit.h" />
     <ClInclude Include="..\Libs\imgui\imstb_truetype.h" />
-    <ClInclude Include="Src\ImGuiDrawCall.h" />
-    <ClInclude Include="Src\ImGuiRenderNode.h" />
-    <ClInclude Include="Src\ImGuiRenderNodeTemplate.h" />
+    <ClInclude Include="Src\DearImGuiProvider.h" />
+    <ClInclude Include="Src\IImGuiProvider.h" />
+    <ClInclude Include="Src\RenderGraphTemplateManager.h" />
+    <ClInclude Include="Src\RenderGraphSerialization.h" />
+    <ClInclude Include="Src\BuiltinGraphTemplates.h" />
+    <ClInclude Include="Src\RenderGraphBuilder.h" />
     <ClInclude Include="Src\GpuCallTypes.h" />
-    <ClInclude Include="Src\ImGuiCore.h" />
-    <ClInclude Include="Src\ImGuiRenderPass.h" />
-    <ClInclude Include="Src\ForwardRenderGraphTemplate.h" />
     <ClInclude Include="Src\RenderGraphExecutor.h" />
     <ClInclude Include="Src\DrawCall.h" />
     <ClInclude Include="Src\GpuCall.h" />
@@ -317,7 +311,6 @@
     <ClInclude Include="Src\RenderPipelineAssignmentStage.h" />
     <ClInclude Include="Src\RenderGraphManager.h" />
     <ClInclude Include="Src\CameraProcessingStage.h" />
-    <ClInclude Include="Src\ForwardRenderNodeTemplate.h" />
     <ClInclude Include="Src\MeshCullingStage.h" />
     <ClInclude Include="Src\LightStorageStage.h" />
     <ClInclude Include="Src\MeshStorageStage.h" />
@@ -327,14 +320,11 @@
     <ClInclude Include="Src\RenderGraphTemplate.h" />
     <ClInclude Include="Src\RenderTarget.h" />
     <ClInclude Include="Src\CameraRenderOrder.h" />
-    <ClInclude Include="Src\EditorUIRenderOrder.h" />
     <ClInclude Include="Src\LightRenderOrder.h" />
     <ClInclude Include="Src\MeshRenderOrder.h" />
     <ClInclude Include="Src\AttachmentFactory.h" />
     <ClInclude Include="Src\RenderNodeTemplate.h" />
-    <ClInclude Include="Src\RenderTypes.h" />
     <ClInclude Include="Src\RenderNode.h" />
-    <ClInclude Include="Src\RenderNodeManager.h" />
     <ClInclude Include="Src\SettingsWindow.h" />
     <ClInclude Include="Src\MaterialCreatorUI.h" />
     <ClInclude Include="Src\MaterialCreator.h" />
@@ -411,7 +401,6 @@
     <ClInclude Include="Src\CommandBuffer.h" />
     <ClInclude Include="Src\FrameManager.h" />
     <ClInclude Include="Src\RenderPassManager.h" />
-    <ClInclude Include="Src\ImGuiWrapper.h" />
     <ClInclude Include="Src\CameraSystem.h" />
     <ClInclude Include="Src\LightSystem.h" />
     <ClInclude Include="Src\CameraComponent.h" />
@@ -451,7 +440,6 @@
     <ClInclude Include="Src\TransferManager.h" />
     <ClInclude Include="Src\SystemsRegistry.h" />
     <ClInclude Include="Src\SynchronizationStages.h" />
-    <ClInclude Include="Src\UIRenderer.h" />
   </ItemGroup>
   <ItemGroup>
     <None Include="..\Libs\imgui\.gitattributes" />

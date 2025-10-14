@@ -2,12 +2,10 @@
 #include "Prerequisites.h"
 #include "Window.h"
 #include "SwapChain.h"
-#include "ImGuiCore.h"
 #include "ShaderModuleManager.h"
 #include "CommandBuffer.h"
 #include "FrameManager.h"
 #include "RenderPassManager.h"
-#include "RenderNodeManager.h"
 #include "RenderGraphManager.h"
 #include "VulkanContext.h"
 #include "AttachmentManager.h"
@@ -22,7 +20,6 @@
 #include "Settings.h"
 #include "Renderer.h"
 #include "RenderTarget.h"
-#include "ForwardRenderGraphTemplate.h"
 #include <optional> 
 
 class Renderer;
@@ -50,7 +47,6 @@ public:
     SwapChain& swapChain() { return *m_swapChain; }
     ImageSamplerManager& imageSamplerManager() { return *m_samplerManager; }
     RenderPassManager& renderPassManager() { return *m_renderPassManager; }
-    RenderNodeManager& renderNodeManager() { return *m_renderNodeManager; }
     RenderGraphManager& renderGraphManager() { return *m_renderGraphManager; }
     TextureManager& textureManager() { return *m_textureManager; }
     FrameBufferManager& framebufferManager() { return *m_framebufferManager; }
@@ -59,7 +55,6 @@ public:
 		DescriptorAllocator& alloc = *m_descriptorAllocator;
         return alloc;
     }
-    ImGuiCore& imguiCore() { return *m_imguiCore; }
     Renderer& renderer() { return *m_renderer; }
 
     void recreateSwapChain();
@@ -81,14 +76,9 @@ private:
     std::unique_ptr<ImageSamplerManager> m_samplerManager;
     std::unique_ptr<RenderPassManager> m_renderPassManager;
     std::unique_ptr<TextureManager> m_textureManager;
-    std::unique_ptr<RenderNodeManager> m_renderNodeManager;
     std::unique_ptr<RenderGraphManager> m_renderGraphManager;
     std::unique_ptr<FrameBufferManager> m_framebufferManager;
     std::unique_ptr<PipelineManager> m_pipelineManager;
     std::unique_ptr<DescriptorAllocator> m_descriptorAllocator;
-    std::unique_ptr<ImGuiCore> m_imguiCore;
     std::unique_ptr<Renderer> m_renderer;
-
-    // Helper methods
-    void initializeRenderGraphSystem();
 };

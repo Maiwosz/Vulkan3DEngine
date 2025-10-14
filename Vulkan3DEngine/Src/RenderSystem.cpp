@@ -36,7 +36,7 @@ void RenderSystem::initializeStages() {
 
     // Camera processing stages
     m_cameraProcessingStage = std::make_shared<CameraProcessingStage>(*m_processingContext, m_registry, m_renderer);
-    m_renderPipelineAssignmentStage = std::make_shared<RenderPipelineAssignmentStage>(*m_processingContext, m_renderer, m_registry);
+    m_renderPipelineAssignmentStage = std::make_shared<RenderPipelineAssignmentStage>(*m_processingContext, m_assetSystem, m_renderer, m_registry);
     m_meshCullingStage = std::make_shared<MeshCullingStage>(*m_processingContext, m_registry);
 
     // Pipeline assignment stage

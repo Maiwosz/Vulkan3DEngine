@@ -88,8 +88,8 @@ void Engine::shutdown() {
     m_shutdownRequested = true;
 
     // Wait for renderer to finish current frame
-    if (m_renderer) {
-        m_renderer->waitIdle();
+    if (m_engineCore) {
+        m_engineCore->waitIdle();
     }
 
     // Cleanup in reverse order of initialization
@@ -150,11 +150,11 @@ void Engine::initializeComponents(const InitParams& params) {
 
     // Renderer
     SPDLOG_DEBUG("Creating renderer");
-    m_renderer = std::make_unique<EngineCore>(*m_settings, *m_window);
+    m_engineCore = std::make_unique<EngineCore>(*m_settings, *m_window);
 
     // Asset system
     SPDLOG_DEBUG("Initializing asset system");
-    m_assetSystem = std::make_unique<AssetSystem>(*m_renderer);
+    m_assetSystem = std::make_unique<AssetSystem>(*m_engineCore);
 
     SPDLOG_DEBUG("Creating registry");
     m_registry = std::make_unique<Registry>(*this);
@@ -168,7 +168,7 @@ void Engine::initializeComponents(const InitParams& params) {
     m_renderSystem = std::make_unique<RenderSystem>(
         *m_registry,
         *m_assetSystem,
-        *m_renderer,
+        *m_engineCore,
         *m_settings
     );
 }
@@ -251,7 +251,7 @@ void Engine::cleanupComponents() {
     m_scene.reset();
     m_assetSystem.reset();
     m_registry.reset();
-    m_renderer.reset();
+    m_engineCore.reset();
     m_inputSystem.reset();
     m_window.reset();
     m_threadPool.reset();

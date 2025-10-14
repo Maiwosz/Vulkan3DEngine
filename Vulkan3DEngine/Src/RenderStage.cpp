@@ -74,15 +74,8 @@ bool RenderStage::assignRenderGraphToRenderer(const CameraRenderOrder& cameraOrd
         return false;
     }
 
-    // Get the RenderGraph object from the smart handle
-    RenderGraph* renderGraph = cameraOrder.renderGraphHandle.get();
-    if (!renderGraph) {
-        SPDLOG_ERROR("Failed to get RenderGraph object from handle for camera: {}", cameraOrder.entity.id);
-        return false;
-    }
-
     // Assign the render graph to the renderer
-    m_renderer.assignRenderGraph(renderGraph);
+    m_renderer.assignRenderGraph(cameraOrder.renderGraphHandle);
 
     SPDLOG_DEBUG("Assigned render graph (ID: {}) to renderer for camera: {}",
         cameraOrder.renderGraphHandle.handle().id, cameraOrder.entity.id);

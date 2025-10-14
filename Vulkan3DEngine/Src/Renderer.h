@@ -11,15 +11,17 @@
 #include "DescriptorAllocator.h"
 #include "PipelineManager.h"
 #include "RenderGraphExecutor.h"
+#include "ISmartHandleManager.h"
 #include <memory>
 #include <vector>
 
 // Forward declarations
 class GpuCall;
 class MeshRenderer;
-class UIRenderer;
-class ImGuiWrapper;
 class RenderGraph;
+
+// Type aliases
+using SmartRenderGraphHandle = SmartHandle<RenderGraphHandle, RenderGraph>;
 
 /**
  * Core Renderer - orchestrates frame lifecycle and provides GPU context
@@ -45,10 +47,11 @@ public:
     bool beginFrame();
     void endFrame();
 
-    // RenderGraph assignment
-    void assignRenderGraph(RenderGraph* renderGraph);
+    // RenderGraph assignment - now using SmartHandle
+    void assignRenderGraph(const SmartRenderGraphHandle& renderGraphHandle);
     bool hasAssignedRenderGraph() const;
     RenderGraph* getAssignedRenderGraph() const;
+    const SmartRenderGraphHandle& getAssignedRenderGraphHandle() const;
 
     // RenderGraph-based execution
     bool executeRenderGraph(const std::vector<std::unique_ptr<GpuCall>>& gpuCalls);
@@ -76,7 +79,6 @@ public:
 
     // Renderer Sub Systems
     MeshRenderer& meshRenderer() { return *m_meshRenderer; }
-    UIRenderer& uiRenderer() { return *m_uiRenderer; }
     RenderGraphExecutor& renderGraphExecutor() { return *m_renderGraphExecutor; }
 
 private:
@@ -94,7 +96,6 @@ private:
 
     // Service objects
     std::unique_ptr<MeshRenderer> m_meshRenderer;
-    std::unique_ptr<UIRenderer> m_uiRenderer;
     std::unique_ptr<RenderGraphExecutor> m_renderGraphExecutor;
 
     // Frame state - SIMPLIFIED

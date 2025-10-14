@@ -101,15 +101,10 @@ EngineCore::EngineCore(Settings& settings, Window& window) :m_settings(settings)
             allocConfig
         );
 
-        m_renderNodeManager = std::make_unique<RenderNodeManager>(
-            *this
-        );
         m_renderGraphManager = std::make_unique<RenderGraphManager>(
-            *this
+            *m_attachmentManager,
+			*m_renderPassManager
         );
-
-        // NOW initialize render graph system (after managers are created)
-        initializeRenderGraphSystem();
 
         // Create renderer
         m_renderer = std::make_unique<Renderer>(
@@ -123,12 +118,6 @@ EngineCore::EngineCore(Settings& settings, Window& window) :m_settings(settings)
             *m_renderPassManager,
             *m_descriptorAllocator,
             *m_pipelineManager
-        );
-
-        m_imguiCore = std::make_unique<ImGuiCore>(
-            m_window,
-            *m_vulkanContext,
-            *m_swapChain
         );
 
     }
@@ -148,8 +137,6 @@ EngineCore::~EngineCore() {
         m_frameManager->waitForAllFrames();
     }
 
-    m_imguiCore.reset();
-
     // Destroy managers in proper order
     m_renderer.reset();
     m_frameManager.reset();
@@ -166,7 +153,6 @@ EngineCore::~EngineCore() {
 
     // Destroy render graph system
     m_renderGraphManager.reset();
-    m_renderNodeManager.reset();
 
     // Destroy resource managers
     m_textureManager.reset();
@@ -209,26 +195,8 @@ void EngineCore::recreateSwapChain() {
     // Recreate the swap chain
     m_swapChain->recreateSwapChain();
 
-    // Clear render graph cache to force recreation with new dimensions
-    //m_renderGraphManager->clearCache();
 
     SPDLOG_INFO("Swapchain recreation completed successfully");
 }
 
-void EngineCore::initializeRenderGraphSystem() {
-    // Create a temporary template just to configure and register it
-    auto forwardTemplate = std::make_unique<ForwardRenderGraphTemplate>(*this);
-    
-    // Configure template for current settings
-    ForwardRenderGraphTemplate::ForwardGraphConfig config;
-    config.enableMSAA = (Graphics::convertSampleCount(m_settings.getMsaaSamples()) > 1);
-    config.enableDepthTesting = true;
-    config.optimizeForTextures = false;
-	config.enableImGui = true; // Enable ImGui overlay by default
-    
-    forwardTemplate->setConfig(config);
-    
-    // Register it (ownership transfers to manager)
-    m_renderGraphManager->registerTemplate(std::move(forwardTemplate));
-}
 

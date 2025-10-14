@@ -1,7 +1,5 @@
 #include "Renderer.h"
 #include "MeshRenderer.h"
-#include "UIRenderer.h"
-#include "ImGuiWrapper.h"
 #include "Pipeline.h"
 #include "GpuCall.h"
 #include <stdexcept>
@@ -33,7 +31,6 @@ Renderer::Renderer(
 
     // Create service objects - simplified initialization
     m_meshRenderer = std::make_unique<MeshRenderer>(m_vulkanContext, m_vramManager);
-    m_uiRenderer = std::make_unique<UIRenderer>(*this);
 
     m_renderGraphExecutor = std::make_unique<RenderGraphExecutor>(
         engineCore,
@@ -45,6 +42,41 @@ Renderer::~Renderer() {
     if (m_frameActive) {
         cleanupFrame();
     }
+}
+
+void Renderer::assignRenderGraph(const SmartRenderGraphHandle& renderGraphHandle) {
+    if (!m_renderGraphExecutor) {
+        SPDLOG_ERROR("Renderer: RenderGraphExecutor not initialized");
+        return;
+    }
+
+    m_renderGraphExecutor->assignRenderGraph(renderGraphHandle);
+
+    if (renderGraphHandle.isValid()) {
+        SPDLOG_DEBUG("Renderer: Assigned render graph (ID: {})", renderGraphHandle.handle().id);
+    }
+    else {
+        SPDLOG_DEBUG("Renderer: Cleared render graph assignment");
+    }
+}
+
+bool Renderer::hasAssignedRenderGraph() const {
+    return m_renderGraphExecutor && m_renderGraphExecutor->hasAssignedGraph();
+}
+
+RenderGraph* Renderer::getAssignedRenderGraph() const {
+    if (!m_renderGraphExecutor) {
+        return nullptr;
+    }
+    return m_renderGraphExecutor->getAssignedGraph();
+}
+
+const SmartRenderGraphHandle& Renderer::getAssignedRenderGraphHandle() const {
+    if (!m_renderGraphExecutor) {
+        static SmartRenderGraphHandle invalidHandle;
+        return invalidHandle;
+    }
+    return m_renderGraphExecutor->getAssignedGraphHandle();
 }
 
 bool Renderer::executeRenderGraph(const std::vector<std::unique_ptr<GpuCall>>& gpuCalls) {
@@ -107,10 +139,6 @@ void Renderer::endFrame() {
     }
 
     try {
-        if (m_uiRenderer->hasCallbacks()) {
-            //m_uiRenderer->render();
-        }
-
         submitAndPresent();
     }
     catch (const std::exception&) {

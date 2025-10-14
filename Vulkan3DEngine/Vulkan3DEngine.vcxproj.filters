@@ -47,9 +47,6 @@
     <ClCompile Include="Src\Registry.cpp">
       <Filter>Engine\Scene\EntityComponentSystem\Registry</Filter>
     </ClCompile>
-    <ClCompile Include="Src\ImGuiWrapper.cpp">
-      <Filter>Engine\EngineCore\ImGuiWrapper</Filter>
-    </ClCompile>
     <ClCompile Include="Src\CommandBuffer.cpp">
       <Filter>Engine\EngineCore\CommandBufferManager\CommandBuffer</Filter>
     </ClCompile>
@@ -299,11 +296,8 @@
     <ClCompile Include="Src\SettingsWindow.cpp">
       <Filter>Editor\EditorUI\SettingsWindow</Filter>
     </ClCompile>
-    <ClCompile Include="Src\RenderNodeManager.cpp">
-      <Filter>Engine\EngineCore\RenderGraphSystem\RenderNodeManager</Filter>
-    </ClCompile>
     <ClCompile Include="Src\RenderNode.cpp">
-      <Filter>Engine\EngineCore\RenderGraphSystem\RenderNodeManager\RenderNode</Filter>
+      <Filter>Engine\EngineCore\RenderGraphSystem\RenderGraphManager\RenderGraph\RenderNode</Filter>
     </ClCompile>
     <ClCompile Include="Src\AttachmentFactory.cpp">
       <Filter>Engine\EngineCore\AttachmentManager\AttachmentFactory</Filter>
@@ -338,9 +332,6 @@
     <ClCompile Include="Src\MeshRenderer.cpp">
       <Filter>Engine\EngineCore\Renderer\MeshRenderer</Filter>
     </ClCompile>
-    <ClCompile Include="Src\UIRenderer.cpp">
-      <Filter>Engine\EngineCore\Renderer\UIRenderer</Filter>
-    </ClCompile>
     <ClCompile Include="Src\SemaphoreManager.cpp">
       <Filter>Engine\RenderSystem\SemaphoreManager</Filter>
     </ClCompile>
@@ -350,32 +341,23 @@
     <ClCompile Include="Src\RenderGraphExecutor.cpp">
       <Filter>Engine\EngineCore\RenderGraphSystem\RenderGraphExecutor</Filter>
     </ClCompile>
-    <ClCompile Include="Src\ForwardRenderNodeTemplate.cpp">
-      <Filter>Engine\EngineCore\RenderGraphSystem\RenderNodeManager\RenderNodeTemplates\ForwardRenderNodeTemplate</Filter>
-    </ClCompile>
-    <ClCompile Include="Src\ForwardRenderGraphTemplate.cpp">
-      <Filter>Engine\EngineCore\RenderGraphSystem\RenderGraphManager\RenderGraphTemplates\ForwardRenderGraphTemplate</Filter>
-    </ClCompile>
-    <ClCompile Include="Src\RenderNodeTemplate.cpp">
-      <Filter>Engine\EngineCore\RenderGraphSystem\RenderNodeManager\RenderNodeTemplates</Filter>
-    </ClCompile>
     <ClCompile Include="Src\RenderGraphTemplate.cpp">
-      <Filter>Engine\EngineCore\RenderGraphSystem\RenderGraphManager\RenderGraphTemplates</Filter>
+      <Filter>Engine\EngineCore\RenderGraphSystem\RenderGraphManager\RenderGraph\RenderGraphTemplates</Filter>
     </ClCompile>
-    <ClCompile Include="Src\ImGuiCore.cpp">
-      <Filter>Engine\EngineCore\ImGuiWrapper\ImGuiContext</Filter>
+    <ClCompile Include="Src\RenderGraphBuilder.cpp">
+      <Filter>Engine\EngineCore\RenderGraphSystem\RenderGraphManager\RenderGraph\RenderGraphBuilder</Filter>
     </ClCompile>
-    <ClCompile Include="Src\ImGuiRenderPass.cpp">
-      <Filter>Engine\EngineCore\ImGuiWrapper\ImGuiRenderPass</Filter>
+    <ClCompile Include="Src\RenderTarget.cpp">
+      <Filter>Engine\EngineCore\RenderGraphSystem\RenderTarget</Filter>
     </ClCompile>
-    <ClCompile Include="Src\ImGuiRenderNodeTemplate.cpp">
-      <Filter>Engine\EngineCore\RenderGraphSystem\RenderNodeManager\RenderNodeTemplates\ImGuiRenderNodeTemplate</Filter>
+    <ClCompile Include="Src\CameraComponent.cpp">
+      <Filter>Engine\Scene\EntityComponentSystem\Registry\ComponentManager\Components\CameraComponent</Filter>
     </ClCompile>
-    <ClCompile Include="Src\ImGuiDrawCall.cpp">
-      <Filter>Engine\EngineCore\Renderer\GpuCalls\ImGuiDrawCall</Filter>
+    <ClCompile Include="Src\RenderGraphTemplateManager.cpp">
+      <Filter>Engine\AssetSystem\AssetManager\AssetHandlers\RenderGraphTemplateManager</Filter>
     </ClCompile>
-    <ClCompile Include="Src\ImGuiRenderNode.cpp">
-      <Filter>Engine\EngineCore\RenderGraphSystem\RenderNodeManager\RenderNode\ImGuiRenderNode</Filter>
+    <ClCompile Include="Src\DearImGuiProvider.cpp">
+      <Filter>Engine\EngineCore\RenderGraphSystem\RenderGraphExecutor\IImGuiProvider\DearImGuiProvider</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -431,9 +413,6 @@
     <ClInclude Include="Src\LightComponent.h">
       <Filter>Engine\Scene\EntityComponentSystem\Registry\ComponentManager\Components</Filter>
     </ClInclude>
-    <ClInclude Include="Src\CameraComponent.h">
-      <Filter>Engine\Scene\EntityComponentSystem\Registry\ComponentManager\Components</Filter>
-    </ClInclude>
     <ClInclude Include="Src\CameraSystem.h">
       <Filter>Engine\Scene\EntityComponentSystem\Registry\SystemManager\Systems\CameraSystem</Filter>
     </ClInclude>
@@ -448,9 +427,6 @@
     </ClInclude>
     <ClInclude Include="Src\SystemManager.h">
       <Filter>Engine\Scene\EntityComponentSystem\Registry\SystemManager</Filter>
-    </ClInclude>
-    <ClInclude Include="Src\ImGuiWrapper.h">
-      <Filter>Engine\EngineCore\ImGuiWrapper</Filter>
     </ClInclude>
     <ClInclude Include="Src\CommandBuffer.h">
       <Filter>Engine\EngineCore\CommandBufferManager\CommandBuffer</Filter>
@@ -741,14 +717,8 @@
     <ClInclude Include="Src\SettingsWindow.h">
       <Filter>Editor\EditorUI\SettingsWindow</Filter>
     </ClInclude>
-    <ClInclude Include="Src\RenderNodeManager.h">
-      <Filter>Engine\EngineCore\RenderGraphSystem\RenderNodeManager</Filter>
-    </ClInclude>
     <ClInclude Include="Src\RenderNode.h">
-      <Filter>Engine\EngineCore\RenderGraphSystem\RenderNodeManager\RenderNode</Filter>
-    </ClInclude>
-    <ClInclude Include="Src\RenderNodeTemplate.h">
-      <Filter>Engine\EngineCore\RenderGraphSystem\RenderNodeManager\RenderNodeTemplates</Filter>
+      <Filter>Engine\EngineCore\RenderGraphSystem\RenderGraphManager\RenderGraph\RenderNode</Filter>
     </ClInclude>
     <ClInclude Include="Src\AttachmentFactory.h">
       <Filter>Engine\EngineCore\AttachmentManager\AttachmentFactory</Filter>
@@ -764,9 +734,6 @@
     </ClInclude>
     <ClInclude Include="Src\MeshRenderOrder.h">
       <Filter>Engine\RenderSystem\RenderOrder\RenderOrders\MeshRenderOrder</Filter>
-    </ClInclude>
-    <ClInclude Include="Src\EditorUIRenderOrder.h">
-      <Filter>Engine\RenderSystem\RenderOrder\RenderOrders\EditorUIRenderOrder</Filter>
     </ClInclude>
     <ClInclude Include="Src\ProcessingContext.h">
       <Filter>Engine\RenderSystem\ProcessingContext</Filter>
@@ -793,10 +760,7 @@
       <Filter>Engine\EngineCore\RenderGraphSystem\RenderGraphManager</Filter>
     </ClInclude>
     <ClInclude Include="Src\RenderGraphTemplate.h">
-      <Filter>Engine\EngineCore\RenderGraphSystem\RenderGraphManager\RenderGraphTemplates</Filter>
-    </ClInclude>
-    <ClInclude Include="Src\RenderTarget.h">
-      <Filter>Engine\EngineCore\RenderGraphSystem</Filter>
+      <Filter>Engine\EngineCore\RenderGraphSystem\RenderGraphManager\RenderGraph\RenderGraphTemplates</Filter>
     </ClInclude>
     <ClInclude Include="Src\RenderGraph.h">
       <Filter>Engine\EngineCore\RenderGraphSystem\RenderGraphManager\RenderGraph</Filter>
@@ -810,9 +774,6 @@
     <ClInclude Include="Src\MeshRenderer.h">
       <Filter>Engine\EngineCore\Renderer\MeshRenderer</Filter>
     </ClInclude>
-    <ClInclude Include="Src\UIRenderer.h">
-      <Filter>Engine\EngineCore\Renderer\UIRenderer</Filter>
-    </ClInclude>
     <ClInclude Include="Src\SemaphoreManager.h">
       <Filter>Engine\RenderSystem\SemaphoreManager</Filter>
     </ClInclude>
@@ -825,32 +786,35 @@
     <ClInclude Include="Src\RenderGraphExecutor.h">
       <Filter>Engine\EngineCore\RenderGraphSystem\RenderGraphExecutor</Filter>
     </ClInclude>
-    <ClInclude Include="Src\ForwardRenderNodeTemplate.h">
-      <Filter>Engine\EngineCore\RenderGraphSystem\RenderNodeManager\RenderNodeTemplates\ForwardRenderNodeTemplate</Filter>
-    </ClInclude>
-    <ClInclude Include="Src\ForwardRenderGraphTemplate.h">
-      <Filter>Engine\EngineCore\RenderGraphSystem\RenderGraphManager\RenderGraphTemplates\ForwardRenderGraphTemplate</Filter>
-    </ClInclude>
-    <ClInclude Include="Src\RenderTypes.h">
-      <Filter>Engine\EngineCore\RenderGraphSystem</Filter>
-    </ClInclude>
-    <ClInclude Include="Src\ImGuiCore.h">
-      <Filter>Engine\EngineCore\ImGuiWrapper\ImGuiContext</Filter>
-    </ClInclude>
-    <ClInclude Include="Src\ImGuiRenderPass.h">
-      <Filter>Engine\EngineCore\ImGuiWrapper\ImGuiRenderPass</Filter>
-    </ClInclude>
     <ClInclude Include="Src\GpuCallTypes.h">
       <Filter>Engine\EngineCore\Renderer\GpuCalls</Filter>
     </ClInclude>
-    <ClInclude Include="Src\ImGuiRenderNodeTemplate.h">
-      <Filter>Engine\EngineCore\RenderGraphSystem\RenderNodeManager\RenderNodeTemplates\ImGuiRenderNodeTemplate</Filter>
+    <ClInclude Include="Src\RenderNodeTemplate.h">
+      <Filter>Engine\EngineCore\RenderGraphSystem\RenderGraphManager\RenderGraph\RenderNode</Filter>
     </ClInclude>
-    <ClInclude Include="Src\ImGuiDrawCall.h">
-      <Filter>Engine\EngineCore\Renderer\GpuCalls\ImGuiDrawCall</Filter>
+    <ClInclude Include="Src\RenderGraphBuilder.h">
+      <Filter>Engine\EngineCore\RenderGraphSystem\RenderGraphManager\RenderGraph\RenderGraphBuilder</Filter>
     </ClInclude>
-    <ClInclude Include="Src\ImGuiRenderNode.h">
-      <Filter>Engine\EngineCore\RenderGraphSystem\RenderNodeManager\RenderNode\ImGuiRenderNode</Filter>
+    <ClInclude Include="Src\BuiltinGraphTemplates.h">
+      <Filter>Engine\EngineCore\RenderGraphSystem\RenderGraphManager\RenderGraph</Filter>
+    </ClInclude>
+    <ClInclude Include="Src\RenderTarget.h">
+      <Filter>Engine\EngineCore\RenderGraphSystem\RenderTarget</Filter>
+    </ClInclude>
+    <ClInclude Include="Src\CameraComponent.h">
+      <Filter>Engine\Scene\EntityComponentSystem\Registry\ComponentManager\Components\CameraComponent</Filter>
+    </ClInclude>
+    <ClInclude Include="Src\RenderGraphSerialization.h">
+      <Filter>Engine\EngineCore\RenderGraphSystem\RenderGraphManager\RenderGraph\RenderGraphTemplates</Filter>
+    </ClInclude>
+    <ClInclude Include="Src\RenderGraphTemplateManager.h">
+      <Filter>Engine\AssetSystem\AssetManager\AssetHandlers\RenderGraphTemplateManager</Filter>
+    </ClInclude>
+    <ClInclude Include="Src\IImGuiProvider.h">
+      <Filter>Engine\EngineCore\RenderGraphSystem\RenderGraphExecutor\IImGuiProvider</Filter>
+    </ClInclude>
+    <ClInclude Include="Src\DearImGuiProvider.h">
+      <Filter>Engine\EngineCore\RenderGraphSystem\RenderGraphExecutor\IImGuiProvider\DearImGuiProvider</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
@@ -1060,9 +1024,6 @@
     <Filter Include="Engine\RenderSystem\RenderOrder\RenderOrders\MeshRenderOrder">
       <UniqueIdentifier>{1d312278-ed2b-4f48-8423-ae2f7826ba96}</UniqueIdentifier>
     </Filter>
-    <Filter Include="Engine\RenderSystem\RenderOrder\RenderOrders\EditorUIRenderOrder">
-      <UniqueIdentifier>{08773ed0-94df-4ece-8f4b-d861595b5aaa}</UniqueIdentifier>
-    </Filter>
     <Filter Include="Engine\RenderSystem\ProcessingContext">
       <UniqueIdentifier>{71b407de-17c7-4c14-b5d9-bf427c590135}</UniqueIdentifier>
     </Filter>
@@ -1192,29 +1153,14 @@
     <Filter Include="Engine\EngineCore\ShaderModuleManager\ShaderModule">
       <UniqueIdentifier>{73f3a81a-7cd0-4e0c-82b8-9b6ac6429520}</UniqueIdentifier>
     </Filter>
-    <Filter Include="Engine\EngineCore\ImGuiWrapper">
-      <UniqueIdentifier>{771687ec-623b-4f20-99f4-8a37762989e3}</UniqueIdentifier>
-    </Filter>
     <Filter Include="Engine\EngineCore\RenderGraphSystem">
       <UniqueIdentifier>{4055ac2c-62fb-4e6c-ae98-eff03a558c5a}</UniqueIdentifier>
     </Filter>
     <Filter Include="Engine\EngineCore\RenderGraphSystem\RenderGraphManager">
       <UniqueIdentifier>{3694c671-8390-4508-81e9-4ab6a279d2ef}</UniqueIdentifier>
     </Filter>
-    <Filter Include="Engine\EngineCore\RenderGraphSystem\RenderGraphManager\RenderGraphTemplates">
-      <UniqueIdentifier>{411743e1-de56-4282-9b76-52261cf7f9ec}</UniqueIdentifier>
-    </Filter>
     <Filter Include="Engine\EngineCore\RenderGraphSystem\RenderGraphManager\RenderGraph">
       <UniqueIdentifier>{950ad5d5-68b3-40b2-b663-c7cb55d0238a}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Engine\EngineCore\RenderGraphSystem\RenderNodeManager">
-      <UniqueIdentifier>{626a9429-c305-4ea5-ba20-2beb2d9c832e}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Engine\EngineCore\RenderGraphSystem\RenderNodeManager\RenderNode">
-      <UniqueIdentifier>{9ea6f99f-95b7-47c8-9ef7-7f20f7b3952e}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Engine\EngineCore\RenderGraphSystem\RenderNodeManager\RenderNodeTemplates">
-      <UniqueIdentifier>{946eb435-5b25-4dde-bad4-7a16fd58330f}</UniqueIdentifier>
     </Filter>
     <Filter Include="Engine\RenderSystem\ProcessingStages\RenderPipelineAssignmentStage">
       <UniqueIdentifier>{8582e231-24c7-4153-8297-d248715c943f}</UniqueIdentifier>
@@ -1224,9 +1170,6 @@
     </Filter>
     <Filter Include="Engine\EngineCore\Renderer\MeshRenderer">
       <UniqueIdentifier>{b0127dd9-5657-4158-a9ec-5346d9f9f2b4}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Engine\EngineCore\Renderer\UIRenderer">
-      <UniqueIdentifier>{d6294c5e-aa4b-4527-b695-ccd65fcf2010}</UniqueIdentifier>
     </Filter>
     <Filter Include="Engine\RenderSystem\SemaphoreManager">
       <UniqueIdentifier>{68d1906a-da0b-4bfd-9530-1648040fbee9}</UniqueIdentifier>
@@ -1240,26 +1183,29 @@
     <Filter Include="Engine\EngineCore\RenderGraphSystem\RenderGraphExecutor">
       <UniqueIdentifier>{86baad61-1275-464f-a740-35c5fbc30f7c}</UniqueIdentifier>
     </Filter>
-    <Filter Include="Engine\EngineCore\RenderGraphSystem\RenderGraphManager\RenderGraphTemplates\ForwardRenderGraphTemplate">
-      <UniqueIdentifier>{2f64df50-d212-427f-b249-ec4649269623}</UniqueIdentifier>
+    <Filter Include="Engine\EngineCore\RenderGraphSystem\RenderGraphManager\RenderGraph\RenderNode">
+      <UniqueIdentifier>{9ea6f99f-95b7-47c8-9ef7-7f20f7b3952e}</UniqueIdentifier>
     </Filter>
-    <Filter Include="Engine\EngineCore\RenderGraphSystem\RenderNodeManager\RenderNodeTemplates\ForwardRenderNodeTemplate">
-      <UniqueIdentifier>{5807df38-54d0-445d-a2ae-8ef1df5b0863}</UniqueIdentifier>
+    <Filter Include="Engine\EngineCore\RenderGraphSystem\RenderGraphManager\RenderGraph\RenderGraphBuilder">
+      <UniqueIdentifier>{6f8603e1-9c8c-4162-a324-19a5a0450df7}</UniqueIdentifier>
     </Filter>
-    <Filter Include="Engine\EngineCore\ImGuiWrapper\ImGuiContext">
-      <UniqueIdentifier>{23f98ccf-5df7-41fa-b262-956c3fa78985}</UniqueIdentifier>
+    <Filter Include="Engine\EngineCore\RenderGraphSystem\RenderTarget">
+      <UniqueIdentifier>{36e440b4-42ba-4e67-9ad3-f290ac9ab546}</UniqueIdentifier>
     </Filter>
-    <Filter Include="Engine\EngineCore\ImGuiWrapper\ImGuiRenderPass">
-      <UniqueIdentifier>{a8acab9c-e575-4fd3-a634-fce8b94af944}</UniqueIdentifier>
+    <Filter Include="Engine\Scene\EntityComponentSystem\Registry\ComponentManager\Components\CameraComponent">
+      <UniqueIdentifier>{71e485a2-dffb-4497-9ed9-877507d0b3b8}</UniqueIdentifier>
     </Filter>
-    <Filter Include="Engine\EngineCore\RenderGraphSystem\RenderNodeManager\RenderNodeTemplates\ImGuiRenderNodeTemplate">
-      <UniqueIdentifier>{08c4621b-c322-4ac1-a78a-25aa906c5752}</UniqueIdentifier>
+    <Filter Include="Engine\EngineCore\RenderGraphSystem\RenderGraphManager\RenderGraph\RenderGraphTemplates">
+      <UniqueIdentifier>{411743e1-de56-4282-9b76-52261cf7f9ec}</UniqueIdentifier>
     </Filter>
-    <Filter Include="Engine\EngineCore\Renderer\GpuCalls\ImGuiDrawCall">
-      <UniqueIdentifier>{a6862d8a-c3ba-4176-8b93-6a4e3fac6df6}</UniqueIdentifier>
+    <Filter Include="Engine\AssetSystem\AssetManager\AssetHandlers\RenderGraphTemplateManager">
+      <UniqueIdentifier>{ce96e513-34c7-4a77-a80f-f16532aa68b8}</UniqueIdentifier>
     </Filter>
-    <Filter Include="Engine\EngineCore\RenderGraphSystem\RenderNodeManager\RenderNode\ImGuiRenderNode">
-      <UniqueIdentifier>{b6d08f33-5af7-4225-b51a-2cd60f644a75}</UniqueIdentifier>
+    <Filter Include="Engine\EngineCore\RenderGraphSystem\RenderGraphExecutor\IImGuiProvider">
+      <UniqueIdentifier>{8c9ababb-30f0-47c8-8790-5cb7750f9d2d}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Engine\EngineCore\RenderGraphSystem\RenderGraphExecutor\IImGuiProvider\DearImGuiProvider">
+      <UniqueIdentifier>{6cd33dcd-eac5-41e7-8689-7e7c67ede8de}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
 </Project>

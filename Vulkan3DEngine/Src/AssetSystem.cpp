@@ -45,6 +45,8 @@ AssetSystem::AssetSystem(EngineCore& renderer)
 
     m_sceneManager = std::make_shared<SceneManager>();
 
+    m_renderGraphTemplateManager = std::make_shared<RenderGraphTemplateManager>();
+
     // Register all handlers with the asset manager
     registerAssetHandlers();
 
@@ -61,6 +63,7 @@ AssetSystem::~AssetSystem()
     m_shaderManager.reset();
     m_prefabManager.reset();
     m_sceneManager.reset();
+    m_renderGraphTemplateManager.reset();
     m_assetManager.reset();
 }
 
@@ -81,4 +84,5 @@ void AssetSystem::registerAssetHandlers()
     m_assetManager->registerHandler(AssetType::Material, m_materialManager);
     m_assetManager->registerHandler(AssetType::Prefab, m_prefabManager);
     m_assetManager->registerHandler(AssetType::Scene, m_sceneManager);
+    m_assetManager->registerHandler(AssetType::RenderGraph, m_renderGraphTemplateManager);
 }

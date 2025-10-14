@@ -1,117 +1,98 @@
 #pragma once
-#include "RenderTypes.h"
-#include "RenderTarget.h"
-#include "Handle.h"
+#include <vulkan/vulkan.h>
+#include <vector>
+#include <string>
 #include <memory>
-#include <typeindex>
-#include "RenderPassManager.h"
-#include "DrawCall.h"
-#include "ImGuiDrawCall.h"
-
-// Forward declarations
-class RenderNode;
-class EngineCore;
-class SwapChain;
-class DrawCall;
-class ImGuiDrawCall;
-
-// Smart handle type for render pass
-using SmartRenderPassHandle = SmartHandle<RenderPassHandle, VkRenderPass>;
 
 /**
- * Abstract factory for creating render nodes with access to engine systems.
- *
- * Architecture Role:
- * - Static metadata holder (via getTemplateInfo())
- * - Factory for creating node instances with proper Vulkan resources
- * - Has access to EngineCore for retrieving necessary managers/systems
- * - Bridge between "what to create" and "how to create it"
+ * Attachment slot descriptor for dynamic template building.
+ */
+struct AttachmentSlot {
+    enum class Type {
+        Input,      // Read-only input from previous passes
+        Output,     // Render target (color or depth)
+        Transient   // Temporary attachment used within this pass
+    };
+
+    enum class Role {
+        Color,           // Color attachment
+        Depth,           // Depth attachment
+        DepthStencil,    // Combined depth-stencil
+        Stencil,         // Stencil only
+        Resolve          // MSAA resolve target
+    };
+
+    Type type;
+    Role role;
+    std::string name;  // For debugging
+
+    AttachmentSlot(Type t, Role r, std::string n = "")
+        : type(t), role(r), name(std::move(n)) {
+    }
+};
+
+/**
+ * Dynamically buildable attachment specification.
+ */
+class RenderNodeAttachmentSpec {
+public:
+    RenderNodeAttachmentSpec() = default;
+
+    void addInput(AttachmentSlot::Role role, const std::string& name = "") {
+        inputs.emplace_back(AttachmentSlot::Type::Input, role, name);
+    }
+
+    void addOutput(AttachmentSlot::Role role, const std::string& name = "") {
+        outputs.emplace_back(AttachmentSlot::Type::Output, role, name);
+    }
+
+    const std::vector<AttachmentSlot>& getInputs() const { return inputs; }
+    const std::vector<AttachmentSlot>& getOutputs() const { return outputs; }
+
+    uint32_t getInputCount() const { return static_cast<uint32_t>(inputs.size()); }
+    uint32_t getOutputCount() const { return static_cast<uint32_t>(outputs.size()); }
+    uint32_t getTotalAttachmentCount() const { return getInputCount() + getOutputCount(); }
+
+private:
+    std::vector<AttachmentSlot> inputs;
+    std::vector<AttachmentSlot> outputs;
+};
+
+/**
+ * Dynamically built render node template.
+ * Can be constructed programmatically or loaded from a file.
  */
 class RenderNodeTemplate {
 public:
-    explicit RenderNodeTemplate(EngineCore& engineCore)
-        : m_engineCore(engineCore) {
+    RenderNodeTemplate() = default;
+    explicit RenderNodeTemplate(std::string name) : m_name(std::move(name)) {}
+
+    // Builder-style methods
+    RenderNodeTemplate& setName(std::string name) {
+        m_name = std::move(name);
+        return *this;
     }
 
-    virtual ~RenderNodeTemplate() = default;
-
-    // Static template metadata
-    virtual const RenderTemplateInfo& getTemplateInfo() const = 0;
-
-    // Type information
-    virtual std::type_index getTypeIndex() const {
-        return std::type_index(typeid(*this));
+    RenderNodeTemplate& addInputAttachment(AttachmentSlot::Role role, const std::string& name = "") {
+        m_attachmentSpec.addInput(role, name);
+        return *this;
     }
 
-    const char* getTemplateName() const { return getTemplateInfo().name; }
-
-    // Capability queries
-    virtual bool isCompatibleWithTarget(const RenderTarget& target) const = 0;
-
-    // Render parameter specification
-    struct RenderParameters {
-        VkExtent2D extent;
-        VkFormat colorFormat;
-        VkFormat depthFormat;
-        VkSampleCountFlagBits samples;
-        bool hasDepth;
-        bool hasColor;
-        bool hasResolve;
-        VkImageUsageFlags usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
-        VkImageLayout initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-        VkImageLayout finalLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-    };
-
-    // Simplified interface - uses EngineCore internally
-    virtual RenderParameters queryRenderParameters(
-        const RenderTarget& target,
-        VkExtent2D extent) const = 0;
-
-    // Factory method - simplified interface
-    virtual std::unique_ptr<RenderNode> createRenderNode(
-        const RenderTarget& target,
-        VkExtent2D extent) const = 0;
-
-    /**
-     * Check if this template can handle a specific GpuCall type
-     */
-    virtual bool acceptsGpuCallType(std::type_index callType) const {
-        const auto& accepted = getAcceptedGpuCallTypes();
-        return accepted.empty() || accepted.count(callType) > 0;
+    RenderNodeTemplate& addOutputAttachment(AttachmentSlot::Role role, const std::string& name = "") {
+        m_attachmentSpec.addOutput(role, name);
+        return *this;
     }
 
-    /**
-     * Override to specify which GpuCall types this template accepts
-     * Empty set means accept all types
-     */
-    virtual std::unordered_set<std::type_index> getAcceptedGpuCallTypes() const {
-        return {}; // Default: accept all
+    // Accessors
+    const RenderNodeAttachmentSpec& getAttachmentSpec() const { return m_attachmentSpec; }
+    const std::string& getName() const { return m_name; }
+
+    // Validation
+    bool isValid() const {
+        return !m_name.empty() && m_attachmentSpec.getTotalAttachmentCount() > 0;
     }
 
-    /**
-     * Convenience helper for templates to declare accepted types at compile-time
-     */
-    template<typename... GpuCallTypes>
-    static std::unordered_set<std::type_index> makeTypeSet() {
-        return { std::type_index(typeid(GpuCallTypes))... };
-    }
-
-protected:
-    EngineCore& m_engineCore;
-
-    // Helper to get SwapChain when needed
-    SwapChain* getSwapChain() const;
-
-    // Helper to create smart render pass handles
-    SmartRenderPassHandle createSmartRenderPassHandle(
-        const RenderPassConfig& config) const;
-
-    // Helper to extract texture format
-    VkFormat getTextureFormat(const RenderTarget& target) const;
-
-    // Helper to get texture usage flags
-    VkImageUsageFlags getTextureUsageFlags(const RenderTarget& target) const;
-
-    // Helper to check multisampling support
-    bool supportsMultisampling(const RenderTarget& target) const;
+private:
+    std::string m_name;
+    RenderNodeAttachmentSpec m_attachmentSpec;
 };

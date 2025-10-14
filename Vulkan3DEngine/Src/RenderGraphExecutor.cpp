@@ -2,10 +2,12 @@
 #include "Renderer.h"
 #include "GpuCall.h"
 #include "RenderNode.h"
+#include "RenderGraph.h"
 #include "RenderTarget.h"
 #include "FrameBufferManager.h"
 #include "AttachmentManager.h"
 #include "SwapChain.h"
+#include "IImGuiProvider.h"
 #include <spdlog/spdlog.h>
 #include <stdexcept>
 
@@ -19,48 +21,37 @@ RenderGraphExecutor::RenderGraphExecutor(EngineCore& engineCore, Renderer& rende
     m_pipelineManager(engineCore.pipelineManager()) {
 }
 
-void RenderGraphExecutor::assignRenderGraph(RenderGraph* renderGraph) {
-    m_assignedGraph = renderGraph;
+void RenderGraphExecutor::assignRenderGraph(const SmartRenderGraphHandle& renderGraphHandle) {
+    m_assignedGraphHandle = renderGraphHandle;
 
-    if (renderGraph) {
+    // Mark ImGui as needing reinitialization when graph changes
+    if (m_imguiProvider) {
+        m_imguiNeedsInit = true;
+    }
+
+    if (m_assignedGraphHandle) {
         SPDLOG_DEBUG("RenderGraphExecutor: Assigned render graph with {} nodes",
-            renderGraph->getNodeCount());
+            m_assignedGraphHandle->getNodeCount());
     }
     else {
         SPDLOG_DEBUG("RenderGraphExecutor: Cleared render graph assignment");
     }
 }
 
-void Renderer::assignRenderGraph(RenderGraph* renderGraph) {
-    if (!m_renderGraphExecutor) {
-        SPDLOG_ERROR("Renderer: RenderGraphExecutor not initialized");
-        return;
-    }
+void RenderGraphExecutor::attachImGuiProvider(std::shared_ptr<IImGuiProvider> provider) {
+    m_imguiProvider = provider;
+    m_imguiNeedsInit = true;
 
-    m_renderGraphExecutor->assignRenderGraph(renderGraph);
-
-    if (renderGraph) {
-        SPDLOG_DEBUG("Renderer: Assigned render graph with {} nodes",
-            renderGraph->getNodeCount());
+    if (m_imguiProvider) {
+        SPDLOG_DEBUG("RenderGraphExecutor: Attached ImGui provider");
     }
     else {
-        SPDLOG_DEBUG("Renderer: Cleared render graph assignment");
+        SPDLOG_DEBUG("RenderGraphExecutor: Detached ImGui provider");
     }
-}
-
-bool Renderer::hasAssignedRenderGraph() const {
-    return m_renderGraphExecutor && m_renderGraphExecutor->hasAssignedGraph();
-}
-
-RenderGraph* Renderer::getAssignedRenderGraph() const {
-    if (!m_renderGraphExecutor) {
-        return nullptr;
-    }
-    return m_renderGraphExecutor->getAssignedGraph();
 }
 
 bool RenderGraphExecutor::executeGpuCalls(const std::vector<std::unique_ptr<GpuCall>>& gpuCalls) {
-    if (!m_assignedGraph) {
+    if (!m_assignedGraphHandle) {
         SPDLOG_ERROR("No render graph assigned - cannot execute GPU calls");
         return false;
     }
@@ -77,23 +68,39 @@ bool RenderGraphExecutor::executeGpuCalls(const std::vector<std::unique_ptr<GpuC
 
     try {
         // Execute GPU calls on all nodes in sequence
-        const auto& nodes = m_assignedGraph->getNodes();
+        const auto& nodes = m_assignedGraphHandle->getNodes();
+        const size_t finalNodeIndex = nodes.size() - 1;
 
-        for (const auto& graphNode : nodes) {
-            // Access RenderNode through smart handle
-            if (!graphNode.renderNodeHandle.isValid()) {
-                SPDLOG_ERROR("Invalid render node handle in graph");
-                return false;
+        // Initialize ImGui provider early if we have one (before beginFrame)
+        if (m_imguiProvider && !nodes.empty()) {
+            const auto& finalNode = nodes[finalNodeIndex];
+            if (finalNode && finalNode->isValid()) {
+                ensureImGuiProviderReady(*finalNode);
             }
+        }
 
-            RenderNode* renderNode = graphNode.renderNodeHandle.get();
+        // Begin ImGui frame if provider attached and initialized
+        if (m_imguiProvider && m_imguiProvider->isInitialized()) {
+            m_imguiProvider->beginFrame();
+        }
+
+        for (size_t nodeIndex = 0; nodeIndex < nodes.size(); ++nodeIndex) {
+            const auto& renderNode = nodes[nodeIndex];
+
             if (!renderNode) {
-                SPDLOG_ERROR("Failed to resolve render node from handle");
+                SPDLOG_ERROR("Null render node at index {}", nodeIndex);
                 return false;
             }
 
-            if (!executeNodeGpuCalls(*renderNode, gpuCalls)) {
-                SPDLOG_ERROR("Failed to execute GPU calls on node");
+            if (!renderNode->isValid()) {
+                SPDLOG_ERROR("Invalid render node at index {}", nodeIndex);
+                return false;
+            }
+
+            bool isFinalNode = (nodeIndex == finalNodeIndex);
+
+            if (!executeNodeGpuCalls(nodeIndex, *renderNode, gpuCalls, isFinalNode)) {
+                SPDLOG_ERROR("Failed to execute GPU calls on node {}", nodeIndex);
                 return false;
             }
         }
@@ -114,21 +121,26 @@ bool RenderGraphExecutor::executeGpuCalls(const std::vector<std::unique_ptr<GpuC
     }
 }
 
-bool RenderGraphExecutor::executeNodeGpuCalls(RenderNode& renderNode,
-    const std::vector<std::unique_ptr<GpuCall>>& gpuCalls) {
+bool RenderGraphExecutor::executeNodeGpuCalls(
+    size_t nodeIndex,
+    RenderNode& renderNode,
+    const std::vector<std::unique_ptr<GpuCall>>& gpuCalls,
+    bool isFinalNode) {
 
     // Setup framebuffer for this node
-    FrameBufferHandle framebufferHandle = setupNodeFramebuffer(renderNode);
+    FrameBufferHandle framebufferHandle = setupNodeFramebuffer(nodeIndex, renderNode);
     if (!framebufferHandle.isValid()) {
-        SPDLOG_ERROR("Failed to setup framebuffer for render node");
+        SPDLOG_ERROR("Failed to setup framebuffer for render node {}", nodeIndex);
         return false;
     }
 
     // Begin render pass for this node
-    beginNodeRenderPass(renderNode, framebufferHandle);
+    if (!beginNodeRenderPass(nodeIndex, renderNode, framebufferHandle)) {
+        SPDLOG_ERROR("Failed to begin render pass for node {}", nodeIndex);
+        return false;
+    }
 
     // Execute all GPU calls within this render pass
-    // Each GpuCall now has access to the RenderNode context
     bool success = true;
     for (const auto& gpuCall : gpuCalls) {
         if (!gpuCall) {
@@ -138,7 +150,6 @@ bool RenderGraphExecutor::executeNodeGpuCalls(RenderNode& renderNode,
         }
 
         // Execute the GPU call with render node context
-        // DrawCalls will handle their own pipeline management
         if (!gpuCall->execute(m_renderer, m_engineCore, renderNode)) {
             SPDLOG_ERROR("Failed to execute GPU call");
             success = false;
@@ -146,63 +157,80 @@ bool RenderGraphExecutor::executeNodeGpuCalls(RenderNode& renderNode,
         }
     }
 
+    // If this is the final node and ImGui provider is attached, render ImGui
+    if (success && isFinalNode && m_imguiProvider && m_imguiProvider->isInitialized()) {
+        renderImGui();
+    }
+
     // End render pass for this node
-    endNodeRenderPass(renderNode);
+    endNodeRenderPass();
 
     return success;
 }
 
-FrameBufferHandle RenderGraphExecutor::setupNodeFramebuffer(RenderNode& renderNode) {
-    if (!renderNode.isComplete()) {
-        SPDLOG_ERROR("Render node is not complete - cannot create framebuffer");
-        return FrameBufferHandle(0);
-    }
+FrameBufferHandle RenderGraphExecutor::setupNodeFramebuffer(
+    size_t nodeIndex,
+    RenderNode& renderNode) {
 
-    // Get attachments from render node
-    std::vector<AttachmentHandle> attachmentHandles;
-
-    // If node uses swapchain, we need current image index
+    // Determine current swapchain image index if needed
     uint32_t swapchainImageIndex = 0;
-    if (renderNode.usesSwapchainAttachment()) {
+    if (m_assignedGraphHandle->getRenderTarget().isSwapchain()) {
         swapchainImageIndex = m_renderer.getCurrentImageIndex();
-
-        const auto& swapchainAttachments = m_swapChain.getAttachmentHandles();
-        if (swapchainImageIndex >= swapchainAttachments.size()) {
-            SPDLOG_ERROR("Invalid swapchain image index: {}", swapchainImageIndex);
-            return FrameBufferHandle(0);
-        }
     }
 
-    // Collect all attachments in proper order
-    attachmentHandles = resolveNodeAttachments(renderNode, swapchainImageIndex);
+    // Resolve attachments for this node from the graph
+    std::vector<BoundAttachment> boundAttachments =
+        m_assignedGraphHandle->resolveNodeAttachments(
+            static_cast<uint32_t>(nodeIndex),
+            swapchainImageIndex
+        );
 
-    if (attachmentHandles.empty()) {
-        SPDLOG_ERROR("Render node has no attachments");
+    if (boundAttachments.empty()) {
+        SPDLOG_ERROR("Node {} has no attachments", nodeIndex);
         return FrameBufferHandle(0);
     }
 
-    // Get extent based on render target
-    VkExtent2D extent = getRenderTargetExtent(renderNode.getRenderTarget());
+    // Extract attachment handles in binding order
+    std::vector<AttachmentHandle> attachmentHandles;
+    attachmentHandles.reserve(boundAttachments.size());
+
+    for (const auto& bound : boundAttachments) {
+        attachmentHandles.push_back(bound.handle);
+    }
+
+    // Get extent from the graph
+    VkExtent2D extent = m_assignedGraphHandle->getExtent();
 
     if (extent.width == 0 || extent.height == 0) {
-        SPDLOG_ERROR("Invalid render target extent: {}x{}", extent.width, extent.height);
+        SPDLOG_ERROR("Invalid extent for node {}: {}x{}",
+            nodeIndex, extent.width, extent.height);
         return FrameBufferHandle(0);
     }
 
     // Create framebuffer configuration
     FrameBufferConfig config;
-    config.renderPassHandle = renderNode.getRenderPassHandle();
+    config.renderPassHandle = renderNode.getSmartRenderPassHandle().handle();
     config.attachmentHandles = attachmentHandles;
     config.extent = extent;
 
-    // Acquire framebuffer from manager
-    return m_framebufferManager.acquireFrameBuffer(config);
+    // Acquire framebuffer from manager (cached automatically)
+    FrameBufferHandle handle = m_framebufferManager.acquireFrameBuffer(config);
+
+    if (!handle.isValid()) {
+        SPDLOG_ERROR("Failed to acquire framebuffer for node {}", nodeIndex);
+    }
+
+    return handle;
 }
 
-void RenderGraphExecutor::beginNodeRenderPass(RenderNode& renderNode, FrameBufferHandle framebufferHandle) {
+bool RenderGraphExecutor::beginNodeRenderPass(
+    size_t nodeIndex,
+    RenderNode& renderNode,
+    FrameBufferHandle framebufferHandle) {
+
     if (m_nodeRenderPassActive) {
         SPDLOG_ERROR("Node render pass already active");
-        throw std::runtime_error("Node render pass already active");
+        return false;
     }
 
     // Store current framebuffer
@@ -211,14 +239,29 @@ void RenderGraphExecutor::beginNodeRenderPass(RenderNode& renderNode, FrameBuffe
     // Get framebuffer resource
     auto* framebuffer = m_framebufferManager.getResource(framebufferHandle);
     if (!framebuffer) {
-        throw std::runtime_error("Invalid framebuffer handle");
+        SPDLOG_ERROR("Invalid framebuffer handle for node {}", nodeIndex);
+        return false;
     }
 
-    // Use RenderNode's render pass management
-    renderNode.beginRenderPass(
+    // Get clear values from graph
+    std::vector<VkClearValue> clearValues =
+        m_assignedGraphHandle->getNodeClearValues(static_cast<uint32_t>(nodeIndex));
+
+    // Setup render pass begin info
+    VkRenderPassBeginInfo renderPassInfo{};
+    renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+    renderPassInfo.renderPass = renderNode.getRenderPass();
+    renderPassInfo.framebuffer = framebuffer->frameBuffer;
+    renderPassInfo.renderArea.offset = { 0, 0 };
+    renderPassInfo.renderArea.extent = framebuffer->config.extent;
+    renderPassInfo.clearValueCount = static_cast<uint32_t>(clearValues.size());
+    renderPassInfo.pClearValues = clearValues.data();
+
+    // Begin render pass
+    vkCmdBeginRenderPass(
         m_renderer.getCurrentCommandBuffer(),
-        framebuffer->frameBuffer,
-        framebuffer->config.extent
+        &renderPassInfo,
+        VK_SUBPASS_CONTENTS_INLINE
     );
 
     m_nodeRenderPassActive = true;
@@ -227,22 +270,12 @@ void RenderGraphExecutor::beginNodeRenderPass(RenderNode& renderNode, FrameBuffe
     m_renderer.setViewport(framebuffer->config.extent);
     m_renderer.setScissor(framebuffer->config.extent);
 
-    SPDLOG_DEBUG("Began render pass for node, extent: {}x{}",
+    SPDLOG_DEBUG("Began render pass for node {}, extent: {}x{}",
+        nodeIndex,
         framebuffer->config.extent.width,
         framebuffer->config.extent.height);
-}
 
-void RenderGraphExecutor::endNodeRenderPass(RenderNode& renderNode) {
-    if (!m_nodeRenderPassActive) {
-        return;
-    }
-
-    renderNode.endRenderPass(m_renderer.getCurrentCommandBuffer());
-
-    m_nodeRenderPassActive = false;
-    m_currentNodeFramebuffer = FrameBufferHandle(0);
-
-    SPDLOG_DEBUG("Ended render pass for node");
+    return true;
 }
 
 void RenderGraphExecutor::endNodeRenderPass() {
@@ -250,70 +283,54 @@ void RenderGraphExecutor::endNodeRenderPass() {
         return;
     }
 
-    // Fallback version for exception cleanup
     vkCmdEndRenderPass(m_renderer.getCurrentCommandBuffer());
 
     m_nodeRenderPassActive = false;
     m_currentNodeFramebuffer = FrameBufferHandle(0);
 
-    SPDLOG_DEBUG("Ended render pass for node (fallback)");
+    SPDLOG_DEBUG("Ended render pass for node");
 }
 
-VkExtent2D RenderGraphExecutor::getRenderTargetExtent(const RenderTarget& renderTarget) {
-    if (renderTarget.isSwapchain()) {
-        return m_swapChain.getSwapChainExtent();
+bool RenderGraphExecutor::ensureImGuiProviderReady(RenderNode& finalNode) {
+    if (!m_imguiProvider) {
+        return false;
     }
-    else if (renderTarget.isTexture()) {
-        const auto& textureHandle = renderTarget.getTextureHandle();
-        if (textureHandle.isValid()) {
-            auto* textureInfo = textureHandle.get();
-            if (textureInfo) {
-                return {
-                    static_cast<uint32_t>(textureInfo->width),
-                    static_cast<uint32_t>(textureInfo->height)
-                };
-            }
+
+    // Check if initialization is needed
+    if (m_imguiNeedsInit || !m_imguiProvider->isInitialized()) {
+        // Get render pass and MSAA samples from the final node
+        SmartRenderPassHandle renderPassHandle = finalNode.getSmartRenderPassHandle();
+        VkSampleCountFlagBits msaaSamples = m_assignedGraphHandle->getTargetSampleCount();
+
+        SPDLOG_DEBUG("Initializing ImGui provider for final render pass (MSAA: {}x)",
+            static_cast<uint32_t>(msaaSamples));
+
+        if (!m_imguiProvider->initialize(renderPassHandle, msaaSamples)) {
+            SPDLOG_ERROR("Failed to initialize ImGui provider");
+            return false;
         }
-        SPDLOG_ERROR("Invalid texture handle in render target");
-        return { 0, 0 };
+
+        m_imguiNeedsInit = false;
+        SPDLOG_DEBUG("ImGui provider initialized successfully");
     }
-    else {
-        SPDLOG_ERROR("Invalid render target configuration");
-        return { 0, 0 };
-    }
+
+    return true;
 }
 
-std::vector<AttachmentHandle> RenderGraphExecutor::resolveNodeAttachments(
-    const RenderNode& renderNode,
-    uint32_t swapchainImageIndex) {
-
-    std::vector<AttachmentHandle> handles;
-    const auto& swapchainAttachments = m_swapChain.getAttachmentHandles();
-
-    // Color attachments
-    for (const auto& attachment : renderNode.getColorAttachments()) {
-        if (attachment.source == AttachmentSource::Swapchain) {
-            handles.push_back(swapchainAttachments[swapchainImageIndex]);
-        }
-        else {
-            handles.push_back(attachment.handle);
-        }
+void RenderGraphExecutor::renderImGui() {
+    if (!m_imguiProvider || !m_imguiProvider->isInitialized()) {
+        return;
     }
 
-    // Depth attachment
-    if (const auto* depthAttachment = renderNode.getDepthAttachment()) {
-        handles.push_back(depthAttachment->handle);
-    }
+    // Execute all registered UI callbacks
+    m_imguiProvider->executeCallbacks();
 
-    // Resolve attachment
-    if (const auto* resolveAttachment = renderNode.getResolveAttachment()) {
-        if (resolveAttachment->source == AttachmentSource::Swapchain) {
-            handles.push_back(swapchainAttachments[swapchainImageIndex]);
-        }
-        else {
-            handles.push_back(resolveAttachment->handle);
-        }
-    }
+    // End ImGui frame (prepares draw data)
+    m_imguiProvider->endFrame();
 
-    return handles;
+    // Render to command buffer
+    m_imguiProvider->render(m_renderer.getCurrentCommandBuffer());
+
+    SPDLOG_DEBUG("Rendered ImGui UI ({} callbacks)",
+        m_imguiProvider->getCallbackCount());
 }
