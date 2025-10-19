@@ -155,6 +155,9 @@ MeshHandle MeshManager::createMesh(const AssetLib::MeshInfo& info,
     newMesh.attributes = info.attributes;
     newMesh.indexType = info.indexType;
 
+    // Create vertex input configuration from mesh metadata
+    newMesh.vertexInputConfig = createVertexInputConfig(info);
+
     // Create handle and store mesh
     MeshHandle handle(m_nextHandleId++);
     m_meshes[handle.id] = std::move(newMesh);
@@ -165,4 +168,76 @@ MeshHandle MeshManager::createMesh(const AssetLib::MeshInfo& info,
 const Mesh* MeshManager::getMesh(MeshHandle handle) const {
     auto it = m_meshes.find(handle.id);
     return it != m_meshes.end() ? &it->second : nullptr;
+}
+
+VertexInputConfig MeshManager::createVertexInputConfig(const AssetLib::MeshInfo& meshInfo) {
+    VertexInputConfig config;
+
+    SPDLOG_DEBUG("Creating vertex input config for mesh with {} attributes",
+        meshInfo.attributeLayout.size());
+
+    // Single binding for all attributes
+    VkVertexInputBindingDescription bindingDesc = {};
+    bindingDesc.binding = 0;
+    bindingDesc.stride = meshInfo.vertexStride;
+    bindingDesc.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
+    config.vertexBindings.push_back(bindingDesc);
+
+    // Create attribute descriptions based on the asset's attribute layout
+    // This ensures proper alignment with the actual vertex data format
+    for (const auto& attrDesc : meshInfo.attributeLayout) {
+        VkVertexInputAttributeDescription vkAttr = {};
+        vkAttr.binding = 0;
+        vkAttr.offset = attrDesc.offset;
+
+        // Map attribute type to location (matching shader expectations)
+        switch (attrDesc.type) {
+        case AssetLib::VertexAttribute::Position:
+            vkAttr.location = 0;
+            vkAttr.format = VK_FORMAT_R32G32B32_SFLOAT; // vec3
+            SPDLOG_DEBUG("  Position at location 0, offset {}", vkAttr.offset);
+            break;
+
+        case AssetLib::VertexAttribute::Normal:
+            vkAttr.location = 1;
+            vkAttr.format = VK_FORMAT_R32G32B32_SFLOAT; // vec3
+            SPDLOG_DEBUG("  Normal at location 1, offset {}", vkAttr.offset);
+            break;
+
+        case AssetLib::VertexAttribute::TexCoord:
+            vkAttr.location = 2;
+            vkAttr.format = VK_FORMAT_R32G32_SFLOAT; // vec2
+            SPDLOG_DEBUG("  TexCoord at location 2, offset {}", vkAttr.offset);
+            break;
+
+        case AssetLib::VertexAttribute::Color:
+            vkAttr.location = 3;
+            vkAttr.format = VK_FORMAT_R32G32B32A32_SFLOAT; // vec4
+            SPDLOG_DEBUG("  Color at location 3, offset {}", vkAttr.offset);
+            break;
+
+        case AssetLib::VertexAttribute::Tangent:
+            vkAttr.location = 4;
+            vkAttr.format = VK_FORMAT_R32G32B32A32_SFLOAT; // vec4 with handedness
+            SPDLOG_DEBUG("  Tangent at location 4, offset {}", vkAttr.offset);
+            break;
+
+        default:
+            SPDLOG_WARN("Unknown vertex attribute type encountered");
+            continue;
+        }
+
+        config.vertexAttributes.push_back(vkAttr);
+    }
+
+    // Sort attributes by location to ensure consistent ordering
+    std::sort(config.vertexAttributes.begin(), config.vertexAttributes.end(),
+        [](const VkVertexInputAttributeDescription& a, const VkVertexInputAttributeDescription& b) {
+            return a.location < b.location;
+        });
+
+    SPDLOG_DEBUG("Created vertex input config with {} attributes, stride {}",
+        config.vertexAttributes.size(), meshInfo.vertexStride);
+
+    return config;
 }

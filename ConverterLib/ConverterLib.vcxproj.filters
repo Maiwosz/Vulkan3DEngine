@@ -6,19 +6,13 @@
     <ClInclude Include="ConverterLib.h" />
     <ClInclude Include="bc7enc\bc7enc.h" />
     <ClInclude Include="Shader.h" />
-    <ClInclude Include="ShaderParser.h" />
-    <ClInclude Include="ParserDictionary.h" />
-    <ClInclude Include="ShaderLexer.h" />
-    <ClInclude Include="ShaderErrorManager.h" />
+    <ClInclude Include="ShaderParserPEGTL.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="pch.cpp" />
     <ClCompile Include="ConverterLib.cpp" />
     <ClCompile Include="bc7enc\bc7enc.c" />
     <ClCompile Include="Shader.cpp" />
-    <ClCompile Include="ShaderParser.cpp" />
-    <ClCompile Include="ParserDictionary.cpp" />
-    <ClCompile Include="ShaderLexer.cpp" />
-    <ClCompile Include="ShaderErrorManager.cpp" />
+    <ClCompile Include="ShaderParserPEGTL.cpp" />
   </ItemGroup>
 </Project>

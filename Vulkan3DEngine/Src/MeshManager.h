@@ -3,6 +3,7 @@
 #include "VramManager.h"
 #include "Handle.h"
 #include "Mesh.h"
+#include "PipelineConfig.h"
 #include <AssetLib.h>
 #include <unordered_map>
 #include <string>
@@ -24,6 +25,7 @@ public:
 
     // Helper to get a mesh from its handle
     const Mesh* getMesh(MeshHandle handle) const;
+
 private:
     VramManager& m_vramManager;
 
@@ -42,4 +44,7 @@ private:
         const std::vector<uint8_t>& vertexData,
         const std::vector<uint8_t>& indexData
     );
+
+    // Create vertex input configuration from mesh metadata
+    VertexInputConfig createVertexInputConfig(const AssetLib::MeshInfo& meshInfo);
 };

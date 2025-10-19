@@ -108,7 +108,6 @@ struct PipelineRenderPassConfig {
     bool operator==(const PipelineRenderPassConfig& other) const;
 };
 
-// Main pipeline config structure, composed of smaller structures
 struct GraphicsPipelineConfig {
     ShaderStageConfig shaderStages;
     PipelineLayoutHandle layoutHandle;
@@ -130,6 +129,17 @@ struct GraphicsPipelineConfig {
             depthStencil == other.depthStencil &&
             colorBlend == other.colorBlend &&
             renderPass == other.renderPass;
+    }
+};
+
+// Compute pipeline config structure
+struct ComputePipelineConfig {
+    ShaderStageConfig shaderStage;
+    PipelineLayoutHandle layoutHandle;
+
+    bool operator==(const ComputePipelineConfig& other) const {
+        return shaderStage == other.shaderStage &&
+            layoutHandle == other.layoutHandle;
     }
 };
 
@@ -184,8 +194,6 @@ namespace std {
     struct hash<GraphicsPipelineConfig> {
         size_t operator()(const GraphicsPipelineConfig& config) const {
             size_t seed = 0;
-
-            // Combine hashes of all structures
             hash_combine(seed, config.shaderStages);
             hash_combine(seed, config.layoutHandle);
             hash_combine(seed, config.vertexInput);
@@ -195,7 +203,16 @@ namespace std {
             hash_combine(seed, config.depthStencil);
             hash_combine(seed, config.colorBlend);
             hash_combine(seed, config.renderPass);
+            return seed;
+        }
+    };
 
+    template <>
+    struct hash<ComputePipelineConfig> {
+        size_t operator()(const ComputePipelineConfig& config) const {
+            size_t seed = 0;
+            hash_combine(seed, config.shaderStage);
+            hash_combine(seed, config.layoutHandle);
             return seed;
         }
     };

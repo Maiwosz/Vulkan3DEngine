@@ -31,7 +31,7 @@ private:
     // Create a pipeline configuration for the material and mesh
     GraphicsPipelineConfig createPipelineConfig(
         MaterialHandle materialHandle,
-        const MeshHandle& mesh
+        const Mesh* mesh
     );
 
     // Create vertex input configuration based on mesh format

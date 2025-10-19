@@ -1,5 +1,6 @@
 #include "PipelineManager.h"
 #include <stdexcept>
+#include <spdlog/spdlog.h>
 
 PipelineManager::PipelineManager(const LogicalDevice& device, ShaderModuleManager& shaderManager, PipelineLayoutManager& layoutManager)
     : m_device(device), m_shaderManager(shaderManager), m_layoutManager(layoutManager) {
@@ -10,10 +11,62 @@ PipelineManager::~PipelineManager() {
     m_pipelines.clear();
 }
 
+bool PipelineManager::validateGraphicsPipelineConfig(const GraphicsPipelineConfig& config) const {
+    // Graphics pipeline nie może mieć compute shadera
+    if (config.shaderStages.computeShader) {
+        SPDLOG_WARN("Graphics pipeline configuration contains compute shader, which will be ignored");
+    }
+
+    // Graphics pipeline musi mieć co najmniej vertex i fragment shader
+    if (!config.shaderStages.vertexShader) {
+        SPDLOG_ERROR("Graphics pipeline configuration is missing vertex shader");
+        return false;
+    }
+
+    if (!config.shaderStages.fragmentShader) {
+        SPDLOG_ERROR("Graphics pipeline configuration is missing fragment shader");
+        return false;
+    }
+
+    return true;
+}
+
+bool PipelineManager::validateComputePipelineConfig(const ComputePipelineConfig& config) const {
+    // Compute pipeline musi mieć compute shader
+    if (!config.shaderStage.computeShader) {
+        SPDLOG_ERROR("Compute pipeline configuration is missing compute shader");
+        return false;
+    }
+
+    // Compute pipeline nie może mieć innych shaderów
+    if (config.shaderStage.vertexShader) {
+        SPDLOG_WARN("Compute pipeline configuration contains vertex shader, which will be ignored");
+    }
+    if (config.shaderStage.fragmentShader) {
+        SPDLOG_WARN("Compute pipeline configuration contains fragment shader, which will be ignored");
+    }
+    if (config.shaderStage.geometryShader) {
+        SPDLOG_WARN("Compute pipeline configuration contains geometry shader, which will be ignored");
+    }
+    if (config.shaderStage.tessControlShader) {
+        SPDLOG_WARN("Compute pipeline configuration contains tessellation control shader, which will be ignored");
+    }
+    if (config.shaderStage.tessEvalShader) {
+        SPDLOG_WARN("Compute pipeline configuration contains tessellation evaluation shader, which will be ignored");
+    }
+
+    return true;
+}
+
 PipelineHandle PipelineManager::createGraphicsPipeline(const GraphicsPipelineConfig& config) {
+    // Walidacja konfiguracji
+    if (!validateGraphicsPipelineConfig(config)) {
+        throw std::runtime_error("Invalid graphics pipeline configuration");
+    }
+
     // Check if we already have this pipeline configuration
-    auto cacheIt = m_pipelineCache.find(config);
-    if (cacheIt != m_pipelineCache.end()) {
+    auto cacheIt = m_graphicsPipelineCache.find(config);
+    if (cacheIt != m_graphicsPipelineCache.end()) {
         return cacheIt->second;
     }
 
@@ -26,12 +79,43 @@ PipelineHandle PipelineManager::createGraphicsPipeline(const GraphicsPipelineCon
     VkPipelineLayout pipelineLayout = m_layoutManager.get(config.layoutHandle);
 
     // Create new pipeline
-    VkPipeline vkPipeline = createVkPipeline(config, pipelineLayout);
+    VkPipeline vkPipeline = createVkGraphicsPipeline(config, pipelineLayout);
 
     // Create handle and store pipeline
     PipelineHandle handle(m_nextHandle++);
-    m_pipelines[handle] = std::make_unique<Pipeline>(m_device, vkPipeline, pipelineLayout);
-    m_pipelineCache[config] = handle;
+    m_pipelines[handle] = std::make_unique<Pipeline>(m_device, vkPipeline, pipelineLayout, PipelineType::Graphics);
+    m_graphicsPipelineCache[config] = handle;
+
+    return handle;
+}
+
+PipelineHandle PipelineManager::createComputePipeline(const ComputePipelineConfig& config) {
+    // Walidacja konfiguracji
+    if (!validateComputePipelineConfig(config)) {
+        throw std::runtime_error("Invalid compute pipeline configuration");
+    }
+
+    // Check if we already have this pipeline configuration
+    auto cacheIt = m_computePipelineCache.find(config);
+    if (cacheIt != m_computePipelineCache.end()) {
+        return cacheIt->second;
+    }
+
+    // Check if layout handle is valid
+    if (!m_layoutManager.isValid(config.layoutHandle)) {
+        throw std::runtime_error("Invalid pipeline layout handle");
+    }
+
+    // Get pipeline layout
+    VkPipelineLayout pipelineLayout = m_layoutManager.get(config.layoutHandle);
+
+    // Create new pipeline
+    VkPipeline vkPipeline = createVkComputePipeline(config, pipelineLayout);
+
+    // Create handle and store pipeline
+    PipelineHandle handle(m_nextHandle++);
+    m_pipelines[handle] = std::make_unique<Pipeline>(m_device, vkPipeline, pipelineLayout, PipelineType::Compute);
+    m_computePipelineCache[config] = handle;
 
     return handle;
 }
@@ -48,17 +132,11 @@ bool PipelineManager::isValid(PipelineHandle handle) const {
     return m_pipelines.find(handle) != m_pipelines.end();
 }
 
-VkPipeline PipelineManager::createVkPipeline(const GraphicsPipelineConfig& config, VkPipelineLayout layout) {
-    // Check if shaders are valid
-    if (!config.shaderStages.vertexShader ||
-        !config.shaderStages.fragmentShader) {
-        throw std::runtime_error("Invalid shader module handle");
-    }
-
+VkPipeline PipelineManager::createVkGraphicsPipeline(const GraphicsPipelineConfig& config, VkPipelineLayout layout) {
     // Prepare shader stages
     std::vector<VkPipelineShaderStageCreateInfo> shaderStages;
 
-    // Vertex shader stage
+    // Vertex shader stage (required)
     VkPipelineShaderStageCreateInfo vertexShaderStageInfo{};
     vertexShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
     vertexShaderStageInfo.stage = VK_SHADER_STAGE_VERTEX_BIT;
@@ -66,7 +144,7 @@ VkPipeline PipelineManager::createVkPipeline(const GraphicsPipelineConfig& confi
     vertexShaderStageInfo.pName = config.shaderStages.vertexEntryPoint.c_str();
     shaderStages.push_back(vertexShaderStageInfo);
 
-    // Fragment shader stage
+    // Fragment shader stage (required)
     VkPipelineShaderStageCreateInfo fragmentShaderStageInfo{};
     fragmentShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
     fragmentShaderStageInfo.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
@@ -102,16 +180,6 @@ VkPipeline PipelineManager::createVkPipeline(const GraphicsPipelineConfig& confi
         tessEvalShaderStageInfo.module = m_shaderManager.getModule(config.shaderStages.tessEvalShader)->get();
         tessEvalShaderStageInfo.pName = config.shaderStages.tessEvalEntryPoint.c_str();
         shaderStages.push_back(tessEvalShaderStageInfo);
-    }
-
-    // Compute shader stage (optional)s
-    if (config.shaderStages.computeShader) {
-        VkPipelineShaderStageCreateInfo computeShaderStageInfo{};
-        computeShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
-        computeShaderStageInfo.stage = VK_SHADER_STAGE_COMPUTE_BIT;
-        computeShaderStageInfo.module = m_shaderManager.getModule(config.shaderStages.computeShader)->get();
-        computeShaderStageInfo.pName = config.shaderStages.computeEntryPoint.c_str();
-        shaderStages.push_back(computeShaderStageInfo);
     }
 
     // Vertex input state
@@ -207,6 +275,28 @@ VkPipeline PipelineManager::createVkPipeline(const GraphicsPipelineConfig& confi
     VkPipeline pipeline;
     if (vkCreateGraphicsPipelines(m_device.get(), VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &pipeline) != VK_SUCCESS) {
         throw std::runtime_error("Failed to create graphics pipeline");
+    }
+
+    return pipeline;
+}
+
+VkPipeline PipelineManager::createVkComputePipeline(const ComputePipelineConfig& config, VkPipelineLayout layout) {
+    // Compute shader stage
+    VkPipelineShaderStageCreateInfo computeShaderStageInfo{};
+    computeShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+    computeShaderStageInfo.stage = VK_SHADER_STAGE_COMPUTE_BIT;
+    computeShaderStageInfo.module = m_shaderManager.getModule(config.shaderStage.computeShader)->get();
+    computeShaderStageInfo.pName = config.shaderStage.computeEntryPoint.c_str();
+
+    // Create the compute pipeline
+    VkComputePipelineCreateInfo pipelineInfo{};
+    pipelineInfo.sType = VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO;
+    pipelineInfo.stage = computeShaderStageInfo;
+    pipelineInfo.layout = layout;
+
+    VkPipeline pipeline;
+    if (vkCreateComputePipelines(m_device.get(), VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &pipeline) != VK_SUCCESS) {
+        throw std::runtime_error("Failed to create compute pipeline");
     }
 
     return pipeline;

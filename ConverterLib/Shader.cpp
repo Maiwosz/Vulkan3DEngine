@@ -11,7 +11,7 @@
 #include <Serialization.h>
 #include <fstream>
 #include <UBODefinitions.h>
-#include "ShaderParser.h"
+#include "ShaderParserPEGTL.h"
 
 using namespace ShaderLib;
 using namespace ShaderLib::TypeConversion;
@@ -235,13 +235,23 @@ namespace Shader {
         StageFlags stageFlags = 0;
 
         // Simply parse the source - all complexity is handled by ParserDictionary
-        ShaderParser parser;
-        ParsedShaderData sourceData = parser.Parse(source);
+        //ShaderParser parser;
+        //ParsedShaderData sourceData = parser.Parse(source);
 
-        // Check if parser found any real errors (not just info messages)
-        auto& errorManager = ShaderErrorManager::Instance();
-        if (errorManager.HasNonWarningErrors()) {
-            throw std::runtime_error("Shader parsing failed with errors:\n" + errorManager.FormatAllErrors());
+        //// Check if parser found any real errors (not just info messages)
+        //auto& errorManager = ShaderErrorManager::Instance();
+        //if (errorManager.HasNonWarningErrors()) {
+        //    throw std::runtime_error("Shader parsing failed with errors:\n" + errorManager.FormatAllErrors());
+        //}
+
+        ShaderParserPEGTL parser;
+        ParsedShaderData sourceData;
+
+        try {
+            sourceData = parser.Parse(source);
+        }
+        catch (const std::exception& e) {
+            throw std::runtime_error(std::string("Shader parsing failed: ") + e.what());
         }
 
         // Check if we have any stages to compile

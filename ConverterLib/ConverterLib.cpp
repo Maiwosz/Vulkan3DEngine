@@ -460,6 +460,50 @@ AssetData Converter::ProcessMesh(const std::string& inputPath, const Settings& s
         meshInfo.attributes = attributeFlags;
         meshInfo.indexType = indexType;
 
+        uint32_t currentOffset = 0;
+
+        // Position (zawsze pierwsza)
+        meshInfo.attributeLayout.push_back({
+            AssetLib::VertexAttribute::Position,
+            currentOffset,
+            3,  // xyz
+            sizeof(float)
+            });
+        currentOffset += 3 * sizeof(float);
+
+        // Normal (jeśli obecna)
+        if (generateNormals) {
+            meshInfo.attributeLayout.push_back({
+                AssetLib::VertexAttribute::Normal,
+                currentOffset,
+                3,  // xyz
+                sizeof(float)
+                });
+            currentOffset += 3 * sizeof(float);
+        }
+
+        // TexCoord (jeśli obecne)
+        if (generateTexCoords) {
+            meshInfo.attributeLayout.push_back({
+                AssetLib::VertexAttribute::TexCoord,
+                currentOffset,
+                2,  // uv
+                sizeof(float)
+                });
+            currentOffset += 2 * sizeof(float);
+        }
+
+        // Color (jeśli obecny)
+        if (generateColors) {
+            meshInfo.attributeLayout.push_back({
+                AssetLib::VertexAttribute::Color,
+                currentOffset,
+                4,  // rgba
+                sizeof(float)
+                });
+            currentOffset += 4 * sizeof(float);
+        }
+
         std::string filename = std::filesystem::path(inputPath).filename().string();
 
         // Zapis przy użyciu ustandaryzowanej funkcji

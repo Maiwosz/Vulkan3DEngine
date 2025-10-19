@@ -69,14 +69,41 @@ namespace AssetLib {
             return info;
         }
 
-        json SerializeMeshInfo(const MeshInfo& info) {
+        json SerializeVertexAttributeDesc(const VertexAttributeDesc& desc) {
             return {
+                {"type", static_cast<uint32_t>(desc.type)},
+                {"offset", desc.offset},
+                {"componentCount", desc.componentCount},
+                {"componentSize", desc.componentSize}
+            };
+        }
+
+        VertexAttributeDesc DeserializeVertexAttributeDesc(const json& j) {
+            VertexAttributeDesc desc;
+            desc.type = static_cast<VertexAttribute>(j["type"].get<uint32_t>());
+            desc.offset = j["offset"].get<uint32_t>();
+            desc.componentCount = j["componentCount"].get<uint8_t>();
+            desc.componentSize = j["componentSize"].get<uint8_t>();
+            return desc;
+        }
+
+        json SerializeMeshInfo(const MeshInfo& info) {
+            json j = {
                 {"vertexCount", info.vertexCount},
                 {"indexCount", info.indexCount},
                 {"vertexStride", info.vertexStride},
                 {"attributes", info.attributes},
                 {"indexType", info.indexType}
             };
+
+            // Serializuj layout atrybutów
+            json layoutArray = json::array();
+            for (const auto& attr : info.attributeLayout) {
+                layoutArray.push_back(SerializeVertexAttributeDesc(attr));
+            }
+            j["attributeLayout"] = layoutArray;
+
+            return j;
         }
 
         MeshInfo DeserializeMeshInfo(const json& j) {
@@ -86,6 +113,16 @@ namespace AssetLib {
             info.vertexStride = j["vertexStride"].get<uint32_t>();
             info.attributes = j["attributes"].get<uint32_t>();
             info.indexType = j["indexType"].get<uint8_t>();
+
+            // Deserializuj layout atrybutów
+            if (j.contains("attributeLayout")) {
+                for (const auto& attrJson : j["attributeLayout"]) {
+                    info.attributeLayout.push_back(
+                        DeserializeVertexAttributeDesc(attrJson)
+                    );
+                }
+            }
+
             return info;
         }
 

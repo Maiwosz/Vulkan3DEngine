@@ -11,6 +11,7 @@
 #include <unordered_map>
 #include <vector>
 #include <memory>
+#include "PipelineConfig.h"
 
 struct CombinedShader {
     std::unordered_map<ShaderLib::Stage, ShaderModuleHandle> stages;
@@ -19,6 +20,7 @@ struct CombinedShader {
 struct ShaderResources {
     std::unordered_map<uint32_t, DescriptorLayoutHandle> descriptorLayouts; // Set number -> layout handle
     PipelineLayoutHandle pipelineLayout;
+    ShaderStageConfig stageConfig;
 };
 
 struct ShaderAsset {

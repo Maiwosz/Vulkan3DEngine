@@ -63,6 +63,18 @@ namespace AssetLib {
         Color = 0x10
     };
 
+    struct VertexAttributeDesc {
+        VertexAttribute type;
+        uint32_t offset;        // offset w bajtach od początku wierzchołka
+        uint8_t componentCount; // liczba komponentów (np. 3 dla position)
+        uint8_t componentSize;  // rozmiar komponentu w bajtach (np. 4 dla float)
+
+        // Pomocnicze - rozmiar całego atrybutu
+        uint32_t GetSize() const {
+            return componentCount * componentSize;
+        }
+    };
+
     inline VertexAttribute operator|(VertexAttribute a, VertexAttribute b) {
         return static_cast<VertexAttribute>(
             static_cast<uint32_t>(a) | static_cast<uint32_t>(b)
@@ -78,8 +90,22 @@ namespace AssetLib {
         uint32_t vertexCount;
         uint32_t indexCount;
         uint32_t vertexStride;
-        uint32_t attributes;
-        uint8_t indexType; // 0 = uint16, 1 = uint32
+        uint32_t attributes;    // flagi - które atrybuty są obecne
+        uint8_t indexType;      // 0 = uint16, 1 = uint32
+
+        std::vector<VertexAttributeDesc> attributeLayout;
+
+        // Pomocnicze funkcje
+        bool HasAttribute(VertexAttribute attr) const {
+            return (attributes & static_cast<uint32_t>(attr)) != 0;
+        }
+
+        const VertexAttributeDesc* GetAttributeDesc(VertexAttribute attr) const {
+            for (const auto& desc : attributeLayout) {
+                if (desc.type == attr) return &desc;
+            }
+            return nullptr;
+        }
     };
 
     // =============================================

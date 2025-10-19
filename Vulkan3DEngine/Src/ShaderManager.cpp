@@ -195,6 +195,8 @@ ShaderHandle ShaderManager::createShader(
 
     // Create modules for each stage
     CombinedShader combinedShader;
+    ShaderStageConfig stageConfig;
+
     for (const auto& stage : stages) {
         SPDLOG_DEBUG("Creating shader module for stage {}",
             ShaderLib::TypeConversion::StageToString(stage.stage));
@@ -209,6 +211,27 @@ ShaderHandle ShaderManager::createShader(
         }
 
         combinedShader.stages[stage.stage] = moduleHandle;
+
+        switch (stage.stage) {
+        case ShaderLib::Stage::Vertex:
+            stageConfig.vertexShader = moduleHandle;
+            break;
+        case ShaderLib::Stage::Fragment:
+            stageConfig.fragmentShader = moduleHandle;
+            break;
+        case ShaderLib::Stage::Geometry:
+            stageConfig.geometryShader = moduleHandle;
+            break;
+        case ShaderLib::Stage::TessellationControl:
+            stageConfig.tessControlShader = moduleHandle;
+            break;
+        case ShaderLib::Stage::TessellationEvaluation:
+            stageConfig.tessEvalShader = moduleHandle;
+            break;
+        case ShaderLib::Stage::Compute:
+            stageConfig.computeShader = moduleHandle;
+            break;
+        }
     }
 
     // Create descriptor layouts
@@ -226,6 +249,7 @@ ShaderHandle ShaderManager::createShader(
     asset.combinedShader = std::move(combinedShader);
     asset.resources.descriptorLayouts = std::move(descriptorLayouts);
     asset.resources.pipelineLayout = pipelineLayout;
+    asset.resources.stageConfig = std::move(stageConfig);
     asset.metadata = metadata;
 
     // Calculate memory size

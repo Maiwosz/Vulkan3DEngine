@@ -1,5 +1,6 @@
 #pragma once
 #include "Handle.h"
+#include "PipelineConfig.h"
 #include <AssetLib.h>
 
 struct Mesh {
@@ -10,6 +11,9 @@ struct Mesh {
     uint32_t vertexStride;
     uint32_t attributes;
     uint8_t indexType;
+
+    // Pre-computed vertex input configuration for this mesh
+    VertexInputConfig vertexInputConfig;
 
     // Helper methods to check which attributes are present
     bool hasPosition() const {
