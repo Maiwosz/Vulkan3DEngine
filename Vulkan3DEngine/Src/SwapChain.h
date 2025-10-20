@@ -41,8 +41,9 @@ private:
 	void cleanupSwapChain();
 	void createImageViews();
 	void registerImagesWithVramManager();
-	void registerImagesWithAttachmentManager(bool isRecreate = false);
+	void registerImagesWithAttachmentManager();
 	void releaseAttachments();
+	void updateAttachmentsWithNewImages();
 	VkPresentModeKHR getVulkanPresentMode(const std::vector<VkPresentModeKHR>& availablePresentModes) const;
 
 	const PhysicalDevice& m_physicalDevice;

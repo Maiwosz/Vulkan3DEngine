@@ -36,6 +36,7 @@ using SmartRenderGraphHandle = SmartHandle<RenderGraphHandle, RenderGraph>;
  * - Execute GpuCalls within appropriate render pass contexts
  * - Set viewport/scissor state per node
  * - Optionally inject ImGui rendering into the final render pass
+ * - Validate swapchain state before execution
  *
  * The executor uses existing managers for resource caching:
  * - FrameBufferManager caches framebuffers by configuration
@@ -72,12 +73,13 @@ public:
      * Execute all GpuCalls on the assigned RenderGraph.
      *
      * For each node in the graph:
-     * 1. Acquire framebuffer (cached by FrameBufferManager)
-     * 2. Begin render pass with appropriate clear values
-     * 3. Set viewport and scissor
-     * 4. Execute all GpuCalls
-     * 5. If final node and ImGui provider attached: render ImGui
-     * 6. End render pass
+     * 1. Validate swapchain state (if targeting swapchain)
+     * 2. Acquire framebuffer (cached by FrameBufferManager)
+     * 3. Begin render pass with appropriate clear values
+     * 4. Set viewport and scissor
+     * 5. Execute all GpuCalls
+     * 6. If final node and ImGui provider attached: render ImGui
+     * 7. End render pass
      *
      * @param gpuCalls Vector of GpuCall commands to execute
      * @return true if execution succeeded, false otherwise
@@ -120,6 +122,15 @@ public:
      * Check if an ImGui provider is attached.
      */
     bool hasImGuiProvider() const { return m_imguiProvider != nullptr; }
+
+    /**
+     * Rebuild the render graph after swapchain recreation.
+     * Extracts swapchain from render target, recreates it, rebuilds the graph,
+     * and marks ImGui for reinitialization.
+     *
+     * @return true if rebuild succeeded, false if no graph assigned or rebuild failed
+     */
+    bool rebuildAfterSwapchainRecreation();
 
 private:
     /**
@@ -191,7 +202,6 @@ private:
     // Resource managers (all handle caching internally)
     FrameBufferManager& m_framebufferManager;
     RenderPassManager& m_renderPassManager;
-    SwapChain& m_swapChain;
     AttachmentManager& m_attachmentManager;
     PipelineManager& m_pipelineManager;
 

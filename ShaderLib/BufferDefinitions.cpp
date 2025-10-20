@@ -1,12 +1,11 @@
 #include "pch.h"
-#include "UBODefinitions.h"
-#include "UBOStandardDefinitions.h"
+#include "BufferDefinitions.h"
+#include "StandardBufferDefinitions.h"
 #include "TypeConversions.h"
 
 namespace ShaderLib {
 
     TypeInfo GetStructTypeInfo(const std::string& structName) {
-        // Standard light structures we know about
         if (structName == "DirectionalLight") {
             return { sizeof(DirectionalLight), 16 };
         }
@@ -17,20 +16,28 @@ namespace ShaderLib {
             return { sizeof(SpotLight), 16 };
         }
 
-        // Default for unknown structs - assume 16-byte alignment
-        return { 64, 16 }; // Default size of 64 bytes, can be adjusted as needed
+        return { 64, 16 };
     }
 
-    // Build the UBO from the builder
-    UniformBufferObject UBOBuilder::Build() {
-        UniformBufferObject ubo;
-        ubo.name = name;
-        ubo.set = set;
-        ubo.binding = binding;
+    // Get type info adjusted for layout standard
+    TypeInfo GetTypeInfoForStandard(UniformType type, LayoutStandard standard) {
+        if (standard == LayoutStandard::Std430) {
+            return ShaderLib::TypeConversion::GetTypeInfoStd430(type);
+        }
+        return ShaderLib::TypeConversion::GetTypeInfo(type);
+    }
+
+    // Build the buffer from the builder
+    BufferObject BufferBuilder::Build() {
+        BufferObject buffer;
+        buffer.name = name;
+        buffer.set = set;
+        buffer.binding = binding;
+        buffer.bufferType = bufferType;
+        buffer.layoutStandard = layoutStandard;
 
         uint32_t currentOffset = 0;
 
-        // Process each field
         for (const auto& field : fields) {
             UniformVariable var;
             var.name = field.name;
@@ -38,22 +45,19 @@ namespace ShaderLib {
             var.typeName = field.typeName;
             var.arraySize = field.arraySize;
 
-            // Handle different field types
             if (field.isStruct) {
-                // Get struct type info
                 TypeInfo structTypeInfo = GetStructTypeInfo(field.typeName);
 
                 if (field.arraySize > 0) {
                     // Array of structs
                     var.type = UniformType::Array;
 
-                    // In std140, array elements are aligned to at least 16 bytes
-                    uint32_t elementSize = AlignTo(structTypeInfo.size, 16);
+                    // Array element alignment depends on layout standard
+                    uint32_t elementAlignment = GetArrayElementAlignment(structTypeInfo.alignment, layoutStandard);
+                    uint32_t elementSize = AlignTo(structTypeInfo.size, elementAlignment);
                     var.size = field.arraySize * elementSize;
 
-                    // Arrays are aligned to 16 bytes or the base type's alignment, whichever is greater
-                    uint32_t alignment = std::max(16u, structTypeInfo.alignment);
-                    currentOffset = AlignTo(currentOffset, alignment);
+                    currentOffset = AlignTo(currentOffset, elementAlignment);
                     var.offset = currentOffset;
                     currentOffset += var.size;
                 }
@@ -62,25 +66,22 @@ namespace ShaderLib {
                     var.type = UniformType::Struct;
                     var.size = structTypeInfo.size;
 
-                    // Align according to struct alignment
                     currentOffset = AlignTo(currentOffset, structTypeInfo.alignment);
                     var.offset = currentOffset;
                     currentOffset += var.size;
                 }
             }
             else {
-                // For basic types
-                TypeInfo typeInfo = TypeConversion::GetTypeInfo(var.type);
+                // Basic types
+                TypeInfo typeInfo = GetTypeInfoForStandard(var.type, layoutStandard);
 
                 if (field.arraySize > 0) {
                     // Array of basic types
-                    // In std140, array elements are aligned to at least 16 bytes or the base type's alignment
-                    uint32_t elementSize = AlignTo(typeInfo.size, std::max(16u, typeInfo.alignment));
+                    uint32_t elementAlignment = GetArrayElementAlignment(typeInfo.alignment, layoutStandard);
+                    uint32_t elementSize = AlignTo(typeInfo.size, elementAlignment);
                     var.size = field.arraySize * elementSize;
 
-                    // Arrays are aligned to 16 bytes or the base type's alignment, whichever is greater
-                    uint32_t alignment = std::max(16u, typeInfo.alignment);
-                    currentOffset = AlignTo(currentOffset, alignment);
+                    currentOffset = AlignTo(currentOffset, elementAlignment);
                     var.offset = currentOffset;
                     currentOffset += var.size;
                 }
@@ -88,24 +89,24 @@ namespace ShaderLib {
                     // Single basic type
                     var.size = typeInfo.size;
 
-                    // Align according to the type's alignment requirements
                     currentOffset = AlignTo(currentOffset, typeInfo.alignment);
                     var.offset = currentOffset;
                     currentOffset += var.size;
                 }
             }
 
-            ubo.variables.push_back(var);
+            buffer.variables.push_back(var);
         }
 
-        // Set the total size of the UBO
-        ubo.size = AlignTo(currentOffset, 16); // Ensure the UBO size is a multiple of 16
+        // Set the total size - aligned to 16 bytes for UBO, 4 bytes for SSBO
+        uint32_t finalAlignment = (bufferType == BufferType::Uniform) ? 16 : 4;
+        buffer.size = AlignTo(currentOffset, finalAlignment);
 
-        return ubo;
+        return buffer;
     }
 
-    // Generate GLSL code for the UBO
-    std::string UBOBuilder::GenerateGLSL() {
+    // Generate GLSL code for the buffer
+    std::string BufferBuilder::GenerateGLSL() {
         std::stringstream ss;
 
         // Add struct definitions first
@@ -113,8 +114,13 @@ namespace ShaderLib {
             ss << structDef;
         }
 
-        // Generate the UBO definition
-        ss << "layout(std140, set = " << set << ", binding = " << binding << ") uniform " << name << " {\n";
+        // Determine layout keyword
+        const char* layoutKeyword = (layoutStandard == LayoutStandard::Std140) ? "std140" : "std430";
+        const char* bufferKeyword = (bufferType == BufferType::Uniform) ? "uniform" : "buffer";
+
+        // Generate the buffer definition
+        ss << "layout(" << layoutKeyword << ", set = " << set << ", binding = " << binding
+            << ") " << bufferKeyword << " " << name << " {\n";
 
         for (const auto& field : fields) {
             ss << "    ";
@@ -129,7 +135,8 @@ namespace ShaderLib {
             }
             else {
                 if (field.arraySize > 0) {
-                    ss << TypeConversion::UniformTypeToString(field.type) << " " << field.name << "[" << field.arraySize << "]";
+                    ss << TypeConversion::UniformTypeToString(field.type) << " " << field.name
+                        << "[" << field.arraySize << "]";
                 }
                 else {
                     ss << TypeConversion::UniformTypeToString(field.type) << " " << field.name;
@@ -151,68 +158,66 @@ namespace ShaderLib {
         return ss.str();
     }
 
-    // Register a UBO definition in the registry
-    void UBORegistry::RegisterUBO(const UniformBufferObject& ubo) {
-        ubos[ubo.name] = ubo;
+    // Register a buffer definition in the registry
+    void BufferRegistry::RegisterBuffer(const BufferObject& buffer) {
+        buffers[buffer.name] = buffer;
     }
 
-    // Get a registered UBO by name
-    const UniformBufferObject* UBORegistry::GetUBO(const std::string& name) const {
-        auto it = ubos.find(name);
-        if (it != ubos.end()) {
+    // Get a registered buffer by name
+    const BufferObject* BufferRegistry::GetBuffer(const std::string& name) const {
+        auto it = buffers.find(name);
+        if (it != buffers.end()) {
             return &it->second;
         }
         return nullptr;
     }
 
-    // Generate GLSL code for a registered UBO
-    std::string UBORegistry::GenerateGLSL(const std::string& uboName) const {
-        const UniformBufferObject* ubo = GetUBO(uboName);
-        if (!ubo) {
-            return "// UBO '" + uboName + "' not found in registry\n";
+    // Generate GLSL code for a registered buffer
+    std::string BufferRegistry::GenerateGLSL(const std::string& bufferName) const {
+        const BufferObject* buffer = GetBuffer(bufferName);
+        if (!buffer) {
+            return "// Buffer '" + bufferName + "' not found in registry\n";
         }
 
-        // Generate struct definitions first
         std::stringstream ss;
 
-        // Add standard light struct definitions if needed
+        // Check which struct definitions are needed
         bool hasDirectionalLight = false;
         bool hasPointLight = false;
         bool hasSpotLight = false;
 
-        // Check if we need to include struct definitions
-        for (const auto& var : ubo->variables) {
+        for (const auto& var : buffer->variables) {
             if (var.typeName == "DirectionalLight") hasDirectionalLight = true;
             else if (var.typeName == "PointLight") hasPointLight = true;
             else if (var.typeName == "SpotLight") hasSpotLight = true;
         }
 
-        // Add the necessary struct definitions
         if (hasDirectionalLight) ss << DirectionalLight::GetGLSLDefinition();
         if (hasPointLight) ss << PointLight::GetGLSLDefinition();
         if (hasSpotLight) ss << SpotLight::GetGLSLDefinition();
 
-        // Generate the UBO definition
-        ss << "layout(std140, set = " << ubo->set << ", binding = " << ubo->binding << ") uniform " << ubo->name << " {\n";
+        // Determine layout keyword
+        const char* layoutKeyword = (buffer->layoutStandard == LayoutStandard::Std140) ? "std140" : "std430";
+        const char* bufferKeyword = (buffer->bufferType == BufferType::Uniform) ? "uniform" : "buffer";
 
-        // Make sure this part is correct:
-        for (const auto& var : ubo->variables) {
+        // Generate the buffer definition
+        ss << "layout(" << layoutKeyword << ", set = " << buffer->set << ", binding = " << buffer->binding
+            << ") " << bufferKeyword << " " << buffer->name << " {\n";
+
+        for (const auto& var : buffer->variables) {
             ss << "    ";
 
             if (var.type == UniformType::Struct) {
-                // Handle struct type
                 ss << var.typeName << " " << var.name << ";";
             }
             else if (var.type == UniformType::Array && !var.typeName.empty()) {
-                // Handle struct array
                 ss << var.typeName << " " << var.name << "[" << var.arraySize << "];";
             }
             else if (var.type == UniformType::Array) {
-                // Handle basic type array
-                ss << TypeConversion::UniformTypeToString(UniformType::Float) << " " << var.name << "[" << var.arraySize << "];";
+                ss << TypeConversion::UniformTypeToString(UniformType::Float) << " " << var.name
+                    << "[" << var.arraySize << "];";
             }
             else {
-                // Handle basic type
                 ss << TypeConversion::UniformTypeToString(var.type) << " " << var.name << ";";
             }
 
@@ -224,19 +229,20 @@ namespace ShaderLib {
         return ss.str();
     }
 
-    // Initialize standard UBOs in the registry
-    void UBORegistry::InitializeStandardUBOs() {
-        RegisterUBO(CreateGlobalUBO());
-        RegisterUBO(CreateObjectUBO());
+    // Initialize standard buffers in the registry
+    void BufferRegistry::InitializeStandardBuffers() {
+        RegisterBuffer(CreateGlobalUBO());
+        RegisterBuffer(CreateObjectUBO());
     }
 
     // Create GlobalUBO definition
-    UniformBufferObject UBORegistry::CreateGlobalUBO() {
-        return OBJECT_UBO;
+    BufferObject BufferRegistry::CreateGlobalUBO() {
+        return GLOBAL_UBO;
     }
 
     // Create ObjectUBO definition
-    UniformBufferObject UBORegistry::CreateObjectUBO() {
-        return GLOBAL_UBO;
+    BufferObject BufferRegistry::CreateObjectUBO() {
+        return OBJECT_UBO;
     }
+
 } // namespace ShaderLib

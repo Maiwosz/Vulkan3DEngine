@@ -2,7 +2,7 @@
 #include <stdexcept>
 #include <cassert>
 #include "ImageSamplerUtils.h"
-#include <UboDefinitions.h>
+#include <BufferDefinitions.h>
 #include <spdlog/spdlog.h>
 
 MaterialResourceFactory::MaterialResourceFactory(

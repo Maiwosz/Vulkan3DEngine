@@ -7,6 +7,7 @@
 #include "RenderTarget.h"
 #include <stdexcept>
 #include <algorithm>
+#include "RenderGraphBuilder.h"
 
 RenderGraph::RenderGraph(const RenderGraphTemplate& graphTemplate,
     const RenderTarget& target,

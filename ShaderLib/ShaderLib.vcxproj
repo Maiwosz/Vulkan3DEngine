@@ -149,8 +149,8 @@
     <ClInclude Include="pch.h" />
     <ClInclude Include="ShaderLib.h" />
     <ClInclude Include="TypeConversions.h" />
-    <ClInclude Include="UBODefinitions.h" />
-    <ClInclude Include="UBOStandardDefinitions.h" />
+    <ClInclude Include="BufferDefinitions.h" />
+    <ClInclude Include="StandardBufferDefinitions.h" />
     <ClInclude Include="VulkanHelper.h" />
   </ItemGroup>
   <ItemGroup>
@@ -162,7 +162,7 @@
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Create</PrecompiledHeader>
     </ClCompile>
     <ClCompile Include="TypeConversions.cpp" />
-    <ClCompile Include="UBODefinitions.cpp" />
+    <ClCompile Include="BufferDefinitions.cpp" />
     <ClCompile Include="VulkanHelper.cpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

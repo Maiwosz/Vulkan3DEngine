@@ -93,7 +93,6 @@ public:
     bool requiresMSAAResolve() const { return m_requiresMSAAResolve; }
     VkFormat getTargetFormat() const { return m_targetFormat; }
     VkSampleCountFlagBits getTargetSampleCount() const { return m_targetSamples; }
-
 private:
     // Private constructor - only RenderGraphBuilder can create instances
     RenderGraph(const RenderGraphTemplate& graphTemplate,

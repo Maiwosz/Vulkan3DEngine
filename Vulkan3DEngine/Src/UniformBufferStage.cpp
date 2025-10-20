@@ -3,7 +3,7 @@
 #include <spdlog/spdlog.h>
 #include <spdlog/fmt/ostr.h>
 #include <glm/gtc/matrix_transform.hpp>
-#include "UBOStandardDefinitions.h"
+#include "StandardBufferDefinitions.h"
 
 UniformBufferStage::UniformBufferStage(ProcessingContext& context, Registry& registry, EngineCore& renderer, AssetSystem& assetSystem)
     : ProcessingStage(context)

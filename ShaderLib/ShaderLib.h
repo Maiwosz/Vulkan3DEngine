@@ -33,6 +33,18 @@ namespace ShaderLib {
         SeparateSampler
     };
 
+    // Nowy enum dla typu bufora
+    enum class BufferType {
+        Uniform,  // UBO - read-only, std140
+        Storage   // SSBO - read-write, std430
+    };
+
+    // Nowy enum dla standardu layoutu
+    enum class LayoutStandard {
+        Std140,  // For uniform buffers
+        Std430   // For storage buffers (more compact)
+    };
+
     enum class UniformType {
         Bool,
         Float,
@@ -96,13 +108,23 @@ namespace ShaderLib {
         std::string name;
     };
 
-    struct UniformBufferObject {
+    // Renamed from UniformBufferObject to BufferObject for universality
+    struct BufferObject {
         std::string name;
         uint32_t set;
         uint32_t binding;
         uint32_t size;
+        BufferType bufferType;
+        LayoutStandard layoutStandard;
         std::vector<UniformVariable> variables;
+
+        // Helper methods
+        bool IsUniformBuffer() const { return bufferType == BufferType::Uniform; }
+        bool IsStorageBuffer() const { return bufferType == BufferType::Storage; }
     };
+
+    // Alias dla kompatybilności wstecznej
+    using UniformBufferObject = BufferObject;
 
     struct ShaderMetadata {
         StageFlags availableStages;
@@ -110,10 +132,12 @@ namespace ShaderLib {
         bool usesObjectUBO = false;
         std::vector<PushConstantRange> pushConstants;
         std::vector<DescriptorBinding> descriptors;
-        std::vector<UniformBufferObject> customUBOs;
-        // Added for better integration
-        UniformBufferObject globalUBO; // Defined structure for GlobalUBO
-        UniformBufferObject objectUBO; // Defined structure for ObjectUBO
+        std::vector<BufferObject> customUBOs;
+        std::vector<BufferObject> customSSBOs;
+
+        // Defined structures
+        BufferObject globalUBO;
+        BufferObject objectUBO;
     };
 
     struct CompiledStage {

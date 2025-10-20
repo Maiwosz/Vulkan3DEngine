@@ -186,10 +186,9 @@ public:
         VkImageUsageFlags usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT
     );
 
-    // Recreate an existing attachment with new parameters (keeps the same handle)
-    void recreateAttachment(
+    void updateExternalImage(
         AttachmentHandle handle,
-        const AttachmentImageSpec& newSpec
+        VramHandle newImageHandle
     );
 
     // Access to the attachment factory

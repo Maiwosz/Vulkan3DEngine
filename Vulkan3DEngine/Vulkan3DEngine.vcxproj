@@ -219,7 +219,6 @@
     <ClCompile Include="Src\LuaBindingsInput.cpp" />
     <ClCompile Include="Src\LuaBindings.cpp" />
     <ClCompile Include="Src\ScriptSystem.cpp" />
-    <ClCompile Include="Src\GlobalStateManager.cpp" />
     <ClCompile Include="Src\RenderStage.cpp" />
     <ClCompile Include="Src\MeshManager.cpp" />
     <ClCompile Include="Src\PipelineAssignmentStage.cpp" />
@@ -358,7 +357,6 @@
     <ClInclude Include="Src\LuaBindings.h" />
     <ClInclude Include="Src\ScriptSystem.h" />
     <ClInclude Include="Src\ScriptComponent.h" />
-    <ClInclude Include="Src\GlobalStateManager.h" />
     <ClInclude Include="Src\RenderStage.h" />
     <ClInclude Include="Src\Mesh.h" />
     <ClInclude Include="Src\MeshManager.h" />

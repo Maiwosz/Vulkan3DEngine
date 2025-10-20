@@ -393,10 +393,30 @@ void Renderer::setScissor(uint32_t x, uint32_t y, uint32_t width, uint32_t heigh
 void Renderer::handleSwapchainRecreation() {
     cleanupFrame();
 
+    // First, wait for all queues to be idle - this is safer than waiting for fences
     vkQueueWaitIdle(m_vulkanContext.logical().getQueue(LogicalDevice::QueueType::Graphics));
     vkQueueWaitIdle(m_vulkanContext.logical().getQueue(LogicalDevice::QueueType::Transfer));
 
-    m_engineCore.recreateSwapChain();
+    // Wait for all frames to complete to ensure no descriptor sets are in use
+    m_frameManager.waitForAllFrames();
+
+    // Reset all frame command buffers to a clean state
+    m_frameManager.resetAllFrames();
+
+    // Now wait for device to be completely idle
+    vkDeviceWaitIdle(m_vulkanContext.logical().get());
+
+    SPDLOG_INFO("Device is idle, proceeding with swapchain recreation");
+
+    if (!m_renderGraphExecutor) {
+        SPDLOG_ERROR("RenderGraphExecutor not initialized - cannot rebuild after swapchain recreation");
+        return;
+    }
+
+    // Let executor handle the complete rebuild process
+    if (!m_renderGraphExecutor->rebuildAfterSwapchainRecreation()) {
+        SPDLOG_ERROR("Failed to rebuild render graph after swapchain recreation");
+    }
 }
 
 void Renderer::ensureFrameActive() const {

@@ -13,7 +13,7 @@ namespace ShaderLib {
     struct VulkanPushConstantRange;
     struct VulkanDescriptorSetLayoutInfo;
     struct VulkanPipelineLayoutInfo;
-    struct VulkanUniformBufferInfo;
+    struct VulkanBufferInfo;
     struct VulkanUniformVariableInfo;
     struct ShaderResourcesInfo;
     struct ShaderModulesInfo;
@@ -24,6 +24,9 @@ namespace ShaderLib {
 
     // Convert ShaderLib::DescriptorType to Vulkan descriptor type
     uint32_t GetVulkanDescriptorType(DescriptorType type);
+
+    // Convert ShaderLib::BufferType to Vulkan descriptor type
+    uint32_t GetVulkanDescriptorTypeFromBufferType(BufferType bufferType);
 
     // Structure to hold Vulkan descriptor binding information
     struct VulkanDescriptorBindingInfo {
@@ -52,15 +55,24 @@ namespace ShaderLib {
         std::vector<VulkanPushConstantRange> pushConstantRanges;
     };
 
-    // Structure for uniform buffer creation information
-    struct VulkanUniformBufferInfo {
+    // Universal structure for buffer creation information (UBO or SSBO)
+    struct VulkanBufferInfo {
         uint32_t set;
         uint32_t binding;
         uint32_t size;
+        BufferType bufferType;
+        LayoutStandard layoutStandard;
         bool isDynamic;
+
+        // Helper methods
+        bool IsUniformBuffer() const { return bufferType == BufferType::Uniform; }
+        bool IsStorageBuffer() const { return bufferType == BufferType::Storage; }
     };
 
-    // Information about uniform variables within a UBO
+    // Aliases for backward compatibility
+    using VulkanUniformBufferInfo = VulkanBufferInfo;
+
+    // Information about variables within a buffer
     struct VulkanUniformVariableInfo {
         std::string name;
         UniformType type;
@@ -74,11 +86,14 @@ namespace ShaderLib {
     struct ShaderResourcesInfo {
         std::vector<VulkanDescriptorSetLayoutInfo> descriptorSets;
         VulkanPipelineLayoutInfo pipelineLayout;
-        VulkanUniformBufferInfo globalUBO;
-        VulkanUniformBufferInfo objectUBO;
-        std::vector<VulkanUniformBufferInfo> customUBOs;
+        VulkanBufferInfo globalUBO;
+        VulkanBufferInfo objectUBO;
+        VulkanBufferInfo storageBuffer;
+        std::vector<VulkanBufferInfo> customUBOs;
+        std::vector<VulkanBufferInfo> customSSBOs;
         std::vector<VulkanUniformVariableInfo> globalUboVariables;
         std::vector<VulkanUniformVariableInfo> objectUboVariables;
+        std::vector<VulkanUniformVariableInfo> storageBufferVariables;
         StageFlags availableStages;
     };
 
@@ -99,11 +114,19 @@ namespace ShaderLib {
     std::vector<VulkanDescriptorSetLayoutInfo> GetDescriptorSetLayoutsInfo(const ShaderMetadata& metadata);
     std::vector<VulkanPushConstantRange> GetPushConstantRanges(const ShaderMetadata& metadata);
     VulkanPipelineLayoutInfo GetPipelineLayoutInfo(const ShaderMetadata& metadata);
-    VulkanUniformBufferInfo GetGlobalUboInfo(const ShaderMetadata& metadata);
-    VulkanUniformBufferInfo GetObjectUboInfo(const ShaderMetadata& metadata);
-    std::vector<VulkanUniformBufferInfo> GetCustomUboInfo(const ShaderMetadata& metadata);
+
+    // Buffer info getters
+    VulkanBufferInfo GetGlobalUboInfo(const ShaderMetadata& metadata);
+    VulkanBufferInfo GetObjectUboInfo(const ShaderMetadata& metadata);
+    std::vector<VulkanBufferInfo> GetCustomUboInfo(const ShaderMetadata& metadata);
+    std::vector<VulkanBufferInfo> GetCustomSsboInfo(const ShaderMetadata& metadata);
+
+    // Variable info getters
     std::vector<VulkanUniformVariableInfo> GetGlobalUboVariables(const ShaderMetadata& metadata);
     std::vector<VulkanUniformVariableInfo> GetObjectUboVariables(const ShaderMetadata& metadata);
+    std::vector<VulkanUniformVariableInfo> GetBufferVariables(const BufferObject& buffer);
+
+    // Complete info getters
     ShaderResourcesInfo GetShaderResourcesInfo(const ShaderMetadata& metadata);
     ShaderModulesInfo GetShaderModulesInfo(const std::vector<CompiledStage>& stages);
     CompleteShaderInfo GetCompleteShaderInfo(const ShaderData& shaderData, const ShaderMetadata& metadata);

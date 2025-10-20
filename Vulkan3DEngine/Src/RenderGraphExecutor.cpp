@@ -16,7 +16,6 @@ RenderGraphExecutor::RenderGraphExecutor(EngineCore& engineCore, Renderer& rende
     m_renderer(renderer),
     m_framebufferManager(engineCore.framebufferManager()),
     m_renderPassManager(engineCore.renderPassManager()),
-    m_swapChain(engineCore.swapChain()),
     m_attachmentManager(engineCore.attachmentManager()),
     m_pipelineManager(engineCore.pipelineManager()) {
 }
@@ -121,6 +120,54 @@ bool RenderGraphExecutor::executeGpuCalls(const std::vector<std::unique_ptr<GpuC
     }
 }
 
+bool RenderGraphExecutor::rebuildAfterSwapchainRecreation() {
+    if (!m_assignedGraphHandle) {
+        SPDLOG_ERROR("Cannot rebuild - no render graph assigned");
+        return false;
+    }
+
+    try {
+        RenderGraph* graph = m_assignedGraphHandle.get();
+        const RenderTarget& renderTarget = graph->getRenderTarget();
+
+        // Verify we're targeting a swapchain
+        if (!renderTarget.isSwapchain()) {
+            SPDLOG_ERROR("Cannot rebuild - render target is not a swapchain");
+            return false;
+        }
+
+        SwapChain* swapChain = renderTarget.getSwapChain();
+        if (!swapChain) {
+            SPDLOG_ERROR("Cannot rebuild - invalid swapchain pointer");
+            return false;
+        }
+
+        SPDLOG_INFO("Rebuilding render graph after swapchain recreation");
+
+        // Recreate the swapchain
+        swapChain->recreateSwapChain();
+
+        // Rebuild the render graph through manager (preserves handle)
+        RenderGraphHandle graphHandle = m_assignedGraphHandle.handle();
+        RenderGraphManager& graphManager = m_engineCore.renderGraphManager();
+
+        if (!graphManager.rebuildRenderGraph(graphHandle)) {
+            SPDLOG_ERROR("Failed to rebuild render graph");
+            return false;
+        }
+
+        // Mark ImGui for reinitialization with new render pass
+        m_imguiNeedsInit = true;
+
+        SPDLOG_INFO("Successfully rebuilt render graph and marked ImGui for reinitialization");
+        return true;
+    }
+    catch (const std::exception& e) {
+        SPDLOG_ERROR("Exception during render graph rebuild: {}", e.what());
+        return false;
+    }
+}
+
 bool RenderGraphExecutor::executeNodeGpuCalls(
     size_t nodeIndex,
     RenderNode& renderNode,
@@ -172,10 +219,25 @@ FrameBufferHandle RenderGraphExecutor::setupNodeFramebuffer(
     size_t nodeIndex,
     RenderNode& renderNode) {
 
+    const RenderTarget& renderTarget = m_assignedGraphHandle->getRenderTarget();
+
     // Determine current swapchain image index if needed
     uint32_t swapchainImageIndex = 0;
-    if (m_assignedGraphHandle->getRenderTarget().isSwapchain()) {
+    if (renderTarget.isSwapchain()) {
         swapchainImageIndex = m_renderer.getCurrentImageIndex();
+
+        // Basic safety check for image index
+        SwapChain* swapChain = renderTarget.getSwapChain();
+        if (!swapChain) {
+            SPDLOG_ERROR("Invalid SwapChain pointer in render target");
+            return FrameBufferHandle(0);
+        }
+
+        if (swapchainImageIndex >= swapChain->getImages().size()) {
+            SPDLOG_ERROR("Invalid swapchain image index: {} (max: {})",
+                swapchainImageIndex, swapChain->getImages().size());
+            return FrameBufferHandle(0);
+        }
     }
 
     // Resolve attachments for this node from the graph

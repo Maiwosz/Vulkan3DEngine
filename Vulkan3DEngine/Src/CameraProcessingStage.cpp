@@ -4,7 +4,7 @@
 #include "LightComponent.h"
 #include "EngineCore.h"
 #include "Buffer.h"
-#include <UBOStandardDefinitions.h>
+#include <StandardBufferDefinitions.h>
 #include <spdlog/spdlog.h>
 
 CameraProcessingStage::CameraProcessingStage(ProcessingContext& context, Registry& registry, EngineCore& renderer)

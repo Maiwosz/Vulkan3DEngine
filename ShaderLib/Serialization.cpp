@@ -139,22 +139,56 @@ namespace ShaderLib {
         j.at("typeName").get_to(var.typeName);
     }
 
-    void to_json(json& j, const UniformBufferObject& ubo) {
+    void to_json(json& j, BufferType type) {
+        switch (type) {
+        case BufferType::Uniform: j = "Uniform"; break;
+        case BufferType::Storage: j = "Storage"; break;
+        default: j = "Unknown"; break;
+        }
+    }
+
+    void from_json(const json& j, BufferType& type) {
+        std::string s = j.get<std::string>();
+        if (s == "Uniform") type = BufferType::Uniform;
+        else if (s == "Storage") type = BufferType::Storage;
+        else throw std::runtime_error("Unknown BufferType: " + s);
+    }
+
+    void to_json(json& j, LayoutStandard standard) {
+        switch (standard) {
+        case LayoutStandard::Std140: j = "Std140"; break;
+        case LayoutStandard::Std430: j = "Std430"; break;
+        default: j = "Unknown"; break;
+        }
+    }
+
+    void from_json(const json& j, LayoutStandard& standard) {
+        std::string s = j.get<std::string>();
+        if (s == "Std140") standard = LayoutStandard::Std140;
+        else if (s == "Std430") standard = LayoutStandard::Std430;
+        else throw std::runtime_error("Unknown LayoutStandard: " + s);
+    }
+
+    void to_json(json& j, const BufferObject& buffer) {
         j = json{
-            {"name", ubo.name},
-            {"set", ubo.set},
-            {"binding", ubo.binding},
-            {"size", ubo.size},
-            {"variables", ubo.variables}
+            {"name", buffer.name},
+            {"set", buffer.set},
+            {"binding", buffer.binding},
+            {"size", buffer.size},
+            {"bufferType", buffer.bufferType},
+            {"layoutStandard", buffer.layoutStandard},
+            {"variables", buffer.variables}
         };
     }
 
-    void from_json(const json& j, UniformBufferObject& ubo) {
-        j.at("name").get_to(ubo.name);
-        j.at("set").get_to(ubo.set);
-        j.at("binding").get_to(ubo.binding);
-        j.at("size").get_to(ubo.size);
-        j.at("variables").get_to(ubo.variables);
+    void from_json(const json& j, BufferObject& buffer) {
+        j.at("name").get_to(buffer.name);
+        j.at("set").get_to(buffer.set);
+        j.at("binding").get_to(buffer.binding);
+        j.at("size").get_to(buffer.size);
+        j.at("bufferType").get_to(buffer.bufferType);
+        j.at("layoutStandard").get_to(buffer.layoutStandard);
+        j.at("variables").get_to(buffer.variables);
     }
 
     void to_json(json& j, const ShaderMetadata& metadata) {
@@ -165,6 +199,7 @@ namespace ShaderLib {
             {"pushConstants", metadata.pushConstants},
             {"descriptors", metadata.descriptors},
             {"customUBOs", metadata.customUBOs},
+            {"customSSBOs", metadata.customSSBOs},
             {"globalUBO", metadata.globalUBO},
             {"objectUBO", metadata.objectUBO}
         };
@@ -177,6 +212,12 @@ namespace ShaderLib {
         j.at("pushConstants").get_to(metadata.pushConstants);
         j.at("descriptors").get_to(metadata.descriptors);
         j.at("customUBOs").get_to(metadata.customUBOs);
+
+        // Obsługa customSSBOs z kompatybilnością wsteczną
+        if (j.contains("customSSBOs")) {
+            j.at("customSSBOs").get_to(metadata.customSSBOs);
+        }
+
         j.at("globalUBO").get_to(metadata.globalUBO);
         j.at("objectUBO").get_to(metadata.objectUBO);
     }

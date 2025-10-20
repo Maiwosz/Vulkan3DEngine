@@ -11,7 +11,9 @@ namespace ShaderLib {
         UniformType SPIRTypeToUniformType(const spirv_cross::SPIRType& type);
         uint32_t ComputeArraySize(const spirv_cross::SPIRType& type, const spirv_cross::Compiler& compiler);
         TypeInfo GetTypeInfo(UniformType type);
+        TypeInfo GetTypeInfoStd430(UniformType type);
         std::string UniformTypeToString(UniformType type);
         UniformType StringToUniformType(const std::string& typeName);
+        DescriptorType StorageClassToDescriptorType(spv::StorageClass storageClass);
     }
 }

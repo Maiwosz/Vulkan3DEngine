@@ -18,7 +18,7 @@ struct SpotLight {
     float outerCutoff;
     vec4 color; // w is intensity
     float range;
-    float padding[3]; // Explicit padding
+    float padding[3];
 };
 
 layout(std140, set = 0, binding = 0) uniform GlobalUBO {

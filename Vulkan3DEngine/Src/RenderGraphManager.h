@@ -105,6 +105,16 @@ public:
      */
     void invalidateAll();
 
+    /**
+     * Rebuild a render graph after underlying resources have changed.
+     * Creates a new graph with the same template and target, replacing the old one
+     * while preserving the handle. Useful after swapchain recreation.
+     *
+     * @param handle Handle to the graph to rebuild
+     * @return true if rebuild succeeded, false if handle invalid or rebuild failed
+     */
+    bool rebuildRenderGraph(RenderGraphHandle handle);
+
     // IResourceManager interface
     RenderGraph* getResource(RenderGraphHandle handle) override;
     bool isValid(RenderGraphHandle handle) const override;

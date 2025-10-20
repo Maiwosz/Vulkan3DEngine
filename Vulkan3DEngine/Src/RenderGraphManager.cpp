@@ -137,6 +137,41 @@ void RenderGraphManager::removeFromCache(RenderGraphHandle handle) {
     }
 }
 
+bool RenderGraphManager::rebuildRenderGraph(RenderGraphHandle handle) {
+    auto it = m_renderGraphs.find(handle);
+    if (it == m_renderGraphs.end()) {
+        return false;
+    }
+
+    RenderGraphEntry& entry = it->second;
+
+    try {
+        // Get template through stored smart handle
+        const RenderGraphTemplate* tmpl = entry.templateHandle.get();
+        if (!tmpl) {
+            return false;
+        }
+
+        // Create new render graph with same template and target
+        auto newGraph = tmpl->createRenderGraph(
+            entry.cacheKey.target,
+            m_attachmentManager,
+            m_renderPassManager);
+
+        if (!newGraph || !newGraph->isValid()) {
+            return false;
+        }
+
+        // Replace the graph while keeping handle and reference count
+        entry.graph = std::move(newGraph);
+
+        return true;
+    }
+    catch (const std::exception&) {
+        return false;
+    }
+}
+
 RenderGraph* RenderGraphManager::getResource(RenderGraphHandle handle) {
     auto it = m_renderGraphs.find(handle);
     if (it == m_renderGraphs.end()) {

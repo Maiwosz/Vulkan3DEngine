@@ -1,52 +1,56 @@
 #include "pch.h"
-#include "VulkanHelper.h" 
-#include "ShaderLib.h"
-#include <algorithm>
-#include <utility>
-#include <cassert>
-#include <set>
+#include "VulkanHelper.h"
+#include <vulkan/vulkan.h>
 
 namespace ShaderLib {
 
-    // Convert ShaderLib::Stage to Vulkan shader stage flags (as uint32_t)
     uint32_t GetVulkanShaderStageFlags(StageFlags stageFlags) {
-        uint32_t result = 0;
+        uint32_t vulkanFlags = 0;
 
         if (stageFlags & static_cast<uint32_t>(Stage::Vertex))
-            result |= 0x00000001; // VK_SHADER_STAGE_VERTEX_BIT
+            vulkanFlags |= VK_SHADER_STAGE_VERTEX_BIT;
         if (stageFlags & static_cast<uint32_t>(Stage::Fragment))
-            result |= 0x00000010; // VK_SHADER_STAGE_FRAGMENT_BIT
+            vulkanFlags |= VK_SHADER_STAGE_FRAGMENT_BIT;
         if (stageFlags & static_cast<uint32_t>(Stage::Compute))
-            result |= 0x00000020; // VK_SHADER_STAGE_COMPUTE_BIT
+            vulkanFlags |= VK_SHADER_STAGE_COMPUTE_BIT;
         if (stageFlags & static_cast<uint32_t>(Stage::Geometry))
-            result |= 0x00000008; // VK_SHADER_STAGE_GEOMETRY_BIT
+            vulkanFlags |= VK_SHADER_STAGE_GEOMETRY_BIT;
         if (stageFlags & static_cast<uint32_t>(Stage::TessellationControl))
-            result |= 0x00000002; // VK_SHADER_STAGE_TESSELLATION_CONTROL_BIT
+            vulkanFlags |= VK_SHADER_STAGE_TESSELLATION_CONTROL_BIT;
         if (stageFlags & static_cast<uint32_t>(Stage::TessellationEvaluation))
-            result |= 0x00000004; // VK_SHADER_STAGE_TESSELLATION_EVALUATION_BIT
+            vulkanFlags |= VK_SHADER_STAGE_TESSELLATION_EVALUATION_BIT;
 
-        return result;
+        return vulkanFlags;
     }
 
-    // Convert ShaderLib::DescriptorType to Vulkan descriptor type (as uint32_t)
     uint32_t GetVulkanDescriptorType(DescriptorType type) {
         switch (type) {
         case DescriptorType::UniformBuffer:
-            return 6; // VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER
+            return VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
         case DescriptorType::StorageBuffer:
-            return 7; // VK_DESCRIPTOR_TYPE_STORAGE_BUFFER
+            return VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
         case DescriptorType::CombinedImageSampler:
-            return 1; // VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER
+            return VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
         case DescriptorType::SeparateImage:
-            return 2; // VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE
+            return VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
         case DescriptorType::SeparateSampler:
-            return 0; // VK_DESCRIPTOR_TYPE_SAMPLER
+            return VK_DESCRIPTOR_TYPE_SAMPLER;
         default:
-            return 6; // Default to uniform buffer
+            return VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
         }
     }
 
-    // Extract SPIR-V code for a specific shader stage
+    uint32_t GetVulkanDescriptorTypeFromBufferType(BufferType bufferType) {
+        switch (bufferType) {
+        case BufferType::Uniform:
+            return VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+        case BufferType::Storage:
+            return VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+        default:
+            return VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+        }
+    }
+
     std::vector<uint32_t> GetSpirvForStage(const std::vector<CompiledStage>& stages, Stage stage) {
         for (const auto& compiledStage : stages) {
             if (compiledStage.stage == stage) {
@@ -56,7 +60,6 @@ namespace ShaderLib {
         return {};
     }
 
-    // Get all available shader stages from compiled stages
     std::vector<Stage> GetAvailableStages(const std::vector<CompiledStage>& stages) {
         std::vector<Stage> result;
         for (const auto& stage : stages) {
@@ -65,224 +68,178 @@ namespace ShaderLib {
         return result;
     }
 
-    // Extract descriptor binding info from ShaderMetadata for all sets
     std::vector<VulkanDescriptorSetLayoutInfo> GetDescriptorSetLayoutsInfo(const ShaderMetadata& metadata) {
-        // First, identify all unique set numbers
-        std::set<uint32_t> setNumbers;
+        std::map<uint32_t, VulkanDescriptorSetLayoutInfo> setMap;
+
         for (const auto& descriptor : metadata.descriptors) {
-            setNumbers.insert(descriptor.set);
-        }
-
-        // Create descriptor set info for each set
-        std::vector<VulkanDescriptorSetLayoutInfo> result;
-        for (uint32_t setNumber : setNumbers) {
-            VulkanDescriptorSetLayoutInfo setInfo;
-            setInfo.setNumber = setNumber;
-
-            // Add all bindings for this set
-            for (const auto& descriptor : metadata.descriptors) {
-                if (descriptor.set == setNumber) {
-                    VulkanDescriptorBindingInfo bindingInfo;
-                    bindingInfo.binding = descriptor.binding;
-                    bindingInfo.descriptorType = GetVulkanDescriptorType(descriptor.type);
-                    bindingInfo.descriptorCount = 1; // Default to 1, adjust if arrays are needed
-                    bindingInfo.stageFlags = GetVulkanShaderStageFlags(descriptor.stages);
-
-                    setInfo.bindings.push_back(bindingInfo);
-                }
+            if (setMap.find(descriptor.set) == setMap.end()) {
+                VulkanDescriptorSetLayoutInfo layoutInfo;
+                layoutInfo.setNumber = descriptor.set;
+                setMap[descriptor.set] = layoutInfo;
             }
 
-            // Sort bindings by binding number
-            std::sort(setInfo.bindings.begin(), setInfo.bindings.end(),
-                [](const VulkanDescriptorBindingInfo& a, const VulkanDescriptorBindingInfo& b) {
-                    return a.binding < b.binding;
-                });
+            VulkanDescriptorBindingInfo bindingInfo;
+            bindingInfo.binding = descriptor.binding;
+            bindingInfo.descriptorType = GetVulkanDescriptorType(descriptor.type);
+            bindingInfo.descriptorCount = 1;
+            bindingInfo.stageFlags = GetVulkanShaderStageFlags(descriptor.stages);
 
-            result.push_back(setInfo);
+            setMap[descriptor.set].bindings.push_back(bindingInfo);
         }
 
-        // Sort sets by set number
-        std::sort(result.begin(), result.end(),
-            [](const VulkanDescriptorSetLayoutInfo& a, const VulkanDescriptorSetLayoutInfo& b) {
-                return a.setNumber < b.setNumber;
-            });
+        std::vector<VulkanDescriptorSetLayoutInfo> result;
+        for (auto& pair : setMap) {
+            result.push_back(pair.second);
+        }
 
         return result;
     }
 
-    // Extract push constant ranges from ShaderMetadata
     std::vector<VulkanPushConstantRange> GetPushConstantRanges(const ShaderMetadata& metadata) {
         std::vector<VulkanPushConstantRange> ranges;
 
-        for (const auto& pcRange : metadata.pushConstants) {
+        for (const auto& pushConst : metadata.pushConstants) {
             VulkanPushConstantRange range;
-            range.stageFlags = GetVulkanShaderStageFlags(pcRange.stages);
-            range.offset = pcRange.offset;
-            range.size = pcRange.size;
-
+            range.stageFlags = GetVulkanShaderStageFlags(pushConst.stages);
+            range.offset = pushConst.offset;
+            range.size = pushConst.size;
             ranges.push_back(range);
         }
 
         return ranges;
     }
 
-    // Get pipeline layout information
     VulkanPipelineLayoutInfo GetPipelineLayoutInfo(const ShaderMetadata& metadata) {
-        VulkanPipelineLayoutInfo info;
+        VulkanPipelineLayoutInfo layoutInfo;
 
-        // Add all descriptor set layout indices
-        std::vector<VulkanDescriptorSetLayoutInfo> setLayouts = GetDescriptorSetLayoutsInfo(metadata);
-        for (const auto& layout : setLayouts) {
-            info.setLayoutIndices.push_back(layout.setNumber);
+        auto descriptorSets = GetDescriptorSetLayoutsInfo(metadata);
+        for (const auto& set : descriptorSets) {
+            layoutInfo.setLayoutIndices.push_back(set.setNumber);
         }
 
-        // Add push constant ranges
-        info.pushConstantRanges = GetPushConstantRanges(metadata);
+        layoutInfo.pushConstantRanges = GetPushConstantRanges(metadata);
 
+        return layoutInfo;
+    }
+
+    VulkanBufferInfo GetGlobalUboInfo(const ShaderMetadata& metadata) {
+        VulkanBufferInfo info;
+        info.set = metadata.globalUBO.set;
+        info.binding = metadata.globalUBO.binding;
+        info.size = metadata.globalUBO.size;
+        info.bufferType = metadata.globalUBO.bufferType;
+        info.layoutStandard = metadata.globalUBO.layoutStandard;
+        info.isDynamic = false;
         return info;
     }
 
-    // Extract uniform buffer information for GlobalUBO
-    VulkanUniformBufferInfo GetGlobalUboInfo(const ShaderMetadata& metadata) {
-        VulkanUniformBufferInfo info;
-        if (metadata.usesGlobalUBO) {
-            info.set = metadata.globalUBO.set;
-            info.binding = metadata.globalUBO.binding;
-            info.size = metadata.globalUBO.size;
-            info.isDynamic = false;
-        }
-        else {
-            info.set = GLOBAL_DESCRIPTOR_SET;
-            info.binding = 0;
-            info.size = 0;
-            info.isDynamic = false;
-        }
+    VulkanBufferInfo GetObjectUboInfo(const ShaderMetadata& metadata) {
+        VulkanBufferInfo info;
+        info.set = metadata.objectUBO.set;
+        info.binding = metadata.objectUBO.binding;
+        info.size = metadata.objectUBO.size;
+        info.bufferType = metadata.objectUBO.bufferType;
+        info.layoutStandard = metadata.objectUBO.layoutStandard;
+        info.isDynamic = true; // Object UBO is typically dynamic
         return info;
     }
 
-    // Extract uniform buffer information for ObjectUBO
-    VulkanUniformBufferInfo GetObjectUboInfo(const ShaderMetadata& metadata) {
-        VulkanUniformBufferInfo info;
-        if (metadata.usesObjectUBO) {
-            info.set = metadata.objectUBO.set;
-            info.binding = metadata.objectUBO.binding;
-            info.size = metadata.objectUBO.size;
-            info.isDynamic = true; // Object UBOs are typically dynamic
-        }
-        else {
-            info.set = OBJECT_DESCRIPTOR_SET;
-            info.binding = 0;
-            info.size = 0;
-            info.isDynamic = false;
-        }
-        return info;
-    }
-
-    // Extract custom uniform buffer information
-    std::vector<VulkanUniformBufferInfo> GetCustomUboInfo(const ShaderMetadata& metadata) {
-        std::vector<VulkanUniformBufferInfo> result;
+    std::vector<VulkanBufferInfo> GetCustomUboInfo(const ShaderMetadata& metadata) {
+        std::vector<VulkanBufferInfo> buffers;
 
         for (const auto& ubo : metadata.customUBOs) {
-            VulkanUniformBufferInfo info;
+            VulkanBufferInfo info;
             info.set = ubo.set;
             info.binding = ubo.binding;
             info.size = ubo.size;
-            info.isDynamic = false; // Default for custom UBOs
-
-            result.push_back(info);
+            info.bufferType = ubo.bufferType;
+            info.layoutStandard = ubo.layoutStandard;
+            info.isDynamic = false;
+            buffers.push_back(info);
         }
 
-        return result;
+        return buffers;
     }
 
-    // Get information about uniform variables in GlobalUBO
+    std::vector<VulkanBufferInfo> GetCustomSsboInfo(const ShaderMetadata& metadata) {
+        std::vector<VulkanBufferInfo> buffers;
+
+        for (const auto& ssbo : metadata.customSSBOs) {
+            VulkanBufferInfo info;
+            info.set = ssbo.set;
+            info.binding = ssbo.binding;
+            info.size = ssbo.size;
+            info.bufferType = ssbo.bufferType;
+            info.layoutStandard = ssbo.layoutStandard;
+            info.isDynamic = false;
+            buffers.push_back(info);
+        }
+
+        return buffers;
+    }
+
+    std::vector<VulkanUniformVariableInfo> GetBufferVariables(const BufferObject& buffer) {
+        std::vector<VulkanUniformVariableInfo> variables;
+
+        for (const auto& var : buffer.variables) {
+            VulkanUniformVariableInfo varInfo;
+            varInfo.name = var.name;
+            varInfo.type = var.type;
+            varInfo.size = var.size;
+            varInfo.offset = var.offset;
+            varInfo.arraySize = var.arraySize;
+            varInfo.typeName = var.typeName;
+            variables.push_back(varInfo);
+        }
+
+        return variables;
+    }
+
     std::vector<VulkanUniformVariableInfo> GetGlobalUboVariables(const ShaderMetadata& metadata) {
-        std::vector<VulkanUniformVariableInfo> result;
-
-        if (metadata.usesGlobalUBO) {
-            for (const auto& var : metadata.globalUBO.variables) {
-                VulkanUniformVariableInfo varInfo;
-                varInfo.name = var.name;
-                varInfo.type = var.type;
-                varInfo.size = var.size;
-                varInfo.offset = var.offset;
-                varInfo.arraySize = var.arraySize;
-                varInfo.typeName = var.typeName;
-
-                result.push_back(varInfo);
-            }
-        }
-
-        return result;
+        return GetBufferVariables(metadata.globalUBO);
     }
 
-    // Get information about uniform variables in ObjectUBO
     std::vector<VulkanUniformVariableInfo> GetObjectUboVariables(const ShaderMetadata& metadata) {
-        std::vector<VulkanUniformVariableInfo> result;
-
-        if (metadata.usesObjectUBO) {
-            for (const auto& var : metadata.objectUBO.variables) {
-                VulkanUniformVariableInfo varInfo;
-                varInfo.name = var.name;
-                varInfo.type = var.type;
-                varInfo.size = var.size;
-                varInfo.offset = var.offset;
-                varInfo.arraySize = var.arraySize;
-                varInfo.typeName = var.typeName;
-
-                result.push_back(varInfo);
-            }
-        }
-
-        return result;
+        return GetBufferVariables(metadata.objectUBO);
     }
 
-    // Main function to extract all resources information from ShaderMetadata
     ShaderResourcesInfo GetShaderResourcesInfo(const ShaderMetadata& metadata) {
         ShaderResourcesInfo info;
 
-        // Extract descriptor sets
         info.descriptorSets = GetDescriptorSetLayoutsInfo(metadata);
-
-        // Extract pipeline layout
         info.pipelineLayout = GetPipelineLayoutInfo(metadata);
-
-        // Extract UBO information
-        info.globalUBO = GetGlobalUboInfo(metadata);
-        info.objectUBO = GetObjectUboInfo(metadata);
-        info.customUBOs = GetCustomUboInfo(metadata);
-
-        // Extract uniform variables
-        info.globalUboVariables = GetGlobalUboVariables(metadata);
-        info.objectUboVariables = GetObjectUboVariables(metadata);
-
-        // Available stages
         info.availableStages = metadata.availableStages;
+
+        if (metadata.usesGlobalUBO) {
+            info.globalUBO = GetGlobalUboInfo(metadata);
+            info.globalUboVariables = GetGlobalUboVariables(metadata);
+        }
+
+        if (metadata.usesObjectUBO) {
+            info.objectUBO = GetObjectUboInfo(metadata);
+            info.objectUboVariables = GetObjectUboVariables(metadata);
+        }
+
+        info.customUBOs = GetCustomUboInfo(metadata);
+        info.customSSBOs = GetCustomSsboInfo(metadata);
 
         return info;
     }
 
-    // Extract shader modules information from compiled stages
     ShaderModulesInfo GetShaderModulesInfo(const std::vector<CompiledStage>& stages) {
         ShaderModulesInfo info;
 
         for (const auto& stage : stages) {
-            info.modules.emplace_back(stage.stage, stage.spirv);
+            info.modules.push_back({ stage.stage, stage.spirv });
         }
 
         return info;
     }
 
-    // Extract complete shader information from ShaderData
     CompleteShaderInfo GetCompleteShaderInfo(const ShaderData& shaderData, const ShaderMetadata& metadata) {
         CompleteShaderInfo info;
-
-        // Extract resources information from metadata
         info.resources = GetShaderResourcesInfo(metadata);
-
-        // Extract modules information from compiled stages
         info.modules = GetShaderModulesInfo(shaderData.stages);
-
         return info;
     }
 

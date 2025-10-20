@@ -10,7 +10,7 @@
 #include <memory>
 #include <vector>
 #include <array>
-#include <UBODefinitions.h>
+#include <BufferDefinitions.h>
 #include "MaterialManager.h"
 #include "EngineCore.h"
 #include "MeshRenderOrder.h"

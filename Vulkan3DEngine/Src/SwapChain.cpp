@@ -41,7 +41,7 @@ void SwapChain::init() {
     createSwapChain();
     createImageViews();
     registerImagesWithVramManager();
-    registerImagesWithAttachmentManager(false);
+    registerImagesWithAttachmentManager();
 }
 
 void SwapChain::createSwapChain()
@@ -189,19 +189,13 @@ void SwapChain::recreateSwapChain()
 {
     vkDeviceWaitIdle(m_logicalDevice.get());
 
-    // Store old attachment handles
-    auto oldAttachmentHandles = m_attachmentHandles;
-
     cleanupSwapChain();
 
     try {
         createSwapChain();
         createImageViews();
         registerImagesWithVramManager();
-
-        // Restore old handles and recreate attachments
-        m_attachmentHandles = oldAttachmentHandles;
-        registerImagesWithAttachmentManager(true);
+        updateAttachmentsWithNewImages();
 
         SPDLOG_INFO("Swap chain recreated successfully");
     }
@@ -279,37 +273,32 @@ void SwapChain::registerImagesWithVramManager() {
     SPDLOG_DEBUG("Registered {} images with VRAM manager", m_swapChainImages.size());
 }
 
-void SwapChain::registerImagesWithAttachmentManager(bool isRecreate) {
-    if (!isRecreate) {
-        m_attachmentHandles.resize(m_imageHandles.size());
-    }
+void SwapChain::registerImagesWithAttachmentManager() {
+    m_attachmentHandles.resize(m_imageHandles.size());
 
     for (size_t i = 0; i < m_imageHandles.size(); i++) {
-        if (isRecreate && i < m_attachmentHandles.size()) {
-            // Recreate existing attachment with new image
-            AttachmentImageSpec spec;
-            spec.format = m_swapChainImageFormat;
-            spec.extent = m_swapChainExtent;
-            spec.samples = VK_SAMPLE_COUNT_1_BIT;
-            spec.usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
-            spec.type = AttachmentType::Color;
-
-            m_attachmentManager.recreateAttachment(m_attachmentHandles[i], spec);
-        }
-        else {
-            // Register new external image
-            m_attachmentHandles[i] = m_attachmentManager.registerExternalImage(
-                m_imageHandles[i],
-                m_swapChainImageFormat,
-                m_swapChainExtent,
-                AttachmentType::Color,
-                VK_SAMPLE_COUNT_1_BIT,
-                VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT
-            );
-        }
+        m_attachmentHandles[i] = m_attachmentManager.registerExternalImage(
+            m_imageHandles[i],
+            m_swapChainImageFormat,
+            m_swapChainExtent,
+            AttachmentType::Color,
+            VK_SAMPLE_COUNT_1_BIT,
+            VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT
+        );
     }
 
     SPDLOG_DEBUG("Registered {} attachments with AttachmentManager", m_attachmentHandles.size());
+}
+
+void SwapChain::updateAttachmentsWithNewImages() {
+    for (size_t i = 0; i < m_attachmentHandles.size(); i++) {
+        m_attachmentManager.updateExternalImage(
+            m_attachmentHandles[i],
+            m_imageHandles[i]
+        );
+    }
+
+    SPDLOG_DEBUG("Updated {} attachments with new images", m_attachmentHandles.size());
 }
 
 void SwapChain::releaseAttachments() {

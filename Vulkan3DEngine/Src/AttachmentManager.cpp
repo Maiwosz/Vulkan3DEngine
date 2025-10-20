@@ -119,63 +119,29 @@ AttachmentHandle AttachmentManager::registerExternalImage(
     return handle;
 }
 
-void AttachmentManager::recreateAttachment(
+void AttachmentManager::updateExternalImage(
     AttachmentHandle handle,
-    const AttachmentImageSpec& newSpec
+    VramHandle newImageHandle
 ) {
     auto it = m_attachments.find(handle);
     if (it == m_attachments.end()) {
-        return; // Handle doesn't exist
+        return;
     }
 
     AttachmentData& data = it->second;
-    const AttachmentImageSpec& oldSpec = data.attachment->getSpec();
-
-    // Remove old spec mapping
-    m_specToHandle.erase(oldSpec);
 
     // Destroy old image view
     vkDestroyImageView(m_device.get(), data.attachment->getImageView(), nullptr);
 
-    // Free old image resource
-    m_vramManager.freeResource(data.attachment->getImageHandle());
+    // Create new image view with existing spec
+    VkImageView newImageView = createImageView(newImageHandle, data.attachment->getSpec());
 
-    // Determine image usage flags
-    VkImageUsageFlags usage = newSpec.usage;
-    if (usage == 0) {
-        usage = m_factory.getDefaultUsageFlags(newSpec.type);
-    }
-
-    // Create new image
-    VkImageCreateInfo imageInfo{};
-    imageInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
-    imageInfo.imageType = VK_IMAGE_TYPE_2D;
-    imageInfo.extent.width = newSpec.extent.width;
-    imageInfo.extent.height = newSpec.extent.height;
-    imageInfo.extent.depth = 1;
-    imageInfo.mipLevels = 1;
-    imageInfo.arrayLayers = 1;
-    imageInfo.format = newSpec.format;
-    imageInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
-    imageInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-    imageInfo.usage = usage;
-    imageInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-    imageInfo.samples = newSpec.samples;
-    imageInfo.flags = 0;
-
-    VramHandle newImageHandle = m_vramManager.createImage(
-        imageInfo,
-        VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT
+    // Update only the image handle and view
+    data.attachment = std::make_unique<Attachment>(
+        newImageHandle,
+        newImageView,
+        data.attachment->getSpec()  // keep same spec
     );
-
-    // Create new image view
-    VkImageView newImageView = createImageView(newImageHandle, newSpec);
-
-    // Update attachment with new data
-    data.attachment = std::make_unique<Attachment>(newImageHandle, newImageView, newSpec);
-
-    // Add new spec mapping
-    m_specToHandle[newSpec] = handle;
 }
 
 AttachmentHandle AttachmentManager::createAttachment(const AttachmentImageSpec& spec) {

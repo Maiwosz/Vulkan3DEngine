@@ -157,27 +157,62 @@ namespace ShaderLib {
 
         TypeInfo GetTypeInfo(UniformType type) {
             switch (type) {
-            case UniformType::Bool: return { 4, 4 };
-            case UniformType::Float: return { 4, 4 };
-            case UniformType::Vec2: return { 8, 8 };
-            case UniformType::Vec3: return { 12, 16 }; // Vec3 has 16-byte alignment in std140
-            case UniformType::Vec4: return { 16, 16 };
-            case UniformType::Mat2: return { 16, 8 };
-            case UniformType::Mat3: return { 36, 16 }; // 3 vec3s, each 16-byte aligned
-            case UniformType::Mat4: return { 64, 16 }; // 4 vec4s, each 16-byte aligned
-            case UniformType::Int: return { 4, 4 };
-            case UniformType::IVec2: return { 8, 8 };
-            case UniformType::IVec3: return { 12, 16 };
-            case UniformType::IVec4: return { 16, 16 };
-            case UniformType::UInt: return { 4, 4 };
-            case UniformType::UVec2: return { 8, 8 };
-            case UniformType::UVec3: return { 12, 16 };
-            case UniformType::UVec4: return { 16, 16 };
-            case UniformType::Double: return { 8, 8 };
-            case UniformType::DVec2: return { 16, 16 };
-            case UniformType::DVec3: return { 24, 32 };
-            case UniformType::DVec4: return { 32, 32 };
-            default: return { 0, 16 }; // Default for struct or unknown
+            case UniformType::Bool:
+                return { sizeof(bool), 4 };
+            case UniformType::Float:
+                return { sizeof(float), 4 };
+            case UniformType::Vec2:
+                return { sizeof(glm::vec2), 8 };
+            case UniformType::Vec3:
+                return { sizeof(glm::vec3), 16 }; // std140 alignment
+            case UniformType::Vec4:
+                return { sizeof(glm::vec4), 16 };
+            case UniformType::Mat2:
+                return { sizeof(glm::mat2), 8 };
+            case UniformType::Mat3:
+                return { sizeof(glm::mat3), 16 };
+            case UniformType::Mat4:
+                return { sizeof(glm::mat4), 16 };
+            case UniformType::Int:
+                return { sizeof(int), 4 };
+            case UniformType::IVec2:
+                return { sizeof(glm::ivec2), 8 };
+            case UniformType::IVec3:
+                return { sizeof(glm::ivec3), 16 }; // std140 alignment
+            case UniformType::IVec4:
+                return { sizeof(glm::ivec4), 16 };
+            case UniformType::UInt:
+                return { sizeof(unsigned int), 4 };
+            case UniformType::UVec2:
+                return { sizeof(glm::uvec2), 8 };
+            case UniformType::UVec3:
+                return { sizeof(glm::uvec3), 16 }; // std140 alignment
+            case UniformType::UVec4:
+                return { sizeof(glm::uvec4), 16 };
+            case UniformType::Double:
+                return { sizeof(double), 8 };
+            case UniformType::DVec2:
+                return { sizeof(glm::dvec2), 16 };
+            case UniformType::DVec3:
+                return { sizeof(glm::dvec3), 32 };
+            case UniformType::DVec4:
+                return { sizeof(glm::dvec4), 32 };
+            default:
+                return { 0, 0 };
+            }
+        }
+
+        // Get type information for std430 layout (used in storage buffers)
+        TypeInfo GetTypeInfoStd430(UniformType type) {
+            switch (type) {
+            case UniformType::Vec3:
+                return { sizeof(glm::vec3), 4 }; // std430: vec3 alignment is 4
+            case UniformType::IVec3:
+                return { sizeof(glm::ivec3), 4 };
+            case UniformType::UVec3:
+                return { sizeof(glm::uvec3), 4 };
+            default:
+                return GetTypeInfo(type); // Other types are the same
             }
         }
 
@@ -237,6 +272,19 @@ namespace ShaderLib {
             if (it != mapping.end())
                 return it->second;
             return UniformType::Unknown;
+        }
+
+        DescriptorType StorageClassToDescriptorType(spv::StorageClass storageClass) {
+            switch (storageClass) {
+            case spv::StorageClassUniform:
+                return DescriptorType::UniformBuffer;
+            case spv::StorageClassStorageBuffer:
+                return DescriptorType::StorageBuffer;
+            case spv::StorageClassUniformConstant:
+                return DescriptorType::CombinedImageSampler; // Could be image/sampler
+            default:
+                return DescriptorType::UniformBuffer;
+            }
         }
     }
 }

@@ -29,8 +29,14 @@ namespace ShaderLib {
     void to_json(json& j, const UniformVariable& var);
     void from_json(const json& j, UniformVariable& var);
 
-    void to_json(json& j, const UniformBufferObject& ubo);
-    void from_json(const json& j, UniformBufferObject& ubo);
+    void to_json(json& j, BufferType type);
+    void from_json(const json& j, BufferType& type);
+
+    void to_json(json& j, LayoutStandard standard);
+    void from_json(const json& j, LayoutStandard& standard);
+
+    void to_json(json& j, const BufferObject& buffer);
+    void from_json(const json& j, BufferObject& buffer);
 
     void to_json(json& j, const ShaderMetadata& metadata);
     void from_json(const json& j, ShaderMetadata& metadata);

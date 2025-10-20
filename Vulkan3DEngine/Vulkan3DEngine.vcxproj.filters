@@ -203,9 +203,6 @@
     <ClCompile Include="Src\TransferManager.cpp">
       <Filter>Engine\EngineCore\VramManager\TransferManager</Filter>
     </ClCompile>
-    <ClCompile Include="Src\GlobalStateManager.cpp">
-      <Filter>Engine\RenderSystem\GlobalStateManager</Filter>
-    </ClCompile>
     <ClCompile Include="Src\ScriptSystem.cpp">
       <Filter>Engine\Scene\EntityComponentSystem\Registry\SystemManager\Systems\ScriptSystem</Filter>
     </ClCompile>
@@ -600,9 +597,6 @@
     <ClInclude Include="Src\TransferManager.h">
       <Filter>Engine\EngineCore\VramManager\TransferManager</Filter>
     </ClInclude>
-    <ClInclude Include="Src\GlobalStateManager.h">
-      <Filter>Engine\RenderSystem\GlobalStateManager</Filter>
-    </ClInclude>
     <ClInclude Include="Src\ScriptComponent.h">
       <Filter>Engine\Scene\EntityComponentSystem\Registry\ComponentManager\Components</Filter>
     </ClInclude>
@@ -888,9 +882,6 @@
     </Filter>
     <Filter Include="Engine\RenderSystem\ProcessingStages\RenderStage">
       <UniqueIdentifier>{99aaa877-e779-48c1-a547-ee837d07b171}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Engine\RenderSystem\GlobalStateManager">
-      <UniqueIdentifier>{882842c2-b9ed-4d8a-8848-c37083718aaf}</UniqueIdentifier>
     </Filter>
     <Filter Include="Engine\RenderSystem\ProcessingStages\AssetResolutionStage">
       <UniqueIdentifier>{ea5bd055-c6ad-452c-bf30-11a8877845d3}</UniqueIdentifier>

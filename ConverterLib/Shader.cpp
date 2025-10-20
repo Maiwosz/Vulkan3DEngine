@@ -10,7 +10,7 @@
 #include <TypeConversions.h>
 #include <Serialization.h>
 #include <fstream>
-#include <UBODefinitions.h>
+#include <BufferDefinitions.h>
 #include "ShaderParserPEGTL.h"
 
 using namespace ShaderLib;
@@ -369,8 +369,8 @@ namespace Shader {
 
     AssetData ProcessShader(const std::string& inputPath, const Converter::Settings& settings) {
         // Initialize standard UBOs if not already done
-        if (ShaderLib::UBORegistry::Get().GetUBO("GlobalUBO") == nullptr) {
-            ShaderLib::UBORegistry::Get().InitializeStandardUBOs();
+        if (ShaderLib::UBORegistry::Get().GetBuffer("GlobalUBO") == nullptr) {
+            ShaderLib::UBORegistry::Get().InitializeStandardBuffers();
         }
 
         std::ifstream file(inputPath);
