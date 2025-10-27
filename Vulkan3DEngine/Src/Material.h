@@ -17,7 +17,7 @@ class MaterialManager;
 
 class Material {
 public:
-    // Texture parameter type (not covered by ShaderLib's UniformTypeTraits)
+    // Texture parameter type (not covered by ShaderLib's BufferValue)
     struct TextureParam {
         AssetHandle handle;
         TextureHandle textureHandle;
@@ -25,25 +25,11 @@ public:
         AssetLib::ColorSpace colorSpace = AssetLib::ColorSpace::SRGB;
     };
 
-    // Parameter value variant that uses native GLM types
+    // Parameter value variant - uses ShaderLib::BufferValue for buffer types
+    // and extends it with texture support
     using ParamValue = std::variant<
-        bool,
-        float,
-        glm::vec2,
-        glm::vec3,
-        glm::vec4,
-        int32_t,
-        glm::ivec2,
-        glm::ivec3,
-        glm::ivec4,
-        uint32_t,
-        glm::uvec2,
-        glm::uvec3,
-        glm::uvec4,
-        glm::mat2,
-        glm::mat3,
-        glm::mat4,
-        TextureParam
+        ShaderLib::BufferValue,  // All buffer-compatible types (UBO/SSBO)
+        TextureParam             // Textures (descriptors only)
     >;
 
     // Parameter structure
@@ -51,9 +37,26 @@ public:
         std::string name;
         ParamValue value;
         ShaderLib::DescriptorType descriptorType;
-        ShaderLib::UniformType uniformType;
         uint32_t binding;
+        uint32_t set;  // Typically CUSTOM_DESCRIPTOR_SET
         uint32_t arrayIndex;  // For array parameters, 0 for non-array params
+
+        // Get the base type if this is a buffer parameter
+        ShaderLib::BaseType getBaseType() const {
+            if (auto* bufVal = std::get_if<ShaderLib::BufferValue>(&value)) {
+                return ShaderLib::GetBaseTypeFromVariant(*bufVal);
+            }
+            return ShaderLib::BaseType::Unknown;
+        }
+
+        bool isBufferParameter() const {
+            return descriptorType == ShaderLib::DescriptorType::UniformBuffer ||
+                descriptorType == ShaderLib::DescriptorType::StorageBuffer;
+        }
+
+        bool isTextureParameter() const {
+            return std::holds_alternative<TextureParam>(value);
+        }
     };
 
     // Constructor
@@ -76,11 +79,25 @@ public:
     bool setParameter(const std::string& name, const ParamValue& value);
     bool getParameter(const std::string& name, ParamValue& outValue) const;
 
+    // Convenience methods for common types
+    template<typename T>
+    bool setBufferParameter(const std::string& name, const T& value) {
+        static_assert(ShaderLib::BaseTypeTraits<T>::supported,
+            "Type not supported by ShaderLib");
+
+        ShaderLib::BufferValue bufVal = value;
+        return setParameter(name, ParamValue{ bufVal });
+    }
+
+    bool setTextureParameter(const std::string& name, const TextureParam& texture) {
+        return setParameter(name, ParamValue{ texture });
+    }
+
 private:
     std::string m_name;
     ShaderHandle m_shader;
     std::vector<Parameter> m_parameters;
-    std::unordered_map<std::string, size_t> m_parameterIndices;  // Name to index mapping for quick lookups
+    std::unordered_map<std::string, size_t> m_parameterIndices;  // Name to index mapping
 
     friend class MaterialManager;
 };

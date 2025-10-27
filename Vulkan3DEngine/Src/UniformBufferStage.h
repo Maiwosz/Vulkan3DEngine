@@ -3,14 +3,13 @@
 #include "RenderOrder.h"
 #include "AssetSystem.h"
 #include "ShaderManager.h"
-#include "UniformBufferManager.h"
+#include "BufferManager.h"
 #include "TransformComponent.h"
 #include "MaterialComponent.h"
 #include <glm/glm.hpp>
 #include <memory>
 #include <vector>
 #include <array>
-#include <BufferDefinitions.h>
 #include "MaterialManager.h"
 #include "EngineCore.h"
 #include "MeshRenderOrder.h"
@@ -30,7 +29,7 @@ private:
     // References to needed systems
     Registry& m_registry;
     ShaderManager& m_shaderManager;
-    UniformBufferManager& m_uniformBufferManager;
+    BufferManager& m_bufferManager;
     MaterialManager& m_materialManager;
 
     // Process specific order types

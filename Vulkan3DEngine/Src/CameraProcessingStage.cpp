@@ -4,13 +4,13 @@
 #include "LightComponent.h"
 #include "EngineCore.h"
 #include "Buffer.h"
-#include <StandardBufferDefinitions.h>
 #include <spdlog/spdlog.h>
+#include <BuiltInBuffers.h>
 
 CameraProcessingStage::CameraProcessingStage(ProcessingContext& context, Registry& registry, EngineCore& renderer)
     : ProcessingStage(context),
     m_registry(registry),
-    m_uniformBufferManager(renderer.uniformBufferManager())
+    m_bufferManager(renderer.bufferManager())
 {
     SPDLOG_INFO("Initialized CameraProcessingStage");
 }
@@ -24,7 +24,7 @@ ProcessingResult CameraProcessingStage::process(std::shared_ptr<RenderOrder> ord
     if (order->getType() != RenderOrderType::Camera) {
         SPDLOG_DEBUG("CameraProcessingStage skipping non-camera order type: {}",
             renderOrderTypeToString(order->getType()));
-        return ProcessingResult::Failure; // Not an error - just not our type to process
+        return ProcessingResult::Failure;
     }
 
     auto cameraOrder = std::static_pointer_cast<CameraRenderOrder>(order);
@@ -52,11 +52,9 @@ ProcessingResult CameraProcessingStage::processCameraOrder(std::shared_ptr<Camer
     auto globalUBO = createGlobalUniformBuffer(cameraOrder, culledLights);
 
     if (globalUBO.isValid()) {
-        // Store the global UBO in camera order
         cameraOrder->globalUBOHandle = globalUBO;
         SPDLOG_DEBUG("Created global UBO for camera entity: {}", cameraOrder->entity.id);
 
-        // Add processed camera to context
         m_context.addProcessedCamera(cameraOrder);
         return ProcessingResult::Success;
     }
@@ -66,7 +64,7 @@ ProcessingResult CameraProcessingStage::processCameraOrder(std::shared_ptr<Camer
     }
 }
 
-SmartHandle<UniformBufferHandle, Buffer> CameraProcessingStage::createGlobalUniformBuffer(
+SmartHandle<BufferHandle, Buffer> CameraProcessingStage::createGlobalUniformBuffer(
     std::shared_ptr<CameraRenderOrder> cameraOrder,
     const std::vector<std::shared_ptr<LightRenderOrder>>& lights) {
 
@@ -76,27 +74,28 @@ SmartHandle<UniformBufferHandle, Buffer> CameraProcessingStage::createGlobalUnif
     if (!m_registry.components().hasComponent<CameraComponent>(cameraEntity) ||
         !m_registry.components().hasComponent<TransformComponent>(cameraEntity)) {
         SPDLOG_ERROR("Camera entity {} missing required components", cameraEntity.id);
-        return SmartHandle<UniformBufferHandle, Buffer>();
+        return SmartHandle<BufferHandle, Buffer>();
     }
 
     auto& cameraComponent = m_registry.components().getComponent<CameraComponent>(cameraEntity);
     auto& cameraTransform = m_registry.components().getComponent<TransformComponent>(cameraEntity);
 
-    // Initialize global UBO data
-    ShaderLib::GlobalUBOData globalUboData;
-    globalUboData.SetDefaults();
+    // Prepare UBO data on CPU
+    ShaderLib::GlobalUBOData uboData;
+    uboData.SetDefaults();
 
-    // Configure view and projection matrices
-    globalUboData.view = cameraTransform.getViewMatrix();
-
+    // Configure camera matrices
+    glm::mat4 viewMatrix = cameraTransform.getViewMatrix();
     glm::mat4 projMatrix = cameraComponent.getProjectionMatrix();
 
     // Apply Vulkan coordinate system correction
     glm::mat4 vulkanCorrection = glm::mat4(1.0f);
-    vulkanCorrection[1][1] = -1.0f; // Flip Y for Vulkan coordinate system
+    vulkanCorrection[1][1] = -1.0f;
+    glm::mat4 correctedProj = vulkanCorrection * projMatrix;
 
-    globalUboData.proj = vulkanCorrection * projMatrix;
-    globalUboData.cameraPosition = cameraTransform.getPosition();
+    uboData.view = viewMatrix;
+    uboData.proj = correctedProj;
+    uboData.cameraPosition = cameraTransform.getPosition();
 
     // Process lights and populate UBO data
     int pointLightCount = 0;
@@ -117,46 +116,76 @@ SmartHandle<UniformBufferHandle, Buffer> CameraProcessingStage::createGlobalUnif
 
         if (lightComponent.type == LightComponent::Type::Directional && !hasDirectionalLight) {
             // Process directional light (only first one)
-            globalUboData.directionalLight.direction = glm::normalize(lightComponent.direction);
-            globalUboData.directionalLight.color = lightComponent.color;
-            hasDirectionalLight = true;
+            uboData.directionalLight.direction = glm::normalize(lightComponent.direction);
+            uboData.directionalLight.color = lightComponent.color;
 
+            hasDirectionalLight = true;
             SPDLOG_DEBUG("Added directional light to global UBO, entity: {}", lightEntity.id);
         }
         else if (lightComponent.type == LightComponent::Type::Point && pointLightCount < 64) {
             // Process point light
-            globalUboData.pointLights[pointLightCount].position = lightTransform.getPosition();
-            globalUboData.pointLights[pointLightCount].radius = lightComponent.radius;
-            globalUboData.pointLights[pointLightCount].color = lightComponent.color;
+            auto& pointLight = uboData.pointLights[pointLightCount];
+            pointLight.position = lightTransform.getPosition();
+            pointLight.radius = lightComponent.radius;
+            pointLight.color = lightComponent.color;
 
-            SPDLOG_DEBUG("Added point light to global UBO, entity: {}, position: ({}, {}, {}), radius: {}",
-                lightEntity.id,
-                lightTransform.getPosition().x,
-                lightTransform.getPosition().y,
-                lightTransform.getPosition().z,
-                lightComponent.radius);
+            SPDLOG_DEBUG("Added point light {} to global UBO, entity: {}, position: ({}, {}, {}), radius: {}",
+                pointLightCount, lightEntity.id,
+                pointLight.position.x,
+                pointLight.position.y,
+                pointLight.position.z,
+                pointLight.radius);
 
             pointLightCount++;
         }
+		//Not supported yet
+        //else if (lightComponent.type == LightComponent::Type::Spot && spotLightCount < 16) {
+        //    // Process spot light
+        //    auto& spotLight = uboData.spotLights[spotLightCount];
+        //    spotLight.position = lightTransform.getPosition();
+        //    spotLight.direction = glm::normalize(lightComponent.direction);
+        //    spotLight.innerCutoff = lightComponent.innerCutoff;
+        //    spotLight.outerCutoff = lightComponent.outerCutoff;
+        //    spotLight.color = lightComponent.color;
+        //    spotLight.range = lightComponent.range;
+
+        //    SPDLOG_DEBUG("Added spot light {} to global UBO, entity: {}", spotLightCount, lightEntity.id);
+
+        //    spotLightCount++;
+        //}
     }
 
     // Set active light counts
-    globalUboData.activePointLights = pointLightCount;
-    globalUboData.activeSpotLights = spotLightCount;
+    uboData.activePointLights = pointLightCount;
+    uboData.activeSpotLights = spotLightCount;
 
     SPDLOG_DEBUG("Global UBO configured with {} point lights, {} spot lights, directional: {}",
         pointLightCount, spotLightCount, hasDirectionalLight);
 
-    // Create and update uniform buffer using SmartHandle
-    auto globalUboHandle = m_uniformBufferManager.acquireSmartBuffer(ShaderLib::GLOBAL_UBO);
-    if (globalUboHandle.isValid()) {
-        m_uniformBufferManager.updateBuffer(globalUboHandle.handle(), &globalUboData, sizeof(ShaderLib::GlobalUBOData));
-        SPDLOG_DEBUG("Created and updated global uniform buffer for camera {}", cameraEntity.id);
-    }
-    else {
+    // Create and acquire buffer
+    auto globalUboHandle = m_bufferManager.acquireSmartBuffer(ShaderLib::CreateGlobalUBO());
+    if (!globalUboHandle.isValid()) {
         SPDLOG_ERROR("Failed to acquire global uniform buffer for camera {}", cameraEntity.id);
+        return SmartHandle<BufferHandle, Buffer>();
     }
 
+    // Write entire buffer in one operation
+    {
+        auto writer = m_bufferManager.createMappedWriter(globalUboHandle.handle());
+        if (!writer.isValid()) {
+            SPDLOG_ERROR("Failed to create mapped writer for global UBO");
+            return SmartHandle<BufferHandle, Buffer>();
+        }
+
+        // Single memcpy for entire structure
+        if (!writer->writeRaw(&uboData, sizeof(ShaderLib::GlobalUBOData), 0)) {
+            SPDLOG_ERROR("Failed to write GlobalUBOData to buffer");
+            return SmartHandle<BufferHandle, Buffer>();
+        }
+
+    } // writer goes out of scope - buffer is automatically unmapped
+
+    SPDLOG_DEBUG("Created and updated global uniform buffer for camera {}", cameraEntity.id);
     return globalUboHandle;
 }
 

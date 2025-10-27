@@ -4,6 +4,7 @@
 #include <spdlog/sinks/stdout_color_sinks.h>
 #include <csignal>
 #include "Paths.h"
+#include <iostream>
 
 void signal_handler(int) {
     // Use named loggers for signal handling

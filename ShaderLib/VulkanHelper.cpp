@@ -4,6 +4,10 @@
 
 namespace ShaderLib {
 
+    // ============================================================================
+    // CONVERSION FUNCTIONS
+    // ============================================================================
+
     uint32_t GetVulkanShaderStageFlags(StageFlags stageFlags) {
         uint32_t vulkanFlags = 0;
 
@@ -24,32 +28,33 @@ namespace ShaderLib {
     }
 
     uint32_t GetVulkanDescriptorType(DescriptorType type) {
-        switch (type) {
-        case DescriptorType::UniformBuffer:
-            return VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-        case DescriptorType::StorageBuffer:
-            return VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-        case DescriptorType::CombinedImageSampler:
-            return VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-        case DescriptorType::SeparateImage:
-            return VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
-        case DescriptorType::SeparateSampler:
-            return VK_DESCRIPTOR_TYPE_SAMPLER;
-        default:
-            return VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+        const DescriptorTypeInfo& info = GetDescriptorTypeInfo(type);
+
+        if (info.IsBuffer()) {
+            if (type == DescriptorType::UniformBuffer)
+                return VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+            if (type == DescriptorType::StorageBuffer)
+                return VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
         }
+
+        if (info.IsSampler() && !info.IsTexture())
+            return VK_DESCRIPTOR_TYPE_SAMPLER;
+
+        if (info.IsTexture())
+            return VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+
+        if (info.IsImage())
+            return VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
+
+        if (type == DescriptorType::InputAttachment)
+            return VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT;
+
+        return VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
     }
 
-    uint32_t GetVulkanDescriptorTypeFromBufferType(BufferType bufferType) {
-        switch (bufferType) {
-        case BufferType::Uniform:
-            return VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-        case BufferType::Storage:
-            return VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-        default:
-            return VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-        }
-    }
+    // ============================================================================
+    // QUERY FUNCTIONS
+    // ============================================================================
 
     std::vector<uint32_t> GetSpirvForStage(const std::vector<CompiledStage>& stages, Stage stage) {
         for (const auto& compiledStage : stages) {
@@ -62,11 +67,16 @@ namespace ShaderLib {
 
     std::vector<Stage> GetAvailableStages(const std::vector<CompiledStage>& stages) {
         std::vector<Stage> result;
+        result.reserve(stages.size());
         for (const auto& stage : stages) {
             result.push_back(stage.stage);
         }
         return result;
     }
+
+    // ============================================================================
+    // DESCRIPTOR AND LAYOUT INFO FUNCTIONS
+    // ============================================================================
 
     std::vector<VulkanDescriptorSetLayoutInfo> GetDescriptorSetLayoutsInfo(const ShaderMetadata& metadata) {
         std::map<uint32_t, VulkanDescriptorSetLayoutInfo> setMap;
@@ -80,7 +90,7 @@ namespace ShaderLib {
 
             VulkanDescriptorBindingInfo bindingInfo;
             bindingInfo.binding = descriptor.binding;
-            bindingInfo.descriptorType = GetVulkanDescriptorType(descriptor.type);
+            bindingInfo.descriptorType = GetVulkanDescriptorType(descriptor.descriptorType);
             bindingInfo.descriptorCount = 1;
             bindingInfo.stageFlags = GetVulkanShaderStageFlags(descriptor.stages);
 
@@ -88,8 +98,9 @@ namespace ShaderLib {
         }
 
         std::vector<VulkanDescriptorSetLayoutInfo> result;
+        result.reserve(setMap.size());
         for (auto& pair : setMap) {
-            result.push_back(pair.second);
+            result.push_back(std::move(pair.second));
         }
 
         return result;
@@ -97,6 +108,7 @@ namespace ShaderLib {
 
     std::vector<VulkanPushConstantRange> GetPushConstantRanges(const ShaderMetadata& metadata) {
         std::vector<VulkanPushConstantRange> ranges;
+        ranges.reserve(metadata.pushConstants.size());
 
         for (const auto& pushConst : metadata.pushConstants) {
             VulkanPushConstantRange range;
@@ -113,6 +125,7 @@ namespace ShaderLib {
         VulkanPipelineLayoutInfo layoutInfo;
 
         auto descriptorSets = GetDescriptorSetLayoutsInfo(metadata);
+        layoutInfo.setLayoutIndices.reserve(descriptorSets.size());
         for (const auto& set : descriptorSets) {
             layoutInfo.setLayoutIndices.push_back(set.setNumber);
         }
@@ -121,6 +134,10 @@ namespace ShaderLib {
 
         return layoutInfo;
     }
+
+    // ============================================================================
+    // BUFFER INFO FUNCTIONS
+    // ============================================================================
 
     VulkanBufferInfo GetGlobalUboInfo(const ShaderMetadata& metadata) {
         VulkanBufferInfo info;
@@ -144,16 +161,17 @@ namespace ShaderLib {
         return info;
     }
 
-    std::vector<VulkanBufferInfo> GetCustomUboInfo(const ShaderMetadata& metadata) {
+    std::vector<VulkanBufferInfo> GetCustomBuffersInfo(const ShaderMetadata& metadata) {
         std::vector<VulkanBufferInfo> buffers;
+        buffers.reserve(metadata.customBuffers.size());
 
-        for (const auto& ubo : metadata.customUBOs) {
+        for (const auto& buffer : metadata.customBuffers) {
             VulkanBufferInfo info;
-            info.set = ubo.set;
-            info.binding = ubo.binding;
-            info.size = ubo.size;
-            info.bufferType = ubo.bufferType;
-            info.layoutStandard = ubo.layoutStandard;
+            info.set = buffer.set;
+            info.binding = buffer.binding;
+            info.size = buffer.size;
+            info.bufferType = buffer.bufferType;
+            info.layoutStandard = buffer.layoutStandard;
             info.isDynamic = false;
             buffers.push_back(info);
         }
@@ -161,47 +179,37 @@ namespace ShaderLib {
         return buffers;
     }
 
-    std::vector<VulkanBufferInfo> GetCustomSsboInfo(const ShaderMetadata& metadata) {
-        std::vector<VulkanBufferInfo> buffers;
+    // ============================================================================
+    // VARIABLE INFO FUNCTIONS
+    // ============================================================================
 
-        for (const auto& ssbo : metadata.customSSBOs) {
-            VulkanBufferInfo info;
-            info.set = ssbo.set;
-            info.binding = ssbo.binding;
-            info.size = ssbo.size;
-            info.bufferType = ssbo.bufferType;
-            info.layoutStandard = ssbo.layoutStandard;
-            info.isDynamic = false;
-            buffers.push_back(info);
-        }
-
-        return buffers;
-    }
-
-    std::vector<VulkanUniformVariableInfo> GetBufferVariables(const BufferObject& buffer) {
-        std::vector<VulkanUniformVariableInfo> variables;
+    std::vector<VulkanBufferVariableInfo> GetBufferVariables(const BufferObject& buffer) {
+        std::vector<VulkanBufferVariableInfo> variables;
+        variables.reserve(buffer.variables.size());
 
         for (const auto& var : buffer.variables) {
-            VulkanUniformVariableInfo varInfo;
+            VulkanBufferVariableInfo varInfo;
             varInfo.name = var.name;
-            varInfo.type = var.type;
+            varInfo.baseType = var.baseType;
             varInfo.size = var.size;
             varInfo.offset = var.offset;
-            varInfo.arraySize = var.arraySize;
-            varInfo.typeName = var.typeName;
             variables.push_back(varInfo);
         }
 
         return variables;
     }
 
-    std::vector<VulkanUniformVariableInfo> GetGlobalUboVariables(const ShaderMetadata& metadata) {
+    std::vector<VulkanBufferVariableInfo> GetGlobalUboVariables(const ShaderMetadata& metadata) {
         return GetBufferVariables(metadata.globalUBO);
     }
 
-    std::vector<VulkanUniformVariableInfo> GetObjectUboVariables(const ShaderMetadata& metadata) {
+    std::vector<VulkanBufferVariableInfo> GetObjectUboVariables(const ShaderMetadata& metadata) {
         return GetBufferVariables(metadata.objectUBO);
     }
+
+    // ============================================================================
+    // COMPLETE INFO FUNCTIONS
+    // ============================================================================
 
     ShaderResourcesInfo GetShaderResourcesInfo(const ShaderMetadata& metadata) {
         ShaderResourcesInfo info;
@@ -220,14 +228,14 @@ namespace ShaderLib {
             info.objectUboVariables = GetObjectUboVariables(metadata);
         }
 
-        info.customUBOs = GetCustomUboInfo(metadata);
-        info.customSSBOs = GetCustomSsboInfo(metadata);
+        info.customBuffers = GetCustomBuffersInfo(metadata);
 
         return info;
     }
 
     ShaderModulesInfo GetShaderModulesInfo(const std::vector<CompiledStage>& stages) {
         ShaderModulesInfo info;
+        info.modules.reserve(stages.size());
 
         for (const auto& stage : stages) {
             info.modules.push_back({ stage.stage, stage.spirv });

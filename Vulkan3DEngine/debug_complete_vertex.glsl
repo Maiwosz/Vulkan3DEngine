@@ -2,13 +2,13 @@
 
 struct DirectionalLight {
     vec3 direction;
-    vec4 color; // w is intensity
+    vec4 color;
 };
 
 struct PointLight {
     vec3 position;
     float radius;
-    vec4 color; // w is intensity
+    vec4 color;
 };
 
 struct SpotLight {
@@ -16,9 +16,9 @@ struct SpotLight {
     float innerCutoff;
     vec3 direction;
     float outerCutoff;
-    vec4 color; // w is intensity
+    vec4 color;
     float range;
-    float padding[3];
+    vec3 padding;
 };
 
 layout(std140, set = 0, binding = 0) uniform GlobalUBO {
@@ -27,11 +27,10 @@ layout(std140, set = 0, binding = 0) uniform GlobalUBO {
     vec3 cameraPosition;
     DirectionalLight directionalLight;
     int activePointLights;
-    PointLight pointLights[64];
+    PointLight[64] pointLights;
     int activeSpotLights;
-    SpotLight spotLights[16];
+    SpotLight[16] spotLights;
 };
-
 
 
 layout(std140, set = 1, binding = 0) uniform ObjectUBO {
@@ -40,8 +39,7 @@ layout(std140, set = 1, binding = 0) uniform ObjectUBO {
 };
 
 
-
-layout(set = 2, binding = 0) uniform InputDataUBO {
+layout(set = 2, binding = 0, std140) uniform InputDataUBO {
     float shininess;
     float ka;
     float kd;

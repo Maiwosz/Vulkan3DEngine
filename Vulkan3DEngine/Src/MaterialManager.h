@@ -20,7 +20,7 @@ public:
         const LogicalDevice& device,
         ShaderManager& shaderManager,
         ImageSamplerManager& samplerManager,
-        UniformBufferManager& uniformBufferManager,
+        BufferManager& uniformBufferManager,
         DescriptorAllocator& descriptorAllocator,
         DescriptorLayoutManager& descriptorLayoutManager,
         TextureManager& textureManager

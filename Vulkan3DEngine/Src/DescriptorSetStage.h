@@ -6,7 +6,7 @@
 #include "DescriptorWriter.h"
 #include "ShaderModuleManager.h"
 #include "MaterialManager.h"
-#include "UniformBufferManager.h"
+#include "BufferManager.h"
 #include "VramManager.h"
 #include "RenderOrder.h"
 #include "EngineCore.h"
@@ -41,7 +41,7 @@ private:
     AssetSystem& m_assetSystem;
     ShaderManager& m_shaderManager;
     MaterialManager& m_materialManager;
-    UniformBufferManager& m_uniformBufferManager;
+    BufferManager& m_bufferManager;
     DescriptorAllocator& m_descriptorAllocator;
     VramManager& m_vramManager;
     DescriptorLayoutManager& m_layoutManager;

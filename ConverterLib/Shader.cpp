@@ -10,7 +10,8 @@
 #include <TypeConversions.h>
 #include <Serialization.h>
 #include <fstream>
-#include <BufferDefinitions.h>
+#include <BufferBuilder.h>
+#include <BuiltInBuffers.h>
 #include "ShaderParserPEGTL.h"
 
 using namespace ShaderLib;
@@ -47,11 +48,24 @@ namespace Shader {
         // Create bindings for textures and samplers
         for (const auto& var : variables) {
             if (var.isSampler) {
-                DescriptorType type;
+                DescriptorType type = DescriptorType::Sampler2D; // Default
 
-                if (var.type == "sampler") {
-                    type = DescriptorType::CombinedImageSampler;
+                if (var.type == "sampler2D") {
+                    type = DescriptorType::Sampler2D;
                 }
+                else if (var.type == "samplerCube") {
+                    type = DescriptorType::SamplerCube;
+                }
+                else if (var.type == "sampler2DArray") {
+                    type = DescriptorType::Sampler2DArray;
+                }
+                else if (var.type == "samplerCubeArray") {
+                    type = DescriptorType::SamplerCubeArray;
+                }
+                else if (var.type == "sampler2DShadow") {
+                    type = DescriptorType::Sampler2DShadow;
+                }
+                // Add more sampler types as needed
 
                 bindings.push_back({
                     CUSTOM_DESCRIPTOR_SET,
@@ -66,9 +80,9 @@ namespace Shader {
         return bindings;
     }
 
-    // Build custom UBO from input variables
-    UniformBufferObject BuildInputDataUBO(const std::vector<InputVariable>& variables) {
-        UBOBuilder builder("InputData", CUSTOM_DESCRIPTOR_SET, 0);
+    // Build custom buffer from input variables
+    BufferObject BuildInputDataBuffer(const std::vector<InputVariable>& variables) {
+        BufferBuilder builder("InputData", CUSTOM_DESCRIPTOR_SET, 0, BufferType::Uniform);
 
         for (const auto& var : variables) {
             // Skip textures and samplers
@@ -88,13 +102,52 @@ namespace Shader {
                 builder.AddField<glm::vec4>(var.name);
             }
             else if (var.type == "int") {
-                builder.AddField<int>(var.name);
+                builder.AddField<int32_t>(var.name);
             }
             else if (var.type == "bool") {
                 builder.AddField<bool>(var.name);
             }
             else if (var.type == "mat4") {
                 builder.AddField<glm::mat4>(var.name);
+            }
+            else if (var.type == "mat3") {
+                builder.AddField<glm::mat3>(var.name);
+            }
+            else if (var.type == "mat2") {
+                builder.AddField<glm::mat2>(var.name);
+            }
+            else if (var.type == "uint") {
+                builder.AddField<uint32_t>(var.name);
+            }
+            else if (var.type == "double") {
+                builder.AddField<double>(var.name);
+            }
+            else if (var.type == "ivec2") {
+                builder.AddField<glm::ivec2>(var.name);
+            }
+            else if (var.type == "ivec3") {
+                builder.AddField<glm::ivec3>(var.name);
+            }
+            else if (var.type == "ivec4") {
+                builder.AddField<glm::ivec4>(var.name);
+            }
+            else if (var.type == "uvec2") {
+                builder.AddField<glm::uvec2>(var.name);
+            }
+            else if (var.type == "uvec3") {
+                builder.AddField<glm::uvec3>(var.name);
+            }
+            else if (var.type == "uvec4") {
+                builder.AddField<glm::uvec4>(var.name);
+            }
+            else if (var.type == "dvec2") {
+                builder.AddField<glm::dvec2>(var.name);
+            }
+            else if (var.type == "dvec3") {
+                builder.AddField<glm::dvec3>(var.name);
+            }
+            else if (var.type == "dvec4") {
+                builder.AddField<glm::dvec4>(var.name);
             }
             // Add more types as needed
         }
@@ -109,7 +162,7 @@ namespace Shader {
 
         for (const auto& var : variables) {
             if (var.isSampler) {
-                std::string typeStr = "sampler2D"; // Default to sampler2D for texture samplers
+                std::string typeStr = var.type.empty() ? "sampler2D" : var.type;
                 ss << "layout(set = " << CUSTOM_DESCRIPTOR_SET << ", binding = " << binding++ << ") "
                     << "uniform " << typeStr << " " << var.name << ";\n";
             }
@@ -118,13 +171,13 @@ namespace Shader {
         return ss.str();
     }
 
-    // Generate custom UBO GLSL
-    std::string GenerateCustomUBO(const UniformBufferObject& ubo) {
+    // Generate custom buffer GLSL
+    std::string GenerateCustomBuffer(const BufferObject& buffer) {
         std::stringstream ss;
 
-        ss << "layout(set = " << CUSTOM_DESCRIPTOR_SET << ", binding = 0) uniform InputDataUBO {\n";
-        for (const auto& var : ubo.variables) {
-            ss << "    " << UniformTypeToString(var.type) << " " << var.name << ";\n";
+        ss << "layout(set = " << CUSTOM_DESCRIPTOR_SET << ", binding = 0, std140) uniform InputDataUBO {\n";
+        for (const auto& var : buffer.variables) {
+            ss << "    " << var.GetTypeName() << " " << var.name << ";\n";
         }
         ss << "} inputData;\n";
 
@@ -133,7 +186,7 @@ namespace Shader {
 
     // Generate shader source from scratch
     std::string GenerateShaderSource(const ParsedShaderData& data, const ShaderStage& stage,
-        const UniformBufferObject* customUBO = nullptr) {
+        const BufferObject* customBuffer = nullptr) {
         std::stringstream ss;
 
         // 1. Version line must be first
@@ -145,15 +198,15 @@ namespace Shader {
 
         // 2. Add global UBO if needed
         if (data.usesGlobalUBO) {
-            ss << UBORegistry::Get().GenerateGLSL("GlobalUBO") << "\n\n";
+            ss << GenerateGLSL(CreateGlobalUBO()) << "\n\n";
         }
 
         // 3. Add object UBO if needed
         if (data.usesObjectUBO) {
-            ss << UBORegistry::Get().GenerateGLSL("ObjectUBO") << "\n\n";
+            ss << GenerateGLSL(CreateObjectUBO()) << "\n\n";
         }
 
-        // 4. Add custom UBO if needed
+        // 4. Add custom buffer if needed
         bool hasNonTextureVars = false;
         for (const auto& var : data.inputVariables) {
             if (!var.isSampler) {
@@ -162,8 +215,8 @@ namespace Shader {
             }
         }
 
-        if (hasNonTextureVars && customUBO) {
-            ss << GenerateCustomUBO(*customUBO) << "\n";
+        if (hasNonTextureVars && customBuffer) {
+            ss << GenerateCustomBuffer(*customBuffer) << "\n";
         }
 
         // 5. Add texture bindings
@@ -234,16 +287,7 @@ namespace Shader {
         ShaderMetadata metadata;
         StageFlags stageFlags = 0;
 
-        // Simply parse the source - all complexity is handled by ParserDictionary
-        //ShaderParser parser;
-        //ParsedShaderData sourceData = parser.Parse(source);
-
-        //// Check if parser found any real errors (not just info messages)
-        //auto& errorManager = ShaderErrorManager::Instance();
-        //if (errorManager.HasNonWarningErrors()) {
-        //    throw std::runtime_error("Shader parsing failed with errors:\n" + errorManager.FormatAllErrors());
-        //}
-
+        // Parse the source using PEGTL parser
         ShaderParserPEGTL parser;
         ParsedShaderData sourceData;
 
@@ -259,36 +303,36 @@ namespace Shader {
             throw std::runtime_error("No shader stages found in source");
         }
 
-        // Set UBO usage in metadata
+        // Set buffer usage in metadata
         metadata.usesGlobalUBO = sourceData.usesGlobalUBO;
         metadata.usesObjectUBO = sourceData.usesObjectUBO;
 
         // Create descriptor bindings
         std::vector<DescriptorBinding> customDescriptors = CreateDescriptorBindings(sourceData.inputVariables);
 
-        // Create custom UBO if needed
-        UniformBufferObject customUBO;
-        bool hasCustomUbo = false;
+        // Create custom buffer if needed
+        BufferObject customBuffer;
+        bool hasCustomBuffer = false;
 
         for (const auto& var : sourceData.inputVariables) {
             if (!var.isSampler) {
-                hasCustomUbo = true;
+                hasCustomBuffer = true;
                 break;
             }
         }
 
-        if (hasCustomUbo) {
-            customUBO = BuildInputDataUBO(sourceData.inputVariables);
-            metadata.customUBOs.push_back(customUBO);
+        if (hasCustomBuffer) {
+            customBuffer = BuildInputDataBuffer(sourceData.inputVariables);
+            metadata.customBuffers.push_back(customBuffer);
         }
 
-        // Add standard UBOs to metadata
+        // Add standard buffers to metadata
         if (sourceData.usesGlobalUBO) {
-            metadata.globalUBO = UBORegistry::CreateGlobalUBO();
+            metadata.globalUBO = CreateGlobalUBO();
         }
 
         if (sourceData.usesObjectUBO) {
-            metadata.objectUBO = UBORegistry::CreateObjectUBO();
+            metadata.objectUBO = CreateObjectUBO();
         }
 
         // Build descriptor list
@@ -331,7 +375,7 @@ namespace Shader {
             std::string finalSource = GenerateShaderSource(
                 sourceData,
                 stage,
-                hasCustomUbo ? &customUBO : nullptr
+                hasCustomBuffer ? &customBuffer : nullptr
             );
 
             // Debug output
@@ -368,10 +412,6 @@ namespace Shader {
     }
 
     AssetData ProcessShader(const std::string& inputPath, const Converter::Settings& settings) {
-        // Initialize standard UBOs if not already done
-        if (ShaderLib::UBORegistry::Get().GetBuffer("GlobalUBO") == nullptr) {
-            ShaderLib::UBORegistry::Get().InitializeStandardBuffers();
-        }
 
         std::ifstream file(inputPath);
         if (!file.is_open()) {

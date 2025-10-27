@@ -126,46 +126,48 @@ namespace AssetLib {
             return info;
         }
 
-        // Fix for SerializeMaterialInfo and DeserializeMaterialInfo
+        // Helper to safely copy string to fixed-size array
+        template<size_t N>
+        void CopyToFixedArray(std::array<char, N>& dest, const std::string& src) {
+            std::fill(dest.begin(), dest.end(), '\0');
+            std::copy_n(src.c_str(), std::min(src.size(), N - 1), dest.data());
+        }
+
+        // Helper to safely extract string from fixed-size array
+        template<size_t N>
+        std::string ExtractFromFixedArray(const std::array<char, N>& src) {
+            return std::string(src.data(), strnlen(src.data(), N));
+        }
+
         json SerializeMaterialInfo(const MaterialInfo& info) {
-            // Use string constructor with data() and explicit length to avoid issues with null termination
             return {
-                {"shaderName", std::string(info.shaderName.data(), strnlen(info.shaderName.data(), info.shaderName.size()))},
+                {"shaderName", ExtractFromFixedArray(info.shaderName)},
                 {"parameterCount", info.parameterCount},
                 {"dataSize", info.dataSize}
             };
         }
 
         MaterialInfo DeserializeMaterialInfo(const json& j) {
-            MaterialInfo info{};  // Zero-initialize struct
-
-            // First, ensure the entire array is zeroed (including null termination)
-            std::fill(info.shaderName.begin(), info.shaderName.end(), '\0');
-
-            std::string name = j["shaderName"];
-            // Copy up to name.size() characters, but not more than shaderName.size()-1 to leave room for null terminator
-            std::copy_n(name.c_str(), std::min(name.size(), info.shaderName.size() - 1), info.shaderName.data());
-
+            MaterialInfo info{};
+            CopyToFixedArray(info.shaderName, j["shaderName"].get<std::string>());
             info.parameterCount = j["parameterCount"].get<uint32_t>();
             info.dataSize = j["dataSize"].get<uint32_t>();
             return info;
         }
 
-        // Fix for SerializeParameter and DeserializeParameter
         json SerializeParameter(const MaterialParameter& param) {
             json j = {
-                {"name", std::string(param.name.data(), strnlen(param.name.data(), param.name.size()))},
+                {"name", ExtractFromFixedArray(param.name)},
                 {"descriptorType", static_cast<int>(param.descriptorType)},
-                {"uniformType", static_cast<int>(param.uniformType)},
+                {"baseType", static_cast<int>(param.baseType)},
                 {"arraySize", param.arraySize},
                 {"dataOffset", param.dataOffset},
                 {"dataSize", param.dataSize}
             };
 
             // Serialize sampler description for texture parameters
-            if (param.descriptorType == ShaderLib::DescriptorType::CombinedImageSampler ||
-                param.descriptorType == ShaderLib::DescriptorType::SeparateImage ||
-                param.descriptorType == ShaderLib::DescriptorType::SeparateSampler) {
+            const auto& descInfo = ShaderLib::GetDescriptorTypeInfo(param.descriptorType);
+            if (descInfo.IsTexture() || descInfo.IsSampler()) {
                 j["sampler"] = {
                     {"magFilter", static_cast<int>(param.samplerDesc.magFilter)},
                     {"minFilter", static_cast<int>(param.samplerDesc.minFilter)},
@@ -175,28 +177,26 @@ namespace AssetLib {
                     {"anisotropy", param.samplerDesc.anisotropy},
                     {"minLod", param.samplerDesc.minLod},
                     {"maxLod", param.samplerDesc.maxLod},
-                    {"colorSpace", static_cast<int>(param.samplerDesc.colorSpace)}  // Add colorSpace to JSON
+                    {"colorSpace", static_cast<int>(param.samplerDesc.colorSpace)}
                 };
             }
 
             return j;
         }
 
-        // Update DeserializeParameter to handle colorSpace
         MaterialParameter DeserializeParameter(const json& j) {
-            MaterialParameter param{};  // Zero-initialize struct
+            MaterialParameter param{};
 
-            // First, ensure the entire array is zeroed (including null termination)
-            std::fill(param.name.begin(), param.name.end(), '\0');
+            // Basic parameter properties
+            if (!j.contains("name") || !j.contains("descriptorType") ||
+                !j.contains("baseType") || !j.contains("arraySize") ||
+                !j.contains("dataOffset") || !j.contains("dataSize")) {
+                throw std::runtime_error("Missing required fields in parameter JSON");
+            }
 
-            // Copy name
-            std::string name = j["name"];
-            // Copy up to name.size() characters, but not more than name.size()-1 to leave room for null terminator
-            std::copy_n(name.c_str(), std::min(name.size(), param.name.size() - 1), param.name.data());
-
-            // Get basic properties
+            CopyToFixedArray(param.name, j["name"].get<std::string>());
             param.descriptorType = static_cast<ShaderLib::DescriptorType>(j["descriptorType"].get<int>());
-            param.uniformType = static_cast<ShaderLib::UniformType>(j["uniformType"].get<int>());
+            param.baseType = static_cast<ShaderLib::BaseType>(j["baseType"].get<int>());
             param.arraySize = j["arraySize"].get<uint32_t>();
             param.dataOffset = j["dataOffset"].get<uint32_t>();
             param.dataSize = j["dataSize"].get<uint32_t>();
@@ -204,6 +204,15 @@ namespace AssetLib {
             // Get sampler description if present
             if (j.contains("sampler")) {
                 const auto& s = j["sampler"];
+
+                // Validate all required sampler fields exist
+                if (!s.contains("magFilter") || !s.contains("minFilter") ||
+                    !s.contains("addressModeU") || !s.contains("addressModeV") ||
+                    !s.contains("addressModeW") || !s.contains("anisotropy") ||
+                    !s.contains("minLod") || !s.contains("maxLod")) {
+                    throw std::runtime_error("Missing required fields in sampler JSON");
+                }
+
                 param.samplerDesc.magFilter = static_cast<SamplerDescription::Filter>(s["magFilter"].get<int>());
                 param.samplerDesc.minFilter = static_cast<SamplerDescription::Filter>(s["minFilter"].get<int>());
                 param.samplerDesc.addressModeU = static_cast<SamplerDescription::AddressMode>(s["addressModeU"].get<int>());
@@ -213,10 +222,22 @@ namespace AssetLib {
                 param.samplerDesc.minLod = s["minLod"].get<float>();
                 param.samplerDesc.maxLod = s["maxLod"].get<float>();
 
-                // Get colorSpace if present, default to Linear if not
+                // colorSpace is optional for backward compatibility
                 param.samplerDesc.colorSpace = s.contains("colorSpace") ?
                     static_cast<ColorSpace>(s["colorSpace"].get<int>()) :
                     ColorSpace::Linear;
+            }
+            else {
+                // Initialize with default sampler settings if not present
+                param.samplerDesc.magFilter = SamplerDescription::Filter::Linear;
+                param.samplerDesc.minFilter = SamplerDescription::Filter::Linear;
+                param.samplerDesc.addressModeU = SamplerDescription::AddressMode::Repeat;
+                param.samplerDesc.addressModeV = SamplerDescription::AddressMode::Repeat;
+                param.samplerDesc.addressModeW = SamplerDescription::AddressMode::Repeat;
+                param.samplerDesc.anisotropy = 1.0f;
+                param.samplerDesc.minLod = 0.0f;
+                param.samplerDesc.maxLod = 1000.0f;
+                param.samplerDesc.colorSpace = ColorSpace::Linear;
             }
 
             return param;
@@ -714,14 +735,17 @@ namespace AssetLib {
         return { info, graphData };
     }
 
-    // Helper type conversion functions
-    SamplerDescription::Filter ConvertSamplerFilter(const std::string& filter) {
+    // ============================================================================
+    // Helper conversion functions for AssetLib-specific enums
+    // ============================================================================
+
+    SamplerDescription::Filter StringToSamplerFilter(const std::string& filter) {
         if (filter == "Nearest") return SamplerDescription::Filter::Nearest;
         if (filter == "Linear") return SamplerDescription::Filter::Linear;
         throw std::runtime_error("Invalid sampler filter: " + filter);
     }
 
-    SamplerDescription::AddressMode ConvertAddressMode(const std::string& mode) {
+    SamplerDescription::AddressMode StringToAddressMode(const std::string& mode) {
         if (mode == "Repeat") return SamplerDescription::AddressMode::Repeat;
         if (mode == "MirroredRepeat") return SamplerDescription::AddressMode::MirroredRepeat;
         if (mode == "ClampToEdge") return SamplerDescription::AddressMode::ClampToEdge;
@@ -729,53 +753,36 @@ namespace AssetLib {
         throw std::runtime_error("Invalid address mode: " + mode);
     }
 
-    ShaderLib::DescriptorType ConvertDescriptorType(const std::string& type) {
-        if (type == "UniformBuffer") return ShaderLib::DescriptorType::UniformBuffer;
-        if (type == "StorageBuffer") return ShaderLib::DescriptorType::StorageBuffer;
-        if (type == "CombinedImageSampler") return ShaderLib::DescriptorType::CombinedImageSampler;
-        if (type == "SeparateImage") return ShaderLib::DescriptorType::SeparateImage;
-        if (type == "SeparateSampler") return ShaderLib::DescriptorType::SeparateSampler;
-        throw std::runtime_error("Invalid descriptor type: " + type);
-    }
-
-    ShaderLib::UniformType ConvertUniformType(const std::string& type) {
-        static const std::unordered_map<std::string, ShaderLib::UniformType> typeMap = {
-            {"Bool", ShaderLib::UniformType::Bool},
-            {"Float", ShaderLib::UniformType::Float},
-            {"Vec2", ShaderLib::UniformType::Vec2},
-            {"Vec3", ShaderLib::UniformType::Vec3},
-            {"Vec4", ShaderLib::UniformType::Vec4},
-            {"Mat2", ShaderLib::UniformType::Mat2},
-            {"Mat3", ShaderLib::UniformType::Mat3},
-            {"Mat4", ShaderLib::UniformType::Mat4},
-            {"Int", ShaderLib::UniformType::Int},
-            {"IVec2", ShaderLib::UniformType::IVec2},
-            {"IVec3", ShaderLib::UniformType::IVec3},
-            {"IVec4", ShaderLib::UniformType::IVec4},
-            {"UInt", ShaderLib::UniformType::UInt},
-            {"UVec2", ShaderLib::UniformType::UVec2},
-            {"UVec3", ShaderLib::UniformType::UVec3},
-            {"UVec4", ShaderLib::UniformType::UVec4},
-            {"Double", ShaderLib::UniformType::Double},
-            {"DVec2", ShaderLib::UniformType::DVec2},
-            {"DVec3", ShaderLib::UniformType::DVec3},
-            {"DVec4", ShaderLib::UniformType::DVec4},
-            {"Struct", ShaderLib::UniformType::Struct},
-            {"Array", ShaderLib::UniformType::Array}
-        };
-
-        auto it = typeMap.find(type);
-        if (it != typeMap.end()) {
-            return it->second;
-        }
-
-        return ShaderLib::UniformType::Unknown;
-    }
-
-    ColorSpace ConvertColorSpace(const std::string& colorSpace) {
+    ColorSpace StringToColorSpace(const std::string& colorSpace) {
         if (colorSpace == "SRGB" || colorSpace == "sRGB") return ColorSpace::SRGB;
         if (colorSpace == "HDR") return ColorSpace::HDR;
-        // Default to Linear for any other value or "Linear"
         return ColorSpace::Linear;
+    }
+
+    std::string SamplerFilterToString(SamplerDescription::Filter filter) {
+        switch (filter) {
+        case SamplerDescription::Filter::Nearest: return "Nearest";
+        case SamplerDescription::Filter::Linear: return "Linear";
+        default: return "Unknown";
+        }
+    }
+
+    std::string AddressModeToString(SamplerDescription::AddressMode mode) {
+        switch (mode) {
+        case SamplerDescription::AddressMode::Repeat: return "Repeat";
+        case SamplerDescription::AddressMode::MirroredRepeat: return "MirroredRepeat";
+        case SamplerDescription::AddressMode::ClampToEdge: return "ClampToEdge";
+        case SamplerDescription::AddressMode::ClampToBorder: return "ClampToBorder";
+        default: return "Unknown";
+        }
+    }
+
+    std::string ColorSpaceToString(ColorSpace colorSpace) {
+        switch (colorSpace) {
+        case ColorSpace::Linear: return "Linear";
+        case ColorSpace::SRGB: return "sRGB";
+        case ColorSpace::HDR: return "HDR";
+        default: return "Unknown";
+        }
     }
 }

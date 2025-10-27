@@ -7,7 +7,7 @@
 #include "LogicalDevice.h"
 #include "Handle.h"
 #include "ISmartHandleManager.h"
-#include "UniformBufferManager.h"
+#include "BufferManager.h"
 #include "ImageSamplerManager.h"
 
 // Forward declarations
@@ -29,7 +29,7 @@ public:
 
     // Structure to hold resources bound to a descriptor set
     struct DescriptorResources {
-        std::vector<SmartHandle<UniformBufferHandle, Buffer>> uniformBuffers;
+        std::vector<SmartHandle<BufferHandle, Buffer>> uniformBuffers;
         std::vector<SamplerHandle> samplers;
 
         void clear() {
@@ -55,7 +55,7 @@ public:
     VkDescriptorSet getDescriptorSet(DescriptorSetHandle handle) const;
 
     // Resource management
-    void bindUniformBuffer(DescriptorSetHandle handle, SmartHandle<UniformBufferHandle, Buffer> buffer);
+    void bindUniformBuffer(DescriptorSetHandle handle, SmartHandle<BufferHandle, Buffer> buffer);
     void bindSampler(DescriptorSetHandle handle, SamplerHandle sampler);
     void bindResources(DescriptorSetHandle handle, const DescriptorResources& resources);
 

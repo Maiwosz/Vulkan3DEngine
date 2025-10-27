@@ -7,14 +7,25 @@
     <ClInclude Include="Serialization.h" />
     <ClInclude Include="TypeConversions.h" />
     <ClInclude Include="VulkanHelper.h" />
-    <ClInclude Include="BufferDefinitions.h" />
-    <ClInclude Include="StandardBufferDefinitions.h" />
+    <ClInclude Include="ShaderTypes.h" />
+    <ClInclude Include="BuiltInStructures.h" />
+    <ClInclude Include="BufferBuilder.h" />
+    <ClInclude Include="BuiltInBuffers.h" />
+    <ClInclude Include="BufferReader.h" />
+    <ClInclude Include="BufferWriter.h" />
+    <ClInclude Include="BufferAccessor.h" />
+    <ClInclude Include="ShaderStruct.h" />
+    <ClInclude Include="ShaderArray.h" />
+    <ClInclude Include="ShaderDescriptors.h" />
+    <ClInclude Include="BufferIO.h" />
+    <ClInclude Include="CompositeSerialization.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="pch.cpp" />
     <ClCompile Include="Serialization.cpp" />
     <ClCompile Include="TypeConversions.cpp" />
     <ClCompile Include="VulkanHelper.cpp" />
-    <ClCompile Include="BufferDefinitions.cpp" />
+    <ClCompile Include="ShaderTypes.cpp" />
+    <ClCompile Include="BufferIO.cpp" />
   </ItemGroup>
 </Project>

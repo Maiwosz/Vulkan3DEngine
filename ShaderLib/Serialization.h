@@ -5,48 +5,88 @@
 namespace ShaderLib {
     using json = nlohmann::json;
 
-    // Deklaracje dla typów wyliczeniowych
+    // ============================================================================
+    // ENUM SERIALIZATION
+    // ============================================================================
+
+    // Stage
     void to_json(json& j, Stage stage);
     void from_json(const json& j, Stage& stage);
 
-    void to_json(json& j, DescriptorType type);
-    void from_json(const json& j, DescriptorType& type);
-
-    void to_json(json& j, UniformType type);
-    void from_json(const json& j, UniformType& type);
-
-    // Deklaracje dla flag etapów
+    // StageFlags
     void to_json(json& j, StageFlags flags);
     void from_json(const json& j, StageFlags& flags);
 
-    // Deklaracje dla struktur
-    void to_json(json& j, const PushConstantRange& range);
-    void from_json(const json& j, PushConstantRange& range);
+    // BaseType
+    void to_json(json& j, BaseType type);
+    void from_json(const json& j, BaseType& type);
 
-    void to_json(json& j, const DescriptorBinding& binding);
-    void from_json(const json& j, DescriptorBinding& binding);
+    // DescriptorType
+    void to_json(json& j, DescriptorType type);
+    void from_json(const json& j, DescriptorType& type);
 
-    void to_json(json& j, const UniformVariable& var);
-    void from_json(const json& j, UniformVariable& var);
-
-    void to_json(json& j, BufferType type);
-    void from_json(const json& j, BufferType& type);
-
+    // LayoutStandard
     void to_json(json& j, LayoutStandard standard);
     void from_json(const json& j, LayoutStandard& standard);
 
+    // BufferType
+    void to_json(json& j, BufferType type);
+    void from_json(const json& j, BufferType& type);
+
+    // ============================================================================
+    // STRUCTURE SERIALIZATION
+    // ============================================================================
+
+    // BufferVariable
+    void to_json(json& j, const BufferVariable& var);
+    void from_json(const json& j, BufferVariable& var);
+
+    // PushConstantRange
+    void to_json(json& j, const PushConstantRange& range);
+    void from_json(const json& j, PushConstantRange& range);
+
+    // DescriptorBinding
+    void to_json(json& j, const DescriptorBinding& binding);
+    void from_json(const json& j, DescriptorBinding& binding);
+
+    // BufferObject
     void to_json(json& j, const BufferObject& buffer);
     void from_json(const json& j, BufferObject& buffer);
 
+    // ShaderMetadata
     void to_json(json& j, const ShaderMetadata& metadata);
     void from_json(const json& j, ShaderMetadata& metadata);
 
-    // Deklaracje funkcji pomocniczych
+    // ============================================================================
+    // HIGH-LEVEL SERIALIZATION FUNCTIONS
+    // ============================================================================
+
+    // Serialize metadata to JSON string
     std::string SerializeMetadata(const ShaderMetadata& metadata);
+
+    // Deserialize metadata from JSON string
     ShaderMetadata DeserializeMetadata(const std::string& jsonStr);
 
-    // ShaderStages
+    // Serialize compiled stages to binary format
     std::vector<uint8_t> SerializeStages(const std::vector<CompiledStage>& stages);
-    std::vector<CompiledStage> DeserializeStages(const std::vector<uint8_t>& data);
-}// namespace ShaderLib
 
+    // Deserialize compiled stages from binary format
+    std::vector<CompiledStage> DeserializeStages(const std::vector<uint8_t>& data);
+
+    // ============================================================================
+    // COMPLETE SHADER SERIALIZATION
+    // ============================================================================
+
+    // Serialized shader data structure
+    struct SerializedShaderData {
+        std::string metadataJson;
+        std::vector<uint8_t> stagesBinary;
+    };
+
+    // Serialize complete ShaderData (metadata + stages)
+    SerializedShaderData SerializeShaderData(const ShaderData& shaderData);
+
+    // Deserialize complete ShaderData
+    ShaderData DeserializeShaderData(const SerializedShaderData& serialized);
+
+} // namespace ShaderLib

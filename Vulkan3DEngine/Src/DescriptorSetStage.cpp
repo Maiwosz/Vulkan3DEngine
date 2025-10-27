@@ -14,14 +14,14 @@ DescriptorSetStage::DescriptorSetStage(
     m_assetSystem(assetSystem),
     m_shaderManager(assetSystem.shaderManager()),
     m_materialManager(assetSystem.materialManager()),
-    m_uniformBufferManager(renderer.uniformBufferManager()),
+    m_bufferManager(renderer.bufferManager()),
     m_descriptorAllocator(renderer.descriptorAllocator()),
     m_vramManager(renderer.vramManager()),
     m_layoutManager(renderer.descriptorLayoutManager()),
     m_samplerManager(m_renderer.imageSamplerManager()),
     m_writer(renderer.vulkanContext().logical(),
         m_samplerManager,
-        m_uniformBufferManager,
+        m_bufferManager,
         m_descriptorAllocator)
 {
     SPDLOG_INFO("Initialized DescriptorSetStage");

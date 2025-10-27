@@ -12,7 +12,7 @@
 #include "FrameBufferManager.h"
 #include "Event.h"
 #include "PipelineManager.h"
-#include "UniformBufferManager.h"
+#include "BufferManager.h"
 #include "PipelineLayoutManager.h"
 #include "DescriptorLayoutManager.h"
 #include "ImageSamplerManager.h"
@@ -40,7 +40,7 @@ public:
     SynchronizationResourceManager& synchronizationResourceManager() { return *m_syncResourceManager; }
     FrameManager& frameManager() { return *m_frameManager; }
     VramManager& vramManager() { return *m_vramManager; }
-    UniformBufferManager& uniformBufferManager() { return *m_uniformBufferManager; }
+    BufferManager& bufferManager() { return *m_bufferManager; }
     DescriptorLayoutManager& descriptorLayoutManager() { return *m_descriptorLayoutManager; }
     PipelineLayoutManager& pipelineLayoutManager() { return *m_pipelineLayoutManager; }
     AttachmentManager& attachmentManager() { return *m_attachmentManager; }
@@ -52,12 +52,11 @@ public:
     FrameBufferManager& framebufferManager() { return *m_framebufferManager; }
     PipelineManager& pipelineManager() { return *m_pipelineManager; }
     DescriptorAllocator& descriptorAllocator() { 
+        // Musi to być tak, ponieważ inaczej nie działa. Dlaczego? Nie wiem...
 		DescriptorAllocator& alloc = *m_descriptorAllocator;
         return alloc;
     }
     Renderer& renderer() { return *m_renderer; }
-
-    void recreateSwapChain();
 
 private:
     Settings& m_settings;
@@ -68,7 +67,7 @@ private:
     std::unique_ptr<SynchronizationResourceManager> m_syncResourceManager;
     std::unique_ptr<FrameManager> m_frameManager;
     std::unique_ptr<VramManager> m_vramManager;
-    std::unique_ptr<UniformBufferManager> m_uniformBufferManager;
+    std::unique_ptr<BufferManager> m_bufferManager;
     std::unique_ptr<DescriptorLayoutManager> m_descriptorLayoutManager;
     std::unique_ptr<PipelineLayoutManager> m_pipelineLayoutManager;
     std::unique_ptr<AttachmentManager> m_attachmentManager;

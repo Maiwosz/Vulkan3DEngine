@@ -1,12 +1,13 @@
 #include "pch.h"
 #include "Serialization.h"
-#include "TypeConversions.h"
-
-
-using namespace ShaderLib::TypeConversion;
+#include "CompositeSerialization.h"
 
 namespace ShaderLib {
-    // Implementacje dla typów wyliczeniowych
+
+    // ============================================================================
+    // STAGE SERIALIZATION
+    // ============================================================================
+
     void to_json(json& j, Stage stage) {
         switch (stage) {
         case Stage::Vertex: j = "Vertex"; break;
@@ -30,36 +31,10 @@ namespace ShaderLib {
         else throw std::runtime_error("Unknown Stage: " + s);
     }
 
-    void to_json(json& j, DescriptorType type) {
-        switch (type) {
-        case DescriptorType::UniformBuffer: j = "UniformBuffer"; break;
-        case DescriptorType::StorageBuffer: j = "StorageBuffer"; break;
-        case DescriptorType::CombinedImageSampler: j = "CombinedImageSampler"; break;
-        case DescriptorType::SeparateImage: j = "SeparateImage"; break;
-        case DescriptorType::SeparateSampler: j = "SeparateSampler"; break;
-        default: j = "Unknown"; break;
-        }
-    }
+    // ============================================================================
+    // STAGE FLAGS SERIALIZATION
+    // ============================================================================
 
-    void from_json(const json& j, DescriptorType& type) {
-        std::string s = j.get<std::string>();
-        if (s == "UniformBuffer") type = DescriptorType::UniformBuffer;
-        else if (s == "StorageBuffer") type = DescriptorType::StorageBuffer;
-        else if (s == "CombinedImageSampler") type = DescriptorType::CombinedImageSampler;
-        else if (s == "SeparateImage") type = DescriptorType::SeparateImage;
-        else if (s == "SeparateSampler") type = DescriptorType::SeparateSampler;
-        else throw std::runtime_error("Unknown DescriptorType: " + s);
-    }
-
-    void to_json(json& j, UniformType type) {
-        j = UniformTypeToString(type);
-    }
-
-    void from_json(const json& j, UniformType& type) {
-        type = StringToUniformType(j.get<std::string>());
-    }
-
-    // Implementacje dla flag etapów
     void to_json(json& j, StageFlags flags) {
         json arr = json::array();
         if (flags & static_cast<StageFlags>(Stage::Vertex))
@@ -79,65 +54,61 @@ namespace ShaderLib {
 
     void from_json(const json& j, StageFlags& flags) {
         flags = 0;
-        for (auto& stage : j) {
+        for (const auto& stage : j) {
             Stage s;
             from_json(stage, s);
             flags |= static_cast<StageFlags>(s);
         }
     }
 
-    // Implementacje dla struktur
-    void to_json(json& j, const PushConstantRange& range) {
-        j = json{
-            {"stages", range.stages},
-            {"offset", range.offset},
-            {"size", range.size}
-        };
+    // ============================================================================
+    // BASE TYPE SERIALIZATION
+    // ============================================================================
+
+    void to_json(json& j, BaseType type) {
+        j = BaseTypeToString(type);
     }
 
-    void from_json(const json& j, PushConstantRange& range) {
-        j.at("stages").get_to(range.stages);
-        j.at("offset").get_to(range.offset);
-        j.at("size").get_to(range.size);
+    void from_json(const json& j, BaseType& type) {
+        type = StringToBaseType(j.get<std::string>());
     }
 
-    void to_json(json& j, const DescriptorBinding& binding) {
-        j = json{
-            {"set", binding.set},
-            {"binding", binding.binding},
-            {"type", binding.type},
-            {"stages", binding.stages},
-            {"name", binding.name}
-        };
+    // ============================================================================
+    // DESCRIPTOR TYPE SERIALIZATION
+    // ============================================================================
+
+    void to_json(json& j, DescriptorType type) {
+        j = DescriptorTypeToString(type);
     }
 
-    void from_json(const json& j, DescriptorBinding& binding) {
-        j.at("set").get_to(binding.set);
-        j.at("binding").get_to(binding.binding);
-        j.at("type").get_to(binding.type);
-        j.at("stages").get_to(binding.stages);
-        j.at("name").get_to(binding.name);
+    void from_json(const json& j, DescriptorType& type) {
+        type = StringToDescriptorType(j.get<std::string>());
     }
 
-    void to_json(json& j, const UniformVariable& var) {
-        j = json{
-            {"name", var.name},
-            {"type", var.type},
-            {"size", var.size},
-            {"offset", var.offset},
-            {"arraySize", var.arraySize},
-            {"typeName", var.typeName}
-        };
+    // ============================================================================
+    // LAYOUT STANDARD SERIALIZATION
+    // ============================================================================
+
+    void to_json(json& j, LayoutStandard standard) {
+        switch (standard) {
+        case LayoutStandard::Std140: j = "Std140"; break;
+        case LayoutStandard::Std430: j = "Std430"; break;
+        case LayoutStandard::Packed: j = "Packed"; break;
+        default: j = "Unknown"; break;
+        }
     }
 
-    void from_json(const json& j, UniformVariable& var) {
-        j.at("name").get_to(var.name);
-        j.at("type").get_to(var.type);
-        j.at("size").get_to(var.size);
-        j.at("offset").get_to(var.offset);
-        j.at("arraySize").get_to(var.arraySize);
-        j.at("typeName").get_to(var.typeName);
+    void from_json(const json& j, LayoutStandard& standard) {
+        std::string s = j.get<std::string>();
+        if (s == "Std140") standard = LayoutStandard::Std140;
+        else if (s == "Std430") standard = LayoutStandard::Std430;
+        else if (s == "Packed") standard = LayoutStandard::Packed;
+        else throw std::runtime_error("Unknown LayoutStandard: " + s);
     }
+
+    // ============================================================================
+    // BUFFER TYPE SERIALIZATION
+    // ============================================================================
 
     void to_json(json& j, BufferType type) {
         switch (type) {
@@ -154,20 +125,82 @@ namespace ShaderLib {
         else throw std::runtime_error("Unknown BufferType: " + s);
     }
 
-    void to_json(json& j, LayoutStandard standard) {
-        switch (standard) {
-        case LayoutStandard::Std140: j = "Std140"; break;
-        case LayoutStandard::Std430: j = "Std430"; break;
-        default: j = "Unknown"; break;
+    // ============================================================================
+    // BUFFER VARIABLE SERIALIZATION
+    // ============================================================================
+
+    void to_json(json& j, const BufferVariable& var) {
+        j = json{
+            {"name", var.name},
+            {"baseType", var.baseType},
+            {"size", var.size},
+            {"offset", var.offset}
+        };
+
+        // Serialize composite structure if present
+        if (var.composite) {
+            j["composite"] = CompositeToJson(var.composite);
         }
     }
 
-    void from_json(const json& j, LayoutStandard& standard) {
-        std::string s = j.get<std::string>();
-        if (s == "Std140") standard = LayoutStandard::Std140;
-        else if (s == "Std430") standard = LayoutStandard::Std430;
-        else throw std::runtime_error("Unknown LayoutStandard: " + s);
+    void from_json(const json& j, BufferVariable& var) {
+        j.at("name").get_to(var.name);
+        j.at("baseType").get_to(var.baseType);
+        j.at("size").get_to(var.size);
+        j.at("offset").get_to(var.offset);
+
+        // Deserialize composite structure if present
+        if (j.contains("composite") && !j["composite"].is_null()) {
+            var.composite = CompositeFromJson(j["composite"]);
+        }
+        else {
+            var.composite = nullptr;
+        }
     }
+
+    // ============================================================================
+    // PUSH CONSTANT RANGE SERIALIZATION
+    // ============================================================================
+
+    void to_json(json& j, const PushConstantRange& range) {
+        j = json{
+            {"stages", range.stages},
+            {"offset", range.offset},
+            {"size", range.size}
+        };
+    }
+
+    void from_json(const json& j, PushConstantRange& range) {
+        j.at("stages").get_to(range.stages);
+        j.at("offset").get_to(range.offset);
+        j.at("size").get_to(range.size);
+    }
+
+    // ============================================================================
+    // DESCRIPTOR BINDING SERIALIZATION
+    // ============================================================================
+
+    void to_json(json& j, const DescriptorBinding& binding) {
+        j = json{
+            {"set", binding.set},
+            {"binding", binding.binding},
+            {"descriptorType", binding.descriptorType},
+            {"stages", binding.stages},
+            {"name", binding.name}
+        };
+    }
+
+    void from_json(const json& j, DescriptorBinding& binding) {
+        j.at("set").get_to(binding.set);
+        j.at("binding").get_to(binding.binding);
+        j.at("descriptorType").get_to(binding.descriptorType);
+        j.at("stages").get_to(binding.stages);
+        j.at("name").get_to(binding.name);
+    }
+
+    // ============================================================================
+    // BUFFER OBJECT SERIALIZATION
+    // ============================================================================
 
     void to_json(json& j, const BufferObject& buffer) {
         j = json{
@@ -191,6 +224,10 @@ namespace ShaderLib {
         j.at("variables").get_to(buffer.variables);
     }
 
+    // ============================================================================
+    // SHADER METADATA SERIALIZATION
+    // ============================================================================
+
     void to_json(json& j, const ShaderMetadata& metadata) {
         j = json{
             {"availableStages", metadata.availableStages},
@@ -198,8 +235,7 @@ namespace ShaderLib {
             {"usesObjectUBO", metadata.usesObjectUBO},
             {"pushConstants", metadata.pushConstants},
             {"descriptors", metadata.descriptors},
-            {"customUBOs", metadata.customUBOs},
-            {"customSSBOs", metadata.customSSBOs},
+            {"customBuffers", metadata.customBuffers},
             {"globalUBO", metadata.globalUBO},
             {"objectUBO", metadata.objectUBO}
         };
@@ -211,21 +247,18 @@ namespace ShaderLib {
         j.at("usesObjectUBO").get_to(metadata.usesObjectUBO);
         j.at("pushConstants").get_to(metadata.pushConstants);
         j.at("descriptors").get_to(metadata.descriptors);
-        j.at("customUBOs").get_to(metadata.customUBOs);
-
-        // Obsługa customSSBOs z kompatybilnością wsteczną
-        if (j.contains("customSSBOs")) {
-            j.at("customSSBOs").get_to(metadata.customSSBOs);
-        }
-
+        j.at("customBuffers").get_to(metadata.customBuffers);
         j.at("globalUBO").get_to(metadata.globalUBO);
         j.at("objectUBO").get_to(metadata.objectUBO);
     }
 
-    // Implementacje funkcji pomocniczych
+    // ============================================================================
+    // HIGH-LEVEL SERIALIZATION FUNCTIONS
+    // ============================================================================
+
     std::string SerializeMetadata(const ShaderMetadata& metadata) {
         json j = metadata;
-        return j.dump(4);
+        return j.dump(4); // Pretty print with 4-space indent
     }
 
     ShaderMetadata DeserializeMetadata(const std::string& jsonStr) {
@@ -234,11 +267,15 @@ namespace ShaderLib {
             return j.get<ShaderMetadata>();
         }
         catch (const std::exception& e) {
-            throw std::runtime_error("Deserialization error: " + std::string(e.what()));
+            throw std::runtime_error("Metadata deserialization error: " + std::string(e.what()));
         }
     }
 
-    namespace { // Pomocnicze funkcje wewnętrzne
+    // ============================================================================
+    // BINARY STAGE SERIALIZATION
+    // ============================================================================
+
+    namespace {
         template<typename T>
         void AppendBytes(std::vector<uint8_t>& vec, const T& value) {
             const uint8_t* bytes = reinterpret_cast<const uint8_t*>(&value);
@@ -248,7 +285,7 @@ namespace ShaderLib {
         template<typename T>
         T ReadBytes(const std::vector<uint8_t>& data, size_t& offset) {
             if (offset + sizeof(T) > data.size()) {
-                throw std::runtime_error("Deserialization error: unexpected end of data");
+                throw std::runtime_error("Stage deserialization error: unexpected end of data");
             }
             T value;
             std::memcpy(&value, data.data() + offset, sizeof(T));
@@ -260,21 +297,21 @@ namespace ShaderLib {
     std::vector<uint8_t> SerializeStages(const std::vector<CompiledStage>& stages) {
         std::vector<uint8_t> result;
 
-        // Zapis liczby etapów
+        // Write number of stages
         AppendBytes(result, static_cast<uint64_t>(stages.size()));
 
         for (const auto& stage : stages) {
-            // Zapis rozmiaru spirv
+            // Write stage type
+            AppendBytes(result, static_cast<uint32_t>(stage.stage));
+
+            // Write SPIR-V size
             const uint64_t spirvSize = stage.spirv.size();
             AppendBytes(result, spirvSize);
 
-            // Zapis danych spirv
+            // Write SPIR-V data
             const size_t spirvBytes = spirvSize * sizeof(uint32_t);
             const uint8_t* spirvData = reinterpret_cast<const uint8_t*>(stage.spirv.data());
             result.insert(result.end(), spirvData, spirvData + spirvBytes);
-
-            // Zapis typu etapu
-            AppendBytes(result, static_cast<uint32_t>(stage.stage));
         }
 
         return result;
@@ -284,31 +321,65 @@ namespace ShaderLib {
         std::vector<CompiledStage> stages;
         size_t offset = 0;
 
-        // Odczyt liczby etapów
+        // Read number of stages
         const uint64_t numStages = ReadBytes<uint64_t>(data, offset);
 
+        stages.reserve(numStages);
         for (uint64_t i = 0; i < numStages; ++i) {
-            // Odczyt rozmiaru spirv
+            // Read stage type
+            const auto stage = static_cast<Stage>(ReadBytes<uint32_t>(data, offset));
+
+            // Read SPIR-V size
             const uint64_t spirvSize = ReadBytes<uint64_t>(data, offset);
 
-            // Sprawdzenie dostępnych danych
+            // Validate available data
             const size_t spirvBytes = spirvSize * sizeof(uint32_t);
             if (offset + spirvBytes > data.size()) {
-                throw std::runtime_error("Deserialization error: corrupted spirv data");
+                throw std::runtime_error("Stage deserialization error: corrupted SPIR-V data");
             }
 
-            // Kopiowanie danych spirv
+            // Copy SPIR-V data
             std::vector<uint32_t> spirv(spirvSize);
             std::memcpy(spirv.data(), data.data() + offset, spirvBytes);
             offset += spirvBytes;
-
-            // Odczyt typu etapu
-            const auto stage = static_cast<Stage>(ReadBytes<uint32_t>(data, offset));
 
             stages.push_back({ std::move(spirv), stage });
         }
 
         return stages;
+    }
+
+    // ============================================================================
+    // COMPLETE SHADER DATA SERIALIZATION
+    // ============================================================================
+
+    SerializedShaderData SerializeShaderData(const ShaderData& shaderData) {
+        SerializedShaderData result;
+
+        // Serialize metadata (assumes metadata is already JSON)
+        result.metadataJson = shaderData.metadata.dump(4);
+
+        // Serialize stages to binary
+        result.stagesBinary = SerializeStages(shaderData.stages);
+
+        return result;
+    }
+
+    ShaderData DeserializeShaderData(const SerializedShaderData& serialized) {
+        ShaderData result;
+
+        try {
+            // Deserialize metadata
+            result.metadata = nlohmann::json::parse(serialized.metadataJson);
+
+            // Deserialize stages
+            result.stages = DeserializeStages(serialized.stagesBinary);
+
+            return result;
+        }
+        catch (const std::exception& e) {
+            throw std::runtime_error("ShaderData deserialization error: " + std::string(e.what()));
+        }
     }
 
 } // namespace ShaderLib

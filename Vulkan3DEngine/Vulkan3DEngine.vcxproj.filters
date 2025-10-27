@@ -173,7 +173,7 @@
     <ClCompile Include="Src\MaterialManager.cpp">
       <Filter>Engine\AssetSystem\AssetManager\AssetHandlers\MaterialManager</Filter>
     </ClCompile>
-    <ClCompile Include="Src\UniformBufferManager.cpp">
+    <ClCompile Include="Src\BufferManager.cpp">
       <Filter>Engine\EngineCore\UniformBufferManager</Filter>
     </ClCompile>
     <ClCompile Include="Src\PipelineConfig.cpp">
@@ -557,7 +557,7 @@
     <ClInclude Include="Src\MaterialManager.h">
       <Filter>Engine\AssetSystem\AssetManager\AssetHandlers\MaterialManager</Filter>
     </ClInclude>
-    <ClInclude Include="Src\UniformBufferManager.h">
+    <ClInclude Include="Src\BufferManager.h">
       <Filter>Engine\EngineCore\UniformBufferManager</Filter>
     </ClInclude>
     <ClInclude Include="Src\PipelineConfig.h">
@@ -809,6 +809,15 @@
     </ClInclude>
     <ClInclude Include="Src\DearImGuiProvider.h">
       <Filter>Engine\EngineCore\RenderGraphSystem\RenderGraphExecutor\IImGuiProvider\DearImGuiProvider</Filter>
+    </ClInclude>
+    <ClInclude Include="Src\MappedBufferAccessor.h">
+      <Filter>Engine\EngineCore\UniformBufferManager</Filter>
+    </ClInclude>
+    <ClInclude Include="Src\MappedBufferWriter.h">
+      <Filter>Engine\EngineCore\UniformBufferManager</Filter>
+    </ClInclude>
+    <ClInclude Include="Src\MappedBufferReader.h">
+      <Filter>Engine\EngineCore\UniformBufferManager</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

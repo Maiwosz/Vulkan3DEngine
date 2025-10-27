@@ -3,16 +3,16 @@
 
 DescriptorWriter::DescriptorWriter(const LogicalDevice& device,
     ImageSamplerManager& samplerManager,
-    UniformBufferManager& uniformBufferManager,
+    BufferManager& uniformBufferManager,
     DescriptorAllocator& descriptorAllocator)
     : m_device(device)
     , m_samplerManager(samplerManager)
-    , m_uniformBufferManager(uniformBufferManager)
+    , m_bufferManager(uniformBufferManager)
     , m_descriptorAllocator(descriptorAllocator)
 {
 }
 
-void DescriptorWriter::writeUniformBuffer(int binding, SmartHandle<UniformBufferHandle, Buffer> uniformBuffer)
+void DescriptorWriter::writeUniformBuffer(int binding, SmartHandle<BufferHandle, Buffer> uniformBuffer)
 {
     m_uniformBufferBindings.push_back({
         .binding = binding,

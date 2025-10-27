@@ -31,7 +31,7 @@ AssetSystem::AssetSystem(EngineCore& renderer)
         m_renderer.vulkanContext().logical(),
         *m_shaderManager,
         m_renderer.imageSamplerManager(),
-        m_renderer.uniformBufferManager(),
+        m_renderer.bufferManager(),
         m_renderer.descriptorAllocator(),
         m_renderer.descriptorLayoutManager(),
         *m_textureManager

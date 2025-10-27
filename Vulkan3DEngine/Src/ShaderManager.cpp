@@ -337,7 +337,7 @@ std::unordered_map<uint32_t, DescriptorLayoutHandle> ShaderManager::createDescri
             // Add bindings to builder
             for (const auto& descriptor : descriptors) {
                 VkDescriptorType vulkanDescriptorType =
-                    static_cast<VkDescriptorType>(ShaderLib::GetVulkanDescriptorType(descriptor.type));
+                    static_cast<VkDescriptorType>(ShaderLib::GetVulkanDescriptorType(descriptor.descriptorType));
 
                 // Convert the stage flags for this descriptor
                 VkShaderStageFlags stageFlags = ShaderLib::GetVulkanShaderStageFlags(descriptor.stages);

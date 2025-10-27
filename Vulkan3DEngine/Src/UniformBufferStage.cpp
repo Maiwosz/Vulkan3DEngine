@@ -3,13 +3,13 @@
 #include <spdlog/spdlog.h>
 #include <spdlog/fmt/ostr.h>
 #include <glm/gtc/matrix_transform.hpp>
-#include "StandardBufferDefinitions.h"
+#include <BuiltInBuffers.h>
 
 UniformBufferStage::UniformBufferStage(ProcessingContext& context, Registry& registry, EngineCore& renderer, AssetSystem& assetSystem)
     : ProcessingStage(context)
     , m_registry(registry)
     , m_shaderManager(assetSystem.shaderManager())
-    , m_uniformBufferManager(renderer.uniformBufferManager())
+    , m_bufferManager(renderer.bufferManager())
     , m_materialManager(assetSystem.materialManager())
 {
     SPDLOG_INFO("Initializing UniformBufferStage");
@@ -63,27 +63,46 @@ ProcessingResult UniformBufferStage::processMeshOrder(std::shared_ptr<MeshRender
         return ProcessingResult::Failure;
     }
 
-    // Create and update object UBO using SmartHandle
-    auto smartObjectUbo = m_uniformBufferManager.acquireSmartBuffer(ShaderLib::OBJECT_UBO);
-    if (smartObjectUbo.isValid()) {
-        ShaderLib::ObjectUBOData objectUboData;
-
-        auto& transformComponent = m_registry.components().getComponent<TransformComponent>(order->entity);
-
-        // Fill object UBO data
-        objectUboData.model = transformComponent.getWorldMatrix();
-
-        // Update buffer with data
-        m_uniformBufferManager.updateBuffer(smartObjectUbo.handle(), &objectUboData, sizeof(objectUboData));
-
-        // Store the SmartHandle in the order - automatic cleanup when order is destroyed
-        order->objectUBOHandle = smartObjectUbo;
-
-        SPDLOG_DEBUG("Created and updated object UBO for entity");
-        return ProcessingResult::Success;
-    }
-    else {
-        SPDLOG_WARN("Failed to create object uniform buffer");
+    // Create object UBO using SmartHandle
+    auto smartObjectUbo = m_bufferManager.acquireSmartBuffer(ShaderLib::CreateObjectUBO());
+    if (!smartObjectUbo.isValid()) {
+        SPDLOG_ERROR("Failed to acquire object uniform buffer");
         return ProcessingResult::Failure;
     }
+
+    // Get transform component
+    if (!m_registry.components().hasComponent<TransformComponent>(order->entity)) {
+        SPDLOG_ERROR("Entity {} missing TransformComponent", order->entity.id);
+        return ProcessingResult::Failure;
+    }
+
+    auto& transformComponent = m_registry.components().getComponent<TransformComponent>(order->entity);
+
+    // Create RAII-wrapped writer - automatically unmaps on destruction
+    {
+        auto writer = m_bufferManager.createMappedWriter(smartObjectUbo.handle());
+        if (!writer.isValid()) {
+            SPDLOG_ERROR("Failed to create mapped writer for object UBO");
+            return ProcessingResult::Failure;
+        }
+
+        // Write data using BufferWriter
+        if (!writer->write("model", transformComponent.getWorldMatrix())) {
+            SPDLOG_ERROR("Failed to write model matrix to object UBO");
+            return ProcessingResult::Failure;
+        }
+
+        if (!writer->write("color", glm::vec4(1.0f))) {
+            SPDLOG_ERROR("Failed to write color to object UBO");
+            return ProcessingResult::Failure;
+        }
+
+        SPDLOG_DEBUG("Successfully wrote data to object UBO for entity {}", order->entity.id);
+    } // writer goes out of scope - buffer is automatically unmapped
+
+    // Store the SmartHandle in the order - automatic cleanup when order is destroyed
+    order->objectUBOHandle = smartObjectUbo;
+
+    SPDLOG_DEBUG("Created and updated object UBO for entity {}", order->entity.id);
+    return ProcessingResult::Success;
 }

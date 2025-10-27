@@ -27,12 +27,34 @@ bool Material::setParameter(const std::string& name, const ParamValue& value) {
         return false;  // Parameter not found
     }
 
-    // Check if the variant types match
-    if (value.index() != m_parameters[it->second].value.index()) {
-        return false;  // Type mismatch
+    Parameter& param = m_parameters[it->second];
+
+    // Type checking based on parameter type
+    if (param.isBufferParameter()) {
+        // For buffer parameters, value must be BufferValue
+        const auto* newBufferVal = std::get_if<ShaderLib::BufferValue>(&value);
+        const auto* oldBufferVal = std::get_if<ShaderLib::BufferValue>(&param.value);
+
+        if (!newBufferVal || !oldBufferVal) {
+            return false;  // Type mismatch
+        }
+
+        // Check if BufferValue variant types match
+        if (newBufferVal->index() != oldBufferVal->index()) {
+            return false;  // Type mismatch
+        }
+    }
+    else if (param.isTextureParameter()) {
+        // For texture parameters, value must be TextureParam
+        if (!std::holds_alternative<TextureParam>(value)) {
+            return false;  // Type mismatch
+        }
+    }
+    else {
+        return false;  // Unknown parameter type
     }
 
-    m_parameters[it->second].value = value;
+    param.value = value;
     return true;
 }
 

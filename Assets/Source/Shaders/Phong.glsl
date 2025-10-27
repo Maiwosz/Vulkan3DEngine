@@ -8,7 +8,7 @@ InputData {
     float ka;
     float kd;
     float ks;
-	sampler albedo;
+	sampler2D albedo;
 };
 
 #stage vertex

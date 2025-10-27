@@ -26,7 +26,7 @@ public:
     // Window access
     HierarchyWindow& hierarchyWindow() { return *m_hierarchyWindow; }
     ComponentInspectorWindow& componentInspectorWindow() { return *m_componentInspectorWindow; }
-    MaterialCreatorUI& materialCreatorWindow() { return *m_materialCreatorWindow; }
+    //MaterialCreatorUI& materialCreatorWindow() { return *m_materialCreatorWindow; }
 
 private:
     Engine& m_engine;

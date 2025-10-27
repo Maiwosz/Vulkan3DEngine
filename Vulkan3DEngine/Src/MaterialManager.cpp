@@ -9,7 +9,7 @@ MaterialManager::MaterialManager(
     const LogicalDevice& device,
     ShaderManager& shaderManager,
     ImageSamplerManager& samplerManager,
-    UniformBufferManager& uniformBufferManager,
+    BufferManager& uniformBufferManager,
     DescriptorAllocator& descriptorAllocator,
     DescriptorLayoutManager& descriptorLayoutManager,
     TextureManager& textureManager
@@ -160,7 +160,8 @@ std::vector<AssetDependency> MaterialManager::getDependencies(const AssetHandle&
 
         // Add texture dependencies
         for (const auto& param : parameters) {
-            if (param.descriptorType == ShaderLib::DescriptorType::CombinedImageSampler) {
+            // Check if this is a texture descriptor type
+            if (ShaderLib::IsTexture(param.descriptorType)) {
                 // Extract texture path from parameter data
                 if (param.dataSize > 0 && param.dataOffset < parameterData.size()) {
                     const char* texturePath = reinterpret_cast<const char*>(parameterData.data() + param.dataOffset);
@@ -393,7 +394,6 @@ Material::Parameter MaterialManager::createMaterialParameter(
     Material::Parameter param;
     param.name = assetParam.name.data();
     param.descriptorType = assetParam.descriptorType;
-    param.uniformType = assetParam.uniformType;
 
     // Find the appropriate binding for this parameter based on shader metadata
     param.binding = findBindingForParameter(
@@ -402,6 +402,7 @@ Material::Parameter MaterialManager::createMaterialParameter(
         assetParam.descriptorType
     );
 
+    param.set = ShaderLib::CUSTOM_DESCRIPTOR_SET;
     param.arrayIndex = assetParam.arraySize > 0 ? 0 : 0;  // Default to first element for arrays
 
     // Convert the parameter data
@@ -423,7 +424,7 @@ Material::ParamValue MaterialManager::convertParameter(
     const void* data = parameterData.data() + dataOffset;
 
     // For texture parameters
-    if (assetParam.descriptorType == ShaderLib::DescriptorType::CombinedImageSampler) {
+    if (ShaderLib::IsTexture(assetParam.descriptorType)) {
         // Extract the texture path from parameter data
         if (assetParam.dataSize > 0 && assetParam.dataOffset < parameterData.size()) {
             const char* texturePath = reinterpret_cast<const char*>(parameterData.data() + assetParam.dataOffset);
@@ -448,60 +449,62 @@ Material::ParamValue MaterialManager::convertParameter(
         }
     }
 
-    // For uniform buffer parameters
+    // For uniform buffer parameters - use baseType from AssetLib::MaterialParameter
     if (assetParam.descriptorType == ShaderLib::DescriptorType::UniformBuffer) {
-        // Use the uniform type to determine which variant to use
-        switch (assetParam.uniformType) {
-        case ShaderLib::UniformType::Bool:
-            return *reinterpret_cast<const uint32_t*>(data) != 0;
+        // Convert AssetLib::BaseType to ShaderLib::BaseType and create BufferValue
+        ShaderLib::BaseType shaderBaseType = assetParam.baseType;
 
-        case ShaderLib::UniformType::Float:
-            return *reinterpret_cast<const float*>(data);
+        switch (shaderBaseType) {
+        case ShaderLib::BaseType::Bool:
+            return ShaderLib::BufferValue(*reinterpret_cast<const bool*>(data));
 
-        case ShaderLib::UniformType::Vec2:
-            return *reinterpret_cast<const glm::vec2*>(data);
+        case ShaderLib::BaseType::Float:
+            return ShaderLib::BufferValue(*reinterpret_cast<const float*>(data));
 
-        case ShaderLib::UniformType::Vec3:
-            return *reinterpret_cast<const glm::vec3*>(data);
+        case ShaderLib::BaseType::Vec2:
+            return ShaderLib::BufferValue(*reinterpret_cast<const glm::vec2*>(data));
 
-        case ShaderLib::UniformType::Vec4:
-            return *reinterpret_cast<const glm::vec4*>(data);
+        case ShaderLib::BaseType::Vec3:
+            return ShaderLib::BufferValue(*reinterpret_cast<const glm::vec3*>(data));
 
-        case ShaderLib::UniformType::Int:
-            return *reinterpret_cast<const int32_t*>(data);
+        case ShaderLib::BaseType::Vec4:
+            return ShaderLib::BufferValue(*reinterpret_cast<const glm::vec4*>(data));
 
-        case ShaderLib::UniformType::IVec2:
-            return *reinterpret_cast<const glm::ivec2*>(data);
+        case ShaderLib::BaseType::Int:
+            return ShaderLib::BufferValue(*reinterpret_cast<const int32_t*>(data));
 
-        case ShaderLib::UniformType::IVec3:
-            return *reinterpret_cast<const glm::ivec3*>(data);
+        case ShaderLib::BaseType::IVec2:
+            return ShaderLib::BufferValue(*reinterpret_cast<const glm::ivec2*>(data));
 
-        case ShaderLib::UniformType::IVec4:
-            return *reinterpret_cast<const glm::ivec4*>(data);
+        case ShaderLib::BaseType::IVec3:
+            return ShaderLib::BufferValue(*reinterpret_cast<const glm::ivec3*>(data));
 
-        case ShaderLib::UniformType::UInt:
-            return *reinterpret_cast<const uint32_t*>(data);
+        case ShaderLib::BaseType::IVec4:
+            return ShaderLib::BufferValue(*reinterpret_cast<const glm::ivec4*>(data));
 
-        case ShaderLib::UniformType::UVec2:
-            return *reinterpret_cast<const glm::uvec2*>(data);
+        case ShaderLib::BaseType::UInt:
+            return ShaderLib::BufferValue(*reinterpret_cast<const uint32_t*>(data));
 
-        case ShaderLib::UniformType::UVec3:
-            return *reinterpret_cast<const glm::uvec3*>(data);
+        case ShaderLib::BaseType::UVec2:
+            return ShaderLib::BufferValue(*reinterpret_cast<const glm::uvec2*>(data));
 
-        case ShaderLib::UniformType::UVec4:
-            return *reinterpret_cast<const glm::uvec4*>(data);
+        case ShaderLib::BaseType::UVec3:
+            return ShaderLib::BufferValue(*reinterpret_cast<const glm::uvec3*>(data));
 
-        case ShaderLib::UniformType::Mat2:
-            return *reinterpret_cast<const glm::mat2*>(data);
+        case ShaderLib::BaseType::UVec4:
+            return ShaderLib::BufferValue(*reinterpret_cast<const glm::uvec4*>(data));
 
-        case ShaderLib::UniformType::Mat3:
-            return *reinterpret_cast<const glm::mat3*>(data);
+        case ShaderLib::BaseType::Mat2:
+            return ShaderLib::BufferValue(*reinterpret_cast<const glm::mat2*>(data));
 
-        case ShaderLib::UniformType::Mat4:
-            return *reinterpret_cast<const glm::mat4*>(data);
+        case ShaderLib::BaseType::Mat3:
+            return ShaderLib::BufferValue(*reinterpret_cast<const glm::mat3*>(data));
+
+        case ShaderLib::BaseType::Mat4:
+            return ShaderLib::BufferValue(*reinterpret_cast<const glm::mat4*>(data));
 
         default:
-            throw std::runtime_error("Unsupported uniform type");
+            throw std::runtime_error("Unsupported base type");
         }
     }
 
@@ -554,7 +557,6 @@ void MaterialManager::collectSamplerHandles(MaterialHandle materialHandle) {
     }
 }
 
-
 uint32_t MaterialManager::findBindingForParameter(
     ShaderHandle shaderHandle,
     const std::string& paramName,
@@ -563,20 +565,28 @@ uint32_t MaterialManager::findBindingForParameter(
     // Get shader metadata from shader module manager
     const auto& metadata = m_shaderManager.getShaderMetadata(shaderHandle);
 
-    // For UniformBuffer, we know our buffer will use InputData as name
+    // For UniformBuffer, search through custom buffers to find which one contains this variable
     if (descriptorType == ShaderLib::DescriptorType::UniformBuffer) {
-        // Look for custom UBO with name "InputData"
-        for (const auto& ubo : metadata.customUBOs) {
-            if (ubo.name == "InputData") {
-                return ubo.binding;
+        for (const auto& buffer : metadata.customBuffers) {
+            if (buffer.set != ShaderLib::CUSTOM_DESCRIPTOR_SET || !buffer.IsUniformBuffer()) {
+                continue;
+            }
+
+            // Check if this buffer contains the variable we're looking for
+            for (const auto& variable : buffer.variables) {
+                if (variable.name == paramName) {
+                    return buffer.binding;
+                }
             }
         }
     }
 
     // For textures, search for matching descriptor name
-    if (descriptorType == ShaderLib::DescriptorType::CombinedImageSampler) {
+    if (ShaderLib::IsTexture(descriptorType)) {
         for (const auto& descriptor : metadata.descriptors) {
-            if (descriptor.type == descriptorType && descriptor.name == paramName) {
+            if (descriptor.set == ShaderLib::CUSTOM_DESCRIPTOR_SET &&
+                descriptor.descriptorType == descriptorType &&
+                descriptor.name == paramName) {
                 return descriptor.binding;
             }
         }

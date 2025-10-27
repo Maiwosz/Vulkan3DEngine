@@ -280,7 +280,7 @@
     <ClCompile Include="Src\SynchronizationResourceManager.cpp" />
     <ClCompile Include="Src\StagingBufferManager.cpp" />
     <ClCompile Include="Src\Inits.cpp" />
-    <ClCompile Include="Src\UniformBufferManager.cpp" />
+    <ClCompile Include="Src\BufferManager.cpp" />
     <ClCompile Include="Src\UniformBufferStage.cpp" />
     <ClCompile Include="Src\TransferManager.cpp" />
     <ClCompile Include="Src\SynchronizationStages.cpp" />
@@ -294,6 +294,9 @@
     <ClInclude Include="..\Libs\imgui\imstb_rectpack.h" />
     <ClInclude Include="..\Libs\imgui\imstb_textedit.h" />
     <ClInclude Include="..\Libs\imgui\imstb_truetype.h" />
+    <ClInclude Include="Src\MappedBufferAccessor.h" />
+    <ClInclude Include="Src\MappedBufferReader.h" />
+    <ClInclude Include="Src\MappedBufferWriter.h" />
     <ClInclude Include="Src\DearImGuiProvider.h" />
     <ClInclude Include="Src\IImGuiProvider.h" />
     <ClInclude Include="Src\RenderGraphTemplateManager.h" />
@@ -433,7 +436,7 @@
     <ClInclude Include="Src\AllocatedResource.h" />
     <ClInclude Include="Src\SynchronizationResourceManager.h" />
     <ClInclude Include="Src\StagingBufferManager.h" />
-    <ClInclude Include="Src\UniformBufferManager.h" />
+    <ClInclude Include="Src\BufferManager.h" />
     <ClInclude Include="Src\UniformBufferStage.h" />
     <ClInclude Include="Src\TransferManager.h" />
     <ClInclude Include="Src\SystemsRegistry.h" />

@@ -15,7 +15,7 @@ public:
     RenderOrderType getType() const override { return RenderOrderType::Camera; }
 
     // Camera-specific global uniform buffer and descriptor set
-    SmartHandle<UniformBufferHandle, Buffer> globalUBOHandle;
+    SmartHandle<BufferHandle, Buffer> globalUBOHandle;
     SmartHandle<DescriptorSetHandle, VkDescriptorSet> globalDescriptorSetHandle;
 
     // Render graph assignment

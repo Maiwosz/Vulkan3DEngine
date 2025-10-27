@@ -1,9 +1,12 @@
 #include "pch.h"
 #include "TypeConversions.h"
-#include "Serialization.h"
 
 namespace ShaderLib {
     namespace TypeConversion {
+
+        // ============================================================================
+        // STAGE CONVERSIONS
+        // ============================================================================
 
         Stage StringToStage(const std::string& str) {
             static const std::unordered_map<std::string, Stage> mapping{
@@ -27,6 +30,8 @@ namespace ShaderLib {
             case Stage::Fragment: return "fragment";
             case Stage::Compute: return "compute";
             case Stage::Geometry: return "geometry";
+            case Stage::TessellationControl: return "tess_control";
+            case Stage::TessellationEvaluation: return "tess_eval";
             default: return "unknown";
             }
         }
@@ -43,236 +48,193 @@ namespace ShaderLib {
             }
         }
 
-        DescriptorType SpirvTypeToDescriptorType(const spirv_cross::Compiler& compiler, const spirv_cross::SPIRType& type) {
+        // ============================================================================
+        // SPIR-V TYPE CONVERSIONS
+        // ============================================================================
+
+        DescriptorType SpirvTypeToDescriptorType(
+            const spirv_cross::Compiler& compiler,
+            const spirv_cross::SPIRType& type
+        ) {
             using namespace spv;
+
             switch (compiler.get_storage_class(type.self)) {
             case StorageClassUniform:
                 if (type.basetype == spirv_cross::SPIRType::Struct)
                     return DescriptorType::UniformBuffer;
                 break;
+
             case StorageClassStorageBuffer:
                 return DescriptorType::StorageBuffer;
+
             case StorageClassUniformConstant:
-                return DescriptorType::CombinedImageSampler;
+                // Distinguish between different sampler/image types
+                if (type.basetype == spirv_cross::SPIRType::Image) {
+                    const auto& image = type.image;
+
+                    // Check if it's a storage image
+                    if (image.sampled == 2) {
+                        if (image.arrayed)
+                            return DescriptorType::Image2DArray;
+                        return DescriptorType::Image2D;
+                    }
+
+                    // Check for shadow samplers
+                    if (image.depth) {
+                        return DescriptorType::Sampler2DShadow;
+                    }
+
+                    // Regular samplers
+                    if (image.dim == spv::DimCube) {
+                        return image.arrayed
+                            ? DescriptorType::SamplerCubeArray
+                            : DescriptorType::SamplerCube;
+                    }
+
+                    if (image.dim == spv::Dim2D) {
+                        return image.arrayed
+                            ? DescriptorType::Sampler2DArray
+                            : DescriptorType::Sampler2D;
+                    }
+                }
+
+                // Check for separate sampler
+                if (type.basetype == spirv_cross::SPIRType::Sampler)
+                    return DescriptorType::Sampler;
+
+                break;
+
+            case StorageClassInput:
+                // Check for input attachments (subpass inputs)
+                if (type.basetype == spirv_cross::SPIRType::Image &&
+                    type.image.dim == spv::DimSubpassData)
+                    return DescriptorType::InputAttachment;
+                break;
             }
-            return DescriptorType::UniformBuffer;
+
+            return DescriptorType::Unknown;
         }
 
-        UniformType SPIRTypeToUniformType(const spirv_cross::SPIRType& type) {
-            using BaseType = spirv_cross::SPIRType::BaseType;
+        BaseType SPIRTypeToBaseType(const spirv_cross::SPIRType& type) {
+            using SPIRBaseType = spirv_cross::SPIRType::BaseType;
 
-            // Check for arrays first
+            // Check for arrays
             if (type.array.size() > 0) {
-                return UniformType::Array;
+                return BaseType::Array;
             }
 
+            // Check for structs
+            if (type.basetype == SPIRBaseType::Struct) {
+                return BaseType::Struct;
+            }
+
+            // Handle scalar and vector types
             switch (type.basetype) {
-            case BaseType::Boolean:
-                if (type.columns == 1 && type.vecsize == 1) {
-                    return UniformType::Bool;
-                }
+            case SPIRBaseType::Boolean:
+                if (type.columns == 1 && type.vecsize == 1)
+                    return BaseType::Bool;
                 break;
-            case BaseType::Float:
+
+            case SPIRBaseType::Float:
                 if (type.columns == 1) {
                     switch (type.vecsize) {
-                    case 1: return UniformType::Float;
-                    case 2: return UniformType::Vec2;
-                    case 3: return UniformType::Vec3;
-                    case 4: return UniformType::Vec4;
+                    case 1: return BaseType::Float;
+                    case 2: return BaseType::Vec2;
+                    case 3: return BaseType::Vec3;
+                    case 4: return BaseType::Vec4;
                     }
                 }
                 else if (type.vecsize == type.columns) {
+                    // Square matrices
                     switch (type.columns) {
-                    case 2: return UniformType::Mat2;
-                    case 3: return UniformType::Mat3;
-                    case 4: return UniformType::Mat4;
+                    case 2: return BaseType::Mat2;
+                    case 3: return BaseType::Mat3;
+                    case 4: return BaseType::Mat4;
                     }
                 }
                 break;
-            case BaseType::Int:
+
+            case SPIRBaseType::Int:
                 if (type.columns == 1) {
                     switch (type.vecsize) {
-                    case 1: return UniformType::Int;
-                    case 2: return UniformType::IVec2;
-                    case 3: return UniformType::IVec3;
-                    case 4: return UniformType::IVec4;
+                    case 1: return BaseType::Int;
+                    case 2: return BaseType::IVec2;
+                    case 3: return BaseType::IVec3;
+                    case 4: return BaseType::IVec4;
                     }
                 }
                 break;
-            case BaseType::UInt:
+
+            case SPIRBaseType::UInt:
                 if (type.columns == 1) {
                     switch (type.vecsize) {
-                    case 1: return UniformType::UInt;
-                    case 2: return UniformType::UVec2;
-                    case 3: return UniformType::UVec3;
-                    case 4: return UniformType::UVec4;
+                    case 1: return BaseType::UInt;
+                    case 2: return BaseType::UVec2;
+                    case 3: return BaseType::UVec3;
+                    case 4: return BaseType::UVec4;
                     }
                 }
                 break;
-            case BaseType::Double:
+
+            case SPIRBaseType::Double:
                 if (type.columns == 1) {
                     switch (type.vecsize) {
-                    case 1: return UniformType::Double;
-                    case 2: return UniformType::DVec2;
-                    case 3: return UniformType::DVec3;
-                    case 4: return UniformType::DVec4;
+                    case 1: return BaseType::Double;
+                    case 2: return BaseType::DVec2;
+                    case 3: return BaseType::DVec3;
+                    case 4: return BaseType::DVec4;
                     }
                 }
                 break;
-            case BaseType::Struct:
-                return UniformType::Struct;
+
+            case SPIRBaseType::AtomicCounter:
+                return BaseType::AtomicUInt;
+
             default:
                 break;
             }
-            return UniformType::Unknown;
+
+            return BaseType::Unknown;
         }
 
-        // Helper to compute size of array types
-        uint32_t ComputeArraySize(const spirv_cross::SPIRType& type, const spirv_cross::Compiler& compiler) {
-            if (type.array.empty()) return 0;
+        // ============================================================================
+        // ARRAY SIZE COMPUTATION
+        // ============================================================================
 
-            uint32_t elementSize = 0;
+        uint32_t ComputeArraySize(
+            const spirv_cross::SPIRType& type,
+            const spirv_cross::Compiler& compiler,
+            LayoutStandard standard
+        ) {
+            if (type.array.empty())
+                return 0;
+
+            uint32_t arrayCount = type.array[0];
+
             if (type.basetype == spirv_cross::SPIRType::Struct) {
-                // Dla struktur używamy rozmiaru z uwzględnieniem paddingu
-                elementSize = compiler.get_declared_struct_size(type);
+                // For structs, use the declared struct size with proper alignment
+                uint32_t structSize = compiler.get_declared_struct_size(type);
+                uint32_t baseAlignment = structSize; // Conservative estimate
+                uint32_t alignment = GetArrayElementAlignment(baseAlignment, standard);
+                uint32_t alignedSize = AlignTo(structSize, alignment);
+                return alignedSize * arrayCount;
             }
             else {
-                // Pobieramy informacje o typie
-                UniformType uniformType = SPIRTypeToUniformType(type);
-                TypeInfo info = GetTypeInfo(uniformType);
-
-                // Obliczamy wyrównany rozmiar elementu (uwzględniający padding)
-                elementSize = info.size;
-                uint32_t alignment = info.alignment;
-
-                // Wyrównaj do wielokrotności alignmentu (std140)
-                if (elementSize % alignment != 0) {
-                    elementSize += alignment - (elementSize % alignment);
+                // For base types, use the type system
+                BaseType baseType = SPIRTypeToBaseType(type);
+                if (baseType != BaseType::Unknown && baseType != BaseType::Array) {
+                    return CalculateArraySize(baseType, arrayCount, standard);
                 }
-            }
 
-            // Mnożymy przez rozmiar tablicy (uwaga: SPIR-V może mieć tablice wielowymiarowe)
-            return elementSize * type.array[0];
-        }
-
-        TypeInfo GetTypeInfo(UniformType type) {
-            switch (type) {
-            case UniformType::Bool:
-                return { sizeof(bool), 4 };
-            case UniformType::Float:
-                return { sizeof(float), 4 };
-            case UniformType::Vec2:
-                return { sizeof(glm::vec2), 8 };
-            case UniformType::Vec3:
-                return { sizeof(glm::vec3), 16 }; // std140 alignment
-            case UniformType::Vec4:
-                return { sizeof(glm::vec4), 16 };
-            case UniformType::Mat2:
-                return { sizeof(glm::mat2), 8 };
-            case UniformType::Mat3:
-                return { sizeof(glm::mat3), 16 };
-            case UniformType::Mat4:
-                return { sizeof(glm::mat4), 16 };
-            case UniformType::Int:
-                return { sizeof(int), 4 };
-            case UniformType::IVec2:
-                return { sizeof(glm::ivec2), 8 };
-            case UniformType::IVec3:
-                return { sizeof(glm::ivec3), 16 }; // std140 alignment
-            case UniformType::IVec4:
-                return { sizeof(glm::ivec4), 16 };
-            case UniformType::UInt:
-                return { sizeof(unsigned int), 4 };
-            case UniformType::UVec2:
-                return { sizeof(glm::uvec2), 8 };
-            case UniformType::UVec3:
-                return { sizeof(glm::uvec3), 16 }; // std140 alignment
-            case UniformType::UVec4:
-                return { sizeof(glm::uvec4), 16 };
-            case UniformType::Double:
-                return { sizeof(double), 8 };
-            case UniformType::DVec2:
-                return { sizeof(glm::dvec2), 16 };
-            case UniformType::DVec3:
-                return { sizeof(glm::dvec3), 32 };
-            case UniformType::DVec4:
-                return { sizeof(glm::dvec4), 32 };
-            default:
-                return { 0, 0 };
+                // Fallback for unknown types
+                uint32_t elementSize = compiler.get_declared_struct_size(type);
+                return elementSize * arrayCount;
             }
         }
 
-        // Get type information for std430 layout (used in storage buffers)
-        TypeInfo GetTypeInfoStd430(UniformType type) {
-            switch (type) {
-            case UniformType::Vec3:
-                return { sizeof(glm::vec3), 4 }; // std430: vec3 alignment is 4
-            case UniformType::IVec3:
-                return { sizeof(glm::ivec3), 4 };
-            case UniformType::UVec3:
-                return { sizeof(glm::uvec3), 4 };
-            default:
-                return GetTypeInfo(type); // Other types are the same
-            }
-        }
-
-        std::string UniformTypeToString(UniformType type) {
-            switch (type) {
-            case UniformType::Bool: return "bool";
-            case UniformType::Float: return "float";
-            case UniformType::Vec2: return "vec2";
-            case UniformType::Vec3: return "vec3";
-            case UniformType::Vec4: return "vec4";
-            case UniformType::Mat2: return "mat2";
-            case UniformType::Mat3: return "mat3";
-            case UniformType::Mat4: return "mat4";
-            case UniformType::Int: return "int";
-            case UniformType::IVec2: return "ivec2";
-            case UniformType::IVec3: return "ivec3";
-            case UniformType::IVec4: return "ivec4";
-            case UniformType::UInt: return "uint";
-            case UniformType::UVec2: return "uvec2";
-            case UniformType::UVec3: return "uvec3";
-            case UniformType::UVec4: return "uvec4";
-            case UniformType::Double: return "double";
-            case UniformType::DVec2: return "dvec2";
-            case UniformType::DVec3: return "dvec3";
-            case UniformType::DVec4: return "dvec4";
-            case UniformType::Struct: return "struct";
-            case UniformType::Array: return "array";
-            default: return "unknown";
-            }
-        }
-
-        UniformType StringToUniformType(const std::string& typeName) {
-            static const std::unordered_map<std::string, UniformType> mapping{
-                {"bool", UniformType::Bool},
-                {"float", UniformType::Float},
-                {"vec2", UniformType::Vec2},
-                {"vec3", UniformType::Vec3},
-                {"vec4", UniformType::Vec4},
-                {"mat2", UniformType::Mat2},
-                {"mat3", UniformType::Mat3},
-                {"mat4", UniformType::Mat4},
-                {"int", UniformType::Int},
-                {"ivec2", UniformType::IVec2},
-                {"ivec3", UniformType::IVec3},
-                {"ivec4", UniformType::IVec4},
-                {"uint", UniformType::UInt},
-                {"uvec2", UniformType::UVec2},
-                {"uvec3", UniformType::UVec3},
-                {"uvec4", UniformType::UVec4},
-                {"double", UniformType::Double},
-                {"dvec2", UniformType::DVec2},
-                {"dvec3", UniformType::DVec3},
-                {"dvec4", UniformType::DVec4}
-            };
-
-            auto it = mapping.find(typeName);
-            if (it != mapping.end())
-                return it->second;
-            return UniformType::Unknown;
-        }
+        // ============================================================================
+        // STORAGE CLASS CONVERSIONS
+        // ============================================================================
 
         DescriptorType StorageClassToDescriptorType(spv::StorageClass storageClass) {
             switch (storageClass) {
@@ -281,10 +243,11 @@ namespace ShaderLib {
             case spv::StorageClassStorageBuffer:
                 return DescriptorType::StorageBuffer;
             case spv::StorageClassUniformConstant:
-                return DescriptorType::CombinedImageSampler; // Could be image/sampler
+                return DescriptorType::Sampler2D; // Default, needs context
             default:
-                return DescriptorType::UniformBuffer;
+                return DescriptorType::Unknown;
             }
         }
-    }
-}
+
+    } // namespace TypeConversion
+} // namespace ShaderLib

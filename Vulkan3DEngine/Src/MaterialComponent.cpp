@@ -167,80 +167,114 @@ void MaterialComponent::renderMaterialParametersUI() {
                 bool changed = false;
                 ImGui::PushItemWidth(200.0f);
 
-                if (std::holds_alternative<bool>(paramValue)) {
-                    bool val = std::get<bool>(paramValue);
-                    if (ImGui::Checkbox("##value", &val)) {
-                        paramValue = val;
-                        changed = true;
+                // Check if this is a buffer parameter
+                if (auto* bufferVal = std::get_if<ShaderLib::BufferValue>(&paramValue)) {
+                    // Now check the actual type inside BufferValue
+                    if (auto* val = std::get_if<bool>(bufferVal)) {
+                        bool temp = *val;
+                        if (ImGui::Checkbox("##value", &temp)) {
+                            *bufferVal = temp;
+                            changed = true;
+                        }
+                    }
+                    else if (auto* val = std::get_if<float>(bufferVal)) {
+                        float temp = *val;
+                        if (ImGui::DragFloat("##value", &temp, 0.01f)) {
+                            *bufferVal = temp;
+                            changed = true;
+                        }
+                    }
+                    else if (auto* val = std::get_if<glm::vec2>(bufferVal)) {
+                        glm::vec2 temp = *val;
+                        if (ImGui::DragFloat2("##value", &temp.x, 0.01f)) {
+                            *bufferVal = temp;
+                            changed = true;
+                        }
+                    }
+                    else if (auto* val = std::get_if<glm::vec3>(bufferVal)) {
+                        glm::vec3 temp = *val;
+                        if (ImGui::DragFloat3("##value", &temp.x, 0.01f)) {
+                            *bufferVal = temp;
+                            changed = true;
+                        }
+                    }
+                    else if (auto* val = std::get_if<glm::vec4>(bufferVal)) {
+                        glm::vec4 temp = *val;
+                        if (ImGui::DragFloat4("##value", &temp.x, 0.01f)) {
+                            *bufferVal = temp;
+                            changed = true;
+                        }
+                    }
+                    else if (auto* val = std::get_if<int32_t>(bufferVal)) {
+                        int32_t temp = *val;
+                        if (ImGui::DragInt("##value", &temp)) {
+                            *bufferVal = temp;
+                            changed = true;
+                        }
+                    }
+                    else if (auto* val = std::get_if<glm::ivec2>(bufferVal)) {
+                        glm::ivec2 temp = *val;
+                        if (ImGui::DragInt2("##value", &temp.x)) {
+                            *bufferVal = temp;
+                            changed = true;
+                        }
+                    }
+                    else if (auto* val = std::get_if<glm::ivec3>(bufferVal)) {
+                        glm::ivec3 temp = *val;
+                        if (ImGui::DragInt3("##value", &temp.x)) {
+                            *bufferVal = temp;
+                            changed = true;
+                        }
+                    }
+                    else if (auto* val = std::get_if<glm::ivec4>(bufferVal)) {
+                        glm::ivec4 temp = *val;
+                        if (ImGui::DragInt4("##value", &temp.x)) {
+                            *bufferVal = temp;
+                            changed = true;
+                        }
+                    }
+                    else if (auto* val = std::get_if<uint32_t>(bufferVal)) {
+                        int temp = static_cast<int>(*val);
+                        if (ImGui::DragInt("##value", &temp, 1.0f, 0)) {
+                            *bufferVal = static_cast<uint32_t>(std::max(0, temp));
+                            changed = true;
+                        }
+                    }
+                    else if (auto* val = std::get_if<glm::uvec2>(bufferVal)) {
+                        int temp[2] = { static_cast<int>(val->x), static_cast<int>(val->y) };
+                        if (ImGui::DragInt2("##value", temp, 1.0f, 0)) {
+                            *bufferVal = glm::uvec2(std::max(0, temp[0]), std::max(0, temp[1]));
+                            changed = true;
+                        }
+                    }
+                    else if (auto* val = std::get_if<glm::uvec3>(bufferVal)) {
+                        int temp[3] = { static_cast<int>(val->x), static_cast<int>(val->y), static_cast<int>(val->z) };
+                        if (ImGui::DragInt3("##value", temp, 1.0f, 0)) {
+                            *bufferVal = glm::uvec3(std::max(0, temp[0]), std::max(0, temp[1]), std::max(0, temp[2]));
+                            changed = true;
+                        }
+                    }
+                    else if (auto* val = std::get_if<glm::uvec4>(bufferVal)) {
+                        int temp[4] = { static_cast<int>(val->x), static_cast<int>(val->y), static_cast<int>(val->z), static_cast<int>(val->w) };
+                        if (ImGui::DragInt4("##value", temp, 1.0f, 0)) {
+                            *bufferVal = glm::uvec4(std::max(0, temp[0]), std::max(0, temp[1]), std::max(0, temp[2]), std::max(0, temp[3]));
+                            changed = true;
+                        }
+                    }
+                    else if (auto* val = std::get_if<double>(bufferVal)) {
+                        float temp = static_cast<float>(*val);
+                        if (ImGui::DragFloat("##value", &temp, 0.01f)) {
+                            *bufferVal = static_cast<double>(temp);
+                            changed = true;
+                        }
+                    }
+                    else {
+                        ImGui::TextDisabled("Unsupported buffer type");
                     }
                 }
-                else if (std::holds_alternative<float>(paramValue)) {
-                    float val = std::get<float>(paramValue);
-                    if (ImGui::DragFloat("##value", &val, 0.01f)) {
-                        paramValue = val;
-                        changed = true;
-                    }
-                }
-                else if (std::holds_alternative<glm::vec2>(paramValue)) {
-                    glm::vec2 val = std::get<glm::vec2>(paramValue);
-                    if (ImGui::DragFloat2("##value", &val.x, 0.01f)) {
-                        paramValue = val;
-                        changed = true;
-                    }
-                }
-                else if (std::holds_alternative<glm::vec3>(paramValue)) {
-                    glm::vec3 val = std::get<glm::vec3>(paramValue);
-                    if (ImGui::DragFloat3("##value", &val.x, 0.01f)) {
-                        paramValue = val;
-                        changed = true;
-                    }
-                }
-                else if (std::holds_alternative<glm::vec4>(paramValue)) {
-                    glm::vec4 val = std::get<glm::vec4>(paramValue);
-                    if (ImGui::DragFloat4("##value", &val.x, 0.01f)) {
-                        paramValue = val;
-                        changed = true;
-                    }
-                }
-                else if (std::holds_alternative<int32_t>(paramValue)) {
-                    int32_t val = std::get<int32_t>(paramValue);
-                    if (ImGui::DragInt("##value", &val)) {
-                        paramValue = val;
-                        changed = true;
-                    }
-                }
-                else if (std::holds_alternative<glm::ivec2>(paramValue)) {
-                    glm::ivec2 val = std::get<glm::ivec2>(paramValue);
-                    if (ImGui::DragInt2("##value", &val.x)) {
-                        paramValue = val;
-                        changed = true;
-                    }
-                }
-                else if (std::holds_alternative<glm::ivec3>(paramValue)) {
-                    glm::ivec3 val = std::get<glm::ivec3>(paramValue);
-                    if (ImGui::DragInt3("##value", &val.x)) {
-                        paramValue = val;
-                        changed = true;
-                    }
-                }
-                else if (std::holds_alternative<glm::ivec4>(paramValue)) {
-                    glm::ivec4 val = std::get<glm::ivec4>(paramValue);
-                    if (ImGui::DragInt4("##value", &val.x)) {
-                        paramValue = val;
-                        changed = true;
-                    }
-                }
-                else if (std::holds_alternative<uint32_t>(paramValue)) {
-                    int val = static_cast<int>(std::get<uint32_t>(paramValue));
-                    if (ImGui::DragInt("##value", &val, 1.0f, 0)) {
-                        paramValue = static_cast<uint32_t>(std::max(0, val));
-                        changed = true;
-                    }
-                }
-                else if (std::holds_alternative<Material::TextureParam>(paramValue)) {
-                    const auto& texParam = std::get<Material::TextureParam>(paramValue);
-                    if (!texParam.handle.filename.empty()) {
-                        ImGui::Text("Texture: %s", texParam.handle.filename.c_str());
+                else if (auto* texParam = std::get_if<Material::TextureParam>(&paramValue)) {
+                    if (!texParam->handle.filename.empty()) {
+                        ImGui::Text("Texture: %s", texParam->handle.filename.c_str());
                     }
                     else {
                         ImGui::TextDisabled("No texture");

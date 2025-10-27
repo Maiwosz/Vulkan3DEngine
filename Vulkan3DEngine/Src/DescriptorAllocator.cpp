@@ -100,7 +100,7 @@ VkDescriptorSet DescriptorAllocator::getDescriptorSet(DescriptorSetHandle handle
 }
 
 // Resource management methods
-void DescriptorAllocator::bindUniformBuffer(DescriptorSetHandle handle, SmartHandle<UniformBufferHandle, Buffer> buffer) {
+void DescriptorAllocator::bindUniformBuffer(DescriptorSetHandle handle, SmartHandle<BufferHandle, Buffer> buffer) {
     if (!handle.isValid() || handle.id > m_descriptorSets.size()) return;
 
     auto& entry = m_descriptorSets[handle.id - 1];

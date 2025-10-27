@@ -2,27 +2,27 @@
   "shader": "Phong",
   "parameters": {
     "shininess": {
-      "descriptorType": "UniformBuffer",
-      "uniformType": "Float",
+      "descriptorType": "uniform",
+      "baseType": "float",
       "data": 1.0
     },
     "ka": {
-      "descriptorType": "UniformBuffer",
-      "uniformType": "Float",
+      "descriptorType": "uniform",
+      "baseType": "float",
       "data": 0.005
     },
     "kd": {
-      "descriptorType": "UniformBuffer",
-      "uniformType": "Float",
+      "descriptorType": "uniform",
+      "baseType": "float",
       "data": 0.8
     },
     "ks": {
-      "descriptorType": "UniformBuffer",
-      "uniformType": "Float",
+      "descriptorType": "uniform",
+      "baseType": "float",
       "data": 0.2
     },
     "albedo": {
-      "descriptorType": "CombinedImageSampler",
+      "descriptorType": "sampler2D",
       "path": "grey_cartago_02_diff_2k",
 	  "colorSpace": "SRGB",
       "sampler": {

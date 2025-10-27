@@ -145,19 +145,19 @@ namespace AssetLib {
 
     // Parameter for material (corresponds to CustomDescriptorSet bindings in shader)
     struct MaterialParameter {
-        std::array<char, 32> name;       // Name of the parameter
-        ShaderLib::DescriptorType descriptorType;   // Type of descriptor (UniformBuffer, CombinedImageSampler, etc.)
-        ShaderLib::UniformType uniformType;         // For UBO variables - the uniform type
-        uint32_t arraySize;              // Size if it's an array, 0 otherwise
-        SamplerDescription samplerDesc;  // Sampler settings for textures
-        uint32_t dataOffset;             // Offset into the parameter data
-        uint32_t dataSize;               // Size of this parameter's data
+        std::array<char, 32> name;              // Name of the parameter
+        ShaderLib::DescriptorType descriptorType; // Type of descriptor (from ShaderLib)
+        ShaderLib::BaseType baseType;           // For buffer variables - the base type
+        uint32_t arraySize;                     // Size if it's an array, 0 otherwise
+        SamplerDescription samplerDesc;         // Sampler settings for textures
+        uint32_t dataOffset;                    // Offset into the parameter data
+        uint32_t dataSize;                      // Size of this parameter's data
     };
 
     struct MaterialInfo {
-        std::array<char, 32> shaderName; // Name of the shader asset this material uses
-        uint32_t parameterCount;         // Number of parameters
-        uint32_t dataSize;               // Total size of parameter data
+        std::array<char, 32> shaderName;        // Name of the shader asset this material uses
+        uint32_t parameterCount;                // Number of parameters
+        uint32_t dataSize;                      // Total size of parameter data
         // Following this structure:
         // MaterialParameter[parameterCount]
         // uint8_t[dataSize] (parameter data)
@@ -235,12 +235,15 @@ namespace AssetLib {
 
     std::tuple<MaterialInfo, std::vector<MaterialParameter>, std::vector<uint8_t>> ReadMaterial(const AssetData& asset);
 
-    // Helper functions to convert between ShaderLib and AssetLib types
-    SamplerDescription::Filter ConvertSamplerFilter(const std::string& filter);
-    SamplerDescription::AddressMode ConvertAddressMode(const std::string& mode);
-    ShaderLib::DescriptorType ConvertDescriptorType(const std::string& type);
-    ShaderLib::UniformType ConvertUniformType(const std::string& type);
-    ColorSpace ConvertColorSpace(const std::string& colorSpace);
+    // Helper functions to convert string representations to enum values
+    SamplerDescription::Filter StringToSamplerFilter(const std::string& filter);
+    SamplerDescription::AddressMode StringToAddressMode(const std::string& mode);
+    ColorSpace StringToColorSpace(const std::string& colorSpace);
+
+    // Reverse conversions for serialization
+    std::string SamplerFilterToString(SamplerDescription::Filter filter);
+    std::string AddressModeToString(SamplerDescription::AddressMode mode);
+    std::string ColorSpaceToString(ColorSpace colorSpace);
 
     // =============================================
     // Funkcje dla shaderów

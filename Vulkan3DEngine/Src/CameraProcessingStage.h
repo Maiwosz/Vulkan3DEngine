@@ -3,7 +3,7 @@
 #include "CameraRenderOrder.h"
 #include "LightRenderOrder.h"
 #include "Registry.h"
-#include "UniformBufferManager.h"
+#include "BufferManager.h"
 #include "Handle.h"
 #include "ISmartHandleManager.h"
 #include <memory>
@@ -28,7 +28,7 @@ private:
     ProcessingResult processCameraOrder(std::shared_ptr<CameraRenderOrder> cameraOrder);
 
     // Create global uniform buffer for this camera with light data
-    SmartHandle<UniformBufferHandle, Buffer> createGlobalUniformBuffer(
+    SmartHandle<BufferHandle, Buffer> createGlobalUniformBuffer(
         std::shared_ptr<CameraRenderOrder> cameraOrder,
         const std::vector<std::shared_ptr<LightRenderOrder>>& lights);
 
@@ -38,5 +38,5 @@ private:
         const std::vector<std::shared_ptr<LightRenderOrder>>& allLights);
 
     Registry& m_registry;
-    UniformBufferManager& m_uniformBufferManager;
+    BufferManager& m_bufferManager;
 };

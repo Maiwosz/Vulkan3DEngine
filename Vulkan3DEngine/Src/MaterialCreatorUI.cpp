@@ -118,7 +118,14 @@ void MaterialCreatorUI::renderParameterEditor(MaterialCreator::ParameterDefiniti
     if (param.descriptorType == ShaderLib::DescriptorType::UniformBuffer) {
         ImGui::Text("Type: Uniform");
 
-        // Show current value based on type
+        // Must be BufferValue
+        if (!std::holds_alternative<ShaderLib::BufferValue>(param.defaultValue)) {
+            ImGui::TextColored(ImVec4(1.0f, 0.0f, 0.0f, 1.0f), "Invalid parameter type");
+            return;
+        }
+
+        auto& bufVal = std::get<ShaderLib::BufferValue>(param.defaultValue);
+
         std::visit([&](auto& value) {
             using T = std::decay_t<decltype(value)>;
 
@@ -146,9 +153,16 @@ void MaterialCreatorUI::renderParameterEditor(MaterialCreator::ParameterDefiniti
                     value = glm::mat4(1.0f);
                 }
             }
-            }, param.defaultValue);
+            else if constexpr (std::is_same_v<T, std::shared_ptr<ShaderLib::ShaderStruct>> ||
+                std::is_same_v<T, std::shared_ptr<ShaderLib::ShaderArray>>) {
+                ImGui::Text("Composite type (not editable in UI)");
+            }
+            else {
+                ImGui::Text("Unsupported type");
+            }
+            }, bufVal);
     }
-    else if (param.descriptorType == ShaderLib::DescriptorType::CombinedImageSampler) {
+    else if (param.descriptorType == ShaderLib::DescriptorType::Sampler2D) {
         ImGui::Text("Type: Texture");
 
         if (std::holds_alternative<Material::TextureParam>(param.defaultValue)) {
@@ -343,56 +357,101 @@ void MaterialCreatorUI::generateParametersFromShader(const ShaderLib::ShaderMeta
     // Clear existing parameters
     m_currentDefinition.parameters.clear();
 
-    // Process ObjectUBO variables (set 1, but we want custom descriptor set 2)
-    // Look for descriptors in CUSTOM_DESCRIPTOR_SET (set 2)
-    for (const auto& descriptor : metadata.descriptors) {
-        if (descriptor.set == ShaderLib::CUSTOM_DESCRIPTOR_SET) {
-            if (descriptor.type == ShaderLib::DescriptorType::UniformBuffer) {
-                // Find corresponding UBO
-                for (const auto& ubo : metadata.customUBOs) {
-                    if (ubo.set == descriptor.set && ubo.binding == descriptor.binding) {
-                        // Add parameters for each variable in the UBO
-                        for (const auto& variable : ubo.variables) {
-                            MaterialCreator::ParameterDefinition param;
-                            param.name = variable.name;
-                            param.descriptorType = ShaderLib::DescriptorType::UniformBuffer;
-                            param.uniformType = variable.type;
-                            param.arraySize = variable.arraySize;
-
-                            // Set default values based on type
-                            switch (variable.type) {
-                            case ShaderLib::UniformType::Float:
-                                param.defaultValue = 0.0f;
-                                break;
-                            case ShaderLib::UniformType::Vec2:
-                                param.defaultValue = glm::vec2(0.0f);
-                                break;
-                            case ShaderLib::UniformType::Vec3:
-                                param.defaultValue = glm::vec3(0.0f);
-                                break;
-                            case ShaderLib::UniformType::Vec4:
-                                param.defaultValue = glm::vec4(0.0f);
-                                break;
-                            case ShaderLib::UniformType::Int:
-                                param.defaultValue = int32_t(0);
-                                break;
-                            case ShaderLib::UniformType::Bool:
-                                param.defaultValue = false;
-                                break;
-                            case ShaderLib::UniformType::Mat4:
-                                param.defaultValue = glm::mat4(1.0f);
-                                break;
-                            default:
-                                continue; // Skip unsupported types
-                            }
-
-                            m_currentDefinition.parameters.push_back(param);
-                        }
-                        break;
+    // Process custom buffers (set 2 - CUSTOM_DESCRIPTOR_SET)
+    for (const auto& buffer : metadata.customBuffers) {
+        if (buffer.set == ShaderLib::CUSTOM_DESCRIPTOR_SET) {
+            if (buffer.IsUniformBuffer()) {
+                // Add parameters for each variable in the buffer
+                for (const auto& variable : buffer.variables) {
+                    // Only handle base types, skip composite types
+                    if (!variable.IsBase()) {
+                        continue;
                     }
+
+                    MaterialCreator::ParameterDefinition param;
+                    param.name = variable.name;
+                    param.descriptorType = ShaderLib::DescriptorType::UniformBuffer;
+                    param.baseType = variable.baseType;
+                    param.arraySize = 0;
+
+                    // Set default values based on type
+                    ShaderLib::BufferValue bufVal;
+                    switch (variable.baseType) {
+                    case ShaderLib::BaseType::Float:
+                        bufVal = 0.0f;
+                        break;
+                    case ShaderLib::BaseType::Vec2:
+                        bufVal = glm::vec2(0.0f);
+                        break;
+                    case ShaderLib::BaseType::Vec3:
+                        bufVal = glm::vec3(0.0f);
+                        break;
+                    case ShaderLib::BaseType::Vec4:
+                        bufVal = glm::vec4(0.0f);
+                        break;
+                    case ShaderLib::BaseType::Int:
+                        bufVal = int32_t(0);
+                        break;
+                    case ShaderLib::BaseType::Bool:
+                        bufVal = false;
+                        break;
+                    case ShaderLib::BaseType::Mat4:
+                        bufVal = glm::mat4(1.0f);
+                        break;
+                    case ShaderLib::BaseType::Mat3:
+                        bufVal = glm::mat3(1.0f);
+                        break;
+                    case ShaderLib::BaseType::Mat2:
+                        bufVal = glm::mat2(1.0f);
+                        break;
+                    case ShaderLib::BaseType::UInt:
+                        bufVal = uint32_t(0);
+                        break;
+                    case ShaderLib::BaseType::IVec2:
+                        bufVal = glm::ivec2(0);
+                        break;
+                    case ShaderLib::BaseType::IVec3:
+                        bufVal = glm::ivec3(0);
+                        break;
+                    case ShaderLib::BaseType::IVec4:
+                        bufVal = glm::ivec4(0);
+                        break;
+                    case ShaderLib::BaseType::UVec2:
+                        bufVal = glm::uvec2(0u);
+                        break;
+                    case ShaderLib::BaseType::UVec3:
+                        bufVal = glm::uvec3(0u);
+                        break;
+                    case ShaderLib::BaseType::UVec4:
+                        bufVal = glm::uvec4(0u);
+                        break;
+                    case ShaderLib::BaseType::Double:
+                        bufVal = 0.0;
+                        break;
+                    case ShaderLib::BaseType::DVec2:
+                        bufVal = glm::dvec2(0.0);
+                        break;
+                    case ShaderLib::BaseType::DVec3:
+                        bufVal = glm::dvec3(0.0);
+                        break;
+                    case ShaderLib::BaseType::DVec4:
+                        bufVal = glm::dvec4(0.0);
+                        break;
+                    default:
+                        continue; // Skip unsupported types
+                    }
+
+                    param.defaultValue = Material::ParamValue{ bufVal };
+                    m_currentDefinition.parameters.push_back(param);
                 }
             }
-            else if (descriptor.type == ShaderLib::DescriptorType::CombinedImageSampler) {
+        }
+    }
+
+    // Process texture descriptors
+    for (const auto& descriptor : metadata.descriptors) {
+        if (descriptor.set == ShaderLib::CUSTOM_DESCRIPTOR_SET) {
+            if (descriptor.descriptorType == ShaderLib::DescriptorType::Sampler2D) {
                 // Add texture parameter
                 MaterialCreator::ParameterDefinition param = MaterialCreator::createTextureParam(
                     descriptor.name, "", AssetLib::ColorSpace::SRGB);

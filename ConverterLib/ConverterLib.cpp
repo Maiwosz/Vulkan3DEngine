@@ -34,9 +34,10 @@
 #include <spirv_cross/spirv_cross.hpp>
 #include "Shader.h"
 #include <iostream>
+#include <BufferIO.h>
 
 
-using json = nlohmann::json;
+
 
 #pragma pack(push, 1)
 struct Vertex {
@@ -546,7 +547,7 @@ AssetData Converter::ProcessMaterial(const std::string& inputPath, const Setting
 
     // Wczytaj nazwę shadera - ensure proper null termination
     const std::string shaderName = materialJson["shader"].get<std::string>();
-    std::fill(matInfo.shaderName.begin(), matInfo.shaderName.end(), '\0'); // Zero the entire array first
+    std::fill(matInfo.shaderName.begin(), matInfo.shaderName.end(), '\0');
     std::copy_n(shaderName.c_str(), std::min(shaderName.size(), matInfo.shaderName.size() - 1), matInfo.shaderName.data());
 
     // Przetwarzaj parametry
@@ -554,7 +555,7 @@ AssetData Converter::ProcessMaterial(const std::string& inputPath, const Setting
         AssetLib::MaterialParameter param{};  // Zero-initialize
 
         // Properly handle parameter name
-        std::fill(param.name.begin(), param.name.end(), '\0'); // Zero the array first
+        std::fill(param.name.begin(), param.name.end(), '\0');
         std::copy_n(key.c_str(), std::min(key.size(), param.name.size() - 1), param.name.data());
 
         param.arraySize = value.value("arraySize", 1);
@@ -566,215 +567,58 @@ AssetData Converter::ProcessMaterial(const std::string& inputPath, const Setting
         }
 
         const std::string descriptorTypeStr = value["descriptorType"].get<std::string>();
-        param.descriptorType = AssetLib::ConvertDescriptorType(descriptorTypeStr);
+        param.descriptorType = ShaderLib::StringToDescriptorType(descriptorTypeStr);
 
-        // Pobierz uniformType jeśli istnieje
-        if (value.contains("uniformType")) {
-            const std::string uniformTypeStr = value["uniformType"].get<std::string>();
-            param.uniformType = AssetLib::ConvertUniformType(uniformTypeStr);
+        // Pobierz baseType jeśli istnieje (dla bufferów)
+        if (value.contains("baseType")) {
+            const std::string baseTypeStr = value["baseType"].get<std::string>();
+            param.baseType = ShaderLib::StringToBaseType(baseTypeStr);
         }
         else {
-            param.uniformType = ShaderLib::UniformType::Unknown;
+            param.baseType = ShaderLib::BaseType::Unknown;
         }
 
-        // Obsługa ImageSampler
-        if (param.descriptorType == ShaderLib::DescriptorType::CombinedImageSampler ||
-            param.descriptorType == ShaderLib::DescriptorType::SeparateImage) {
-            // Parsuj ścieżkę tekstury
+        // Obsługa tekstur (sampler2D, sampler3D, itp.)
+        const auto& descriptorInfo = ShaderLib::GetDescriptorTypeInfo(param.descriptorType);
+        // Tekstury/Images
+        if (descriptorInfo.IsTexture() || descriptorInfo.IsImage()) {
             if (!value.contains("path")) {
                 throw std::runtime_error("Texture parameter missing path: " + key);
             }
 
             const std::string texPath = value["path"].get<std::string>();
             paramData.insert(paramData.end(), texPath.begin(), texPath.end());
-            paramData.push_back('\0');  // Null-terminated string
+            paramData.push_back('\0');
             param.dataSize = static_cast<uint32_t>(texPath.length() + 1);
 
-            // Parsuj sampler
-            if (value.contains("sampler")) {
-                auto& s = value["sampler"];
-                param.samplerDesc.magFilter = AssetLib::ConvertSamplerFilter(s.value("magFilter", "Linear"));
-                param.samplerDesc.minFilter = AssetLib::ConvertSamplerFilter(s.value("minFilter", "Linear"));
-                param.samplerDesc.addressModeU = AssetLib::ConvertAddressMode(s.value("addressModeU", "Repeat"));
-                param.samplerDesc.addressModeV = AssetLib::ConvertAddressMode(s.value("addressModeV", "Repeat"));
-                param.samplerDesc.addressModeW = AssetLib::ConvertAddressMode(s.value("addressModeW", "Repeat"));
-                param.samplerDesc.anisotropy = s.value("anisotropy", 1.0f);
-                param.samplerDesc.minLod = s.value("minLod", 0.0f);
-                param.samplerDesc.maxLod = s.value("maxLod", 16.0f);
-            }
-            else {
-                // Domyślny sampler jeśli nie podano
-                param.samplerDesc = {
-                    AssetLib::SamplerDescription::Filter::Linear,
-                    AssetLib::SamplerDescription::Filter::Linear,
-                    AssetLib::SamplerDescription::AddressMode::Repeat,
-                    AssetLib::SamplerDescription::AddressMode::Repeat,
-                    AssetLib::SamplerDescription::AddressMode::Repeat,
-                    1.0f,
-                    0.0f,
-                    16.0f
-                };
-            }
-
-            if (value.contains("colorSpace")) {
-                param.samplerDesc.colorSpace = AssetLib::ConvertColorSpace(value["colorSpace"].get<std::string>());
+            // Parsowanie samplera (jeśli tekstura)
+            if (descriptorInfo.IsTexture()) {
+                param.samplerDesc = ParseSamplerDescription(value);
             }
         }
-        // UniformBuffer parameters
-        else if (param.descriptorType == ShaderLib::DescriptorType::UniformBuffer) {
+        // Bufory - UPROSZCZONE!
+        else if (descriptorInfo.IsBuffer()) {
             if (!value.contains("data")) {
-                throw std::runtime_error("UniformBuffer parameter missing data: " + key);
+                throw std::runtime_error("Buffer parameter missing data: " + key);
             }
 
-            const auto& data = value["data"];
+            size_t sizeBefore = paramData.size();
 
-            // Handle different uniform types
-            switch (param.uniformType) {
-            case ShaderLib::UniformType::Float: {
-                float val = data.get<float>();
-                const uint8_t* bytes = reinterpret_cast<const uint8_t*>(&val);
-                paramData.insert(paramData.end(), bytes, bytes + sizeof(float));
-                param.dataSize = sizeof(float);
-                break;
+            // Użyj ujednoliconej funkcji z BufferIO
+            if (!ShaderLib::WriteBaseTypeFromJson(param.baseType, paramData, value["data"])) {
+                throw std::runtime_error("Failed to serialize buffer parameter: " + key);
             }
-            case ShaderLib::UniformType::Vec2: {
-                std::vector<float> vec = data.get<std::vector<float>>();
-                if (vec.size() != 2) throw std::runtime_error("Vec2 requires 2 values for: " + key);
-                const uint8_t* bytes = reinterpret_cast<const uint8_t*>(vec.data());
-                paramData.insert(paramData.end(), bytes, bytes + 2 * sizeof(float));
-                param.dataSize = 2 * sizeof(float);
-                break;
-            }
-            case ShaderLib::UniformType::Vec3: {
-                std::vector<float> vec = data.get<std::vector<float>>();
-                if (vec.size() != 3) throw std::runtime_error("Vec3 requires 3 values for: " + key);
-                const uint8_t* bytes = reinterpret_cast<const uint8_t*>(vec.data());
-                paramData.insert(paramData.end(), bytes, bytes + 3 * sizeof(float));
-                param.dataSize = 3 * sizeof(float);
-                break;
-            }
-            case ShaderLib::UniformType::Vec4: {
-                std::vector<float> vec = data.get<std::vector<float>>();
-                if (vec.size() != 4) throw std::runtime_error("Vec4 requires 4 values for: " + key);
-                const uint8_t* bytes = reinterpret_cast<const uint8_t*>(vec.data());
-                paramData.insert(paramData.end(), bytes, bytes + 4 * sizeof(float));
-                param.dataSize = 4 * sizeof(float);
-                break;
-            }
-            case ShaderLib::UniformType::Mat3: {
-                std::vector<float> mat = data.get<std::vector<float>>();
-                if (mat.size() != 9) throw std::runtime_error("Mat3 requires 9 values for: " + key);
-                const uint8_t* bytes = reinterpret_cast<const uint8_t*>(mat.data());
-                paramData.insert(paramData.end(), bytes, bytes + 9 * sizeof(float));
-                param.dataSize = 9 * sizeof(float);
-                break;
-            }
-            case ShaderLib::UniformType::Mat4: {
-                std::vector<float> mat = data.get<std::vector<float>>();
-                if (mat.size() != 16) throw std::runtime_error("Mat4 requires 16 values for: " + key);
-                const uint8_t* bytes = reinterpret_cast<const uint8_t*>(mat.data());
-                paramData.insert(paramData.end(), bytes, bytes + 16 * sizeof(float));
-                param.dataSize = 16 * sizeof(float);
-                break;
-            }
-            case ShaderLib::UniformType::Int:
-            case ShaderLib::UniformType::UInt: {
-                int val = data.get<int>();
-                const uint8_t* bytes = reinterpret_cast<const uint8_t*>(&val);
-                paramData.insert(paramData.end(), bytes, bytes + sizeof(int));
-                param.dataSize = sizeof(int);
-                break;
-            }
-            case ShaderLib::UniformType::IVec2:
-            case ShaderLib::UniformType::UVec2: {
-                std::vector<int> vec = data.get<std::vector<int>>();
-                if (vec.size() != 2) throw std::runtime_error("IVec2/UVec2 requires 2 values for: " + key);
-                const uint8_t* bytes = reinterpret_cast<const uint8_t*>(vec.data());
-                paramData.insert(paramData.end(), bytes, bytes + 2 * sizeof(int));
-                param.dataSize = 2 * sizeof(int);
-                break;
-            }
-            case ShaderLib::UniformType::IVec3:
-            case ShaderLib::UniformType::UVec3: {
-                std::vector<int> vec = data.get<std::vector<int>>();
-                if (vec.size() != 3) throw std::runtime_error("IVec3/UVec3 requires 3 values for: " + key);
-                const uint8_t* bytes = reinterpret_cast<const uint8_t*>(vec.data());
-                paramData.insert(paramData.end(), bytes, bytes + 3 * sizeof(int));
-                param.dataSize = 3 * sizeof(int);
-                break;
-            }
-            case ShaderLib::UniformType::IVec4:
-            case ShaderLib::UniformType::UVec4: {
-                std::vector<int> vec = data.get<std::vector<int>>();
-                if (vec.size() != 4) throw std::runtime_error("IVec4/UVec4 requires 4 values for: " + key);
-                const uint8_t* bytes = reinterpret_cast<const uint8_t*>(vec.data());
-                paramData.insert(paramData.end(), bytes, bytes + 4 * sizeof(int));
-                param.dataSize = 4 * sizeof(int);
-                break;
-            }
-            case ShaderLib::UniformType::Double: {
-                double val = data.get<double>();
-                const uint8_t* bytes = reinterpret_cast<const uint8_t*>(&val);
-                paramData.insert(paramData.end(), bytes, bytes + sizeof(double));
-                param.dataSize = sizeof(double);
-                break;
-            }
-            case ShaderLib::UniformType::DVec2: {
-                std::vector<double> vec = data.get<std::vector<double>>();
-                if (vec.size() != 2) throw std::runtime_error("DVec2 requires 2 values for: " + key);
-                const uint8_t* bytes = reinterpret_cast<const uint8_t*>(vec.data());
-                paramData.insert(paramData.end(), bytes, bytes + 2 * sizeof(double));
-                param.dataSize = 2 * sizeof(double);
-                break;
-            }
-            case ShaderLib::UniformType::DVec3: {
-                std::vector<double> vec = data.get<std::vector<double>>();
-                if (vec.size() != 3) throw std::runtime_error("DVec3 requires 3 values for: " + key);
-                const uint8_t* bytes = reinterpret_cast<const uint8_t*>(vec.data());
-                paramData.insert(paramData.end(), bytes, bytes + 3 * sizeof(double));
-                param.dataSize = 3 * sizeof(double);
-                break;
-            }
-            case ShaderLib::UniformType::DVec4: {
-                std::vector<double> vec = data.get<std::vector<double>>();
-                if (vec.size() != 4) throw std::runtime_error("DVec4 requires 4 values for: " + key);
-                const uint8_t* bytes = reinterpret_cast<const uint8_t*>(vec.data());
-                paramData.insert(paramData.end(), bytes, bytes + 4 * sizeof(double));
-                param.dataSize = 4 * sizeof(double);
-                break;
-            }
-            case ShaderLib::UniformType::Struct:
-            case ShaderLib::UniformType::Array:
-                // Te typy mogą wymagać dodatkowej obsługi
-                throw std::runtime_error("Complex type not yet supported for parameter: " + key);
-            default:
-                throw std::runtime_error("Unsupported uniform type for parameter: " + key);
-            }
+
+            param.dataSize = static_cast<uint32_t>(paramData.size() - sizeBefore);
         }
-        else if (param.descriptorType == ShaderLib::DescriptorType::StorageBuffer) {
-            // StorageBuffer może wymagać bardziej złożonej obsługi
-            throw std::runtime_error("StorageBuffer not yet supported for parameter: " + key);
+        // Sampler object
+        else if (param.descriptorType == ShaderLib::DescriptorType::Sampler) {
+            param.samplerDesc = ParseSamplerDescription(value);
+            param.dataSize = 0;
         }
-        else if (param.descriptorType == ShaderLib::DescriptorType::SeparateSampler) {
-            // Sampler bez obrazu
-            if (value.contains("sampler")) {
-                auto& s = value["sampler"];
-                param.samplerDesc.magFilter = AssetLib::ConvertSamplerFilter(s.value("magFilter", "Linear"));
-                param.samplerDesc.minFilter = AssetLib::ConvertSamplerFilter(s.value("minFilter", "Linear"));
-                param.samplerDesc.addressModeU = AssetLib::ConvertAddressMode(s.value("addressModeU", "Repeat"));
-                param.samplerDesc.addressModeV = AssetLib::ConvertAddressMode(s.value("addressModeV", "Repeat"));
-                param.samplerDesc.addressModeW = AssetLib::ConvertAddressMode(s.value("addressModeW", "Repeat"));
-                param.samplerDesc.anisotropy = s.value("anisotropy", 1.0f);
-                param.samplerDesc.minLod = s.value("minLod", 0.0f);
-                param.samplerDesc.maxLod = s.value("maxLod", 16.0f);
-            
-                std::string colorSpaceStr = s.value("colorSpace", "Linear");
-                param.samplerDesc.colorSpace = AssetLib::ConvertColorSpace(colorSpaceStr);
-            }
-            else {
-                throw std::runtime_error("SeparateSampler requires sampler settings for: " + key);
-            }
-            param.dataSize = 0; // Sampler nie ma osobnych danych
+        // Input attachment
+        else if (param.descriptorType == ShaderLib::DescriptorType::InputAttachment) {
+            param.dataSize = 0;
         }
         else {
             throw std::runtime_error("Unsupported descriptor type for: " + key);
@@ -800,6 +644,43 @@ AssetData Converter::ProcessMaterial(const std::string& inputPath, const Setting
 
     return assetData;
 }
+
+AssetLib::SamplerDescription Converter::ParseSamplerDescription(const json& value) {
+    if (!value.contains("sampler")) {
+        // Domyślny sampler
+        return {
+            AssetLib::SamplerDescription::Filter::Linear,
+            AssetLib::SamplerDescription::Filter::Linear,
+            AssetLib::SamplerDescription::AddressMode::Repeat,
+            AssetLib::SamplerDescription::AddressMode::Repeat,
+            AssetLib::SamplerDescription::AddressMode::Repeat,
+            1.0f, 0.0f, 16.0f,
+            AssetLib::ColorSpace::Linear
+        };
+    }
+
+    auto& s = value["sampler"];
+    AssetLib::SamplerDescription desc;
+    desc.magFilter = AssetLib::StringToSamplerFilter(s.value("magFilter", "Linear"));
+    desc.minFilter = AssetLib::StringToSamplerFilter(s.value("minFilter", "Linear"));
+    desc.addressModeU = AssetLib::StringToAddressMode(s.value("addressModeU", "Repeat"));
+    desc.addressModeV = AssetLib::StringToAddressMode(s.value("addressModeV", "Repeat"));
+    desc.addressModeW = AssetLib::StringToAddressMode(s.value("addressModeW", "Repeat"));
+    desc.anisotropy = s.value("anisotropy", 1.0f);
+    desc.minLod = s.value("minLod", 0.0f);
+    desc.maxLod = s.value("maxLod", 16.0f);
+
+    if (s.contains("colorSpace")) {
+        desc.colorSpace = AssetLib::StringToColorSpace(s["colorSpace"].get<std::string>());
+    }
+    else {
+        desc.colorSpace = AssetLib::ColorSpace::Linear;
+    }
+
+    return desc;
+}
+
+
 
 std::vector<uint8_t> Converter::CompressBC7(const uint8_t* rgba, uint32_t width, uint32_t height) {
     if (width % 4 != 0 || height % 4 != 0) {

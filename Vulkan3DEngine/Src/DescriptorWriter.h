@@ -3,7 +3,7 @@
 #include <vector>
 #include <vulkan/vulkan.h>
 #include "LogicalDevice.h"
-#include "UniformBufferManager.h"
+#include "BufferManager.h"
 #include "ImageSamplerManager.h"
 #include "DescriptorAllocator.h"
 #include "ISmartHandleManager.h"
@@ -13,11 +13,11 @@ class DescriptorWriter {
 public:
     DescriptorWriter(const LogicalDevice& device,
         ImageSamplerManager& samplerManager,
-        UniformBufferManager& uniformBufferManager,
+        BufferManager& uniformBufferManager,
         DescriptorAllocator& descriptorAllocator);
 
     // Write uniform buffer to binding
-    void writeUniformBuffer(int binding, SmartHandle<UniformBufferHandle, Buffer> uniformBuffer);
+    void writeUniformBuffer(int binding, SmartHandle<BufferHandle, Buffer> uniformBuffer);
 
     // Write combined image sampler to binding
     void writeCombinedImageSampler(int binding, VkImageView imageView, SamplerHandle sampler);
@@ -35,7 +35,7 @@ public:
 private:
     struct UniformBufferBinding {
         int binding;
-        SmartHandle<UniformBufferHandle, Buffer> uniformBuffer;
+        SmartHandle<BufferHandle, Buffer> uniformBuffer;
     };
 
     struct ImageBinding {
@@ -52,7 +52,7 @@ private:
 
     const LogicalDevice& m_device;
     ImageSamplerManager& m_samplerManager;
-    UniformBufferManager& m_uniformBufferManager;
+    BufferManager& m_bufferManager;
     DescriptorAllocator& m_descriptorAllocator;
 
     std::vector<UniformBufferBinding> m_uniformBufferBindings;

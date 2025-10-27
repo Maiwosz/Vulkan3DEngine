@@ -19,7 +19,7 @@ public:
     MaterialHandle materialHandle;
 
     // Uniform buffer stage - używamy SmartHandle dla automatycznego zarządzania
-    SmartHandle<UniformBufferHandle, Buffer> objectUBOHandle;
+    SmartHandle<BufferHandle, Buffer> objectUBOHandle;
 
     // DrawCall containing pipeline configuration and mesh data
     std::unique_ptr<DrawCall> drawCall;

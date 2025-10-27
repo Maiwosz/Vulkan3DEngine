@@ -8,27 +8,10 @@
 
 namespace ShaderLib {
 
-    // Forward declarations
-    struct VulkanDescriptorBindingInfo;
-    struct VulkanPushConstantRange;
-    struct VulkanDescriptorSetLayoutInfo;
-    struct VulkanPipelineLayoutInfo;
-    struct VulkanBufferInfo;
-    struct VulkanUniformVariableInfo;
-    struct ShaderResourcesInfo;
-    struct ShaderModulesInfo;
-    struct CompleteShaderInfo;
+    // ============================================================================
+    // VULKAN DESCRIPTOR STRUCTURES
+    // ============================================================================
 
-    // Convert ShaderLib::Stage to Vulkan shader stage flags
-    uint32_t GetVulkanShaderStageFlags(StageFlags stageFlags);
-
-    // Convert ShaderLib::DescriptorType to Vulkan descriptor type
-    uint32_t GetVulkanDescriptorType(DescriptorType type);
-
-    // Convert ShaderLib::BufferType to Vulkan descriptor type
-    uint32_t GetVulkanDescriptorTypeFromBufferType(BufferType bufferType);
-
-    // Structure to hold Vulkan descriptor binding information
     struct VulkanDescriptorBindingInfo {
         uint32_t binding;
         uint32_t descriptorType;
@@ -36,26 +19,34 @@ namespace ShaderLib {
         uint32_t stageFlags;
     };
 
-    // Structure to hold Vulkan push constant range information
+    struct VulkanDescriptorSetLayoutInfo {
+        uint32_t setNumber;
+        std::vector<VulkanDescriptorBindingInfo> bindings;
+    };
+
+    // ============================================================================
+    // VULKAN PUSH CONSTANT STRUCTURES
+    // ============================================================================
+
     struct VulkanPushConstantRange {
         uint32_t stageFlags;
         uint32_t offset;
         uint32_t size;
     };
 
-    // Structure to hold Vulkan descriptor set layout information
-    struct VulkanDescriptorSetLayoutInfo {
-        uint32_t setNumber;
-        std::vector<VulkanDescriptorBindingInfo> bindings;
-    };
+    // ============================================================================
+    // VULKAN PIPELINE LAYOUT STRUCTURES
+    // ============================================================================
 
-    // Structure to hold Vulkan pipeline layout information
     struct VulkanPipelineLayoutInfo {
         std::vector<uint32_t> setLayoutIndices;
         std::vector<VulkanPushConstantRange> pushConstantRanges;
     };
 
-    // Universal structure for buffer creation information (UBO or SSBO)
+    // ============================================================================
+    // VULKAN BUFFER STRUCTURES
+    // ============================================================================
+
     struct VulkanBufferInfo {
         uint32_t set;
         uint32_t binding;
@@ -69,64 +60,88 @@ namespace ShaderLib {
         bool IsStorageBuffer() const { return bufferType == BufferType::Storage; }
     };
 
-    // Aliases for backward compatibility
-    using VulkanUniformBufferInfo = VulkanBufferInfo;
-
-    // Information about variables within a buffer
-    struct VulkanUniformVariableInfo {
+    struct VulkanBufferVariableInfo {
         std::string name;
-        UniformType type;
+        BaseType baseType;
         uint32_t size;
         uint32_t offset;
-        uint32_t arraySize;
-        std::string typeName;
+
+        // For composite types (Struct/Array)
+        bool IsComposite() const {
+            return baseType == BaseType::Struct || baseType == BaseType::Array;
+        }
     };
 
-    // Structure to hold all shader resources information
+    // ============================================================================
+    // VULKAN SHADER RESOURCES STRUCTURES
+    // ============================================================================
+
     struct ShaderResourcesInfo {
         std::vector<VulkanDescriptorSetLayoutInfo> descriptorSets;
         VulkanPipelineLayoutInfo pipelineLayout;
         VulkanBufferInfo globalUBO;
         VulkanBufferInfo objectUBO;
-        VulkanBufferInfo storageBuffer;
-        std::vector<VulkanBufferInfo> customUBOs;
-        std::vector<VulkanBufferInfo> customSSBOs;
-        std::vector<VulkanUniformVariableInfo> globalUboVariables;
-        std::vector<VulkanUniformVariableInfo> objectUboVariables;
-        std::vector<VulkanUniformVariableInfo> storageBufferVariables;
+        std::vector<VulkanBufferInfo> customBuffers;
+        std::vector<VulkanBufferVariableInfo> globalUboVariables;
+        std::vector<VulkanBufferVariableInfo> objectUboVariables;
         StageFlags availableStages;
     };
 
-    // Structure to hold shader modules information
     struct ShaderModulesInfo {
         std::vector<std::pair<Stage, std::vector<uint32_t>>> modules;
     };
 
-    // Structure to hold complete shader information
     struct CompleteShaderInfo {
         ShaderResourcesInfo resources;
         ShaderModulesInfo modules;
     };
 
-    // Function declarations
+    // ============================================================================
+    // CONVERSION FUNCTIONS
+    // ============================================================================
+
+    // Convert ShaderLib types to Vulkan types
+    uint32_t GetVulkanShaderStageFlags(StageFlags stageFlags);
+    uint32_t GetVulkanDescriptorType(DescriptorType type);
+
+    // ============================================================================
+    // QUERY FUNCTIONS
+    // ============================================================================
+
+    // Get SPIR-V for specific stage
     std::vector<uint32_t> GetSpirvForStage(const std::vector<CompiledStage>& stages, Stage stage);
+
+    // Get available stages
     std::vector<Stage> GetAvailableStages(const std::vector<CompiledStage>& stages);
+
+    // ============================================================================
+    // DESCRIPTOR AND LAYOUT INFO FUNCTIONS
+    // ============================================================================
+
     std::vector<VulkanDescriptorSetLayoutInfo> GetDescriptorSetLayoutsInfo(const ShaderMetadata& metadata);
     std::vector<VulkanPushConstantRange> GetPushConstantRanges(const ShaderMetadata& metadata);
     VulkanPipelineLayoutInfo GetPipelineLayoutInfo(const ShaderMetadata& metadata);
 
-    // Buffer info getters
+    // ============================================================================
+    // BUFFER INFO FUNCTIONS
+    // ============================================================================
+
     VulkanBufferInfo GetGlobalUboInfo(const ShaderMetadata& metadata);
     VulkanBufferInfo GetObjectUboInfo(const ShaderMetadata& metadata);
-    std::vector<VulkanBufferInfo> GetCustomUboInfo(const ShaderMetadata& metadata);
-    std::vector<VulkanBufferInfo> GetCustomSsboInfo(const ShaderMetadata& metadata);
+    std::vector<VulkanBufferInfo> GetCustomBuffersInfo(const ShaderMetadata& metadata);
 
-    // Variable info getters
-    std::vector<VulkanUniformVariableInfo> GetGlobalUboVariables(const ShaderMetadata& metadata);
-    std::vector<VulkanUniformVariableInfo> GetObjectUboVariables(const ShaderMetadata& metadata);
-    std::vector<VulkanUniformVariableInfo> GetBufferVariables(const BufferObject& buffer);
+    // ============================================================================
+    // VARIABLE INFO FUNCTIONS
+    // ============================================================================
 
-    // Complete info getters
+    std::vector<VulkanBufferVariableInfo> GetBufferVariables(const BufferObject& buffer);
+    std::vector<VulkanBufferVariableInfo> GetGlobalUboVariables(const ShaderMetadata& metadata);
+    std::vector<VulkanBufferVariableInfo> GetObjectUboVariables(const ShaderMetadata& metadata);
+
+    // ============================================================================
+    // COMPLETE INFO FUNCTIONS
+    // ============================================================================
+
     ShaderResourcesInfo GetShaderResourcesInfo(const ShaderMetadata& metadata);
     ShaderModulesInfo GetShaderModulesInfo(const std::vector<CompiledStage>& stages);
     CompleteShaderInfo GetCompleteShaderInfo(const ShaderData& shaderData, const ShaderMetadata& metadata);

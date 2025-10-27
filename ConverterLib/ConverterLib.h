@@ -1,8 +1,10 @@
 #pragma once
 #include <string>
 #include "AssetLib.h"
+#include <json.hpp>
 
 using namespace AssetLib;
+using json = nlohmann::json;
 
 class Converter {
 public:
@@ -20,6 +22,8 @@ private:
     AssetData ProcessTexture(const std::string& inputPath, const Settings& settings);
     AssetData ProcessMesh(const std::string& inputPath, const Settings& settings);
     AssetData ProcessMaterial(const std::string& inputPath, const Settings& settings);
+
+    AssetLib::SamplerDescription ParseSamplerDescription(const json& value);
 
     static std::vector<uint8_t> CompressBC7(const uint8_t* rgba, uint32_t width, uint32_t height);
     static uint32_t PadToMultipleOf4(uint32_t value);

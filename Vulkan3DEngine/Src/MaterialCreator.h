@@ -18,7 +18,7 @@ public:
     struct ParameterDefinition {
         std::string name;
         ShaderLib::DescriptorType descriptorType;
-        ShaderLib::UniformType uniformType;
+        ShaderLib::BaseType baseType;  // Changed from uniformType
         Material::ParamValue defaultValue;
         uint32_t arraySize = 0; // 0 oznacza brak tablicy
 
@@ -30,12 +30,12 @@ public:
         // Konstruktor dla parametrów uniformowych
         ParameterDefinition(
             const std::string& paramName,
-            ShaderLib::UniformType uType,
+            ShaderLib::BaseType bType,
             const Material::ParamValue& defValue,
             uint32_t arrSize = 0
         ) : name(paramName),
             descriptorType(ShaderLib::DescriptorType::UniformBuffer),
-            uniformType(uType),
+            baseType(bType),
             defaultValue(defValue),
             arraySize(arrSize) {
         }
@@ -47,8 +47,8 @@ public:
             const AssetLib::SamplerDescription& sampler,
             AssetLib::ColorSpace colorSpace = AssetLib::ColorSpace::SRGB
         ) : name(paramName),
-            descriptorType(ShaderLib::DescriptorType::CombinedImageSampler),
-            uniformType(ShaderLib::UniformType::Unknown),
+            descriptorType(ShaderLib::DescriptorType::Sampler2D),
+            baseType(ShaderLib::BaseType::Unknown),
             arraySize(0),
             samplerDesc(sampler) {
 
@@ -127,27 +127,5 @@ private:
     bool validateParameter(const ParameterDefinition& param, std::string& errorMessage) const;
 
     // Sprawdzenie zgodności typu parametru z wartością domyślną
-    bool isValueTypeCompatible(ShaderLib::UniformType uniformType, const Material::ParamValue& value) const;
+    bool isValueTypeCompatible(ShaderLib::BaseType baseType, const Material::ParamValue& value) const;
 };
-
-// Pomocnicze funkcje dla łatwego tworzenia materiałów
-namespace MaterialCreatorUtils {
-    // Szybkie tworzenie prostego materiału z podstawowymi parametrami
-    MaterialCreator::MaterialDefinition createBasicMaterial(
-        const std::string& name,
-        const std::string& shader,
-        const std::vector<std::pair<std::string, std::string>>& textures = {}
-    );
-
-    // Tworzenie materiału PBR z typowymi parametrami
-    MaterialCreator::MaterialDefinition createPBRMaterial(
-        const std::string& name,
-        const std::string& shader,
-        const std::string& albedoTexture = "",
-        const std::string& normalTexture = "",
-        const std::string& metallicRoughnessTexture = "",
-        const glm::vec3& albedoColor = glm::vec3(1.0f),
-        float metallic = 0.0f,
-        float roughness = 0.5f
-    );
-}

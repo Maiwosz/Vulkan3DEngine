@@ -36,7 +36,7 @@ struct Handle {
 
 // Definicje poszczególnych typów uchwytów
 DEFINE_HANDLE_TYPE(VramHandle, uint64_t)
-DEFINE_HANDLE_TYPE(UniformBufferHandle, uint32_t)
+DEFINE_HANDLE_TYPE(BufferHandle, uint32_t)
 DEFINE_HANDLE_TYPE(ShaderModuleHandle, uint32_t)
 DEFINE_HANDLE_TYPE(ShaderHandle, uint32_t)
 DEFINE_HANDLE_TYPE(PipelineHandle, uint32_t)

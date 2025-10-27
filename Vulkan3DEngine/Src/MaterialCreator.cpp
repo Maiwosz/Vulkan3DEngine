@@ -135,31 +135,38 @@ AssetLib::SamplerDescription MaterialCreator::createClampedSampler() {
 }
 
 MaterialCreator::ParameterDefinition MaterialCreator::createFloatParam(const std::string& name, float defaultValue) {
-    return ParameterDefinition(name, ShaderLib::UniformType::Float, defaultValue);
+    ShaderLib::BufferValue bufVal = defaultValue;
+    return ParameterDefinition(name, ShaderLib::BaseType::Float, Material::ParamValue{ bufVal });
 }
 
 MaterialCreator::ParameterDefinition MaterialCreator::createVec2Param(const std::string& name, const glm::vec2& defaultValue) {
-    return ParameterDefinition(name, ShaderLib::UniformType::Vec2, defaultValue);
+    ShaderLib::BufferValue bufVal = defaultValue;
+    return ParameterDefinition(name, ShaderLib::BaseType::Vec2, Material::ParamValue{ bufVal });
 }
 
 MaterialCreator::ParameterDefinition MaterialCreator::createVec3Param(const std::string& name, const glm::vec3& defaultValue) {
-    return ParameterDefinition(name, ShaderLib::UniformType::Vec3, defaultValue);
+    ShaderLib::BufferValue bufVal = defaultValue;
+    return ParameterDefinition(name, ShaderLib::BaseType::Vec3, Material::ParamValue{ bufVal });
 }
 
 MaterialCreator::ParameterDefinition MaterialCreator::createVec4Param(const std::string& name, const glm::vec4& defaultValue) {
-    return ParameterDefinition(name, ShaderLib::UniformType::Vec4, defaultValue);
+    ShaderLib::BufferValue bufVal = defaultValue;
+    return ParameterDefinition(name, ShaderLib::BaseType::Vec4, Material::ParamValue{ bufVal });
 }
 
 MaterialCreator::ParameterDefinition MaterialCreator::createIntParam(const std::string& name, int32_t defaultValue) {
-    return ParameterDefinition(name, ShaderLib::UniformType::Int, defaultValue);
+    ShaderLib::BufferValue bufVal = defaultValue;
+    return ParameterDefinition(name, ShaderLib::BaseType::Int, Material::ParamValue{ bufVal });
 }
 
 MaterialCreator::ParameterDefinition MaterialCreator::createBoolParam(const std::string& name, bool defaultValue) {
-    return ParameterDefinition(name, ShaderLib::UniformType::Bool, defaultValue);
+    ShaderLib::BufferValue bufVal = defaultValue;
+    return ParameterDefinition(name, ShaderLib::BaseType::Bool, Material::ParamValue{ bufVal });
 }
 
 MaterialCreator::ParameterDefinition MaterialCreator::createMat4Param(const std::string& name, const glm::mat4& defaultValue) {
-    return ParameterDefinition(name, ShaderLib::UniformType::Mat4, defaultValue);
+    ShaderLib::BufferValue bufVal = defaultValue;
+    return ParameterDefinition(name, ShaderLib::BaseType::Mat4, Material::ParamValue{ bufVal });
 }
 
 MaterialCreator::ParameterDefinition MaterialCreator::createTextureParam(
@@ -205,14 +212,26 @@ bool MaterialCreator::materialExists(const std::string& path) {
 std::vector<uint8_t> MaterialCreator::serializeParameterValue(const Material::ParamValue& value) const {
     std::vector<uint8_t> data;
 
+    // Check if it's a TextureParam
+    if (std::holds_alternative<Material::TextureParam>(value)) {
+        const auto& texParam = std::get<Material::TextureParam>(value);
+        std::string path = texParam.handle.filename;
+        data.resize(path.size() + 1); // +1 dla null terminatora
+        std::copy(path.c_str(), path.c_str() + path.size() + 1, data.data());
+        return data;
+    }
+
+    // It must be a BufferValue
+    const auto& bufVal = std::get<ShaderLib::BufferValue>(value);
+
     std::visit([&data](const auto& val) {
         using T = std::decay_t<decltype(val)>;
 
-        if constexpr (std::is_same_v<T, Material::TextureParam>) {
-            // Dla tekstur zapisujemy ścieżkę jako string
-            std::string path = val.handle.filename;
-            data.resize(path.size() + 1); // +1 dla null terminatora
-            std::copy(path.c_str(), path.c_str() + path.size() + 1, data.data());
+        // Skip composite types (shared_ptr<ShaderStruct/ShaderArray>)
+        if constexpr (std::is_same_v<T, std::shared_ptr<ShaderLib::ShaderStruct>> ||
+            std::is_same_v<T, std::shared_ptr<ShaderLib::ShaderArray>>) {
+            // Not supported in material parameters
+            return;
         }
         else if constexpr (std::is_same_v<T, bool>) {
             // Bool konwertujemy na uint32_t (zgodnie z konwencją w MaterialManager)
@@ -225,17 +244,27 @@ std::vector<uint8_t> MaterialCreator::serializeParameterValue(const Material::Pa
             data.resize(sizeof(T));
             std::memcpy(data.data(), &val, sizeof(T));
         }
-        }, value);
+        }, bufVal);
 
     return data;
 }
 
 size_t MaterialCreator::getParameterSize(const Material::ParamValue& value) const {
+    // Check if it's a TextureParam
+    if (std::holds_alternative<Material::TextureParam>(value)) {
+        const auto& texParam = std::get<Material::TextureParam>(value);
+        return texParam.handle.filename.size() + 1; // +1 dla null terminatora
+    }
+
+    // It must be a BufferValue
+    const auto& bufVal = std::get<ShaderLib::BufferValue>(value);
+
     return std::visit([](const auto& val) -> size_t {
         using T = std::decay_t<decltype(val)>;
 
-        if constexpr (std::is_same_v<T, Material::TextureParam>) {
-            return val.handle.filename.size() + 1; // +1 dla null terminatora
+        if constexpr (std::is_same_v<T, std::shared_ptr<ShaderLib::ShaderStruct>> ||
+            std::is_same_v<T, std::shared_ptr<ShaderLib::ShaderArray>>) {
+            return 0; // Not supported
         }
         else if constexpr (std::is_same_v<T, bool>) {
             return sizeof(uint32_t); // Bool jako uint32_t
@@ -243,7 +272,7 @@ size_t MaterialCreator::getParameterSize(const Material::ParamValue& value) cons
         else {
             return sizeof(T);
         }
-        }, value);
+        }, bufVal);
 }
 
 AssetLib::MaterialParameter MaterialCreator::convertToAssetParameter(
@@ -259,7 +288,7 @@ AssetLib::MaterialParameter MaterialCreator::convertToAssetParameter(
     assetParam.name[copySize] = '\0'; // Zapewnienie null-termination
 
     assetParam.descriptorType = paramDef.descriptorType;
-    assetParam.uniformType = paramDef.uniformType;
+    assetParam.baseType = paramDef.baseType;
     assetParam.arraySize = paramDef.arraySize;
     assetParam.samplerDesc = paramDef.samplerDesc;
     assetParam.dataOffset = dataOffset;
@@ -279,10 +308,11 @@ bool MaterialCreator::validateParameter(const ParameterDefinition& param, std::s
         return false;
     }
 
-    // Sprawdzenie zgodności typu uniform z wartością
-    if (param.descriptorType == ShaderLib::DescriptorType::UniformBuffer) {
-        if (!isValueTypeCompatible(param.uniformType, param.defaultValue)) {
-            errorMessage = "Parameter '" + param.name + "' value type doesn't match uniform type";
+    // Sprawdzenie zgodności typu base z wartością
+    if (param.descriptorType == ShaderLib::DescriptorType::UniformBuffer ||
+        param.descriptorType == ShaderLib::DescriptorType::StorageBuffer) {
+        if (!isValueTypeCompatible(param.baseType, param.defaultValue)) {
+            errorMessage = "Parameter '" + param.name + "' value type doesn't match base type";
             return false;
         }
     }
@@ -290,117 +320,21 @@ bool MaterialCreator::validateParameter(const ParameterDefinition& param, std::s
     return true;
 }
 
-bool MaterialCreator::isValueTypeCompatible(ShaderLib::UniformType uniformType, const Material::ParamValue& value) const {
-    switch (uniformType) {
-    case ShaderLib::UniformType::Bool:
-        return std::holds_alternative<bool>(value);
-    case ShaderLib::UniformType::Float:
-        return std::holds_alternative<float>(value);
-    case ShaderLib::UniformType::Vec2:
-        return std::holds_alternative<glm::vec2>(value);
-    case ShaderLib::UniformType::Vec3:
-        return std::holds_alternative<glm::vec3>(value);
-    case ShaderLib::UniformType::Vec4:
-        return std::holds_alternative<glm::vec4>(value);
-    case ShaderLib::UniformType::Int:
-        return std::holds_alternative<int32_t>(value);
-    case ShaderLib::UniformType::IVec2:
-        return std::holds_alternative<glm::ivec2>(value);
-    case ShaderLib::UniformType::IVec3:
-        return std::holds_alternative<glm::ivec3>(value);
-    case ShaderLib::UniformType::IVec4:
-        return std::holds_alternative<glm::ivec4>(value);
-    case ShaderLib::UniformType::UInt:
-        return std::holds_alternative<uint32_t>(value);
-    case ShaderLib::UniformType::UVec2:
-        return std::holds_alternative<glm::uvec2>(value);
-    case ShaderLib::UniformType::UVec3:
-        return std::holds_alternative<glm::uvec3>(value);
-    case ShaderLib::UniformType::UVec4:
-        return std::holds_alternative<glm::uvec4>(value);
-    case ShaderLib::UniformType::Mat2:
-        return std::holds_alternative<glm::mat2>(value);
-    case ShaderLib::UniformType::Mat3:
-        return std::holds_alternative<glm::mat3>(value);
-    case ShaderLib::UniformType::Mat4:
-        return std::holds_alternative<glm::mat4>(value);
-    default:
+bool MaterialCreator::isValueTypeCompatible(ShaderLib::BaseType baseType, const Material::ParamValue& value) const {
+    // Texture parameters don't have base types
+    if (std::holds_alternative<Material::TextureParam>(value)) {
+        return baseType == ShaderLib::BaseType::Unknown;
+    }
+
+    // Must be BufferValue
+    if (!std::holds_alternative<ShaderLib::BufferValue>(value)) {
         return false;
     }
-}
 
-// Implementacja funkcji pomocniczych
-namespace MaterialCreatorUtils {
-    MaterialCreator::MaterialDefinition createBasicMaterial(
-        const std::string& name,
-        const std::string& shader,
-        const std::vector<std::pair<std::string, std::string>>& textures
-    ) {
-        MaterialCreator::MaterialDefinition definition;
-        definition.materialName = name;
-        definition.shaderName = shader;
-        definition.sourceInfo = "MaterialCreatorUtils::createBasicMaterial";
+    const auto& bufVal = std::get<ShaderLib::BufferValue>(value);
 
-        // Dodanie podstawowych parametrów
-        definition.parameters.push_back(
-            MaterialCreator::createVec4Param("tint", glm::vec4(1.0f, 1.0f, 1.0f, 1.0f))
-        );
+    // Get the base type from the variant
+    ShaderLib::BaseType valueType = ShaderLib::GetBaseTypeFromVariant(bufVal);
 
-        // Dodanie tekstur
-        for (const auto& [paramName, texturePath] : textures) {
-            definition.parameters.push_back(
-                MaterialCreator::createTextureParam(paramName, texturePath)
-            );
-        }
-
-        return definition;
-    }
-
-    MaterialCreator::MaterialDefinition createPBRMaterial(
-        const std::string& name,
-        const std::string& shader,
-        const std::string& albedoTexture,
-        const std::string& normalTexture,
-        const std::string& metallicRoughnessTexture,
-        const glm::vec3& albedoColor,
-        float metallic,
-        float roughness
-    ) {
-        MaterialCreator::MaterialDefinition definition;
-        definition.materialName = name;
-        definition.shaderName = shader;
-        definition.sourceInfo = "MaterialCreatorUtils::createPBRMaterial";
-
-        // Dodanie parametrów PBR
-        definition.parameters.push_back(
-            MaterialCreator::createVec3Param("albedoColor", albedoColor)
-        );
-        definition.parameters.push_back(
-            MaterialCreator::createFloatParam("metallic", metallic)
-        );
-        definition.parameters.push_back(
-            MaterialCreator::createFloatParam("roughness", roughness)
-        );
-
-        // Dodanie tekstur jeśli podano
-        if (!albedoTexture.empty()) {
-            definition.parameters.push_back(
-                MaterialCreator::createTextureParam("albedoTexture", albedoTexture, AssetLib::ColorSpace::SRGB)
-            );
-        }
-
-        if (!normalTexture.empty()) {
-            definition.parameters.push_back(
-                MaterialCreator::createTextureParam("normalTexture", normalTexture, AssetLib::ColorSpace::Linear)
-            );
-        }
-
-        if (!metallicRoughnessTexture.empty()) {
-            definition.parameters.push_back(
-                MaterialCreator::createTextureParam("metallicRoughnessTexture", metallicRoughnessTexture, AssetLib::ColorSpace::Linear)
-            );
-        }
-
-        return definition;
-    }
+    return valueType == baseType;
 }
