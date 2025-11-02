@@ -7,6 +7,9 @@
     <ClInclude Include="bc7enc\bc7enc.h" />
     <ClInclude Include="Shader.h" />
     <ClInclude Include="ShaderParserPEGTL.h" />
+    <ClInclude Include="ShaderBuilder.h" />
+    <ClInclude Include="ShaderReflector.h" />
+    <ClInclude Include="ShaderCompiler.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="pch.cpp" />
@@ -14,5 +17,8 @@
     <ClCompile Include="bc7enc\bc7enc.c" />
     <ClCompile Include="Shader.cpp" />
     <ClCompile Include="ShaderParserPEGTL.cpp" />
+    <ClCompile Include="ShaderBuilder.cpp" />
+    <ClCompile Include="ShaderReflector.cpp" />
+    <ClCompile Include="ShaderCompiler.cpp" />
   </ItemGroup>
 </Project>

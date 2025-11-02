@@ -1,6 +1,6 @@
 #pragma once
 #include "BufferAccessor.h"
-#include "BufferIO.h"
+#include "ValueSerialization.h"
 #include "ShaderStruct.h"
 #include "ShaderArray.h"
 #include <cstring>
@@ -51,31 +51,25 @@ namespace ShaderLib {
             try {
                 // Handle composite types
                 if (variable->IsComposite()) {
-                    std::shared_ptr<CompositeType> composite = nullptr;
+                    std::shared_ptr<CompositeTypeInstance> instance = nullptr;
 
-                    // Try to get ShaderStruct
-                    if (auto structPtr = std::get_if<std::shared_ptr<ShaderStruct>>(&value)) {
-                        composite = *structPtr;
+                    if (auto structPtr = std::get_if<std::shared_ptr<ShaderStructInstance>>(&value)) {
+                        instance = std::static_pointer_cast<CompositeTypeInstance>(*structPtr);
                     }
-                    // Try to get ShaderArray
-                    else if (auto arrayPtr = std::get_if<std::shared_ptr<ShaderArray>>(&value)) {
-                        composite = *arrayPtr;
+                    else if (auto arrayPtr = std::get_if<std::shared_ptr<ShaderArrayInstance>>(&value)) {
+                        instance = std::static_pointer_cast<CompositeTypeInstance>(*arrayPtr);
                     }
 
-                    if (!composite) {
+                    if (!instance) {
                         return false;
                     }
 
-                    // Validate type matches
-                    if (composite->GetTypeName() != variable->composite->GetTypeName()) {
+                    if (instance->GetDefinition()->GetTypeName() !=
+                        variable->composite->GetTypeName()) {
                         return false;
                     }
 
-                    if (!composite->HasData()) {
-                        return false;
-                    }
-
-                    return composite->WriteToBuffer(dst);
+                    return instance->WriteToBuffer(dst);
                 }
 
                 // Handle base types
@@ -89,7 +83,7 @@ namespace ShaderLib {
                     return false;
                 }
 
-                return WriteBaseTypeToBuffer(variable->baseType, dst, value);
+                return WriteBaseTypeToFixedBuffer(variable->baseType, dst, value);
             }
             catch (...) {
                 return false;
@@ -153,8 +147,8 @@ namespace ShaderLib {
             return true;
         }
 
-        // Write composite type (ShaderStruct or ShaderArray)
-        bool writeComposite(const std::string& variableName, std::shared_ptr<CompositeType> composite) {
+        bool writeComposite(const std::string& variableName,
+            std::shared_ptr<CompositeTypeInstance> instance) {
             if (!isValid()) {
                 return false;
             }
@@ -168,16 +162,12 @@ namespace ShaderLib {
                 return false;
             }
 
-            if (!composite) {
+            if (!instance) {
                 return false;
             }
 
-            // Validate type matches
-            if (composite->GetTypeName() != variable->composite->GetTypeName()) {
-                return false;
-            }
-
-            if (!composite->HasData()) {
+            if (instance->GetDefinition()->GetTypeName() !=
+                variable->composite->GetTypeName()) {
                 return false;
             }
 
@@ -186,23 +176,27 @@ namespace ShaderLib {
             }
 
             uint8_t* dst = static_cast<uint8_t*>(m_data) + variable->offset;
-            return composite->WriteToBuffer(dst);
+            return instance->WriteToBuffer(dst);
         }
 
         // Write ShaderStruct specifically
-        bool writeStruct(const std::string& variableName, std::shared_ptr<ShaderStruct> structValue) {
+        bool writeStruct(const std::string& variableName,
+            std::shared_ptr<ShaderStructInstance> structValue) {
             if (!structValue || !structValue->IsStruct()) {
                 return false;
             }
-            return writeComposite(variableName, structValue);
+            return writeComposite(variableName,
+                std::static_pointer_cast<CompositeTypeInstance>(structValue));
         }
 
         // Write ShaderArray specifically
-        bool writeArray(const std::string& variableName, std::shared_ptr<ShaderArray> arrayValue) {
+        bool writeArray(const std::string& variableName,
+            std::shared_ptr<ShaderArrayInstance> arrayValue) {
             if (!arrayValue || !arrayValue->IsArray()) {
                 return false;
             }
-            return writeComposite(variableName, arrayValue);
+            return writeComposite(variableName,
+                std::static_pointer_cast<CompositeTypeInstance>(arrayValue));
         }
 
         // Helper: Check if a variable is composite

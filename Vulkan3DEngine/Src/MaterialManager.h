@@ -1,5 +1,6 @@
 #pragma once
 #include "Material.h"
+#include "MaterialFactory.h"
 #include "Handle.h"
 #include "ShaderManager.h"
 #include "VramManager.h"
@@ -7,14 +8,17 @@
 #include "Settings.h"
 #include "ImageSamplerManager.h"
 #include "IAssetHandler.h"
+#include "TextureManager.h"
+#include "BufferManager.h"
+#include "DescriptorAllocator.h"
+#include "DescriptorLayoutManager.h"
 #include <memory>
 #include <unordered_map>
 #include <vector>
 #include <string>
-#include "MaterialResourceFactory.h"
-#include "TextureManager.h"
+#include <MaterialTypes.h>
 
-class MaterialManager : public IAssetHandler {
+class MaterialManager : public ISmartAssetHandler<MaterialHandle, Material> {
 public:
     MaterialManager(
         const LogicalDevice& device,
@@ -37,19 +41,19 @@ public:
     std::any getResourceInternal(const AssetHandle& handle) const override;
     std::any getHandleInternal(const std::string& filename) const override;
 
+    // ISmartAssetHandler implementation
+    Material* getResource(MaterialHandle handle) const override;
+    bool isAssetReady(MaterialHandle handle) const override;
+
     // Public interface for MaterialHandle-based access
     Material* getMaterial(MaterialHandle handle);
     const Material* getMaterial(MaterialHandle handle) const;
 
-    // Parameter modification methods - automatically invalidate descriptor sets
-    bool setMaterialParameter(MaterialHandle handle, const std::string& paramName, const Material::ParamValue& value);
-    bool getMaterialParameter(MaterialHandle handle, const std::string& paramName, Material::ParamValue& outValue) const;
+    // Register runtime material (not from asset)
+    MaterialHandle registerMaterial(std::unique_ptr<Material> material, const std::string& name);
 
-    // Main descriptor set access method - creates on demand and manages cache
-    SmartHandle<DescriptorSetHandle, VkDescriptorSet> getDescriptorSet(MaterialHandle handle);
-
-    // Invalidate descriptor set when material parameters change
-    void invalidateDescriptorSet(MaterialHandle handle);
+    // Access to factory for runtime material creation
+    MaterialFactory& factory() { return m_factory; }
 
     // Template method for getting handles (needed for AssetManager integration)
     template<typename T>
@@ -60,10 +64,10 @@ public:
                 return std::any_cast<T>(result);
             }
             catch (const std::bad_any_cast&) {
-                return T(); // Return invalid handle on cast failure
+                return T();
             }
         }
-        return T(); // Return invalid handle if not found
+        return T();
     }
 
 private:
@@ -71,57 +75,30 @@ private:
         std::unique_ptr<Material> material;
         uint64_t estimatedSize;
         bool isReady;
+        bool isFromAsset;
 
-        // Descriptor set cache - created on demand
-        SmartHandle<DescriptorSetHandle, VkDescriptorSet> descriptorSet;
-        bool descriptorSetValid;
-
-        // Track sampler handles for dirty checking
-        std::vector<SamplerHandle> samplerHandles;
-
-        MaterialData() : estimatedSize(0), isReady(false), descriptorSetValid(false) {}
+        MaterialData() : estimatedSize(0), isReady(false), isFromAsset(true) {}
     };
 
-    MaterialHandle createMaterial(
+    // Asset loading
+    MaterialHandle loadMaterialFromAsset(
         const AssetHandle& assetHandle,
-        const AssetLib::AssetData& assetData,
-        ShaderHandle shaderHandle
-    );
-
-    Material::Parameter createMaterialParameter(
-        const AssetLib::MaterialParameter& assetParam,
-        const std::vector<uint8_t>& parameterData,
-        ShaderHandle shaderHandle
-    );
-
-    uint32_t findBindingForParameter(
+        const AssetLib::MaterialDefinition& materialDef,
         ShaderHandle shaderHandle,
-        const std::string& paramName,
-        ShaderLib::DescriptorType descriptorType
+        AssetManager& manager
     );
 
+    // Texture dependency management
     void updateTextureHandles(MaterialHandle materialHandle, AssetManager& manager);
-    void collectSamplerHandles(MaterialHandle materialHandle);
 
-    // Convert AssetLib parameter to Material parameter
-    Material::ParamValue convertParameter(
-        const AssetLib::MaterialParameter& assetParam,
-        const std::vector<uint8_t>& parameterData,
-        uint32_t dataOffset
-    );
+    // Material factory
+    MaterialFactory m_factory;
 
-    const LogicalDevice& m_device;
-    ShaderManager& m_shaderManager;
-    ImageSamplerManager& m_samplerManager;
+    // Dependencies (non-owning references)
     TextureManager& m_textureManager;
 
-    // Resource factory for creating descriptor sets
-    std::unique_ptr<MaterialResourceFactory> m_resourceFactory;
-
-    // Material storage using MaterialHandle as key
+    // Material storage
     std::unordered_map<MaterialHandle, MaterialData> m_materials;
-
-    // Mapping from filename to MaterialHandle
     std::unordered_map<std::string, MaterialHandle> m_filenameToHandle;
 
     uint32_t m_nextHandle = 1;

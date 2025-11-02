@@ -34,10 +34,8 @@
 #include <spirv_cross/spirv_cross.hpp>
 #include "Shader.h"
 #include <iostream>
-#include <BufferIO.h>
-
-
-
+#include <MaterialTypes.h>
+#include <MaterialSerializer.h>
 
 #pragma pack(push, 1)
 struct Vertex {
@@ -524,9 +522,9 @@ AssetData Converter::ProcessMesh(const std::string& inputPath, const Settings& s
     }
 }
 
-AssetData Converter::ProcessMaterial(const std::string& inputPath, const Settings& settings)
+AssetLib::AssetData Converter::ProcessMaterial(const std::string& inputPath, const Settings& settings)
 {
-    // Wczytaj plik materiału
+    // Load JSON file
     std::ifstream file(inputPath);
     if (!file.is_open()) {
         throw std::runtime_error("Failed to open material file: " + inputPath);
@@ -535,152 +533,19 @@ AssetData Converter::ProcessMaterial(const std::string& inputPath, const Setting
     json materialJson;
     file >> materialJson;
 
-    // Walidacja struktury
-    if (!materialJson.contains("shader") || !materialJson.contains("parameters")) {
-        throw std::runtime_error("Invalid material structure");
-    }
+    // Deserialize using new helper
+    AssetLib::MaterialDefinition material = AssetLib::MaterialFromJson(materialJson);
 
-    // Przygotuj struktury danych
-    AssetLib::MaterialInfo matInfo{};  // Zero-initialize
-    std::vector<AssetLib::MaterialParameter> params;
-    std::vector<uint8_t> paramData;
-
-    // Wczytaj nazwę shadera - ensure proper null termination
-    const std::string shaderName = materialJson["shader"].get<std::string>();
-    std::fill(matInfo.shaderName.begin(), matInfo.shaderName.end(), '\0');
-    std::copy_n(shaderName.c_str(), std::min(shaderName.size(), matInfo.shaderName.size() - 1), matInfo.shaderName.data());
-
-    // Przetwarzaj parametry
-    for (auto& [key, value] : materialJson["parameters"].items()) {
-        AssetLib::MaterialParameter param{};  // Zero-initialize
-
-        // Properly handle parameter name
-        std::fill(param.name.begin(), param.name.end(), '\0');
-        std::copy_n(key.c_str(), std::min(key.size(), param.name.size() - 1), param.name.data());
-
-        param.arraySize = value.value("arraySize", 1);
-        param.dataOffset = static_cast<uint32_t>(paramData.size());
-
-        // Każdy parametr musi zawierać descriptorType
-        if (!value.contains("descriptorType")) {
-            throw std::runtime_error("Parameter missing descriptorType: " + key);
-        }
-
-        const std::string descriptorTypeStr = value["descriptorType"].get<std::string>();
-        param.descriptorType = ShaderLib::StringToDescriptorType(descriptorTypeStr);
-
-        // Pobierz baseType jeśli istnieje (dla bufferów)
-        if (value.contains("baseType")) {
-            const std::string baseTypeStr = value["baseType"].get<std::string>();
-            param.baseType = ShaderLib::StringToBaseType(baseTypeStr);
-        }
-        else {
-            param.baseType = ShaderLib::BaseType::Unknown;
-        }
-
-        // Obsługa tekstur (sampler2D, sampler3D, itp.)
-        const auto& descriptorInfo = ShaderLib::GetDescriptorTypeInfo(param.descriptorType);
-        // Tekstury/Images
-        if (descriptorInfo.IsTexture() || descriptorInfo.IsImage()) {
-            if (!value.contains("path")) {
-                throw std::runtime_error("Texture parameter missing path: " + key);
-            }
-
-            const std::string texPath = value["path"].get<std::string>();
-            paramData.insert(paramData.end(), texPath.begin(), texPath.end());
-            paramData.push_back('\0');
-            param.dataSize = static_cast<uint32_t>(texPath.length() + 1);
-
-            // Parsowanie samplera (jeśli tekstura)
-            if (descriptorInfo.IsTexture()) {
-                param.samplerDesc = ParseSamplerDescription(value);
-            }
-        }
-        // Bufory - UPROSZCZONE!
-        else if (descriptorInfo.IsBuffer()) {
-            if (!value.contains("data")) {
-                throw std::runtime_error("Buffer parameter missing data: " + key);
-            }
-
-            size_t sizeBefore = paramData.size();
-
-            // Użyj ujednoliconej funkcji z BufferIO
-            if (!ShaderLib::WriteBaseTypeFromJson(param.baseType, paramData, value["data"])) {
-                throw std::runtime_error("Failed to serialize buffer parameter: " + key);
-            }
-
-            param.dataSize = static_cast<uint32_t>(paramData.size() - sizeBefore);
-        }
-        // Sampler object
-        else if (param.descriptorType == ShaderLib::DescriptorType::Sampler) {
-            param.samplerDesc = ParseSamplerDescription(value);
-            param.dataSize = 0;
-        }
-        // Input attachment
-        else if (param.descriptorType == ShaderLib::DescriptorType::InputAttachment) {
-            param.dataSize = 0;
-        }
-        else {
-            throw std::runtime_error("Unsupported descriptor type for: " + key);
-        }
-
-        params.push_back(param);
-    }
-
-    // Ustaw brakujące pola w MaterialInfo
-    matInfo.parameterCount = static_cast<uint32_t>(params.size());
-    matInfo.dataSize = static_cast<uint32_t>(paramData.size());
+    // Generate asset data
     std::string filename = std::filesystem::path(inputPath).filename().string();
 
-    // Utwórz dane zasobu przy użyciu nowych funkcji AssetLib
-    AssetLib::AssetData assetData = AssetLib::WriteMaterial(
+    return AssetLib::WriteMaterial(
         filename,
-        matInfo,
-        params,
-        paramData,
+        material,
         settings.compressionLevel > 0 ? AssetLib::CompressionType::LZ4 : AssetLib::CompressionType::None,
         settings.compressionLevel
     );
-
-    return assetData;
 }
-
-AssetLib::SamplerDescription Converter::ParseSamplerDescription(const json& value) {
-    if (!value.contains("sampler")) {
-        // Domyślny sampler
-        return {
-            AssetLib::SamplerDescription::Filter::Linear,
-            AssetLib::SamplerDescription::Filter::Linear,
-            AssetLib::SamplerDescription::AddressMode::Repeat,
-            AssetLib::SamplerDescription::AddressMode::Repeat,
-            AssetLib::SamplerDescription::AddressMode::Repeat,
-            1.0f, 0.0f, 16.0f,
-            AssetLib::ColorSpace::Linear
-        };
-    }
-
-    auto& s = value["sampler"];
-    AssetLib::SamplerDescription desc;
-    desc.magFilter = AssetLib::StringToSamplerFilter(s.value("magFilter", "Linear"));
-    desc.minFilter = AssetLib::StringToSamplerFilter(s.value("minFilter", "Linear"));
-    desc.addressModeU = AssetLib::StringToAddressMode(s.value("addressModeU", "Repeat"));
-    desc.addressModeV = AssetLib::StringToAddressMode(s.value("addressModeV", "Repeat"));
-    desc.addressModeW = AssetLib::StringToAddressMode(s.value("addressModeW", "Repeat"));
-    desc.anisotropy = s.value("anisotropy", 1.0f);
-    desc.minLod = s.value("minLod", 0.0f);
-    desc.maxLod = s.value("maxLod", 16.0f);
-
-    if (s.contains("colorSpace")) {
-        desc.colorSpace = AssetLib::StringToColorSpace(s["colorSpace"].get<std::string>());
-    }
-    else {
-        desc.colorSpace = AssetLib::ColorSpace::Linear;
-    }
-
-    return desc;
-}
-
-
 
 std::vector<uint8_t> Converter::CompressBC7(const uint8_t* rgba, uint32_t width, uint32_t height) {
     if (width % 4 != 0 || height % 4 != 0) {

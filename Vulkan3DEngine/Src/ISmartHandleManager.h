@@ -80,6 +80,11 @@ public:
     // Reset to invalid state
     void reset();
 
+    // Get the manager (for advanced use cases)
+    ISmartHandleManager<HandleType, ResourceType>* getManager() const {
+        return m_manager;
+    }
+
 private:
     // Constructor for manager use only
     SmartHandle(HandleType handle, ISmartHandleManager<HandleType, ResourceType>* manager)

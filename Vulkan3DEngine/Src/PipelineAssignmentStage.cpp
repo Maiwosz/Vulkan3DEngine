@@ -94,7 +94,7 @@ GraphicsPipelineConfig PipelineAssignmentStage::createPipelineConfig(
     GraphicsPipelineConfig config;
 
     // Get the shader from the material
-    ShaderHandle shaderHandle = material->shader();
+    ShaderHandle shaderHandle = material->shader().handle();
 
     // Get shader resources (zawiera teraz wszystko czego potrzebujemy!)
     const ShaderResources& shaderResources = m_shaderManager.getShaderResources(shaderHandle);

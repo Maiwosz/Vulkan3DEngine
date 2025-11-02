@@ -1,6 +1,8 @@
 #include "pch.h"
 #include "ShaderTypes.h"
 #include <unordered_map>
+#include "ShaderStruct.h"
+#include "ShaderArray.h"
 
 namespace ShaderLib {
 
@@ -77,10 +79,62 @@ namespace ShaderLib {
         return ShaderTypeCategory::Unknown;
     }
 
-    // USUŃ 'inline' i zamień na normalną funkcję:
     BaseType GetBaseTypeFromVariant(const BufferValue& value) {
         size_t index = value.index();
         return VariantIndexToBaseType(index);
+    }
+
+    // ============================================================================
+    // COMPOSITE TYPE DEFINITION - STATIC DESERIALIZATION
+    // ============================================================================
+
+    std::shared_ptr<const CompositeTypeDefinition> CompositeTypeDefinition::FromJson(const json& j) {
+        if (j.is_null()) {
+            return nullptr;
+        }
+
+        if (!j.contains("compositeType")) {
+            throw std::runtime_error("Missing 'compositeType' field in composite definition JSON");
+        }
+
+        std::string compositeType = j.at("compositeType").get<std::string>();
+
+        if (compositeType == "struct") {
+            return ShaderStructDefinition::FromJson(j);
+        }
+        else if (compositeType == "array") {
+            return ShaderArrayDefinition::FromJson(j);
+        }
+
+        throw std::runtime_error("Unknown composite type: " + compositeType);
+    }
+
+    // ============================================================================
+    // COMPOSITE TYPE INSTANCE - STATIC DESERIALIZATION
+    // ============================================================================
+
+    std::shared_ptr<CompositeTypeInstance> CompositeTypeInstance::CreateInstanceFromJson(const json& j) {
+        if (j.is_null()) {
+            return nullptr;
+        }
+
+        if (!j.contains("typeDef")) {
+            throw std::runtime_error("Missing 'typeDef' field in composite instance JSON");
+        }
+
+        // First, deserialize the type definition
+        const json& typeDef = j.at("typeDef");
+        auto definition = CompositeTypeDefinition::FromJson(typeDef);
+
+        // Create instance
+        auto instance = definition->CreateInstance();
+
+        // Load data
+        if (!instance->FromJson(j)) {
+            throw std::runtime_error("Failed to deserialize composite instance data");
+        }
+
+        return instance;
     }
 
 } // namespace ShaderLib

@@ -35,6 +35,23 @@ namespace ShaderLib {
             return m_dataSize;
         }
 
+        // Get access mode for specific variable
+        BufferAccessMode getVariableAccessMode(const std::string& variableName) const {
+            const BufferVariable* variable = findVariable(variableName);
+            return variable ? variable->accessMode : BufferAccessMode::ReadOnly;
+        }
+
+        // Check specific variable capabilities
+        bool canReadVariable(const std::string& variableName) const {
+            const BufferVariable* variable = findVariable(variableName);
+            return variable && !variable->IsWriteOnly();
+        }
+
+        bool canWriteVariable(const std::string& variableName) const {
+            const BufferVariable* variable = findVariable(variableName);
+            return variable && !variable->IsReadOnly();
+        }
+
     protected:
         const BufferObject* m_bufferObject = nullptr;
         void* m_data = nullptr;

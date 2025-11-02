@@ -6,37 +6,43 @@
 namespace ShaderLib {
 
     // ============================================================================
-    // LIGHT STRUCTURE FACTORIES
+    // LIGHT STRUCTURE DEFINITION FACTORIES
     // ============================================================================
 
-    inline std::shared_ptr<ShaderStruct> CreateDirectionalLightType(LayoutStandard standard = LayoutStandard::Std140) {
-        auto structType = std::make_shared<ShaderStruct>("DirectionalLight", standard);
-        structType->AddField<glm::vec3>("direction");
-        structType->AddField<glm::vec4>("color"); // w is intensity
-        structType->Finalize();
-        return structType;
+    inline std::shared_ptr<ShaderStructDefinition> CreateDirectionalLightType(
+        LayoutStandard standard = LayoutStandard::Std140) {
+
+        auto structDef = std::make_shared<ShaderStructDefinition>("DirectionalLight", standard);
+        structDef->AddField("direction", BaseType::Vec3);
+        structDef->AddField("color", BaseType::Vec4); // w is intensity
+        structDef->Finalize();
+        return structDef;
     }
 
-    inline std::shared_ptr<ShaderStruct> CreatePointLightType(LayoutStandard standard = LayoutStandard::Std140) {
-        auto structType = std::make_shared<ShaderStruct>("PointLight", standard);
-        structType->AddField<glm::vec3>("position");
-        structType->AddField<float>("radius");
-        structType->AddField<glm::vec4>("color"); // w is intensity
-        structType->Finalize();
-        return structType;
+    inline std::shared_ptr<ShaderStructDefinition> CreatePointLightType(
+        LayoutStandard standard = LayoutStandard::Std140) {
+
+        auto structDef = std::make_shared<ShaderStructDefinition>("PointLight", standard);
+        structDef->AddField("position", BaseType::Vec3);
+        structDef->AddField("radius", BaseType::Float);
+        structDef->AddField("color", BaseType::Vec4); // w is intensity
+        structDef->Finalize();
+        return structDef;
     }
 
-    inline std::shared_ptr<ShaderStruct> CreateSpotLightType(LayoutStandard standard = LayoutStandard::Std140) {
-        auto structType = std::make_shared<ShaderStruct>("SpotLight", standard);
-        structType->AddField<glm::vec3>("position");
-        structType->AddField<float>("innerCutoff");
-        structType->AddField<glm::vec3>("direction");
-        structType->AddField<float>("outerCutoff");
-        structType->AddField<glm::vec4>("color"); // w is intensity
-        structType->AddField<float>("range");
-        structType->AddField<glm::vec3>("padding");
-        structType->Finalize();
-        return structType;
+    inline std::shared_ptr<ShaderStructDefinition> CreateSpotLightType(
+        LayoutStandard standard = LayoutStandard::Std140) {
+
+        auto structDef = std::make_shared<ShaderStructDefinition>("SpotLight", standard);
+        structDef->AddField("position", BaseType::Vec3);
+        structDef->AddField("innerCutoff", BaseType::Float);
+        structDef->AddField("direction", BaseType::Vec3);
+        structDef->AddField("outerCutoff", BaseType::Float);
+        structDef->AddField("color", BaseType::Vec4); // w is intensity
+        structDef->AddField("range", BaseType::Float);
+        structDef->AddField("padding", BaseType::Vec3);
+        structDef->Finalize();
+        return structDef;
     }
 
     // ============================================================================
@@ -88,54 +94,57 @@ namespace ShaderLib {
     };
 
     // ============================================================================
-    // HELPER FUNCTIONS
+    // HELPER FUNCTIONS - Work with instances
     // ============================================================================
 
-    inline void SetDirectionalLight(std::shared_ptr<ShaderStruct> lightStruct, const DirectionalLightData& data) {
-        lightStruct->SetField("direction", data.direction);
-        lightStruct->SetField("color", data.color);
+    inline void SetDirectionalLight(std::shared_ptr<ShaderStructInstance> lightInstance,
+        const DirectionalLightData& data) {
+        lightInstance->SetField("direction", data.direction);
+        lightInstance->SetField("color", data.color);
     }
 
-    inline DirectionalLightData GetDirectionalLight(std::shared_ptr<ShaderStruct> lightStruct) {
+    inline DirectionalLightData GetDirectionalLight(std::shared_ptr<ShaderStructInstance> lightInstance) {
         DirectionalLightData data;
-        data.direction = lightStruct->GetField<glm::vec3>("direction");
-        data.color = lightStruct->GetField<glm::vec4>("color");
+        data.direction = std::get<glm::vec3>(lightInstance->GetField("direction"));
+        data.color = std::get<glm::vec4>(lightInstance->GetField("color"));
         return data;
     }
 
-    inline void SetPointLight(std::shared_ptr<ShaderStruct> lightStruct, const PointLightData& data) {
-        lightStruct->SetField("position", data.position);
-        lightStruct->SetField("radius", data.radius);
-        lightStruct->SetField("color", data.color);
+    inline void SetPointLight(std::shared_ptr<ShaderStructInstance> lightInstance,
+        const PointLightData& data) {
+        lightInstance->SetField("position", data.position);
+        lightInstance->SetField("radius", data.radius);
+        lightInstance->SetField("color", data.color);
     }
 
-    inline PointLightData GetPointLight(std::shared_ptr<ShaderStruct> lightStruct) {
+    inline PointLightData GetPointLight(std::shared_ptr<ShaderStructInstance> lightInstance) {
         PointLightData data;
-        data.position = lightStruct->GetField<glm::vec3>("position");
-        data.radius = lightStruct->GetField<float>("radius");
-        data.color = lightStruct->GetField<glm::vec4>("color");
+        data.position = std::get<glm::vec3>(lightInstance->GetField("position"));
+        data.radius = std::get<float>(lightInstance->GetField("radius"));
+        data.color = std::get<glm::vec4>(lightInstance->GetField("color"));
         return data;
     }
 
-    inline void SetSpotLight(std::shared_ptr<ShaderStruct> lightStruct, const SpotLightData& data) {
-        lightStruct->SetField("position", data.position);
-        lightStruct->SetField("innerCutoff", data.innerCutoff);
-        lightStruct->SetField("direction", data.direction);
-        lightStruct->SetField("outerCutoff", data.outerCutoff);
-        lightStruct->SetField("color", data.color);
-        lightStruct->SetField("range", data.range);
-        lightStruct->SetField("padding", data.padding);
+    inline void SetSpotLight(std::shared_ptr<ShaderStructInstance> lightInstance,
+        const SpotLightData& data) {
+        lightInstance->SetField("position", data.position);
+        lightInstance->SetField("innerCutoff", data.innerCutoff);
+        lightInstance->SetField("direction", data.direction);
+        lightInstance->SetField("outerCutoff", data.outerCutoff);
+        lightInstance->SetField("color", data.color);
+        lightInstance->SetField("range", data.range);
+        lightInstance->SetField("padding", data.padding);
     }
 
-    inline SpotLightData GetSpotLight(std::shared_ptr<ShaderStruct> lightStruct) {
+    inline SpotLightData GetSpotLight(std::shared_ptr<ShaderStructInstance> lightInstance) {
         SpotLightData data;
-        data.position = lightStruct->GetField<glm::vec3>("position");
-        data.innerCutoff = lightStruct->GetField<float>("innerCutoff");
-        data.direction = lightStruct->GetField<glm::vec3>("direction");
-        data.outerCutoff = lightStruct->GetField<float>("outerCutoff");
-        data.color = lightStruct->GetField<glm::vec4>("color");
-        data.range = lightStruct->GetField<float>("range");
-        data.padding = lightStruct->GetField<glm::vec3>("padding");
+        data.position = std::get<glm::vec3>(lightInstance->GetField("position"));
+        data.innerCutoff = std::get<float>(lightInstance->GetField("innerCutoff"));
+        data.direction = std::get<glm::vec3>(lightInstance->GetField("direction"));
+        data.outerCutoff = std::get<float>(lightInstance->GetField("outerCutoff"));
+        data.color = std::get<glm::vec4>(lightInstance->GetField("color"));
+        data.range = std::get<float>(lightInstance->GetField("range"));
+        data.padding = std::get<glm::vec3>(lightInstance->GetField("padding"));
         return data;
     }
 

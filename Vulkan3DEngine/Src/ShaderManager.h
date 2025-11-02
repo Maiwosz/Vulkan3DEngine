@@ -31,7 +31,7 @@ struct ShaderAsset {
     uint64_t memorySize;
 };
 
-class ShaderManager : public IAssetHandler {
+class ShaderManager : public ISmartAssetHandler<ShaderHandle, ShaderAsset> {
 public:
     ShaderManager(
         const LogicalDevice& device,
@@ -51,10 +51,15 @@ public:
     std::any getResourceInternal(const AssetHandle& handle) const override;
     std::any getHandleInternal(const std::string& filename) const override;
 
+    // ISmartAssetHandler implementation
+    ShaderAsset* getResource(ShaderHandle handle) const override;
+    bool isAssetReady(ShaderHandle handle) const override;
+
     // Shader-specific accessors (for direct use when you have the handle)
     const ShaderLib::ShaderMetadata& getShaderMetadata(ShaderHandle handle) const;
     const ShaderResources& getShaderResources(ShaderHandle handle) const;
     ShaderModule* getModuleForStage(ShaderHandle shader, ShaderLib::Stage stage);
+    ShaderModuleHandle getModuleHandleForStage(ShaderHandle shader, ShaderLib::Stage stage);
     const CombinedShader& getCombinedShader(ShaderHandle handle) const;
 
 private:
@@ -74,6 +79,9 @@ private:
         const std::unordered_map<uint32_t, DescriptorLayoutHandle>& descriptorLayouts
     );
 
+    // Empty descriptor layout for gaps
+    DescriptorLayoutHandle createEmptyDescriptorLayout();
+
     // Helper methods
     uint64_t calculateShaderMemorySize(const ShaderAsset& asset) const;
     std::string getShaderCacheKey(const std::string& filename) const;
@@ -86,6 +94,9 @@ private:
 
     // Asset storage
     std::unordered_map<std::string, ShaderAsset> m_shaderAssets; // filename -> shader asset
+
+    // Empty layout cache
+    std::unordered_map<uint32_t, DescriptorLayoutHandle> m_emptyLayoutCache;
 
     // Handle generation
     uint32_t m_nextShaderHandle = 1;

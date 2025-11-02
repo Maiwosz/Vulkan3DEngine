@@ -1,6 +1,6 @@
 #pragma once
 #include "BufferAccessor.h"
-#include "BufferIO.h"
+#include "ValueSerialization.h"
 #include "ShaderStruct.h"
 #include "ShaderArray.h"
 #include <cstring>
@@ -51,22 +51,21 @@ namespace ShaderLib {
             try {
                 // Handle composite types
                 if (variable->IsComposite()) {
-                    auto composite = CloneComposite(variable->composite);
-                    if (!composite) {
+                    auto instance = variable->composite->CreateInstance();
+                    if (!instance) {
                         return false;
                     }
 
-                    composite->InitializeData();
-                    if (!composite->ReadFromBuffer(src)) {
+                    if (!instance->ReadFromBuffer(src)) {
                         return false;
                     }
 
-                    // Convert CompositeType to appropriate derived type for BufferValue
-                    if (composite->IsStruct()) {
-                        outValue = std::static_pointer_cast<ShaderStruct>(composite);
+                    // Convert to appropriate derived type for BufferValue
+                    if (instance->IsStruct()) {
+                        outValue = std::static_pointer_cast<ShaderStructInstance>(instance);
                     }
-                    else if (composite->IsArray()) {
-                        outValue = std::static_pointer_cast<ShaderArray>(composite);
+                    else if (instance->IsArray()) {
+                        outValue = std::static_pointer_cast<ShaderArrayInstance>(instance);
                     }
                     else {
                         return false;
@@ -126,8 +125,8 @@ namespace ShaderLib {
             return true;
         }
 
-        // Read composite type (ShaderStruct or ShaderArray)
-        bool readComposite(const std::string& variableName, std::shared_ptr<CompositeType>& outComposite) const {
+        bool readComposite(const std::string& variableName,
+            std::shared_ptr<CompositeTypeInstance>& outInstance) const {
             if (!isValid()) {
                 return false;
             }
@@ -148,17 +147,16 @@ namespace ShaderLib {
             const uint8_t* src = static_cast<const uint8_t*>(m_data) + variable->offset;
 
             try {
-                auto composite = CloneComposite(variable->composite);
-                if (!composite) {
+                auto instance = variable->composite->CreateInstance();
+                if (!instance) {
                     return false;
                 }
 
-                composite->InitializeData();
-                if (!composite->ReadFromBuffer(src)) {
+                if (!instance->ReadFromBuffer(src)) {
                     return false;
                 }
 
-                outComposite = composite;
+                outInstance = instance;
                 return true;
             }
             catch (...) {
@@ -168,33 +166,35 @@ namespace ShaderLib {
 
         // Read ShaderStruct specifically
         template<typename = void>
-        bool readStruct(const std::string& variableName, std::shared_ptr<ShaderStruct>& outStruct) const {
-            std::shared_ptr<CompositeType> composite;
-            if (!readComposite(variableName, composite)) {
+        bool readStruct(const std::string& variableName,
+            std::shared_ptr<ShaderStructInstance>& outStruct) const {
+            std::shared_ptr<CompositeTypeInstance> instance;
+            if (!readComposite(variableName, instance)) {
                 return false;
             }
 
-            if (!composite->IsStruct()) {
+            if (!instance->IsStruct()) {
                 return false;
             }
 
-            outStruct = std::static_pointer_cast<ShaderStruct>(composite);
+            outStruct = std::static_pointer_cast<ShaderStructInstance>(instance);
             return true;
         }
 
         // Read ShaderArray specifically
         template<typename = void>
-        bool readArray(const std::string& variableName, std::shared_ptr<ShaderArray>& outArray) const {
-            std::shared_ptr<CompositeType> composite;
-            if (!readComposite(variableName, composite)) {
+        bool readArray(const std::string& variableName,
+            std::shared_ptr<ShaderArrayInstance>& outArray) const {
+            std::shared_ptr<CompositeTypeInstance> instance;
+            if (!readComposite(variableName, instance)) {
                 return false;
             }
 
-            if (!composite->IsArray()) {
+            if (!instance->IsArray()) {
                 return false;
             }
 
-            outArray = std::static_pointer_cast<ShaderArray>(composite);
+            outArray = std::static_pointer_cast<ShaderArrayInstance>(instance);
             return true;
         }
 
@@ -205,11 +205,6 @@ namespace ShaderLib {
                 return ShaderTypeCategory::Unknown;
             }
             return variable->GetCategory();
-        }
-
-    private:
-        std::shared_ptr<CompositeType> CloneComposite(std::shared_ptr<CompositeType> src) const {
-            return ShaderLib::CloneComposite(src);
         }
     };
 

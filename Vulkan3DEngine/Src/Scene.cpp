@@ -207,5 +207,237 @@ Scene::~Scene()
 void Scene::update()
 {
     m_registry.systems().updateAll();
+    testComputeShader();
+}
 
+void Scene::testComputeShader()
+{
+    SPDLOG_INFO("=== Starting Compute Shader Test ===");
+    AssetManager& assetManager = m_engine.assetSystem().assetManager();
+    ShaderManager& shaderManager = m_engine.assetSystem().shaderManager();
+    MaterialManager& materialManager = m_engine.assetSystem().materialManager();
+    ComputeDispatcher& computeDispatcher = m_engine.engineCore().renderer().computeDispatcher();
+
+    // 1. Load compute shader
+    SPDLOG_INFO("Loading compute shader...");
+    AssetHandle shaderAssetHandle = AssetHandle(AssetLib::AssetType::Shader, "ComputeTest");
+    assetManager.ensureLoaded(shaderAssetHandle);
+    assetManager.ensureReady(shaderAssetHandle);
+    ShaderHandle shaderHandle = assetManager.getHandle<ShaderHandle>(shaderAssetHandle);
+
+    if (!shaderHandle.isValid()) {
+        SPDLOG_ERROR("Failed to load compute shader");
+        return;
+    }
+
+    const ShaderLib::ShaderMetadata& metadata = shaderManager.getShaderMetadata(shaderHandle);
+    SPDLOG_INFO("Shader loaded successfully");
+
+    // 2. Create material from shader using MaterialFactory
+    SPDLOG_INFO("Creating compute material...");
+    auto material = materialManager.factory().createMaterial("TestComputeMaterial", shaderHandle);
+    if (!material) {
+        SPDLOG_ERROR("Failed to create material");
+        return;
+    }
+
+    // Register material with MaterialManager to get a handle
+    MaterialHandle materialHandle = materialManager.registerMaterial(std::move(material), "TestComputeMaterial");
+    if (!materialHandle.isValid()) {
+        SPDLOG_ERROR("Failed to register material");
+        return;
+    }
+
+    // Create smart handle for the material
+    auto smartMaterial = materialManager.createSmartHandle(materialHandle);
+    if (!smartMaterial) {
+        SPDLOG_ERROR("Failed to create smart material handle");
+        return;
+    }
+
+    SPDLOG_INFO("Compute material created");
+
+    // 3. Prepare test data (256 floats)
+    SPDLOG_INFO("Preparing test data...");
+    constexpr uint32_t DATA_SIZE = 256;
+    std::vector<float> inputData(DATA_SIZE);
+
+    // Initialize with test values: 0.0, 1.0, 2.0, ..., 255.0
+    for (uint32_t i = 0; i < DATA_SIZE; ++i) {
+        inputData[i] = static_cast<float>(i);
+    }
+
+    SPDLOG_INFO("Input data prepared (first 5 values: {}, {}, {}, {}, {})",
+        inputData[0], inputData[1], inputData[2], inputData[3], inputData[4]);
+
+    // 4. Find the InputOutputData buffer in shader metadata
+    SPDLOG_INFO("Looking for InputOutputData buffer...");
+    const ShaderLib::BufferObject* bufferObject = nullptr;
+
+    for (const auto& buffer : metadata.customBuffers) {
+        if (buffer.name == "InputOutputData")
+        {
+            bufferObject = &buffer;
+            SPDLOG_INFO("Found buffer: {} (size: {} bytes)", buffer.name, buffer.size);
+            break;
+        }
+    }
+
+    if (!bufferObject) {
+        SPDLOG_ERROR("InputOutputData buffer not found in shader metadata");
+        return;
+    }
+
+    // 5. Find the 'values' variable in the buffer
+    SPDLOG_INFO("Looking for 'values' array variable...");
+    const ShaderLib::BufferVariable* valuesVariable = nullptr;
+    for (const auto& variable : bufferObject->variables) {
+        if (variable.name == "values") {
+            valuesVariable = &variable;
+            break;
+        }
+    }
+
+    if (!valuesVariable || !valuesVariable->IsComposite()) {
+        SPDLOG_ERROR("'values' array variable not found or is not composite type");
+        return;
+    }
+
+    SPDLOG_INFO("Found 'values' array variable");
+
+    // 6. Create ShaderArray instance from the variable's composite definition
+    SPDLOG_INFO("Creating shader array instance...");
+    auto arrayInstance = std::dynamic_pointer_cast<ShaderLib::ShaderArrayInstance>(
+        valuesVariable->composite->CreateInstance()
+    );
+
+    if (!arrayInstance) {
+        SPDLOG_ERROR("Failed to create array instance");
+        return;
+    }
+
+    SPDLOG_INFO("Array instance created (size: {}, element count: {})",
+        arrayInstance->GetDefinition()->GetSize(),
+        arrayInstance->GetArrayDefinition()->GetArrayCount());
+
+    // 7. Populate array with input data
+    SPDLOG_INFO("Writing input data to array...");
+    for (uint32_t i = 0; i < DATA_SIZE; ++i) {
+        arrayInstance->SetElement(i, ShaderLib::BufferValue(inputData[i]));
+    }
+    SPDLOG_INFO("Input data written to array");
+
+    // 8. Set array as material parameter
+    SPDLOG_INFO("Setting array parameter in material...");
+    Material* mat = materialManager.getMaterial(materialHandle);
+    if (!mat) {
+        SPDLOG_ERROR("Failed to get material pointer");
+        return;
+    }
+
+    // Set the array as a BufferValue parameter
+    ShaderLib::BufferValue bufferValue = arrayInstance;
+    bool paramSet = mat->setParameter("values", bufferValue);
+
+    if (!paramSet) {
+        SPDLOG_ERROR("Failed to set array parameter in material");
+        return;
+    }
+
+    SPDLOG_INFO("Array parameter set successfully");
+
+    // 9. Dispatch compute shader using the material
+    SPDLOG_INFO("Dispatching compute shader...");
+    SPDLOG_INFO("  Using automatic workgroup calculation for {} elements", DATA_SIZE);
+
+    bool dispatchSuccess = computeDispatcher.dispatchForDataSize(
+        smartMaterial,
+        DATA_SIZE,  // dataSizeX - will be divided by local_size_x (256)
+        1,          // dataSizeY
+        1           // dataSizeZ
+    );
+
+    if (!dispatchSuccess) {
+        SPDLOG_ERROR("Compute dispatch failed");
+        return;
+    }
+
+    SPDLOG_INFO("Compute shader executed successfully");
+
+    // 10. Read back results from material parameter
+    SPDLOG_INFO("Reading results from material...");
+
+    Material::ParamValue resultParam;
+    bool getSuccess = mat->getParameter("values", resultParam);
+
+    if (!getSuccess) {
+        SPDLOG_ERROR("Failed to get parameter from material");
+        return;
+    }
+
+    // Extract the array instance from the parameter
+    auto resultBufferValue = std::get_if<ShaderLib::BufferValue>(&resultParam);
+    if (!resultBufferValue) {
+        SPDLOG_ERROR("Parameter is not a BufferValue");
+        return;
+    }
+
+    auto resultArray = std::get_if<std::shared_ptr<ShaderLib::ShaderArrayInstance>>(resultBufferValue);
+    if (!resultArray || !(*resultArray)) {
+        SPDLOG_ERROR("BufferValue does not contain a ShaderArrayInstance");
+        return;
+    }
+
+    SPDLOG_INFO("Results array retrieved from material");
+
+    // 11. Extract float values from array
+    std::vector<float> outputData(DATA_SIZE);
+    for (uint32_t i = 0; i < DATA_SIZE; ++i) {
+        ShaderLib::BufferValue element = (*resultArray)->GetElement(i);
+        if (auto* floatVal = std::get_if<float>(&element)) {
+            outputData[i] = *floatVal;
+        }
+        else {
+            SPDLOG_ERROR("Element {} is not a float", i);
+            return;
+        }
+    }
+
+    SPDLOG_INFO("Results extracted successfully");
+
+    // 12. Verify results
+    SPDLOG_INFO("Verifying results...");
+    SPDLOG_INFO("Expected: each value should be doubled");
+    SPDLOG_INFO("Output data (first 10 values):");
+
+    bool allCorrect = true;
+    for (uint32_t i = 0; i < std::min(10u, DATA_SIZE); ++i) {
+        float expected = inputData[i] * 2.0f;
+        bool correct = std::abs(outputData[i] - expected) < 0.001f;
+        allCorrect &= correct;
+
+        SPDLOG_INFO("  [{}] Input: {:.1f}, Output: {:.1f}, Expected: {:.1f} {}",
+            i, inputData[i], outputData[i], expected,
+            correct ? "✓" : "✗");
+    }
+
+    // Check all values
+    for (uint32_t i = 10; i < DATA_SIZE; ++i) {
+        float expected = inputData[i] * 2.0f;
+        if (std::abs(outputData[i] - expected) >= 0.001f) {
+            allCorrect = false;
+            SPDLOG_ERROR("  [{}] Mismatch! Input: {:.1f}, Output: {:.1f}, Expected: {:.1f}",
+                i, inputData[i], outputData[i], expected);
+        }
+    }
+
+    if (allCorrect) {
+        SPDLOG_INFO("=== TEST PASSED: All values correctly doubled ===");
+    }
+    else {
+        SPDLOG_ERROR("=== TEST FAILED: Some values incorrect ===");
+    }
+
+    // Cleanup handled automatically by smart handles
+    SPDLOG_INFO("=== Compute Shader Test Complete ===");
 }

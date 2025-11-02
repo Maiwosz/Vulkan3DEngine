@@ -117,7 +117,8 @@ EngineCore::EngineCore(Settings& settings, Window& window) :m_settings(settings)
             *m_framebufferManager,
             *m_renderPassManager,
             *m_descriptorAllocator,
-            *m_pipelineManager
+            *m_pipelineManager,
+			*m_commandBufferManager
         );
 
     }

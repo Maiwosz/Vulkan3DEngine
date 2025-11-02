@@ -21,32 +21,30 @@ struct SpotLight {
     vec3 padding;
 };
 
+
 layout(std140, set = 0, binding = 0) uniform GlobalUBO {
     mat4 view;
     mat4 proj;
     vec3 cameraPosition;
     DirectionalLight directionalLight;
     int activePointLights;
-    PointLight[64] pointLights;
+    PointLight pointLights[64];
     int activeSpotLights;
-    SpotLight[16] spotLights;
+    SpotLight spotLights[16];
 };
-
 
 layout(std140, set = 1, binding = 0) uniform ObjectUBO {
     mat4 model;
     vec4 color;
 };
 
-
-layout(set = 2, binding = 0, std140) uniform InputDataUBO {
+layout(std140, set = 2, binding = 0) uniform InputData {
     float shininess;
     float ka;
     float kd;
     float ks;
 } inputData;
-
-layout(set = 2, binding = 1) uniform sampler2D albedo;
+layout(set = 2, binding = 3) uniform sampler2D albedo;
 
 layout(location = 0) in vec3 fragColor;
 layout(location = 1) in vec2 fragTexCoord;

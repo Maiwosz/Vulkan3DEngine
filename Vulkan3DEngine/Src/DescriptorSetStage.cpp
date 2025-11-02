@@ -73,7 +73,7 @@ ProcessingResult DescriptorSetStage::processMeshOrder(std::shared_ptr<MeshRender
 
     // Get shader handle - either from material or directly from order
     if (material) {
-        shaderHandle = material->shader();
+        shaderHandle = material->shader().handle();
     }
 
     if (!shaderHandle) {
@@ -89,7 +89,8 @@ ProcessingResult DescriptorSetStage::processMeshOrder(std::shared_ptr<MeshRender
 
     // Assign material descriptor set if available
     if (order->materialHandle) {
-        auto materialDescriptorSet = m_materialManager.getDescriptorSet(order->materialHandle);
+        auto material = m_materialManager.getMaterial(order->materialHandle);
+        auto materialDescriptorSet = material->getDescriptorSet();
         if (materialDescriptorSet.isValid()) {
             order->drawCall->setCustomDescriptorSet(materialDescriptorSet);
             SPDLOG_DEBUG("Assigned material descriptor set to mesh entity: {}", order->entity.id);
@@ -141,7 +142,7 @@ bool DescriptorSetStage::createObjectDescriptorSet(std::shared_ptr<MeshRenderOrd
 
         // Write object UBO to descriptor set if available
         if (order->objectUBOHandle.isValid()) {
-            m_writer.writeUniformBuffer(0, order->objectUBOHandle);
+            m_writer.writeBuffer(0, order->objectUBOHandle);
             SPDLOG_DEBUG("Added object UBO to object descriptor set at binding 0 for entity: {}",
                 order->entity.id);
         }
@@ -193,7 +194,7 @@ bool DescriptorSetStage::createGlobalDescriptorSet(std::shared_ptr<CameraRenderO
         m_writer.clear();
 
         // Write global UBO to descriptor set
-        m_writer.writeUniformBuffer(0, order->globalUBOHandle);
+        m_writer.writeBuffer(0, order->globalUBOHandle);
 
         // Create descriptor set using writer - this returns SmartHandle automatically
         auto globalDescriptorSet = m_writer.createDescriptorSet(globalLayout);

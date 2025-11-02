@@ -16,7 +16,8 @@ Renderer::Renderer(
     FrameBufferManager& framebufferManager,
     RenderPassManager& renderPassManager,
     DescriptorAllocator& descriptorAllocator,
-    PipelineManager& pipelineManager)
+    PipelineManager& pipelineManager,
+    CommandBufferManager& cmdBufferManager)
     : m_engineCore(engineCore),
     m_vulkanContext(vulkanContext),
     m_frameManager(frameManager),
@@ -28,13 +29,17 @@ Renderer::Renderer(
     m_descriptorAllocator(descriptorAllocator),
     m_pipelineManager(pipelineManager)
 {
-
-    // Create service objects - simplified initialization
     m_meshRenderer = std::make_unique<MeshRenderer>(m_vulkanContext, m_vramManager);
 
     m_renderGraphExecutor = std::make_unique<RenderGraphExecutor>(
         engineCore,
         *this
+    );
+
+    m_computeDispatcher = std::make_unique<ComputeDispatcher>(
+        vulkanContext,
+        pipelineManager,
+        cmdBufferManager
     );
 }
 
@@ -44,78 +49,80 @@ Renderer::~Renderer() {
     }
 }
 
-void Renderer::assignRenderGraph(const SmartRenderGraphHandle& renderGraphHandle) {
-    if (!m_renderGraphExecutor) {
-        SPDLOG_ERROR("Renderer: RenderGraphExecutor not initialized");
-        return;
-    }
+// ========== NEW SIMPLIFIED API ==========
 
-    m_renderGraphExecutor->assignRenderGraph(renderGraphHandle);
+bool Renderer::renderFrame(
+    const SmartRenderGraphHandle& renderGraph,
+    const std::vector<std::unique_ptr<GpuCall>>& gpuCalls) {
 
-    if (renderGraphHandle.isValid()) {
-        SPDLOG_DEBUG("Renderer: Assigned render graph (ID: {})", renderGraphHandle.handle().id);
-    }
-    else {
-        SPDLOG_DEBUG("Renderer: Cleared render graph assignment");
-    }
-}
-
-bool Renderer::hasAssignedRenderGraph() const {
-    return m_renderGraphExecutor && m_renderGraphExecutor->hasAssignedGraph();
-}
-
-RenderGraph* Renderer::getAssignedRenderGraph() const {
-    if (!m_renderGraphExecutor) {
-        return nullptr;
-    }
-    return m_renderGraphExecutor->getAssignedGraph();
-}
-
-const SmartRenderGraphHandle& Renderer::getAssignedRenderGraphHandle() const {
-    if (!m_renderGraphExecutor) {
-        static SmartRenderGraphHandle invalidHandle;
-        return invalidHandle;
-    }
-    return m_renderGraphExecutor->getAssignedGraphHandle();
-}
-
-bool Renderer::executeRenderGraph(const std::vector<std::unique_ptr<GpuCall>>& gpuCalls) {
-    if (!m_frameActive) {
-        SPDLOG_ERROR("Renderer: Cannot execute render graph - no active frame");
+    if (!renderGraph) {
+        SPDLOG_ERROR("Renderer: Cannot render frame - invalid render graph");
         return false;
     }
 
-    if (!m_renderGraphExecutor) {
-        SPDLOG_ERROR("Renderer: RenderGraphExecutor not initialized");
+    SPDLOG_DEBUG("Renderer: Starting frame with render graph (ID: {}), {} GPU calls",
+        renderGraph.handle().id, gpuCalls.size());
+
+    // 1. Begin frame
+    if (!beginFrame()) {
+        SPDLOG_ERROR("Renderer: Failed to begin frame");
         return false;
     }
 
-    if (!hasAssignedRenderGraph()) {
-        SPDLOG_ERROR("Renderer: No render graph assigned");
-        return false;
-    }
+    // 2. Assign render graph to executor
+    m_renderGraphExecutor->assignRenderGraph(renderGraph);
+
+    bool success = false;
 
     try {
-        bool success = m_renderGraphExecutor->executeGpuCalls(gpuCalls);
+        // 3. Execute GPU calls through render graph executor
+        if (!gpuCalls.empty()) {
+            success = m_renderGraphExecutor->executeGpuCalls(gpuCalls);
 
-        if (success) {
-            SPDLOG_DEBUG("Renderer: Successfully executed render graph with {} GPU calls",
-                gpuCalls.size());
+            if (!success) {
+                SPDLOG_ERROR("Renderer: Failed to execute GPU calls");
+            }
         }
         else {
-            SPDLOG_ERROR("Renderer: Failed to execute render graph");
+            SPDLOG_DEBUG("Renderer: No GPU calls to execute");
+            success = true; // Empty frame is valid
         }
-
-        return success;
     }
     catch (const std::exception& e) {
-        SPDLOG_ERROR("Renderer: Exception during render graph execution: {}", e.what());
+        SPDLOG_ERROR("Renderer: Exception during GPU call execution: {}", e.what());
+        success = false;
+    }
+
+    // 4. Always end frame, even on error
+    endFrame();
+
+    if (success) {
+        SPDLOG_DEBUG("Renderer: Frame completed successfully");
+    }
+
+    return success;
+}
+
+bool Renderer::renderEmptyFrame() {
+    SPDLOG_DEBUG("Renderer: Rendering empty frame");
+
+    if (!beginFrame()) {
+        SPDLOG_ERROR("Renderer: Failed to begin empty frame");
         return false;
     }
+
+    // Just end frame without executing anything
+    endFrame();
+
+    SPDLOG_DEBUG("Renderer: Empty frame completed");
+    return true;
 }
+
+// ========== FRAME LIFECYCLE ==========
 
 bool Renderer::beginFrame() {
     if (m_frameActive) {
+        SPDLOG_WARN("Renderer: Frame already active");
         return false;
     }
 
@@ -125,9 +132,11 @@ bool Renderer::beginFrame() {
 
         m_frameActive = true;
 
+        SPDLOG_DEBUG("Renderer: Frame begun (image index: {})", m_currentImageIndex);
         return true;
     }
-    catch (const std::exception&) {
+    catch (const std::exception& e) {
+        SPDLOG_ERROR("Renderer: Exception during frame begin: {}", e.what());
         cleanupFrame();
         return false;
     }
@@ -135,19 +144,24 @@ bool Renderer::beginFrame() {
 
 void Renderer::endFrame() {
     if (!m_frameActive) {
+        SPDLOG_WARN("Renderer: No active frame to end");
         return;
     }
 
     try {
         submitAndPresent();
     }
-    catch (const std::exception&) {
-        // Frame will be cleaned up regardless
+    catch (const std::exception& e) {
+        SPDLOG_ERROR("Renderer: Exception during frame end: {}", e.what());
     }
 
     cleanupFrame();
     m_engineCore.advanceFrame();
+
+    SPDLOG_DEBUG("Renderer: Frame ended");
 }
+
+// ========== PIPELINE AND DESCRIPTOR BINDING ==========
 
 bool Renderer::bindPipeline(PipelineHandle pipelineHandle) {
     ensureFrameActive();
@@ -194,7 +208,7 @@ bool Renderer::bindDescriptorSets(const std::vector<DescriptorSetHandle>& descri
         return true;
     }
 
-    // Konwertuj uchwyty na VkDescriptorSet i waliduj
+    // Convert handles to VkDescriptorSet and validate
     std::vector<VkDescriptorSet> descriptorSets;
     descriptorSets.reserve(descriptorHandles.size());
 
@@ -215,13 +229,13 @@ bool Renderer::bindDescriptorSets(const std::vector<DescriptorSetHandle>& descri
         descriptorSets.push_back(descriptorSet);
     }
 
-    // KLUCZOWE: Oznacz wszystkie deskryptory jako używane przez GPU PRZED bindowaniem
+    // Mark all descriptors as used by GPU BEFORE binding
     uint32_t currentFrameIndex = m_frameManager.getCurrentFrameIndex();
     for (const auto& handle : descriptorHandles) {
         m_descriptorAllocator.markDescriptorAsUsedByGPU(handle, currentFrameIndex);
     }
 
-    // Dopiero teraz zbinduj deskryptory do command buffera
+    // Now bind descriptors to command buffer
     vkCmdBindDescriptorSets(
         getCurrentCommandBuffer(),
         VK_PIPELINE_BIND_POINT_GRAPHICS,
@@ -237,7 +251,8 @@ bool Renderer::bindDescriptorSets(const std::vector<DescriptorSetHandle>& descri
     return true;
 }
 
-// FIXED IMPLEMENTATION - Command buffer access methods
+// ========== COMMAND BUFFER ACCESS ==========
+
 VkCommandBuffer Renderer::getCurrentCommandBuffer() const {
     ensureFrameActive();
     return m_frameManager.getCurrentFrame().graphicsCommandBuffer->handle();
@@ -252,6 +267,42 @@ VkCommandBuffer Renderer::getImGuiCommandBuffer() const {
     ensureFrameActive();
     return m_frameManager.getCurrentFrame().imguiCommandBuffer->handle();
 }
+
+// ========== VIEWPORT AND SCISSOR ==========
+
+void Renderer::setViewport(VkExtent2D extent, float minDepth, float maxDepth) {
+    setViewport(0, 0, extent.width, extent.height, minDepth, maxDepth);
+}
+
+void Renderer::setViewport(uint32_t x, uint32_t y, uint32_t width, uint32_t height, float minDepth, float maxDepth) {
+    ensureFrameActive();
+
+    VkViewport viewport{};
+    viewport.x = static_cast<float>(x);
+    viewport.y = static_cast<float>(y);
+    viewport.width = static_cast<float>(width);
+    viewport.height = static_cast<float>(height);
+    viewport.minDepth = minDepth;
+    viewport.maxDepth = maxDepth;
+
+    vkCmdSetViewport(getCurrentCommandBuffer(), 0, 1, &viewport);
+}
+
+void Renderer::setScissor(VkExtent2D extent, VkOffset2D offset) {
+    setScissor(offset.x, offset.y, extent.width, extent.height);
+}
+
+void Renderer::setScissor(uint32_t x, uint32_t y, uint32_t width, uint32_t height) {
+    ensureFrameActive();
+
+    VkRect2D scissor{};
+    scissor.offset = { static_cast<int32_t>(x), static_cast<int32_t>(y) };
+    scissor.extent = { width, height };
+
+    vkCmdSetScissor(getCurrentCommandBuffer(), 0, 1, &scissor);
+}
+
+// ========== INTERNAL FRAME MANAGEMENT ==========
 
 void Renderer::prepareFrame() {
     auto inFlightFence = m_frameManager.getInFlightFence();
@@ -358,52 +409,16 @@ void Renderer::cleanupFrame() {
     m_vramManager.transferManager().resetFrameState();
 }
 
-void Renderer::setViewport(VkExtent2D extent, float minDepth, float maxDepth) {
-    setViewport(0, 0, extent.width, extent.height, minDepth, maxDepth);
-}
-
-void Renderer::setViewport(uint32_t x, uint32_t y, uint32_t width, uint32_t height, float minDepth, float maxDepth) {
-    ensureFrameActive();
-
-    VkViewport viewport{};
-    viewport.x = static_cast<float>(x);
-    viewport.y = static_cast<float>(y);
-    viewport.width = static_cast<float>(width);
-    viewport.height = static_cast<float>(height);
-    viewport.minDepth = minDepth;
-    viewport.maxDepth = maxDepth;
-
-    vkCmdSetViewport(getCurrentCommandBuffer(), 0, 1, &viewport);
-}
-
-void Renderer::setScissor(VkExtent2D extent, VkOffset2D offset) {
-    setScissor(offset.x, offset.y, extent.width, extent.height);
-}
-
-void Renderer::setScissor(uint32_t x, uint32_t y, uint32_t width, uint32_t height) {
-    ensureFrameActive();
-
-    VkRect2D scissor{};
-    scissor.offset = { static_cast<int32_t>(x), static_cast<int32_t>(y) };
-    scissor.extent = { width, height };
-
-    vkCmdSetScissor(getCurrentCommandBuffer(), 0, 1, &scissor);
-}
-
 void Renderer::handleSwapchainRecreation() {
     cleanupFrame();
 
-    // First, wait for all queues to be idle - this is safer than waiting for fences
+    // Wait for all queues to be idle
     vkQueueWaitIdle(m_vulkanContext.logical().getQueue(LogicalDevice::QueueType::Graphics));
     vkQueueWaitIdle(m_vulkanContext.logical().getQueue(LogicalDevice::QueueType::Transfer));
 
-    // Wait for all frames to complete to ensure no descriptor sets are in use
     m_frameManager.waitForAllFrames();
-
-    // Reset all frame command buffers to a clean state
     m_frameManager.resetAllFrames();
 
-    // Now wait for device to be completely idle
     vkDeviceWaitIdle(m_vulkanContext.logical().get());
 
     SPDLOG_INFO("Device is idle, proceeding with swapchain recreation");
@@ -413,7 +428,6 @@ void Renderer::handleSwapchainRecreation() {
         return;
     }
 
-    // Let executor handle the complete rebuild process
     if (!m_renderGraphExecutor->rebuildAfterSwapchainRecreation()) {
         SPDLOG_ERROR("Failed to rebuild render graph after swapchain recreation");
     }

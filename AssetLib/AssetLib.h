@@ -5,6 +5,7 @@
 #include <string_view>
 #include <json.hpp>
 #include "ShaderLib.h"
+#include "MaterialTypes.h"
 
 namespace AssetLib {
 
@@ -112,56 +113,7 @@ namespace AssetLib {
     // Materials
     // =============================================
 
-    // Sampler settings for texture parameters
-    enum class ColorSpace : uint8_t {
-        Linear = 0,
-        SRGB = 1,
-        HDR = 2
-    };
-
-    struct SamplerDescription {
-        enum class Filter : uint8_t {
-            Nearest = 0,
-            Linear = 1
-        };
-
-        enum class AddressMode : uint8_t {
-            Repeat = 0,
-            MirroredRepeat = 1,
-            ClampToEdge = 2,
-            ClampToBorder = 3
-        };
-
-        Filter magFilter;
-        Filter minFilter;
-        AddressMode addressModeU;
-        AddressMode addressModeV;
-        AddressMode addressModeW;
-        float anisotropy;
-        float minLod;
-        float maxLod;
-        ColorSpace colorSpace;
-    };
-
-    // Parameter for material (corresponds to CustomDescriptorSet bindings in shader)
-    struct MaterialParameter {
-        std::array<char, 32> name;              // Name of the parameter
-        ShaderLib::DescriptorType descriptorType; // Type of descriptor (from ShaderLib)
-        ShaderLib::BaseType baseType;           // For buffer variables - the base type
-        uint32_t arraySize;                     // Size if it's an array, 0 otherwise
-        SamplerDescription samplerDesc;         // Sampler settings for textures
-        uint32_t dataOffset;                    // Offset into the parameter data
-        uint32_t dataSize;                      // Size of this parameter's data
-    };
-
-    struct MaterialInfo {
-        std::array<char, 32> shaderName;        // Name of the shader asset this material uses
-        uint32_t parameterCount;                // Number of parameters
-        uint32_t dataSize;                      // Total size of parameter data
-        // Following this structure:
-        // MaterialParameter[parameterCount]
-        // uint8_t[dataSize] (parameter data)
-    };
+    // Defined in separate file
 
     // =============================================
     // Prefabs
@@ -224,26 +176,8 @@ namespace AssetLib {
     // =============================================
     // Funkcje dla materiałów
     // =============================================
-    AssetData WriteMaterial(
-        const std::string& source,
-        const MaterialInfo& info,
-        const std::vector<MaterialParameter>& parameters,
-        const std::vector<uint8_t>& parameterData,
-        CompressionType compression = CompressionType::LZ4,
-        int compressionLevel = 1
-    );
-
-    std::tuple<MaterialInfo, std::vector<MaterialParameter>, std::vector<uint8_t>> ReadMaterial(const AssetData& asset);
-
-    // Helper functions to convert string representations to enum values
-    SamplerDescription::Filter StringToSamplerFilter(const std::string& filter);
-    SamplerDescription::AddressMode StringToAddressMode(const std::string& mode);
-    ColorSpace StringToColorSpace(const std::string& colorSpace);
-
-    // Reverse conversions for serialization
-    std::string SamplerFilterToString(SamplerDescription::Filter filter);
-    std::string AddressModeToString(SamplerDescription::AddressMode mode);
-    std::string ColorSpaceToString(ColorSpace colorSpace);
+    
+	// Defined in separate file
 
     // =============================================
     // Funkcje dla shaderów

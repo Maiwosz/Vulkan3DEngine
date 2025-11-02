@@ -22,6 +22,12 @@ ShaderManager::~ShaderManager() {
         destroyShader(asset.handle);
     }
     m_shaderAssets.clear();
+
+    // Clean up empty layout cache
+    for (const auto& [_, handle] : m_emptyLayoutCache) {
+        m_descriptorLayoutManager.destroy(handle);
+    }
+    m_emptyLayoutCache.clear();
 }
 
 bool ShaderManager::prepareAsset(const AssetHandle& handle, const AssetLib::AssetData& data, AssetManager& manager) {
@@ -135,6 +141,24 @@ std::any ShaderManager::getHandleInternal(const std::string& filename) const {
     return ShaderHandle{};
 }
 
+ShaderAsset* ShaderManager::getResource(ShaderHandle handle) const {
+    for (const auto& [filename, asset] : m_shaderAssets) {
+        if (asset.handle == handle) {
+            return const_cast<ShaderAsset*>(&asset);
+        }
+    }
+    return nullptr;
+}
+
+bool ShaderManager::isAssetReady(ShaderHandle handle) const {
+    for (const auto& [filename, asset] : m_shaderAssets) {
+        if (asset.handle == handle) {
+            return true;
+        }
+    }
+    return false;
+}
+
 const ShaderLib::ShaderMetadata& ShaderManager::getShaderMetadata(ShaderHandle handle) const {
     for (const auto& [filename, asset] : m_shaderAssets) {
         if (asset.handle == handle) {
@@ -166,6 +190,19 @@ ShaderModule* ShaderManager::getModuleForStage(ShaderHandle shader, ShaderLib::S
     return nullptr;
 }
 
+ShaderModuleHandle ShaderManager::getModuleHandleForStage(ShaderHandle shader, ShaderLib::Stage stage) {
+    for (const auto& [filename, asset] : m_shaderAssets) {
+        if (asset.handle == shader) {
+            auto it = asset.combinedShader.stages.find(stage);
+            if (it != asset.combinedShader.stages.end()) {
+                return it->second;
+            }
+            return ShaderModuleHandle();
+        }
+    }
+    return ShaderModuleHandle();
+}
+
 const CombinedShader& ShaderManager::getCombinedShader(ShaderHandle handle) const {
     for (const auto& [filename, asset] : m_shaderAssets) {
         if (asset.handle == handle) {
@@ -181,13 +218,11 @@ ShaderHandle ShaderManager::createShader(
     const ShaderLib::ShaderMetadata& metadata,
     const std::vector<ShaderLib::CompiledStage>& stages
 ) {
-    SPDLOG_INFO("Creating new shader with {} available stages", metadata.availableStages);
-
     // Log shader metadata
     SPDLOG_DEBUG("Shader metadata:");
     SPDLOG_DEBUG("  - Uses GlobalUBO: {}", metadata.usesGlobalUBO ? "yes" : "no");
     SPDLOG_DEBUG("  - Uses ObjectUBO: {}", metadata.usesObjectUBO ? "yes" : "no");
-    SPDLOG_DEBUG("  - Descriptors: {}", metadata.descriptors.size());
+    SPDLOG_DEBUG("  - Descriptor sets: {}", metadata.descriptorSets.size());
     SPDLOG_DEBUG("  - Push constants: {}", metadata.pushConstants.size());
 
     // Generate unique handle
@@ -282,13 +317,26 @@ void ShaderManager::destroyShader(ShaderHandle handle) {
             m_pipelineLayoutManager.destroy(assetPtr->resources.pipelineLayout);
         }
 
-        // Destroy descriptor layouts (but skip built-in ones)
+        // Destroy descriptor layouts (but skip built-in ones and empty ones)
         for (const auto& [set, layoutHandle] : assetPtr->resources.descriptorLayouts) {
             if (layoutHandle) {
                 // Don't destroy built-in layouts
                 if (set != ShaderLib::GLOBAL_DESCRIPTOR_SET &&
                     set != ShaderLib::OBJECT_DESCRIPTOR_SET) {
-                    m_descriptorLayoutManager.destroy(layoutHandle);
+
+                    // Check if it's an empty layout from cache
+                    bool isEmptyLayout = false;
+                    for (const auto& [_, emptyHandle] : m_emptyLayoutCache) {
+                        if (layoutHandle == emptyHandle) {
+                            isEmptyLayout = true;
+                            break;
+                        }
+                    }
+
+                    // Only destroy if it's not an empty layout
+                    if (!isEmptyLayout) {
+                        m_descriptorLayoutManager.destroy(layoutHandle);
+                    }
                 }
             }
         }
@@ -300,61 +348,100 @@ void ShaderManager::destroyShader(ShaderHandle handle) {
     }
 }
 
+DescriptorLayoutHandle ShaderManager::createEmptyDescriptorLayout() {
+    // Check if we already have an empty layout cached
+    if (!m_emptyLayoutCache.empty()) {
+        return m_emptyLayoutCache.begin()->second;
+    }
+
+    // Create empty descriptor layout (no bindings)
+    DescriptorLayoutBuilder builder;
+    // Don't add any bindings - this creates an empty layout
+
+    DescriptorLayoutHandle handle = m_descriptorLayoutManager.create(
+        builder,
+        VK_SHADER_STAGE_ALL
+    );
+
+    // Cache it for reuse
+    m_emptyLayoutCache[0] = handle;
+
+    SPDLOG_DEBUG("Created empty descriptor layout (handle: {})", handle.id);
+    return handle;
+}
+
 std::unordered_map<uint32_t, DescriptorLayoutHandle> ShaderManager::createDescriptorLayouts(
     const ShaderLib::ShaderMetadata& metadata
 ) {
     std::unordered_map<uint32_t, DescriptorLayoutHandle> result;
 
-    // Group descriptors by set
-    std::unordered_map<uint32_t, std::vector<ShaderLib::DescriptorBinding>> descriptorsBySet;
-
-    for (const auto& descriptor : metadata.descriptors) {
-        descriptorsBySet[descriptor.set].push_back(descriptor);
+    // Find the maximum set number used
+    uint32_t maxSetNumber = 0;
+    for (const auto& descriptorSet : metadata.descriptorSets) {
+        maxSetNumber = std::max(maxSetNumber, descriptorSet.setNumber);
     }
 
-    // Create descriptor layouts for each set
-    for (const auto& [set, descriptors] : descriptorsBySet) {
+    SPDLOG_DEBUG("Creating descriptor layouts for sets 0 to {}", maxSetNumber);
+
+    // Create layouts for all sets from 0 to maxSetNumber (filling gaps with empty layouts)
+    for (uint32_t setNum = 0; setNum <= maxSetNumber; ++setNum) {
         DescriptorLayoutHandle layoutHandle;
+        bool foundSet = false;
 
-        // Use built-in layouts for Global and Object descriptor sets
-        if (set == ShaderLib::GLOBAL_DESCRIPTOR_SET && metadata.usesGlobalUBO) {
-            layoutHandle = m_descriptorLayoutManager.getBuiltInLayout(
-                DescriptorLayoutManager::BuiltInLayout::Global
-            );
-            SPDLOG_DEBUG("Using built-in Global descriptor layout for set {}", set);
-        }
-        else if (set == ShaderLib::OBJECT_DESCRIPTOR_SET && metadata.usesObjectUBO) {
-            layoutHandle = m_descriptorLayoutManager.getBuiltInLayout(
-                DescriptorLayoutManager::BuiltInLayout::Object
-            );
-            SPDLOG_DEBUG("Using built-in Object descriptor layout for set {}", set);
-        }
-        else {
-            // Create custom descriptor layout for other sets
-            DescriptorLayoutBuilder builder;
-            VkShaderStageFlags combinedStageFlags = 0;
+        // Check if this set is defined in metadata
+        for (const auto& descriptorSet : metadata.descriptorSets) {
+            if (descriptorSet.setNumber == setNum) {
+                foundSet = true;
 
-            // Add bindings to builder
-            for (const auto& descriptor : descriptors) {
-                VkDescriptorType vulkanDescriptorType =
-                    static_cast<VkDescriptorType>(ShaderLib::GetVulkanDescriptorType(descriptor.descriptorType));
+                // Use built-in layouts for Global and Object descriptor sets
+                if (setNum == ShaderLib::GLOBAL_DESCRIPTOR_SET && metadata.usesGlobalUBO) {
+                    layoutHandle = m_descriptorLayoutManager.getBuiltInLayout(
+                        DescriptorLayoutManager::BuiltInLayout::Global
+                    );
+                    SPDLOG_DEBUG("Using built-in Global descriptor layout for set {}", setNum);
+                }
+                else if (setNum == ShaderLib::OBJECT_DESCRIPTOR_SET && metadata.usesObjectUBO) {
+                    layoutHandle = m_descriptorLayoutManager.getBuiltInLayout(
+                        DescriptorLayoutManager::BuiltInLayout::Object
+                    );
+                    SPDLOG_DEBUG("Using built-in Object descriptor layout for set {}", setNum);
+                }
+                else {
+                    // Create custom descriptor layout for other sets
+                    DescriptorLayoutBuilder builder;
+                    VkShaderStageFlags combinedStageFlags = 0;
 
-                // Convert the stage flags for this descriptor
-                VkShaderStageFlags stageFlags = ShaderLib::GetVulkanShaderStageFlags(descriptor.stages);
-                combinedStageFlags |= stageFlags;
+                    // Add bindings from slots
+                    for (const auto& slot : descriptorSet.slots) {
+                        VkDescriptorType vulkanDescriptorType =
+                            static_cast<VkDescriptorType>(ShaderLib::GetVulkanDescriptorType(slot.type));
 
-                builder.addBinding(descriptor.binding, vulkanDescriptorType);
+                        // Convert the stage flags for this slot
+                        VkShaderStageFlags stageFlags = ShaderLib::GetVulkanShaderStageFlags(slot.stages);
+                        combinedStageFlags |= stageFlags;
+
+                        builder.addBinding(slot.binding, vulkanDescriptorType);
+                    }
+
+                    // Create descriptor layout
+                    layoutHandle = m_descriptorLayoutManager.create(
+                        builder,
+                        combinedStageFlags
+                    );
+                    SPDLOG_DEBUG("Created custom descriptor layout for set {} with {} bindings",
+                        setNum, descriptorSet.slots.size());
+                }
+                break;
             }
-
-            // Create descriptor layout
-            layoutHandle = m_descriptorLayoutManager.create(
-                builder,
-                combinedStageFlags
-            );
-            SPDLOG_DEBUG("Created custom descriptor layout for set {}", set);
         }
 
-        result[set] = layoutHandle;
+        // If set not found, create empty layout to fill the gap
+        if (!foundSet) {
+            layoutHandle = createEmptyDescriptorLayout();
+            SPDLOG_DEBUG("Using empty descriptor layout for unused set {}", setNum);
+        }
+
+        result[setNum] = layoutHandle;
     }
 
     return result;
@@ -380,27 +467,45 @@ PipelineLayoutHandle ShaderManager::createPipelineLayout(
     // Collect descriptor layouts in order
     std::vector<VkDescriptorSetLayout> vkLayouts;
 
-    // Find the highest set number to properly size our collection
-    uint32_t maxSetNumber = 0;
-    for (const auto& [set, _] : descriptorLayouts) {
-        maxSetNumber = std::max(maxSetNumber, set);
-    }
+    if (!descriptorLayouts.empty()) {
+        // Find the maximum set number
+        uint32_t maxSetNumber = 0;
+        for (const auto& [set, _] : descriptorLayouts) {
+            maxSetNumber = std::max(maxSetNumber, set);
+        }
 
-    // Reserve space for all sets up to maxSetNumber
-    vkLayouts.resize(maxSetNumber + 1, VK_NULL_HANDLE);
+        SPDLOG_DEBUG("Creating pipeline layout with descriptor sets 0 to {}", maxSetNumber);
 
-    // Fill in the layouts we have
-    for (const auto& [set, layoutHandle] : descriptorLayouts) {
-        if (set <= maxSetNumber) {
-            vkLayouts[set] = m_descriptorLayoutManager.get(layoutHandle);
+        // Build contiguous array from 0 to maxSetNumber
+        // At this point, createDescriptorLayouts should have filled all gaps
+        vkLayouts.resize(maxSetNumber + 1);
+
+        for (uint32_t set = 0; set <= maxSetNumber; ++set) {
+            auto it = descriptorLayouts.find(set);
+            if (it == descriptorLayouts.end()) {
+                SPDLOG_ERROR("Missing descriptor layout for set {} - this should not happen!", set);
+                throw std::runtime_error("Missing descriptor layout for set " + std::to_string(set));
+            }
+
+            // Verify the handle is valid
+            if (!it->second) {
+                SPDLOG_ERROR("Descriptor set {} has invalid handle (id={})", set, it->second.id);
+                throw std::runtime_error("Invalid descriptor layout handle for set " + std::to_string(set));
+            }
+
+            VkDescriptorSetLayout layout = m_descriptorLayoutManager.get(it->second);
+            if (layout == VK_NULL_HANDLE) {
+                SPDLOG_ERROR("Descriptor set {} resolved to VK_NULL_HANDLE (handle id={})",
+                    set, it->second.id);
+                throw std::runtime_error("Invalid descriptor layout for set " + std::to_string(set));
+            }
+
+            vkLayouts[set] = layout;
+            SPDLOG_DEBUG("Added descriptor set {} to pipeline layout", set);
         }
     }
 
-    // Remove any nullptr layouts at the end
-    while (!vkLayouts.empty() && vkLayouts.back() == VK_NULL_HANDLE) {
-        vkLayouts.pop_back();
-    }
-
+    SPDLOG_INFO("Pipeline layout created with {} descriptor set layouts", vkLayouts.size());
     layoutConfig.descriptorSetLayouts = std::move(vkLayouts);
 
     return m_pipelineLayoutManager.createLayout(layoutConfig);

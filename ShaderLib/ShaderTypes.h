@@ -5,25 +5,27 @@
 #include <variant>
 #include <memory>
 #include <vector>
+#include <json.hpp>
+
+using json = nlohmann::json;
 
 namespace ShaderLib {
 
     // Forward declarations
-    class CompositeType;
-    class ShaderStruct;
-    class ShaderArray;
+    class CompositeTypeDefinition;
+    class CompositeTypeInstance;
+    class ShaderStructDefinition;
+    class ShaderStructInstance;
+    class ShaderArrayDefinition;
+    class ShaderArrayInstance;
 
     // ============================================================================
-    // BASE TYPE SYSTEM - Typy proste (skalary, wektory, macierze)
+    // BASE TYPE SYSTEM
     // ============================================================================
 
     enum class BaseType {
         // Scalar types
-        Bool,
-        Float,
-        Int,
-        UInt,
-        Double,
+        Bool, Float, Int, UInt, Double,
 
         // Float vectors
         Vec2, Vec3, Vec4,
@@ -44,20 +46,18 @@ namespace ShaderLib {
         AtomicUInt,
 
         // Composite types (size/alignment known at runtime)
-        Struct,
-        Array,
+        Struct, Array,
 
-        Unknown,
-        COUNT
+        Unknown, COUNT
     };
 
     // ============================================================================
-    // SHADER TYPE CATEGORY - Kategoria typu danych
+    // SHADER TYPE CATEGORY
     // ============================================================================
 
     enum class ShaderTypeCategory {
-        Base,           // Proste typy (BaseType: skalary, wektory, macierze)
-        Composite,      // Złożone typy (Struct/Array)
+        Base,           // Simple types (BaseType: scalars, vectors, matrices)
+        Composite,      // Complex types (Struct/Array)
         Unknown
     };
 
@@ -125,10 +125,6 @@ namespace ShaderLib {
             return type == BaseType::Struct || type == BaseType::Array;
         }
 
-        constexpr bool IsRuntimeSized() const {
-            return IsComposite();
-        }
-
         constexpr bool IsValid() const {
             return type != BaseType::Unknown && size > 0;
         }
@@ -140,6 +136,7 @@ namespace ShaderLib {
         constexpr bool IsInteger() const { return HasFlag(flags, TypeFlags::Integer); }
         constexpr bool IsUnsigned() const { return HasFlag(flags, TypeFlags::Unsigned); }
         constexpr bool IsAtomic() const { return HasFlag(flags, TypeFlags::Atomic); }
+        constexpr bool IsDouble() const { return HasFlag(flags, TypeFlags::Double); }
     };
 
     // ============================================================================
@@ -202,7 +199,7 @@ namespace ShaderLib {
 #undef A
 
     // ============================================================================
-    // C++ TYPE VARIANT - Dla wartości w buforach
+    // C++ TYPE VARIANT - For buffer values
     // ============================================================================
 
     using BufferValue = std::variant<
@@ -216,33 +213,26 @@ namespace ShaderLib {
         double,
         glm::dvec2, glm::dvec3, glm::dvec4,
         glm::mat2, glm::mat3, glm::mat4,
-        std::shared_ptr<ShaderStruct>,
-        std::shared_ptr<ShaderArray>
+        std::shared_ptr<ShaderStructInstance>,
+        std::shared_ptr<ShaderArrayInstance>
     >;
 
     // ============================================================================
-    // COMPOSITE TYPE BASE CLASS - Typy złożone (Struct/Array)
+    // COMPOSITE TYPE DEFINITION - Immutable type metadata
     // ============================================================================
 
-    class CompositeType {
+    class CompositeTypeDefinition {
     public:
-        virtual ~CompositeType() = default;
+        virtual ~CompositeTypeDefinition() = default;
 
-        // Type information
+        // Type information (immutable)
         virtual std::string GetTypeName() const = 0;
         virtual uint32_t GetSize() const = 0;
         virtual uint32_t GetAlignment() const = 0;
         virtual LayoutStandard GetLayoutStandard() const = 0;
 
-        // Data management
-        virtual void InitializeData() = 0;
-        virtual bool HasData() const = 0;
-        virtual void ClearData() = 0;
-
-        // Buffer I/O
-        virtual bool ReadFromBuffer(const void* src) = 0;
-        virtual bool WriteToBuffer(void* dst) const = 0;
-        virtual const std::vector<uint8_t>& GetRawBuffer() const = 0;
+        // UNIFIED: Serialization
+        virtual json ToJson() const = 0;
 
         // GLSL generation
         virtual std::string GenerateGLSL() const = 0;
@@ -250,6 +240,43 @@ namespace ShaderLib {
         // Type checking
         virtual bool IsStruct() const = 0;
         virtual bool IsArray() const = 0;
+
+        // Factory method - creates new instance with this definition
+        virtual std::shared_ptr<CompositeTypeInstance> CreateInstance() const = 0;
+
+        // STATIC FACTORY - deserializes ANY composite type from JSON
+        static std::shared_ptr<const CompositeTypeDefinition> FromJson(const json& j);
+    };
+
+    // ============================================================================
+    // COMPOSITE TYPE INSTANCE - Mutable instance data
+    // ============================================================================
+
+    class CompositeTypeInstance {
+    public:
+        virtual ~CompositeTypeInstance() = default;
+
+        // Access to definition
+        virtual std::shared_ptr<const CompositeTypeDefinition> GetDefinition() const = 0;
+
+        // Data management
+        virtual const std::vector<uint8_t>& GetRawBuffer() const = 0;
+        virtual bool WriteToBuffer(void* dst) const = 0;
+        virtual bool ReadFromBuffer(const void* src) = 0;
+
+        // Instance cloning
+        virtual std::shared_ptr<CompositeTypeInstance> Clone() const = 0;
+
+        // UNIFIED: Serialization (with data)
+        virtual json ToJson() const = 0;
+        virtual bool FromJson(const json& j) = 0;
+
+        // Type checking
+        virtual bool IsStruct() const = 0;
+        virtual bool IsArray() const = 0;
+
+        // STATIC FACTORY - deserializes ANY composite instance from JSON
+        static std::shared_ptr<CompositeTypeInstance> CreateInstanceFromJson(const json& j);
     };
 
     // ============================================================================
@@ -333,7 +360,6 @@ namespace ShaderLib {
         return BaseTypeTraits<T>::supported;
     }
 
-    // Helper to get ShaderTypeCategory from BaseType or CompositeType
     inline ShaderTypeCategory GetTypeCategory(BaseType type) {
         return GetBaseTypeInfo(type).IsComposite()
             ? ShaderTypeCategory::Composite
@@ -341,7 +367,7 @@ namespace ShaderLib {
     }
 
     // ============================================================================
-    // VARIANT HELPERS - DEKLARACJE
+    // VARIANT HELPERS
     // ============================================================================
 
     BaseType VariantIndexToBaseType(size_t index);

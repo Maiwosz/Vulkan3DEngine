@@ -11,7 +11,7 @@ public:
     ~Scene();
 
     void update();
-
+    void testComputeShader();
 private:
     Engine& m_engine;
     Registry& m_registry;

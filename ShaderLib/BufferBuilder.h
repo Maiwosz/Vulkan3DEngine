@@ -7,29 +7,36 @@
 
 namespace ShaderLib {
 
-    // ============================================================================
-    // BUFFER BUILDER
-    // ============================================================================
-
     class BufferBuilder {
     private:
         std::string name;
-        uint32_t set;
-        uint32_t binding;
         BufferType bufferType;
         LayoutStandard layoutStandard;
+        BufferAccessMode defaultAccessMode;
         std::vector<BufferVariable> variables;
+        bool useInstanceName = true;
 
     public:
-        BufferBuilder(const std::string& bufferName, uint32_t descriptorSet, uint32_t bindingPoint)
-            : name(bufferName), set(descriptorSet), binding(bindingPoint),
-            bufferType(BufferType::Uniform), layoutStandard(LayoutStandard::Std140) {
+        BufferBuilder(const std::string& bufferName)
+            : name(bufferName),
+            bufferType(BufferType::Uniform),
+            layoutStandard(LayoutStandard::Std140),
+            defaultAccessMode(BufferAccessMode::ReadOnly) {
         }
 
-        BufferBuilder(const std::string& bufferName, uint32_t descriptorSet, uint32_t bindingPoint,
-            BufferType type, LayoutStandard standard = LayoutStandard::Std140)
-            : name(bufferName), set(descriptorSet), binding(bindingPoint),
-            bufferType(type), layoutStandard(standard) {
+        BufferBuilder(const std::string& bufferName,
+            BufferType type,
+            BufferAccessMode defaultAccess = BufferAccessMode::ReadWrite,
+            LayoutStandard standard = LayoutStandard::Std140)
+            : name(bufferName),
+            bufferType(type),
+            layoutStandard(standard),
+            defaultAccessMode(defaultAccess) {
+
+            if (type == BufferType::Uniform) {
+                defaultAccessMode = BufferAccessMode::ReadOnly;
+            }
+
             if (type == BufferType::Storage && standard == LayoutStandard::Std140) {
                 layoutStandard = LayoutStandard::Std430;
             }
@@ -37,9 +44,23 @@ namespace ShaderLib {
 
         BufferBuilder& SetBufferType(BufferType type) {
             bufferType = type;
-            if (type == BufferType::Storage && layoutStandard == LayoutStandard::Std140) {
+            if (type == BufferType::Uniform) {
+                defaultAccessMode = BufferAccessMode::ReadOnly;
+                if (layoutStandard == LayoutStandard::Std430) {
+                    layoutStandard = LayoutStandard::Std140;
+                }
+            }
+            else if (type == BufferType::Storage && layoutStandard == LayoutStandard::Std140) {
                 layoutStandard = LayoutStandard::Std430;
             }
+            return *this;
+        }
+
+        BufferBuilder& SetDefaultAccessMode(BufferAccessMode mode) {
+            if (bufferType == BufferType::Uniform && mode != BufferAccessMode::ReadOnly) {
+                throw std::invalid_argument("Uniform buffers must be ReadOnly");
+            }
+            defaultAccessMode = mode;
             return *this;
         }
 
@@ -48,80 +69,103 @@ namespace ShaderLib {
             return *this;
         }
 
-        // Add basic type field
-        template<typename T>
-        BufferBuilder& AddField(const std::string& fieldName) {
-            static_assert(IsBaseTypeSupported<T>(), "Type not supported in buffers");
-
-            const BaseTypeInfo& info = GetBaseTypeInfo(GetBaseTypeOf<T>());
-            uint32_t offset = AlignTo(GetCurrentSize(), info.GetAlignment(layoutStandard));
-
-            variables.emplace_back(fieldName, GetBaseTypeOf<T>(), info.size, offset);
+        BufferBuilder& SetUseInstanceName(bool use) {
+            useInstanceName = use;
             return *this;
         }
 
-        // Add composite field (struct or array)
-        BufferBuilder& AddCompositeField(const std::string& fieldName, std::shared_ptr<CompositeType> composite) {
-            if (!composite) {
-                throw std::invalid_argument("Composite type cannot be null");
+        // ========================================================================
+        // BASE TYPE FIELDS - AddField accepts BaseType
+        // ========================================================================
+
+        // Add field by BaseType with default access mode
+        BufferBuilder& AddField(const std::string& fieldName, BaseType type) {
+            return AddField(fieldName, type, defaultAccessMode);
+        }
+
+        // Add field by BaseType with explicit access mode
+        BufferBuilder& AddField(const std::string& fieldName, BaseType type,
+            BufferAccessMode accessMode) {
+            if (type == BaseType::Unknown) {
+                throw std::invalid_argument("BaseType::Unknown is not valid");
+            }
+            if (type == BaseType::Struct || type == BaseType::Array) {
+                throw std::invalid_argument(
+                    "Use AddCompositeField for structs/arrays"
+                );
             }
 
-            uint32_t fieldAlignment = composite->GetAlignment();
-            uint32_t offset = AlignTo(GetCurrentSize(), fieldAlignment);
+            ValidateAccessMode(accessMode);
 
-            variables.emplace_back(fieldName, composite, offset);
+            const BaseTypeInfo& info = GetBaseTypeInfo(type);
+            uint32_t offset = AlignTo(GetCurrentSize(), info.GetAlignment(layoutStandard));
+
+            variables.emplace_back(fieldName, type, info.size, offset, accessMode);
             return *this;
         }
+
+        // ========================================================================
+        // TYPED FIELDS - Compile-time type safety
+        // ========================================================================
+
+        // Add basic type field with default access mode (compile-time type safety)
+        template<typename T>
+        BufferBuilder& AddField(const std::string& fieldName) {
+            return AddField(fieldName, GetBaseTypeOf<T>(), defaultAccessMode);
+        }
+
+        // Add basic type field with explicit access mode (compile-time type safety)
+        template<typename T>
+        BufferBuilder& AddField(const std::string& fieldName, BufferAccessMode accessMode) {
+            static_assert(IsBaseTypeSupported<T>(), "Type not supported in buffers");
+            return AddField(fieldName, GetBaseTypeOf<T>(), accessMode);
+        }
+
+        // ========================================================================
+        // COMPOSITE FIELDS - Now accepts CompositeTypeDefinition
+        // ========================================================================
+
+        // Add composite field (struct/array) with default access mode
+        BufferBuilder& AddCompositeField(const std::string& fieldName,
+            std::shared_ptr<const CompositeTypeDefinition> compositeDefinition) {
+            return AddCompositeField(fieldName, compositeDefinition, defaultAccessMode);
+        }
+
+        // Add composite field (struct/array) with explicit access mode
+        BufferBuilder& AddCompositeField(const std::string& fieldName,
+            std::shared_ptr<const CompositeTypeDefinition> compositeDefinition,
+            BufferAccessMode accessMode) {
+            if (!compositeDefinition) {
+                throw std::invalid_argument("Composite type definition cannot be null");
+            }
+
+            ValidateAccessMode(accessMode);
+
+            uint32_t fieldAlignment = compositeDefinition->GetAlignment();
+            uint32_t offset = AlignTo(GetCurrentSize(), fieldAlignment);
+
+            // BufferVariable now stores CompositeTypeDefinition (not Instance)
+            variables.emplace_back(fieldName, compositeDefinition, offset, accessMode);
+            return *this;
+        }
+
+        // ========================================================================
+        // BUILD METHOD
+        // ========================================================================
 
         BufferObject Build() {
             BufferObject buffer;
             buffer.name = name;
-            buffer.set = set;
-            buffer.binding = binding;
             buffer.bufferType = bufferType;
             buffer.layoutStandard = layoutStandard;
+            buffer.accessMode = ComputeBufferAccessMode();
             buffer.variables = variables;
+            buffer.useInstanceName = useInstanceName;
 
-            // Calculate final size with proper alignment
             uint32_t finalAlignment = (bufferType == BufferType::Uniform) ? 16 : 4;
             buffer.size = AlignTo(GetCurrentSize(), finalAlignment);
 
             return buffer;
-        }
-
-        std::string GenerateGLSL() const {
-            std::stringstream ss;
-
-            // Collect unique composite type definitions
-            std::vector<std::string> definitions;
-            for (const auto& var : variables) {
-                if (var.IsComposite()) {
-                    std::string glsl = var.composite->GenerateGLSL();
-                    if (!glsl.empty() && std::find(definitions.begin(), definitions.end(), glsl) == definitions.end()) {
-                        definitions.push_back(glsl);
-                    }
-                }
-            }
-
-            // Add struct definitions
-            for (const auto& def : definitions) {
-                ss << def << "\n";
-            }
-
-            // Generate buffer definition
-            const char* layoutKeyword = (layoutStandard == LayoutStandard::Std140) ? "std140" : "std430";
-            const char* bufferKeyword = (bufferType == BufferType::Uniform) ? "uniform" : "buffer";
-
-            ss << "layout(" << layoutKeyword << ", set = " << set << ", binding = " << binding
-                << ") " << bufferKeyword << " " << name << " {\n";
-
-            for (const auto& var : variables) {
-                ss << "    " << var.GetTypeName() << " " << var.name << ";\n";
-            }
-
-            ss << "};\n";
-
-            return ss.str();
         }
 
     private:
@@ -130,45 +174,44 @@ namespace ShaderLib {
             const auto& last = variables.back();
             return last.offset + last.size;
         }
-    };
 
-    // ============================================================================
-    // GLSL GENERATION FOR BUFFER OBJECTS
-    // ============================================================================
-
-    inline std::string GenerateGLSL(const BufferObject& buffer) {
-        std::stringstream ss;
-
-        // Collect unique composite type definitions
-        std::vector<std::string> definitions;
-        for (const auto& var : buffer.variables) {
-            if (var.IsComposite()) {
-                std::string glsl = var.composite->GenerateGLSL();
-                if (!glsl.empty() && std::find(definitions.begin(), definitions.end(), glsl) == definitions.end()) {
-                    definitions.push_back(glsl);
-                }
+        void ValidateAccessMode(BufferAccessMode mode) const {
+            if (bufferType == BufferType::Uniform && mode != BufferAccessMode::ReadOnly) {
+                throw std::invalid_argument(
+                    "Variables in Uniform buffers must be ReadOnly"
+                );
             }
         }
 
-        // Add struct definitions
-        for (const auto& def : definitions) {
-            ss << def << "\n";
+        BufferAccessMode ComputeBufferAccessMode() const {
+            if (bufferType == BufferType::Uniform) {
+                return BufferAccessMode::ReadOnly;
+            }
+
+            bool hasReadOnly = false;
+            bool hasWriteOnly = false;
+            bool hasReadWrite = false;
+
+            for (const auto& var : variables) {
+                if (var.IsReadOnly()) hasReadOnly = true;
+                if (var.IsWriteOnly()) hasWriteOnly = true;
+                if (var.IsReadWrite()) hasReadWrite = true;
+            }
+
+            if (hasReadWrite || (hasReadOnly && hasWriteOnly)) {
+                return BufferAccessMode::ReadWrite;
+            }
+
+            if (hasReadOnly && !hasWriteOnly) {
+                return BufferAccessMode::ReadOnly;
+            }
+
+            if (hasWriteOnly && !hasReadOnly) {
+                return BufferAccessMode::WriteOnly;
+            }
+
+            return BufferAccessMode::ReadWrite;
         }
-
-        // Generate buffer definition
-        const char* layoutKeyword = (buffer.layoutStandard == LayoutStandard::Std140) ? "std140" : "std430";
-        const char* bufferKeyword = buffer.IsUniformBuffer() ? "uniform" : "buffer";
-
-        ss << "layout(" << layoutKeyword << ", set = " << buffer.set << ", binding = " << buffer.binding
-            << ") " << bufferKeyword << " " << buffer.name << " {\n";
-
-        for (const auto& var : buffer.variables) {
-            ss << "    " << var.GetTypeName() << " " << var.name << ";\n";
-        }
-
-        ss << "};\n";
-
-        return ss.str();
-    }
+    };
 
 } // namespace ShaderLib

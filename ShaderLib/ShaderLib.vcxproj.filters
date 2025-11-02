@@ -17,8 +17,9 @@
     <ClInclude Include="ShaderStruct.h" />
     <ClInclude Include="ShaderArray.h" />
     <ClInclude Include="ShaderDescriptors.h" />
-    <ClInclude Include="BufferIO.h" />
-    <ClInclude Include="CompositeSerialization.h" />
+    <ClInclude Include="DescriptorBuilder.h" />
+    <ClInclude Include="ValueSerialization.h" />
+    <ClInclude Include="TypeSerializationTable.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="pch.cpp" />
@@ -26,6 +27,10 @@
     <ClCompile Include="TypeConversions.cpp" />
     <ClCompile Include="VulkanHelper.cpp" />
     <ClCompile Include="ShaderTypes.cpp" />
-    <ClCompile Include="BufferIO.cpp" />
+    <ClCompile Include="ShaderLib.cpp" />
+    <ClCompile Include="ValueSerialization.cpp" />
+    <ClCompile Include="ShaderStruct.cpp" />
+    <ClCompile Include="ShaderArray.cpp" />
+    <ClCompile Include="TypeSerializationTable.cpp" />
   </ItemGroup>
 </Project>

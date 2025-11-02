@@ -1,15 +1,131 @@
 #include "MaterialCreator.h"
+#include "ShaderStruct.h"
+#include "ShaderArray.h"
 #include <fstream>
 #include <filesystem>
-#include <stdexcept>
-#include <cstring>
 #include <spdlog/spdlog.h>
+#include <MaterialSerializer.h>
 
-MaterialCreator::MaterialCreator() {
+// ============================================================================
+// PARAMETER DEFINITION CONSTRUCTORS
+// ============================================================================
+
+MaterialCreator::ParameterDefinition::ParameterDefinition(
+    const std::string& paramName,
+    const Material::ParamValue& paramValue
+) : name(paramName), value(paramValue) {
+
+    if (std::holds_alternative<Material::TextureParam>(paramValue)) {
+        descriptorType = ShaderLib::DescriptorType::Sampler2D;
+        samplerDesc = AssetLib::GetDefaultSampler();
+    }
+    else {
+        descriptorType = ShaderLib::DescriptorType::UniformBuffer;
+    }
 }
 
-MaterialCreator::~MaterialCreator() {
+MaterialCreator::ParameterDefinition::ParameterDefinition(
+    const std::string& paramName,
+    const std::string& texturePath,
+    AssetLib::ColorSpace colorSpace,
+    const AssetLib::SamplerDescription& sampler
+) : name(paramName),
+descriptorType(ShaderLib::DescriptorType::Sampler2D),
+samplerDesc(sampler) {
+
+    Material::TextureParam textureParam;
+    textureParam.handle = AssetHandle(AssetType::Texture, texturePath);
+    textureParam.colorSpace = colorSpace;
+    value = textureParam;
 }
+
+bool MaterialCreator::ParameterDefinition::isBufferParameter() const {
+    return descriptorType == ShaderLib::DescriptorType::UniformBuffer ||
+        descriptorType == ShaderLib::DescriptorType::StorageBuffer;
+}
+
+bool MaterialCreator::ParameterDefinition::isTextureParameter() const {
+    return std::holds_alternative<Material::TextureParam>(value);
+}
+
+ShaderLib::BaseType MaterialCreator::ParameterDefinition::getBaseType() const {
+    if (auto* bufVal = std::get_if<ShaderLib::BufferValue>(&value)) {
+        return ShaderLib::GetBaseTypeFromVariant(*bufVal);
+    }
+    return ShaderLib::BaseType::Unknown;
+}
+
+// ============================================================================
+// MATERIAL DEFINITION HELPERS
+// ============================================================================
+
+const MaterialCreator::ParameterDefinition*
+MaterialCreator::MaterialDefinition::findParameter(const std::string& name) const {
+    for (const auto& param : parameters) {
+        if (param.name == name) return &param;
+    }
+    return nullptr;
+}
+
+MaterialCreator::ParameterDefinition*
+MaterialCreator::MaterialDefinition::findParameter(const std::string& name) {
+    for (auto& param : parameters) {
+        if (param.name == name) return &param;
+    }
+    return nullptr;
+}
+
+bool MaterialCreator::MaterialDefinition::hasParameter(const std::string& name) const {
+    return findParameter(name) != nullptr;
+}
+
+// ============================================================================
+// VALIDATION RESULT
+// ============================================================================
+
+void MaterialCreator::ValidationResult::addError(const std::string& error) {
+    errors.push_back(error);
+    isValid = false;
+}
+
+void MaterialCreator::ValidationResult::addWarning(const std::string& warning) {
+    warnings.push_back(warning);
+}
+
+std::string MaterialCreator::ValidationResult::getSummary() const {
+    std::string summary;
+
+    if (isValid) {
+        summary = "Validation passed";
+        if (!warnings.empty()) {
+            summary += " with " + std::to_string(warnings.size()) + " warning(s)";
+        }
+    }
+    else {
+        summary = "Validation failed with " + std::to_string(errors.size()) + " error(s)";
+    }
+
+    for (const auto& error : errors) {
+        summary += "\n  ERROR: " + error;
+    }
+
+    for (const auto& warning : warnings) {
+        summary += "\n  WARNING: " + warning;
+    }
+
+    return summary;
+}
+
+// ============================================================================
+// CONSTRUCTION
+// ============================================================================
+
+MaterialCreator::MaterialCreator() = default;
+MaterialCreator::~MaterialCreator() = default;
+
+// ============================================================================
+// MATERIAL CREATION
+// ============================================================================
 
 bool MaterialCreator::createMaterial(
     const MaterialDefinition& definition,
@@ -18,14 +134,19 @@ bool MaterialCreator::createMaterial(
     int compressionLevel
 ) {
     try {
-        // Walidacja definicji
-        std::string errorMessage;
-        if (!validateDefinition(definition, errorMessage)) {
-            SPDLOG_ERROR("MaterialCreator: Invalid material definition: {}", errorMessage);
+        // Validate definition
+        ValidationResult validation = validateDefinition(definition);
+        if (!validation.isValid) {
+            SPDLOG_ERROR("MaterialCreator: Validation failed:\n{}", validation.getSummary());
             return false;
         }
 
-        // Sprawdzenie czy katalog docelowy istnieje, jeśli nie - utworzenie
+        // Log warnings
+        for (const auto& warning : validation.warnings) {
+            SPDLOG_WARN("MaterialCreator: {}", warning);
+        }
+
+        // Create output directory if needed
         std::filesystem::path filePath(outputPath);
         std::filesystem::path dirPath = filePath.parent_path();
 
@@ -36,54 +157,28 @@ bool MaterialCreator::createMaterial(
             }
         }
 
-        // Przygotowanie danych parametrów
-        std::vector<AssetLib::MaterialParameter> assetParameters;
-        std::vector<uint8_t> parameterData;
-        uint32_t currentOffset = 0;
+        // Convert to AssetLib format
+        AssetLib::MaterialDefinition assetDef;
+        assetDef.shaderName = definition.shaderName;
 
-        assetParameters.reserve(definition.parameters.size());
-
-        for (const auto& paramDef : definition.parameters) {
-            // Serializacja wartości parametru
-            std::vector<uint8_t> paramData = serializeParameterValue(paramDef.defaultValue);
-
-            // Tworzenie AssetLib::MaterialParameter
-            AssetLib::MaterialParameter assetParam = convertToAssetParameter(
-                paramDef,
-                currentOffset,
-                static_cast<uint32_t>(paramData.size())
-            );
-
-            assetParameters.push_back(assetParam);
-
-            // Dodanie danych do bufora
-            parameterData.insert(parameterData.end(), paramData.begin(), paramData.end());
-            currentOffset += static_cast<uint32_t>(paramData.size());
+        for (const auto& param : definition.parameters) {
+            assetDef.parameters.push_back(convertToAssetParameter(param));
         }
 
-        // Tworzenie MaterialInfo
-        AssetLib::MaterialInfo materialInfo{};
+        // Validate AssetLib definition
+        if (!assetDef.Validate()) {
+            SPDLOG_ERROR("MaterialCreator: AssetLib validation failed");
+            return false;
+        }
 
-        // Kopiowanie nazwy shadera (z zabezpieczeniem przed overflow)
-        std::string shaderName = definition.shaderName;
-        size_t copySize = std::min(shaderName.size(), materialInfo.shaderName.size() - 1);
-        std::copy_n(shaderName.c_str(), copySize, materialInfo.shaderName.data());
-        materialInfo.shaderName[copySize] = '\0'; // Zapewnienie null-termination
-
-        materialInfo.parameterCount = static_cast<uint32_t>(assetParameters.size());
-        materialInfo.dataSize = static_cast<uint32_t>(parameterData.size());
-
-        // Utworzenie AssetData
+        // Write material using AssetLib
         AssetLib::AssetData assetData = AssetLib::WriteMaterial(
-            definition.sourceInfo.empty() ? "MaterialCreator" : definition.sourceInfo,
-            materialInfo,
-            assetParameters,
-            parameterData,
+            definition.sourceInfo,
+            assetDef,
             compression,
             compressionLevel
         );
 
-        // Zapisanie do pliku
         AssetLib::WriteAsset(outputPath, assetData);
 
         SPDLOG_INFO("MaterialCreator: Successfully created material '{}' at '{}'",
@@ -98,75 +193,274 @@ bool MaterialCreator::createMaterial(
     }
 }
 
-AssetLib::SamplerDescription MaterialCreator::createDefaultSampler() {
-    AssetLib::SamplerDescription sampler{};
-    sampler.magFilter = AssetLib::SamplerDescription::Filter::Linear;
-    sampler.minFilter = AssetLib::SamplerDescription::Filter::Linear;
-    sampler.addressModeU = AssetLib::SamplerDescription::AddressMode::Repeat;
-    sampler.addressModeV = AssetLib::SamplerDescription::AddressMode::Repeat;
-    sampler.addressModeW = AssetLib::SamplerDescription::AddressMode::Repeat;
-    sampler.anisotropy = 16.0f;
-    sampler.minLod = 0.0f;
-    sampler.maxLod = 1000.0f;
-    sampler.colorSpace = AssetLib::ColorSpace::SRGB;
-    return sampler;
+// ============================================================================
+// VALIDATION
+// ============================================================================
+
+MaterialCreator::ValidationResult MaterialCreator::validateDefinition(
+    const MaterialDefinition& definition,
+    const ShaderLib::ShaderMetadata* shaderMetadata
+) const {
+    ValidationResult result;
+
+    // Basic validation
+    if (definition.materialName.empty()) {
+        result.addError("Material name cannot be empty");
+    }
+
+    if (definition.shaderName.empty()) {
+        result.addError("Shader name cannot be empty");
+    }
+
+    if (definition.shaderName.size() >= 32) {
+        result.addError("Shader name too long (max 31 characters)");
+    }
+
+    // Validate each parameter
+    for (const auto& param : definition.parameters) {
+        validateParameter(param, result);
+    }
+
+    // Advanced validation with shader metadata
+    if (shaderMetadata && result.isValid) {
+        validateAgainstShader(definition, *shaderMetadata, result);
+    }
+
+    return result;
 }
 
-AssetLib::SamplerDescription MaterialCreator::createLinearSampler() {
-    auto sampler = createDefaultSampler();
-    sampler.magFilter = AssetLib::SamplerDescription::Filter::Linear;
-    sampler.minFilter = AssetLib::SamplerDescription::Filter::Linear;
-    return sampler;
+bool MaterialCreator::validateParameter(
+    const ParameterDefinition& param,
+    ValidationResult& result
+) const {
+    bool paramValid = true;
+
+    if (param.name.empty()) {
+        result.addError("Parameter name cannot be empty");
+        paramValid = false;
+    }
+
+    if (param.name.size() >= 32) {
+        result.addError("Parameter name '" + param.name + "' too long (max 31 characters)");
+        paramValid = false;
+    }
+
+    // Validate value type compatibility
+    if (param.isBufferParameter()) {
+        if (!std::holds_alternative<ShaderLib::BufferValue>(param.value)) {
+            result.addError("Parameter '" + param.name + "' is marked as buffer but contains texture data");
+            paramValid = false;
+        }
+    }
+    else if (param.isTextureParameter()) {
+        if (!std::holds_alternative<Material::TextureParam>(param.value)) {
+            result.addError("Parameter '" + param.name + "' is marked as texture but contains buffer data");
+            paramValid = false;
+        }
+        else {
+            const auto& texParam = std::get<Material::TextureParam>(param.value);
+            if (texParam.handle.filename.empty()) {
+                result.addWarning("Texture parameter '" + param.name + "' has empty path");
+            }
+        }
+    }
+
+    return paramValid;
 }
 
-AssetLib::SamplerDescription MaterialCreator::createNearestSampler() {
-    auto sampler = createDefaultSampler();
-    sampler.magFilter = AssetLib::SamplerDescription::Filter::Nearest;
-    sampler.minFilter = AssetLib::SamplerDescription::Filter::Nearest;
-    return sampler;
+bool MaterialCreator::validateAgainstShader(
+    const MaterialDefinition& definition,
+    const ShaderLib::ShaderMetadata& metadata,
+    ValidationResult& result
+) const {
+    bool valid = true;
+
+    const ShaderLib::DescriptorSet* customSet = metadata.GetCustomSet();
+    if (!customSet) {
+        result.addWarning("Shader has no custom descriptor set");
+        return valid;
+    }
+
+    // Check that all parameters match shader expectations
+    for (const auto& param : definition.parameters) {
+        const ShaderLib::DescriptorSlot* slot = customSet->FindSlot(param.name);
+
+        if (!slot) {
+            result.addWarning("Parameter '" + param.name + "' not found in shader");
+            continue;
+        }
+
+        // Validate descriptor type match
+        if (slot->type != param.descriptorType) {
+            result.addError("Parameter '" + param.name + "' type mismatch: expected " +
+                std::to_string(static_cast<int>(slot->type)) + ", got " +
+                std::to_string(static_cast<int>(param.descriptorType)));
+            valid = false;
+        }
+
+        // For buffer parameters, validate against buffer definition
+        if (slot->IsBuffer()) {
+            const ShaderLib::BufferObject* buffer = customSet->GetBufferByBinding(slot->binding);
+            if (buffer) {
+                // Find variable in buffer
+                bool foundVar = false;
+                for (const auto& var : buffer->variables) {
+                    if (var.name == param.name) {
+                        foundVar = true;
+
+                        // Validate base type
+                        ShaderLib::BaseType paramBaseType = param.getBaseType();
+                        if (var.IsBase() && paramBaseType != var.baseType) {
+                            result.addError("Parameter '" + param.name + "' base type mismatch");
+                            valid = false;
+                        }
+                        break;
+                    }
+                }
+
+                if (!foundVar) {
+                    result.addWarning("Parameter '" + param.name + "' not found in buffer variables");
+                }
+            }
+        }
+    }
+
+    return valid;
 }
 
-AssetLib::SamplerDescription MaterialCreator::createClampedSampler() {
-    auto sampler = createDefaultSampler();
-    sampler.addressModeU = AssetLib::SamplerDescription::AddressMode::ClampToEdge;
-    sampler.addressModeV = AssetLib::SamplerDescription::AddressMode::ClampToEdge;
-    sampler.addressModeW = AssetLib::SamplerDescription::AddressMode::ClampToEdge;
-    return sampler;
+bool MaterialCreator::isValueTypeCompatible(
+    ShaderLib::BaseType baseType,
+    const Material::ParamValue& value
+) const {
+    if (std::holds_alternative<Material::TextureParam>(value)) {
+        return baseType == ShaderLib::BaseType::Unknown;
+    }
+
+    if (!std::holds_alternative<ShaderLib::BufferValue>(value)) {
+        return false;
+    }
+
+    const auto& bufVal = std::get<ShaderLib::BufferValue>(value);
+    ShaderLib::BaseType valueType = ShaderLib::GetBaseTypeFromVariant(bufVal);
+
+    return valueType == baseType;
 }
 
-MaterialCreator::ParameterDefinition MaterialCreator::createFloatParam(const std::string& name, float defaultValue) {
-    ShaderLib::BufferValue bufVal = defaultValue;
-    return ParameterDefinition(name, ShaderLib::BaseType::Float, Material::ParamValue{ bufVal });
+// ============================================================================
+// SHADER-BASED GENERATION
+// ============================================================================
+
+std::vector<MaterialCreator::ParameterDefinition>
+MaterialCreator::generateParametersFromShader(
+    const ShaderLib::ShaderMetadata& metadata,
+    bool includeGlobalUBO,
+    bool includeObjectUBO
+) {
+    std::vector<ParameterDefinition> parameters;
+
+    // Process custom descriptor set
+    const ShaderLib::DescriptorSet* customSet = metadata.GetCustomSet();
+    if (!customSet) {
+        SPDLOG_WARN("MaterialCreator: Shader has no custom descriptor set");
+        return parameters;
+    }
+
+    // Process buffers in custom set
+    for (const auto& [bufferName, buffer] : customSet->buffers) {
+        if (buffer.IsUniformBuffer()) {
+            // Add parameters for each variable
+            for (const auto& variable : buffer.variables) {
+                if (variable.IsBase()) {
+                    // Create parameter with default value
+                    Material::ParamValue defaultValue = createDefaultValue(variable.baseType);
+                    ParameterDefinition param(variable.name, defaultValue);
+                    param.expectedBinding = customSet->FindSlot(variable.name)->binding;
+                    parameters.push_back(param);
+
+                }
+                else if (variable.IsComposite()) {
+                    // Create composite parameter with default instance
+                    Material::ParamValue defaultValue = createDefaultValue(variable.composite);
+                    ParameterDefinition param(variable.name, defaultValue);
+                    param.expectedBinding = customSet->FindSlot(bufferName)->binding;
+                    parameters.push_back(param);
+                }
+            }
+        }
+    }
+
+    // Process texture samplers
+    for (const auto& slot : customSet->slots) {
+        if (slot.type == ShaderLib::DescriptorType::Sampler2D) {
+            ParameterDefinition param = createTextureParam(slot.name);
+            param.expectedBinding = slot.binding;
+            parameters.push_back(param);
+        }
+    }
+
+    // Optionally include global/object UBOs
+    if (includeGlobalUBO && metadata.usesGlobalUBO) {
+        // Similar processing for globalUBO...
+    }
+
+    if (includeObjectUBO && metadata.usesObjectUBO) {
+        // Similar processing for objectUBO...
+    }
+
+    return parameters;
 }
 
-MaterialCreator::ParameterDefinition MaterialCreator::createVec2Param(const std::string& name, const glm::vec2& defaultValue) {
-    ShaderLib::BufferValue bufVal = defaultValue;
-    return ParameterDefinition(name, ShaderLib::BaseType::Vec2, Material::ParamValue{ bufVal });
+// ============================================================================
+// HELPER FACTORIES
+// ============================================================================
+
+MaterialCreator::ParameterDefinition MaterialCreator::createFloatParam(
+    const std::string& name, float value
+) {
+    ShaderLib::BufferValue bufVal = value;
+    return ParameterDefinition(name, Material::ParamValue{ bufVal });
 }
 
-MaterialCreator::ParameterDefinition MaterialCreator::createVec3Param(const std::string& name, const glm::vec3& defaultValue) {
-    ShaderLib::BufferValue bufVal = defaultValue;
-    return ParameterDefinition(name, ShaderLib::BaseType::Vec3, Material::ParamValue{ bufVal });
+MaterialCreator::ParameterDefinition MaterialCreator::createVec2Param(
+    const std::string& name, const glm::vec2& value
+) {
+    ShaderLib::BufferValue bufVal = value;
+    return ParameterDefinition(name, Material::ParamValue{ bufVal });
 }
 
-MaterialCreator::ParameterDefinition MaterialCreator::createVec4Param(const std::string& name, const glm::vec4& defaultValue) {
-    ShaderLib::BufferValue bufVal = defaultValue;
-    return ParameterDefinition(name, ShaderLib::BaseType::Vec4, Material::ParamValue{ bufVal });
+MaterialCreator::ParameterDefinition MaterialCreator::createVec3Param(
+    const std::string& name, const glm::vec3& value
+) {
+    ShaderLib::BufferValue bufVal = value;
+    return ParameterDefinition(name, Material::ParamValue{ bufVal });
 }
 
-MaterialCreator::ParameterDefinition MaterialCreator::createIntParam(const std::string& name, int32_t defaultValue) {
-    ShaderLib::BufferValue bufVal = defaultValue;
-    return ParameterDefinition(name, ShaderLib::BaseType::Int, Material::ParamValue{ bufVal });
+MaterialCreator::ParameterDefinition MaterialCreator::createVec4Param(
+    const std::string& name, const glm::vec4& value
+) {
+    ShaderLib::BufferValue bufVal = value;
+    return ParameterDefinition(name, Material::ParamValue{ bufVal });
 }
 
-MaterialCreator::ParameterDefinition MaterialCreator::createBoolParam(const std::string& name, bool defaultValue) {
-    ShaderLib::BufferValue bufVal = defaultValue;
-    return ParameterDefinition(name, ShaderLib::BaseType::Bool, Material::ParamValue{ bufVal });
+MaterialCreator::ParameterDefinition MaterialCreator::createIntParam(
+    const std::string& name, int32_t value
+) {
+    ShaderLib::BufferValue bufVal = value;
+    return ParameterDefinition(name, Material::ParamValue{ bufVal });
 }
 
-MaterialCreator::ParameterDefinition MaterialCreator::createMat4Param(const std::string& name, const glm::mat4& defaultValue) {
-    ShaderLib::BufferValue bufVal = defaultValue;
-    return ParameterDefinition(name, ShaderLib::BaseType::Mat4, Material::ParamValue{ bufVal });
+MaterialCreator::ParameterDefinition MaterialCreator::createBoolParam(
+    const std::string& name, bool value
+) {
+    ShaderLib::BufferValue bufVal = value;
+    return ParameterDefinition(name, Material::ParamValue{ bufVal });
+}
+
+MaterialCreator::ParameterDefinition MaterialCreator::createMat4Param(
+    const std::string& name, const glm::mat4& value
+) {
+    ShaderLib::BufferValue bufVal = value;
+    return ParameterDefinition(name, Material::ParamValue{ bufVal });
 }
 
 MaterialCreator::ParameterDefinition MaterialCreator::createTextureParam(
@@ -175,166 +469,134 @@ MaterialCreator::ParameterDefinition MaterialCreator::createTextureParam(
     AssetLib::ColorSpace colorSpace,
     const AssetLib::SamplerDescription& sampler
 ) {
-    return ParameterDefinition(name, texturePath, sampler, colorSpace);
+    return ParameterDefinition(name, texturePath, colorSpace, sampler);
 }
 
-bool MaterialCreator::validateDefinition(const MaterialDefinition& definition, std::string& errorMessage) const {
-    if (definition.materialName.empty()) {
-        errorMessage = "Material name cannot be empty";
-        return false;
-    }
-
-    if (definition.shaderName.empty()) {
-        errorMessage = "Shader name cannot be empty";
-        return false;
-    }
-
-    // Sprawdzenie czy nazwa shadera nie jest za długa
-    if (definition.shaderName.size() >= 32) {
-        errorMessage = "Shader name too long (max 31 characters)";
-        return false;
-    }
-
-    // Walidacja parametrów
-    for (const auto& param : definition.parameters) {
-        if (!validateParameter(param, errorMessage)) {
-            return false;
-        }
-    }
-
-    return true;
+MaterialCreator::ParameterDefinition MaterialCreator::createStructParam(
+    const std::string& name,
+    std::shared_ptr<ShaderLib::ShaderStructInstance> structInstance
+) {
+    ShaderLib::BufferValue bufVal = structInstance;
+    return ParameterDefinition(name, Material::ParamValue{ bufVal });
 }
+
+MaterialCreator::ParameterDefinition MaterialCreator::createArrayParam(
+    const std::string& name,
+    std::shared_ptr<ShaderLib::ShaderArrayInstance> arrayInstance
+) {
+    ShaderLib::BufferValue bufVal = arrayInstance;
+    return ParameterDefinition(name, Material::ParamValue{ bufVal });
+}
+
+// ============================================================================
+// UTILITY
+// ============================================================================
 
 bool MaterialCreator::materialExists(const std::string& path) {
     return std::filesystem::exists(path);
 }
 
-std::vector<uint8_t> MaterialCreator::serializeParameterValue(const Material::ParamValue& value) const {
-    std::vector<uint8_t> data;
-
-    // Check if it's a TextureParam
-    if (std::holds_alternative<Material::TextureParam>(value)) {
-        const auto& texParam = std::get<Material::TextureParam>(value);
-        std::string path = texParam.handle.filename;
-        data.resize(path.size() + 1); // +1 dla null terminatora
-        std::copy(path.c_str(), path.c_str() + path.size() + 1, data.data());
-        return data;
-    }
-
-    // It must be a BufferValue
-    const auto& bufVal = std::get<ShaderLib::BufferValue>(value);
-
-    std::visit([&data](const auto& val) {
-        using T = std::decay_t<decltype(val)>;
-
-        // Skip composite types (shared_ptr<ShaderStruct/ShaderArray>)
-        if constexpr (std::is_same_v<T, std::shared_ptr<ShaderLib::ShaderStruct>> ||
-            std::is_same_v<T, std::shared_ptr<ShaderLib::ShaderArray>>) {
-            // Not supported in material parameters
-            return;
-        }
-        else if constexpr (std::is_same_v<T, bool>) {
-            // Bool konwertujemy na uint32_t (zgodnie z konwencją w MaterialManager)
-            uint32_t boolValue = val ? 1u : 0u;
-            data.resize(sizeof(uint32_t));
-            std::memcpy(data.data(), &boolValue, sizeof(uint32_t));
-        }
-        else {
-            // Dla innych typów kopiujemy bezpośrednio
-            data.resize(sizeof(T));
-            std::memcpy(data.data(), &val, sizeof(T));
-        }
-        }, bufVal);
-
-    return data;
+std::string MaterialCreator::generateDefaultPath(const std::string& materialName) {
+    // Implementation depends on your asset system
+    return materialName + ".amat";
 }
 
-size_t MaterialCreator::getParameterSize(const Material::ParamValue& value) const {
-    // Check if it's a TextureParam
-    if (std::holds_alternative<Material::TextureParam>(value)) {
-        const auto& texParam = std::get<Material::TextureParam>(value);
-        return texParam.handle.filename.size() + 1; // +1 dla null terminatora
-    }
+// ============================================================================
+// CONVERSION & SERIALIZATION
+// ============================================================================
 
-    // It must be a BufferValue
-    const auto& bufVal = std::get<ShaderLib::BufferValue>(value);
-
-    return std::visit([](const auto& val) -> size_t {
-        using T = std::decay_t<decltype(val)>;
-
-        if constexpr (std::is_same_v<T, std::shared_ptr<ShaderLib::ShaderStruct>> ||
-            std::is_same_v<T, std::shared_ptr<ShaderLib::ShaderArray>>) {
-            return 0; // Not supported
-        }
-        else if constexpr (std::is_same_v<T, bool>) {
-            return sizeof(uint32_t); // Bool jako uint32_t
-        }
-        else {
-            return sizeof(T);
-        }
-        }, bufVal);
-}
-
-AssetLib::MaterialParameter MaterialCreator::convertToAssetParameter(
-    const ParameterDefinition& paramDef,
-    uint32_t dataOffset,
-    uint32_t dataSize
+AssetLib::ParameterValue MaterialCreator::convertToAssetParameter(
+    const ParameterDefinition& paramDef
 ) const {
-    AssetLib::MaterialParameter assetParam{};
-
-    // Kopiowanie nazwy parametru (z zabezpieczeniem przed overflow)
-    size_t copySize = std::min(paramDef.name.size(), assetParam.name.size() - 1);
-    std::copy_n(paramDef.name.c_str(), copySize, assetParam.name.data());
-    assetParam.name[copySize] = '\0'; // Zapewnienie null-termination
-
+    AssetLib::ParameterValue assetParam;
+    assetParam.name = paramDef.name;
     assetParam.descriptorType = paramDef.descriptorType;
-    assetParam.baseType = paramDef.baseType;
-    assetParam.arraySize = paramDef.arraySize;
-    assetParam.samplerDesc = paramDef.samplerDesc;
-    assetParam.dataOffset = dataOffset;
-    assetParam.dataSize = dataSize;
+
+    if (std::holds_alternative<Material::TextureParam>(paramDef.value)) {
+        // Texture parameter
+        const auto& texParam = std::get<Material::TextureParam>(paramDef.value);
+        assetParam.valueType = AssetLib::ParameterValueType::TexturePath;
+        assetParam.value = texParam.handle.filename;
+        assetParam.samplerDesc = paramDef.samplerDesc;
+
+    }
+    else if (std::holds_alternative<ShaderLib::BufferValue>(paramDef.value)) {
+        // Buffer parameter
+        const auto& bufVal = std::get<ShaderLib::BufferValue>(paramDef.value);
+
+        // Check if it's a composite type
+        if (auto structInst = std::get_if<std::shared_ptr<ShaderLib::ShaderStructInstance>>(&bufVal)) {
+            assetParam.valueType = AssetLib::ParameterValueType::Struct;
+            assetParam.value = bufVal;
+
+        }
+        else if (auto arrayInst = std::get_if<std::shared_ptr<ShaderLib::ShaderArrayInstance>>(&bufVal)) {
+            assetParam.valueType = AssetLib::ParameterValueType::Array;
+            assetParam.value = bufVal;
+
+        }
+        else {
+            // Base type
+            assetParam.valueType = AssetLib::ParameterValueType::BaseType;
+            assetParam.baseType = ShaderLib::GetBaseTypeFromVariant(bufVal);
+            assetParam.value = bufVal;
+        }
+    }
 
     return assetParam;
 }
 
-bool MaterialCreator::validateParameter(const ParameterDefinition& param, std::string& errorMessage) const {
-    if (param.name.empty()) {
-        errorMessage = "Parameter name cannot be empty";
-        return false;
+// ============================================================================
+// DEFAULT VALUE GENERATION
+// ============================================================================
+
+Material::ParamValue MaterialCreator::createDefaultValue(ShaderLib::BaseType type) {
+    ShaderLib::BufferValue bufVal;
+
+    switch (type) {
+    case ShaderLib::BaseType::Float: bufVal = 0.0f; break;
+    case ShaderLib::BaseType::Vec2: bufVal = glm::vec2(0.0f); break;
+    case ShaderLib::BaseType::Vec3: bufVal = glm::vec3(0.0f); break;
+    case ShaderLib::BaseType::Vec4: bufVal = glm::vec4(0.0f); break;
+    case ShaderLib::BaseType::Int: bufVal = int32_t(0); break;
+    case ShaderLib::BaseType::Bool: bufVal = false; break;
+    case ShaderLib::BaseType::Mat4: bufVal = glm::mat4(1.0f); break;
+    case ShaderLib::BaseType::Mat3: bufVal = glm::mat3(1.0f); break;
+    case ShaderLib::BaseType::Mat2: bufVal = glm::mat2(1.0f); break;
+    case ShaderLib::BaseType::UInt: bufVal = uint32_t(0); break;
+    case ShaderLib::BaseType::IVec2: bufVal = glm::ivec2(0); break;
+    case ShaderLib::BaseType::IVec3: bufVal = glm::ivec3(0); break;
+    case ShaderLib::BaseType::IVec4: bufVal = glm::ivec4(0); break;
+    case ShaderLib::BaseType::UVec2: bufVal = glm::uvec2(0u); break;
+    case ShaderLib::BaseType::UVec3: bufVal = glm::uvec3(0u); break;
+    case ShaderLib::BaseType::UVec4: bufVal = glm::uvec4(0u); break;
+    case ShaderLib::BaseType::Double: bufVal = 0.0; break;
+    case ShaderLib::BaseType::DVec2: bufVal = glm::dvec2(0.0); break;
+    case ShaderLib::BaseType::DVec3: bufVal = glm::dvec3(0.0); break;
+    case ShaderLib::BaseType::DVec4: bufVal = glm::dvec4(0.0); break;
+    default: bufVal = 0.0f; break;
     }
 
-    if (param.name.size() >= 32) {
-        errorMessage = "Parameter name '" + param.name + "' too long (max 31 characters)";
-        return false;
-    }
-
-    // Sprawdzenie zgodności typu base z wartością
-    if (param.descriptorType == ShaderLib::DescriptorType::UniformBuffer ||
-        param.descriptorType == ShaderLib::DescriptorType::StorageBuffer) {
-        if (!isValueTypeCompatible(param.baseType, param.defaultValue)) {
-            errorMessage = "Parameter '" + param.name + "' value type doesn't match base type";
-            return false;
-        }
-    }
-
-    return true;
+    return Material::ParamValue{ bufVal };
 }
 
-bool MaterialCreator::isValueTypeCompatible(ShaderLib::BaseType baseType, const Material::ParamValue& value) const {
-    // Texture parameters don't have base types
-    if (std::holds_alternative<Material::TextureParam>(value)) {
-        return baseType == ShaderLib::BaseType::Unknown;
+Material::ParamValue MaterialCreator::createDefaultValue(
+    std::shared_ptr<const ShaderLib::CompositeTypeDefinition> composite
+) {
+    if (!composite) {
+        return Material::ParamValue{ ShaderLib::BufferValue{0.0f} };
     }
 
-    // Must be BufferValue
-    if (!std::holds_alternative<ShaderLib::BufferValue>(value)) {
-        return false;
+    // Create default instance
+    auto instance = composite->CreateInstance();
+    ShaderLib::BufferValue bufVal;
+
+    if (composite->IsStruct()) {
+        bufVal = std::dynamic_pointer_cast<ShaderLib::ShaderStructInstance>(instance);
+    }
+    else {
+        bufVal = std::dynamic_pointer_cast<ShaderLib::ShaderArrayInstance>(instance);
     }
 
-    const auto& bufVal = std::get<ShaderLib::BufferValue>(value);
-
-    // Get the base type from the variant
-    ShaderLib::BaseType valueType = ShaderLib::GetBaseTypeFromVariant(bufVal);
-
-    return valueType == baseType;
+    return Material::ParamValue{ bufVal };
 }

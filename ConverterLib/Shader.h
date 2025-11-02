@@ -6,18 +6,19 @@ using namespace ShaderLib;
 
 namespace Shader {
 
-    // Structure to store InputData definition information
-    struct InputDataDefinition {
-        struct Field {
-            std::string type;
-            std::string name;
-            bool isTexture;
-        };
-        std::vector<Field> fields;
-    };
-
+    /**
+     * Process shader file and convert to asset format
+     * @param inputPath Path to shader source file
+     * @param settings Converter settings
+     * @return Asset data ready for writing
+     */
     AssetData ProcessShader(const std::string& inputPath, const Converter::Settings& settings);
 
-    // Core processing functions
+    /**
+     * Compile shader source to SPIR-V with metadata
+     * @param source Shader source code
+     * @return Compiled shader data with SPIR-V and metadata
+     */
     ShaderData CompileShader(const std::string& source);
-}
+
+} // namespace Shader

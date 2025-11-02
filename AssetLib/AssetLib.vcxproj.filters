@@ -5,10 +5,14 @@
     <ClInclude Include="framework.h" />
     <ClInclude Include="pch.h" />
     <ClInclude Include="lz4\lz4.h" />
+    <ClInclude Include="MaterialTypes.h" />
+    <ClInclude Include="MaterialSerializer.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="AssetLib.cpp" />
     <ClCompile Include="pch.cpp" />
     <ClCompile Include="lz4\lz4.c" />
+    <ClCompile Include="MaterialTypes.cpp" />
+    <ClCompile Include="MaterialSerializer.cpp" />
   </ItemGroup>
 </Project>

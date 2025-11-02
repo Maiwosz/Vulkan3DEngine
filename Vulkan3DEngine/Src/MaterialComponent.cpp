@@ -288,7 +288,7 @@ void MaterialComponent::renderMaterialParametersUI() {
 
                 // Update parameter if changed
                 if (changed) {
-                    materialManager.setMaterialParameter(materialHandle, param.name, paramValue);
+                    material->setParameter(param.name, paramValue);
                     incrementVersion(); // Mark component as changed
                 }
 

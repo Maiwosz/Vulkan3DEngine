@@ -13,25 +13,48 @@ namespace ShaderLib {
     // ============================================================================
 
     inline BufferObject CreateGlobalUBO() {
-        BufferBuilder builder("GlobalUBO", GLOBAL_DESCRIPTOR_SET, 0, BufferType::Uniform, LayoutStandard::Std140);
+        BufferBuilder builder(
+            "GlobalUBO",
+            BufferType::Uniform,
+            BufferAccessMode::ReadOnly,
+            LayoutStandard::Std140
+        );
 
-        builder.AddField<glm::mat4>("view")
-            .AddField<glm::mat4>("proj")
-            .AddField<glm::vec3>("cameraPosition")
-            .AddCompositeField("directionalLight", CreateDirectionalLightType())
-            .AddField<int32_t>("activePointLights")
-            .AddCompositeField("pointLights", std::make_shared<ShaderArray>(CreatePointLightType(), 64))
-            .AddField<int32_t>("activeSpotLights")
-            .AddCompositeField("spotLights", std::make_shared<ShaderArray>(CreateSpotLightType(), 16));
+        // Create composite type definitions
+        auto directionalLightDef = CreateDirectionalLightType();
+        auto pointLightDef = CreatePointLightType();
+        auto spotLightDef = CreateSpotLightType();
+
+        // Create array definitions
+        auto pointLightsArrayDef = std::make_shared<ShaderArrayDefinition>(
+            pointLightDef, 64, LayoutStandard::Std140);
+        auto spotLightsArrayDef = std::make_shared<ShaderArrayDefinition>(
+            spotLightDef, 16, LayoutStandard::Std140);
+
+        builder.AddField("view", BaseType::Mat4)
+            .AddField("proj", BaseType::Mat4)
+            .AddField("cameraPosition", BaseType::Vec3)
+            .AddCompositeField("directionalLight", directionalLightDef)
+            .AddField("activePointLights", BaseType::Int)
+            .AddCompositeField("pointLights", pointLightsArrayDef)
+            .AddField("activeSpotLights", BaseType::Int)
+            .AddCompositeField("spotLights", spotLightsArrayDef)
+            .SetUseInstanceName(false); // No instance name for built-in buffer
 
         return builder.Build();
     }
 
     inline BufferObject CreateObjectUBO() {
-        BufferBuilder builder("ObjectUBO", OBJECT_DESCRIPTOR_SET, 0, BufferType::Uniform, LayoutStandard::Std140);
+        BufferBuilder builder(
+            "ObjectUBO",
+            BufferType::Uniform,
+            BufferAccessMode::ReadOnly,
+            LayoutStandard::Std140
+        );
 
-        builder.AddField<glm::mat4>("model")
-            .AddField<glm::vec4>("color");
+        builder.AddField("model", BaseType::Mat4)
+            .AddField("color", BaseType::Vec4)
+            .SetUseInstanceName(false);  // No instance name for built-in buffer
 
         return builder.Build();
     }

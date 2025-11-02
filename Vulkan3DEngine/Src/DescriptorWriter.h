@@ -8,6 +8,7 @@
 #include "DescriptorAllocator.h"
 #include "ISmartHandleManager.h"
 #include "Handle.h"
+#include "ShaderDescriptors.h"
 
 class DescriptorWriter {
 public:
@@ -16,8 +17,8 @@ public:
         BufferManager& uniformBufferManager,
         DescriptorAllocator& descriptorAllocator);
 
-    // Write uniform buffer to binding
-    void writeUniformBuffer(int binding, SmartHandle<BufferHandle, Buffer> uniformBuffer);
+    // Write buffer to binding (automatically detects UBO vs SSBO from buffer)
+    void writeBuffer(int binding, SmartHandle<BufferHandle, Buffer> buffer);
 
     // Write combined image sampler to binding
     void writeCombinedImageSampler(int binding, VkImageView imageView, SamplerHandle sampler);
@@ -33,9 +34,10 @@ public:
     SmartHandle<DescriptorSetHandle, VkDescriptorSet> createDescriptorSet(VkDescriptorSetLayout layout);
 
 private:
-    struct UniformBufferBinding {
+    struct BufferBinding {
         int binding;
-        SmartHandle<BufferHandle, Buffer> uniformBuffer;
+        SmartHandle<BufferHandle, Buffer> buffer;
+        VkDescriptorType descriptorType;
     };
 
     struct ImageBinding {
@@ -55,7 +57,7 @@ private:
     BufferManager& m_bufferManager;
     DescriptorAllocator& m_descriptorAllocator;
 
-    std::vector<UniformBufferBinding> m_uniformBufferBindings;
+    std::vector<BufferBinding> m_bufferBindings;
     std::vector<ImageBinding> m_imageBindings;
     std::vector<SamplerBinding> m_samplerBindings;
 };

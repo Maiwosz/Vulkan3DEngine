@@ -230,9 +230,6 @@
     <ClCompile Include="Src\LoggerManager.cpp">
       <Filter>Engine\LoggerManager</Filter>
     </ClCompile>
-    <ClCompile Include="Src\MaterialResourceFactory.cpp">
-      <Filter>Engine\AssetSystem\AssetManager\AssetHandlers\MaterialManager\MaterialResourceFactory</Filter>
-    </ClCompile>
     <ClCompile Include="Src\TextureManager.cpp">
       <Filter>Engine\AssetSystem\AssetManager\AssetHandlers\TextureManager</Filter>
     </ClCompile>
@@ -355,6 +352,15 @@
     </ClCompile>
     <ClCompile Include="Src\DearImGuiProvider.cpp">
       <Filter>Engine\EngineCore\RenderGraphSystem\RenderGraphExecutor\IImGuiProvider\DearImGuiProvider</Filter>
+    </ClCompile>
+    <ClCompile Include="Src\ComputeDispatcher.cpp">
+      <Filter>Engine\EngineCore\Renderer\ComputeDispatcer</Filter>
+    </ClCompile>
+    <ClCompile Include="Src\DescriptorSetBuilder.cpp">
+      <Filter>Engine\EngineCore\DescriptorSystem\DescriptorSetBuilder</Filter>
+    </ClCompile>
+    <ClCompile Include="Src\MaterialFactory.cpp">
+      <Filter>Engine\AssetSystem\AssetManager\AssetHandlers\MaterialManager\MaterialFactory</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -627,9 +633,6 @@
     <ClInclude Include="Src\LoggerManager.h">
       <Filter>Engine\LoggerManager</Filter>
     </ClInclude>
-    <ClInclude Include="Src\MaterialResourceFactory.h">
-      <Filter>Engine\AssetSystem\AssetManager\AssetHandlers\MaterialManager\MaterialResourceFactory</Filter>
-    </ClInclude>
     <ClInclude Include="Src\TextureManager.h">
       <Filter>Engine\AssetSystem\AssetManager\AssetHandlers\TextureManager</Filter>
     </ClInclude>
@@ -819,6 +822,15 @@
     <ClInclude Include="Src\MappedBufferReader.h">
       <Filter>Engine\EngineCore\UniformBufferManager</Filter>
     </ClInclude>
+    <ClInclude Include="Src\ComputeDispatcher.h">
+      <Filter>Engine\EngineCore\Renderer\ComputeDispatcer</Filter>
+    </ClInclude>
+    <ClInclude Include="Src\DescriptorSetBuilder.h">
+      <Filter>Engine\EngineCore\DescriptorSystem\DescriptorSetBuilder</Filter>
+    </ClInclude>
+    <ClInclude Include="Src\MaterialFactory.h">
+      <Filter>Engine\AssetSystem\AssetManager\AssetHandlers\MaterialManager\MaterialFactory</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <None Include="..\Libs\imgui\.gitattributes">
@@ -915,9 +927,6 @@
     </Filter>
     <Filter Include="Engine\ResourceManager">
       <UniqueIdentifier>{5587388f-a680-462a-a8b3-96c6b546d75f}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Engine\AssetSystem\AssetManager\AssetHandlers\MaterialManager\MaterialResourceFactory">
-      <UniqueIdentifier>{b10e81d0-7145-4fb2-bcb8-c240e1bbcf0b}</UniqueIdentifier>
     </Filter>
     <Filter Include="Engine\Scene\EntityComponentSystem\Registry\SystemManager">
       <UniqueIdentifier>{00244a5c-cf3d-4cb5-8d66-2e2259246f24}</UniqueIdentifier>
@@ -1206,6 +1215,15 @@
     </Filter>
     <Filter Include="Engine\EngineCore\RenderGraphSystem\RenderGraphExecutor\IImGuiProvider\DearImGuiProvider">
       <UniqueIdentifier>{6cd33dcd-eac5-41e7-8689-7e7c67ede8de}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Engine\EngineCore\Renderer\ComputeDispatcer">
+      <UniqueIdentifier>{1c3b2462-5e72-47ff-baaa-24a19b7b2498}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Engine\EngineCore\DescriptorSystem\DescriptorSetBuilder">
+      <UniqueIdentifier>{e3289a62-1654-4e6e-83eb-8ac7670ed8ef}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Engine\AssetSystem\AssetManager\AssetHandlers\MaterialManager\MaterialFactory">
+      <UniqueIdentifier>{6fa30650-8874-47f1-a188-15ef50bf4005}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
 </Project>

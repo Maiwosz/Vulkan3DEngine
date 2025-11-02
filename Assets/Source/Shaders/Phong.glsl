@@ -3,12 +3,17 @@
 #use global_ubo
 #use object_ubo
 
-InputData {
-    float shininess;
-    float ka;
-    float kd;
-    float ks;
-	sampler2D albedo;
+ShaderData {
+    InputData {
+        float shininess;
+        float ka;
+        float kd;
+        float ks;
+    };
+    
+    Samplers {
+        sampler2D albedo;
+    };
 };
 
 #stage vertex

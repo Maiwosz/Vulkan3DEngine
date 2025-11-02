@@ -1,30 +1,39 @@
 {
   "shader": "Phong",
-  "parameters": {
-    "shininess": {
+  "parameters": [
+    {
+      "name": "shininess",
       "descriptorType": "uniform",
+      "valueType": "BaseType",
       "baseType": "float",
       "data": 1.0
     },
-    "ka": {
+    {
+      "name": "ka",
       "descriptorType": "uniform",
+      "valueType": "BaseType",
       "baseType": "float",
       "data": 0.005
     },
-    "kd": {
+    {
+      "name": "kd",
       "descriptorType": "uniform",
+      "valueType": "BaseType",
       "baseType": "float",
       "data": 0.8
     },
-    "ks": {
+    {
+      "name": "ks",
       "descriptorType": "uniform",
+      "valueType": "BaseType",
       "baseType": "float",
       "data": 0.2
     },
-    "albedo": {
+    {
+      "name": "albedo",
       "descriptorType": "sampler2D",
+      "valueType": "TexturePath",
       "path": "Omphale_C_Omphale_O_Material_u1_v1",
-	  "colorSpace": "SRGB",
       "sampler": {
         "magFilter": "Linear",
         "minFilter": "Linear",
@@ -33,8 +42,9 @@
         "addressModeW": "Repeat",
         "anisotropy": 8.0,
         "minLod": 0.0,
-        "maxLod": 16.0
+        "maxLod": 16.0,
+        "colorSpace": "sRGB"
       }
     }
-  }
+  ]
 }

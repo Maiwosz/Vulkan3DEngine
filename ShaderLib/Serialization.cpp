@@ -1,6 +1,7 @@
 #include "pch.h"
 #include "Serialization.h"
-#include "CompositeSerialization.h"
+#include "ShaderStruct.h"
+#include "ShaderArray.h"
 
 namespace ShaderLib {
 
@@ -126,6 +127,27 @@ namespace ShaderLib {
     }
 
     // ============================================================================
+    // BUFFER ACCESS MODE SERIALIZATION
+    // ============================================================================
+
+    void to_json(json& j, BufferAccessMode mode) {
+        switch (mode) {
+        case BufferAccessMode::ReadOnly: j = "ReadOnly"; break;
+        case BufferAccessMode::WriteOnly: j = "WriteOnly"; break;
+        case BufferAccessMode::ReadWrite: j = "ReadWrite"; break;
+        default: j = "Unknown"; break;
+        }
+    }
+
+    void from_json(const json& j, BufferAccessMode& mode) {
+        std::string s = j.get<std::string>();
+        if (s == "ReadOnly") mode = BufferAccessMode::ReadOnly;
+        else if (s == "WriteOnly") mode = BufferAccessMode::WriteOnly;
+        else if (s == "ReadWrite") mode = BufferAccessMode::ReadWrite;
+        else throw std::runtime_error("Unknown BufferAccessMode: " + s);
+    }
+
+    // ============================================================================
     // BUFFER VARIABLE SERIALIZATION
     // ============================================================================
 
@@ -134,12 +156,13 @@ namespace ShaderLib {
             {"name", var.name},
             {"baseType", var.baseType},
             {"size", var.size},
-            {"offset", var.offset}
+            {"offset", var.offset},
+            {"accessMode", var.accessMode}
         };
 
         // Serialize composite structure if present
         if (var.composite) {
-            j["composite"] = CompositeToJson(var.composite);
+            j["composite"] = var.composite->ToJson();
         }
     }
 
@@ -148,10 +171,12 @@ namespace ShaderLib {
         j.at("baseType").get_to(var.baseType);
         j.at("size").get_to(var.size);
         j.at("offset").get_to(var.offset);
+        j.at("accessMode").get_to(var.accessMode);
 
         // Deserialize composite structure if present
         if (j.contains("composite") && !j["composite"].is_null()) {
-            var.composite = CompositeFromJson(j["composite"]);
+            // Use static method from base class - no need to include specific types!
+            var.composite = CompositeTypeDefinition::FromJson(j["composite"]);
         }
         else {
             var.composite = nullptr;
@@ -177,25 +202,41 @@ namespace ShaderLib {
     }
 
     // ============================================================================
-    // DESCRIPTOR BINDING SERIALIZATION
+    // DESCRIPTOR SLOT SERIALIZATION
     // ============================================================================
 
-    void to_json(json& j, const DescriptorBinding& binding) {
+    void to_json(json& j, const DescriptorSlot& slot) {
         j = json{
-            {"set", binding.set},
-            {"binding", binding.binding},
-            {"descriptorType", binding.descriptorType},
-            {"stages", binding.stages},
-            {"name", binding.name}
+            {"binding", slot.binding},
+            {"type", slot.type},
+            {"stages", slot.stages},
+            {"name", slot.name}
         };
     }
 
-    void from_json(const json& j, DescriptorBinding& binding) {
-        j.at("set").get_to(binding.set);
-        j.at("binding").get_to(binding.binding);
-        j.at("descriptorType").get_to(binding.descriptorType);
-        j.at("stages").get_to(binding.stages);
-        j.at("name").get_to(binding.name);
+    void from_json(const json& j, DescriptorSlot& slot) {
+        j.at("binding").get_to(slot.binding);
+        j.at("type").get_to(slot.type);
+        j.at("stages").get_to(slot.stages);
+        j.at("name").get_to(slot.name);
+    }
+
+    // ============================================================================
+    // DESCRIPTOR SET SERIALIZATION
+    // ============================================================================
+
+    void to_json(json& j, const DescriptorSet& set) {
+        j = json{
+            {"setNumber", set.setNumber},
+            {"slots", set.slots},
+            {"buffers", set.buffers}
+        };
+    }
+
+    void from_json(const json& j, DescriptorSet& set) {
+        j.at("setNumber").get_to(set.setNumber);
+        j.at("slots").get_to(set.slots);
+        j.at("buffers").get_to(set.buffers);
     }
 
     // ============================================================================
@@ -205,23 +246,47 @@ namespace ShaderLib {
     void to_json(json& j, const BufferObject& buffer) {
         j = json{
             {"name", buffer.name},
-            {"set", buffer.set},
-            {"binding", buffer.binding},
             {"size", buffer.size},
             {"bufferType", buffer.bufferType},
             {"layoutStandard", buffer.layoutStandard},
+            {"accessMode", buffer.accessMode},
             {"variables", buffer.variables}
         };
     }
 
     void from_json(const json& j, BufferObject& buffer) {
         j.at("name").get_to(buffer.name);
-        j.at("set").get_to(buffer.set);
-        j.at("binding").get_to(buffer.binding);
         j.at("size").get_to(buffer.size);
         j.at("bufferType").get_to(buffer.bufferType);
         j.at("layoutStandard").get_to(buffer.layoutStandard);
+        j.at("accessMode").get_to(buffer.accessMode);
         j.at("variables").get_to(buffer.variables);
+    }
+
+    // ============================================================================
+    // SHADER COMPUTE INFO SERIALIZATION
+    // ============================================================================
+
+    void to_json(json& j, const ComputeShaderInfo& info) {
+        j = json{
+            {"localSizeX", info.localSizeX},
+            {"localSizeY", info.localSizeY},
+            {"localSizeZ", info.localSizeZ},
+            {"usesSharedMemory", info.usesSharedMemory},
+            {"usesAtomics", info.usesAtomics},
+            {"usesBarriers", info.usesBarriers},
+            {"sharedMemorySize", info.sharedMemorySize}
+        };
+    }
+
+    void from_json(const json& j, ComputeShaderInfo& info) {
+        j.at("localSizeX").get_to(info.localSizeX);
+        j.at("localSizeY").get_to(info.localSizeY);
+        j.at("localSizeZ").get_to(info.localSizeZ);
+        j.at("usesSharedMemory").get_to(info.usesSharedMemory);
+        j.at("usesAtomics").get_to(info.usesAtomics);
+        j.at("usesBarriers").get_to(info.usesBarriers);
+        j.at("sharedMemorySize").get_to(info.sharedMemorySize);
     }
 
     // ============================================================================
@@ -234,11 +299,23 @@ namespace ShaderLib {
             {"usesGlobalUBO", metadata.usesGlobalUBO},
             {"usesObjectUBO", metadata.usesObjectUBO},
             {"pushConstants", metadata.pushConstants},
-            {"descriptors", metadata.descriptors},
-            {"customBuffers", metadata.customBuffers},
-            {"globalUBO", metadata.globalUBO},
-            {"objectUBO", metadata.objectUBO}
+            {"descriptorSets", metadata.descriptorSets},
+            {"customBuffers", metadata.customBuffers}
         };
+
+        // Only serialize globalUBO if it's actually used
+        if (metadata.usesGlobalUBO) {
+            j["globalUBO"] = metadata.globalUBO;
+        }
+
+        // Only serialize objectUBO if it's actually used
+        if (metadata.usesObjectUBO) {
+            j["objectUBO"] = metadata.objectUBO;
+        }
+
+        if (metadata.computeInfo) {
+            j["computeInfo"] = *metadata.computeInfo;
+        }
     }
 
     void from_json(const json& j, ShaderMetadata& metadata) {
@@ -246,10 +323,22 @@ namespace ShaderLib {
         j.at("usesGlobalUBO").get_to(metadata.usesGlobalUBO);
         j.at("usesObjectUBO").get_to(metadata.usesObjectUBO);
         j.at("pushConstants").get_to(metadata.pushConstants);
-        j.at("descriptors").get_to(metadata.descriptors);
+        j.at("descriptorSets").get_to(metadata.descriptorSets);
         j.at("customBuffers").get_to(metadata.customBuffers);
-        j.at("globalUBO").get_to(metadata.globalUBO);
-        j.at("objectUBO").get_to(metadata.objectUBO);
+
+        // Only deserialize globalUBO if it's actually used
+        if (metadata.usesGlobalUBO && j.contains("globalUBO")) {
+            j.at("globalUBO").get_to(metadata.globalUBO);
+        }
+
+        // Only deserialize objectUBO if it's actually used
+        if (metadata.usesObjectUBO && j.contains("objectUBO")) {
+            j.at("objectUBO").get_to(metadata.objectUBO);
+        }
+
+        if (j.contains("computeInfo")) {
+            metadata.computeInfo = j["computeInfo"].get<ComputeShaderInfo>();
+        }
     }
 
     // ============================================================================

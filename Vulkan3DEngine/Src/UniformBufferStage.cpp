@@ -56,7 +56,7 @@ ProcessingResult UniformBufferStage::processMeshOrder(std::shared_ptr<MeshRender
     }
 
     // Get shader handle - either from material or directly from order
-    ShaderHandle shaderHandle = material->shader();
+    ShaderHandle shaderHandle = material->shader().handle();
 
     if (!shaderHandle) {
         SPDLOG_ERROR("Invalid shader handle for mesh render order");

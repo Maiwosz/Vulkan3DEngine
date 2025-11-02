@@ -14,6 +14,7 @@
 #include "ISmartHandleManager.h"
 #include <memory>
 #include <vector>
+#include "ComputeDispatcher.h"
 
 // Forward declarations
 class GpuCall;
@@ -25,7 +26,6 @@ using SmartRenderGraphHandle = SmartHandle<RenderGraphHandle, RenderGraph>;
 
 /**
  * Core Renderer - orchestrates frame lifecycle and provides GPU context
- * Simplified to focus on coordination rather than specific rendering operations
  */
 class Renderer {
 public:
@@ -39,22 +39,40 @@ public:
         FrameBufferManager& framebufferManager,
         RenderPassManager& renderPassManager,
         DescriptorAllocator& descriptorAllocator,
-        PipelineManager& pipelineManager
+        PipelineManager& pipelineManager,
+        CommandBufferManager& cmdBufferManager
     );
     ~Renderer();
 
-    // Frame lifecycle - main responsibility
-    bool beginFrame();
-    void endFrame();
+    /**
+     * Render a complete frame with the given render graph and GPU calls.
+     * This is the primary rendering function - it handles:
+     * - Frame initialization (beginFrame)
+     * - RenderGraph assignment to executor
+     * - GPU call execution through RenderGraphExecutor
+     * - Frame finalization (endFrame)
+     *
+     * @param renderGraph The render graph defining render passes and attachments
+     * @param gpuCalls Vector of GPU commands to execute (DrawCalls, etc.)
+     * @return true if frame was rendered successfully, false on error
+     *
+     * Example usage:
+     *   if (!renderer.renderFrame(cameraOrder.renderGraphHandle, drawCalls)) {
+     *       SPDLOG_ERROR("Frame rendering failed");
+     *   }
+     */
+    bool renderFrame(
+        const SmartRenderGraphHandle& renderGraph,
+        const std::vector<std::unique_ptr<GpuCall>>& gpuCalls
+    );
 
-    // RenderGraph assignment - now using SmartHandle
-    void assignRenderGraph(const SmartRenderGraphHandle& renderGraphHandle);
-    bool hasAssignedRenderGraph() const;
-    RenderGraph* getAssignedRenderGraph() const;
-    const SmartRenderGraphHandle& getAssignedRenderGraphHandle() const;
-
-    // RenderGraph-based execution
-    bool executeRenderGraph(const std::vector<std::unique_ptr<GpuCall>>& gpuCalls);
+    /**
+     * Render an empty frame without any GPU calls.
+     * Useful for maintaining frame pacing when there's nothing to render.
+     *
+     * @return true if frame was completed successfully
+     */
+    bool renderEmptyFrame();
 
     // Global rendering state management
     bool bindPipeline(PipelineHandle pipelineHandle);
@@ -80,6 +98,7 @@ public:
     // Renderer Sub Systems
     MeshRenderer& meshRenderer() { return *m_meshRenderer; }
     RenderGraphExecutor& renderGraphExecutor() { return *m_renderGraphExecutor; }
+    ComputeDispatcher& computeDispatcher() { return *m_computeDispatcher; }
 
 private:
     // Engine references
@@ -97,8 +116,9 @@ private:
     // Service objects
     std::unique_ptr<MeshRenderer> m_meshRenderer;
     std::unique_ptr<RenderGraphExecutor> m_renderGraphExecutor;
+    std::unique_ptr<ComputeDispatcher> m_computeDispatcher;
 
-    // Frame state - SIMPLIFIED
+    // Frame state
     bool m_frameActive = false;
     uint32_t m_currentImageIndex = 0;
 
@@ -107,6 +127,8 @@ private:
     VkPipelineLayout m_currentPipelineLayout = VK_NULL_HANDLE;
 
     // Internal frame lifecycle methods
+    bool beginFrame();
+    void endFrame();
     void prepareFrame();
     uint32_t acquireSwapchainImage();
     void submitAndPresent();

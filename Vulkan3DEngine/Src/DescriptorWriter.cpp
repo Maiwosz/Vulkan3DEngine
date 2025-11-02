@@ -12,11 +12,27 @@ DescriptorWriter::DescriptorWriter(const LogicalDevice& device,
 {
 }
 
-void DescriptorWriter::writeUniformBuffer(int binding, SmartHandle<BufferHandle, Buffer> uniformBuffer)
+void DescriptorWriter::writeBuffer(int binding, SmartHandle<BufferHandle, Buffer> buffer)
 {
-    m_uniformBufferBindings.push_back({
+    // Get buffer info to determine type
+    const BufferInfo& bufferInfo = m_bufferManager.getBufferInfo(buffer.handle());
+
+    VkDescriptorType vkDescriptorType;
+    if (bufferInfo.bufferType == ShaderLib::BufferType::Uniform) {
+        vkDescriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+    }
+    else if (bufferInfo.bufferType == ShaderLib::BufferType::Storage) {
+        vkDescriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+    }
+    else {
+        // Fallback: shouldn't happen
+        vkDescriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+    }
+
+    m_bufferBindings.push_back({
         .binding = binding,
-        .uniformBuffer = std::move(uniformBuffer)
+        .buffer = std::move(buffer),
+        .descriptorType = vkDescriptorType
         });
 }
 
@@ -50,7 +66,7 @@ void DescriptorWriter::writeSampler(int binding, SamplerHandle sampler)
 
 void DescriptorWriter::clear()
 {
-    m_uniformBufferBindings.clear();
+    m_bufferBindings.clear();
     m_imageBindings.clear();
     m_samplerBindings.clear();
 }
@@ -60,9 +76,9 @@ SmartHandle<DescriptorSetHandle, VkDescriptorSet> DescriptorWriter::createDescri
     // Prepare resources that will be bound to the descriptor set
     DescriptorAllocator::DescriptorResources resources;
 
-    // Collect all uniform buffer smart handles
-    for (const auto& binding : m_uniformBufferBindings) {
-        resources.uniformBuffers.push_back(binding.uniformBuffer);
+    // Collect all buffer smart handles (both UBO and SSBO)
+    for (const auto& binding : m_bufferBindings) {
+        resources.uniformBuffers.push_back(binding.buffer);
     }
 
     // Collect all sampler handles (from both image bindings and separate sampler bindings)
@@ -87,11 +103,11 @@ SmartHandle<DescriptorSetHandle, VkDescriptorSet> DescriptorWriter::createDescri
     std::deque<VkDescriptorBufferInfo> bufferInfos;
     std::vector<VkWriteDescriptorSet> writes;
 
-    // Write uniform buffers
-    for (const auto& binding : m_uniformBufferBindings) {
-        if (binding.uniformBuffer && binding.uniformBuffer.get()) {
+    // Write buffers (both UBO and SSBO with correct descriptor types)
+    for (const auto& binding : m_bufferBindings) {
+        if (binding.buffer && binding.buffer.get()) {
             VkDescriptorBufferInfo& bufferInfo = bufferInfos.emplace_back(VkDescriptorBufferInfo{
-                .buffer = binding.uniformBuffer.get()->get(),
+                .buffer = binding.buffer.get()->get(),
                 .offset = 0,
                 .range = VK_WHOLE_SIZE
                 });
@@ -102,7 +118,7 @@ SmartHandle<DescriptorSetHandle, VkDescriptorSet> DescriptorWriter::createDescri
                 .dstBinding = static_cast<uint32_t>(binding.binding),
                 .dstArrayElement = 0,
                 .descriptorCount = 1,
-                .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+                .descriptorType = binding.descriptorType,  // Use the correct type!
                 .pBufferInfo = &bufferInfo
             };
 

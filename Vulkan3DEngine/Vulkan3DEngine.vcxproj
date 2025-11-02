@@ -172,6 +172,9 @@
     <ClCompile Include="..\Libs\imgui\imgui_impl_vulkan.cpp" />
     <ClCompile Include="..\Libs\imgui\imgui_tables.cpp" />
     <ClCompile Include="..\Libs\imgui\imgui_widgets.cpp" />
+    <ClCompile Include="Src\MaterialFactory.cpp" />
+    <ClCompile Include="Src\DescriptorSetBuilder.cpp" />
+    <ClCompile Include="Src\ComputeDispatcher.cpp" />
     <ClCompile Include="Src\DearImGuiProvider.cpp" />
     <ClCompile Include="Src\RenderGraphTemplateManager.cpp" />
     <ClCompile Include="Src\CameraComponent.cpp" />
@@ -209,7 +212,6 @@
     <ClCompile Include="Src\AssetSystem.cpp" />
     <ClCompile Include="Src\ShaderManager.cpp" />
     <ClCompile Include="Src\AssetResolutionStage.cpp" />
-    <ClCompile Include="Src\MaterialResourceFactory.cpp" />
     <ClCompile Include="Src\LoggerManager.cpp" />
     <ClCompile Include="Src\LuaBindingsRegistry.cpp" />
     <ClCompile Include="Src\LuaBindingsSpdlog.cpp" />
@@ -294,6 +296,9 @@
     <ClInclude Include="..\Libs\imgui\imstb_rectpack.h" />
     <ClInclude Include="..\Libs\imgui\imstb_textedit.h" />
     <ClInclude Include="..\Libs\imgui\imstb_truetype.h" />
+    <ClInclude Include="Src\MaterialFactory.h" />
+    <ClInclude Include="Src\DescriptorSetBuilder.h" />
+    <ClInclude Include="Src\ComputeDispatcher.h" />
     <ClInclude Include="Src\MappedBufferAccessor.h" />
     <ClInclude Include="Src\MappedBufferReader.h" />
     <ClInclude Include="Src\MappedBufferWriter.h" />
@@ -348,7 +353,6 @@
     <ClInclude Include="Src\AssetSystem.h" />
     <ClInclude Include="Src\ShaderManager.h" />
     <ClInclude Include="Src\IAssetHandler.h" />
-    <ClInclude Include="Src\MaterialResourceFactory.h" />
     <ClInclude Include="Src\Handle.h" />
     <ClInclude Include="Src\LoggerManager.h" />
     <ClInclude Include="Src\LuaBindingsRegistry.h" />

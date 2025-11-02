@@ -81,20 +81,24 @@ namespace ShaderLib {
     std::vector<VulkanDescriptorSetLayoutInfo> GetDescriptorSetLayoutsInfo(const ShaderMetadata& metadata) {
         std::map<uint32_t, VulkanDescriptorSetLayoutInfo> setMap;
 
-        for (const auto& descriptor : metadata.descriptors) {
-            if (setMap.find(descriptor.set) == setMap.end()) {
+        // Iterate through all descriptor sets
+        for (const auto& descriptorSet : metadata.descriptorSets) {
+            if (setMap.find(descriptorSet.setNumber) == setMap.end()) {
                 VulkanDescriptorSetLayoutInfo layoutInfo;
-                layoutInfo.setNumber = descriptor.set;
-                setMap[descriptor.set] = layoutInfo;
+                layoutInfo.setNumber = descriptorSet.setNumber;
+                setMap[descriptorSet.setNumber] = layoutInfo;
             }
 
-            VulkanDescriptorBindingInfo bindingInfo;
-            bindingInfo.binding = descriptor.binding;
-            bindingInfo.descriptorType = GetVulkanDescriptorType(descriptor.descriptorType);
-            bindingInfo.descriptorCount = 1;
-            bindingInfo.stageFlags = GetVulkanShaderStageFlags(descriptor.stages);
+            // Process each slot in the descriptor set
+            for (const auto& slot : descriptorSet.slots) {
+                VulkanDescriptorBindingInfo bindingInfo;
+                bindingInfo.binding = slot.binding;
+                bindingInfo.descriptorType = GetVulkanDescriptorType(slot.type);
+                bindingInfo.descriptorCount = 1;
+                bindingInfo.stageFlags = GetVulkanShaderStageFlags(slot.stages);
 
-            setMap[descriptor.set].bindings.push_back(bindingInfo);
+                setMap[descriptorSet.setNumber].bindings.push_back(bindingInfo);
+            }
         }
 
         std::vector<VulkanDescriptorSetLayoutInfo> result;
@@ -141,8 +145,8 @@ namespace ShaderLib {
 
     VulkanBufferInfo GetGlobalUboInfo(const ShaderMetadata& metadata) {
         VulkanBufferInfo info;
-        info.set = metadata.globalUBO.set;
-        info.binding = metadata.globalUBO.binding;
+        info.set = GLOBAL_DESCRIPTOR_SET;
+        info.binding = GLOBAL_UBO_BINDING;
         info.size = metadata.globalUBO.size;
         info.bufferType = metadata.globalUBO.bufferType;
         info.layoutStandard = metadata.globalUBO.layoutStandard;
@@ -152,28 +156,39 @@ namespace ShaderLib {
 
     VulkanBufferInfo GetObjectUboInfo(const ShaderMetadata& metadata) {
         VulkanBufferInfo info;
-        info.set = metadata.objectUBO.set;
-        info.binding = metadata.objectUBO.binding;
+        info.set = OBJECT_DESCRIPTOR_SET;
+        info.binding = OBJECT_UBO_BINDING;
         info.size = metadata.objectUBO.size;
         info.bufferType = metadata.objectUBO.bufferType;
         info.layoutStandard = metadata.objectUBO.layoutStandard;
-        info.isDynamic = true; // Object UBO is typically dynamic
+        info.isDynamic = true;
         return info;
     }
 
     std::vector<VulkanBufferInfo> GetCustomBuffersInfo(const ShaderMetadata& metadata) {
         std::vector<VulkanBufferInfo> buffers;
-        buffers.reserve(metadata.customBuffers.size());
 
-        for (const auto& buffer : metadata.customBuffers) {
-            VulkanBufferInfo info;
-            info.set = buffer.set;
-            info.binding = buffer.binding;
-            info.size = buffer.size;
-            info.bufferType = buffer.bufferType;
-            info.layoutStandard = buffer.layoutStandard;
-            info.isDynamic = false;
-            buffers.push_back(info);
+        // Iterate through all descriptor sets
+        for (const auto& descriptorSet : metadata.descriptorSets) {
+            // Get all buffers from this set
+            auto setBuffers = descriptorSet.GetAllBuffers();
+
+            for (const auto* buffer : setBuffers) {
+                // Find the corresponding slot to get binding information
+                for (const auto& slot : descriptorSet.slots) {
+                    if (slot.name == buffer->name && slot.IsBuffer()) {
+                        VulkanBufferInfo info;
+                        info.set = descriptorSet.setNumber;
+                        info.binding = slot.binding;
+                        info.size = buffer->size;
+                        info.bufferType = buffer->bufferType;
+                        info.layoutStandard = buffer->layoutStandard;
+                        info.isDynamic = false;
+                        buffers.push_back(info);
+                        break;
+                    }
+                }
+            }
         }
 
         return buffers;
