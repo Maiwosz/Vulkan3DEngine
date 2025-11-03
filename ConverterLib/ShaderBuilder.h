@@ -2,7 +2,8 @@
 #include <ShaderLib.h>
 #include <BufferBuilder.h>
 #include <DescriptorBuilder.h>
-#include <ShaderStruct.h>
+#include "ShaderArrayInstance.h"
+#include "ShaderStructInstance.h"
 #include "ShaderParserPEGTL.h"
 #include <memory>
 #include <vector>

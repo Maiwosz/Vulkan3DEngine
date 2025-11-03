@@ -3,7 +3,6 @@
 #include <string>
 #include <vector>
 #include <memory>
-#include <unordered_map>
 #include <json.hpp>
 
 using json = nlohmann::json;
@@ -77,53 +76,6 @@ namespace ShaderLib {
         bool IsFinalized() const { return finalized; }
 
         friend class ShaderStructInstance;
-    };
-
-    // ============================================================================
-    // SHADER STRUCT INSTANCE - Mutable instance data
-    // ============================================================================
-
-    class ShaderStructInstance : public CompositeTypeInstance,
-        public std::enable_shared_from_this<ShaderStructInstance> {
-    private:
-        std::shared_ptr<const ShaderStructDefinition> definition;
-        std::unordered_map<std::string, BufferValue> fieldValues;
-        std::vector<uint8_t> buffer;
-
-        void InitializeFieldDefaults();
-        void WriteFieldToBuffer(const ShaderStructDefinition::Field& field, const BufferValue& value);
-        void ReadFieldFromBuffer(const ShaderStructDefinition::Field& field);
-        BufferValue ConvertCompositeToBufferValue(std::shared_ptr<CompositeTypeInstance> instance) const;
-
-    public:
-        explicit ShaderStructInstance(std::shared_ptr<const ShaderStructDefinition> def);
-
-        // Copy constructor
-        ShaderStructInstance(const ShaderStructInstance& other);
-        ShaderStructInstance& operator=(const ShaderStructInstance& other);
-
-        // CompositeTypeInstance interface
-        std::shared_ptr<const CompositeTypeDefinition> GetDefinition() const override { return definition; }
-        const std::vector<uint8_t>& GetRawBuffer() const override { return buffer; }
-        bool WriteToBuffer(void* dst) const override;
-        bool ReadFromBuffer(const void* src) override;
-        std::shared_ptr<CompositeTypeInstance> Clone() const override { return std::make_shared<ShaderStructInstance>(*this); }
-        json ToJson() const override;
-        bool FromJson(const json& j) override;
-        bool IsStruct() const override { return true; }
-        bool IsArray() const override { return false; }
-
-        // Field access
-        void SetField(const std::string& fieldName, const BufferValue& value);
-        void SetCompositeField(const std::string& fieldName, std::shared_ptr<CompositeTypeInstance> value);
-
-        BufferValue GetField(const std::string& fieldName) const;
-        std::shared_ptr<CompositeTypeInstance> GetCompositeField(const std::string& fieldName) const;
-
-        bool HasField(const std::string& fieldName) const;
-
-        // Convenience: direct access to definition
-        std::shared_ptr<const ShaderStructDefinition> GetStructDefinition() const { return definition; }
     };
 
 } // namespace ShaderLib

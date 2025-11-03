@@ -240,7 +240,7 @@ DescriptorSetBuilder& DescriptorSetBuilder::bindBufferVariables(
     }
 
     // Update buffer with variables
-    auto mappedWriter = m_bufferManager.createMappedWriter(bufferHandle.handle());
+    auto mappedWriter = m_bufferManager.createWriter(bufferHandle.handle());
     if (!mappedWriter.isValid()) {
         SPDLOG_ERROR("Failed to map buffer '{}' for writing", bufferName);
         return *this;
@@ -248,7 +248,7 @@ DescriptorSetBuilder& DescriptorSetBuilder::bindBufferVariables(
 
     uint32_t updatedCount = 0;
     for (const auto& [varName, value] : variables) {
-        if (mappedWriter->write(varName, value)) {
+        if (mappedWriter.write(varName, value)) {
             updatedCount++;
             SPDLOG_TRACE("Updated variable '{}' in buffer '{}'", varName, bufferName);
         }

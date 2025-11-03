@@ -16,6 +16,7 @@ MaterialManager::MaterialManager(
 )
     : m_factory(device, shaderManager, uniformBufferManager, samplerManager,
         textureManager, descriptorAllocator, descriptorLayoutManager),
+    m_shaderManager(shaderManager),
     m_textureManager(textureManager)
 {
 }
@@ -37,7 +38,7 @@ bool MaterialManager::prepareAsset(const AssetHandle& handle, const AssetLib::As
 
         // Ensure shader is ready
         AssetHandle shaderHandle(AssetType::Shader, deps.shaderName);
-        if (!manager.ensureReady(shaderHandle)) {
+        if (!requestAssetReady(shaderHandle)) {
             SPDLOG_ERROR("MaterialManager: Failed to prepare shader dependency {}", deps.shaderName);
             return false;
         }
@@ -52,7 +53,7 @@ bool MaterialManager::prepareAsset(const AssetHandle& handle, const AssetLib::As
         // Ensure textures are loaded
         for (const auto& textureName : deps.textureNames) {
             AssetHandle textureHandle(AssetType::Texture, textureName);
-            if (!manager.ensureLoaded(textureHandle)) {
+            if (!requestAssetLoad(textureHandle)) {
                 SPDLOG_WARN("MaterialManager: Failed to load texture dependency {}", textureName);
             }
         }
@@ -215,6 +216,74 @@ MaterialHandle MaterialManager::registerMaterial(std::unique_ptr<Material> mater
 
     SPDLOG_DEBUG("MaterialManager: Registered runtime material '{}' with handle {}", name, handle.id);
     return handle;
+}
+
+SmartAssetHandle<MaterialHandle, Material> MaterialManager::createComputeMaterial(
+    const std::string& shaderName
+) {
+    try {
+        // Generate material name from shader name
+        std::string materialName = shaderName + "_material";
+
+        // Check if material already exists
+        auto existingIt = m_filenameToHandle.find(materialName);
+        if (existingIt != m_filenameToHandle.end()) {
+            MaterialHandle existingHandle = existingIt->second;
+            if (isAssetReady(existingHandle)) {
+                SPDLOG_DEBUG("MaterialManager::createComputeMaterial: Reusing existing material '{}'", materialName);
+                auto smartHandle = createSmartHandle(existingHandle);
+                if (smartHandle.isValid()) {
+                    return smartHandle;
+                }
+            }
+        }
+
+        // 1. Create shader asset handle
+        AssetHandle shaderAssetHandle(AssetType::Shader, shaderName);
+
+        // 2. Ensure shader is loaded and ready
+        if (!requestAssetReady(shaderAssetHandle)) {
+            SPDLOG_ERROR("MaterialManager::createComputeMaterial: Failed to prepare shader '{}'", shaderName);
+            return SmartAssetHandle<MaterialHandle, Material>();
+        }
+
+        // 3. Get shader handle
+        ShaderHandle shaderHandle = m_shaderManager.getHandle<ShaderHandle>(shaderAssetHandle.filename);
+        if (!shaderHandle.isValid()) {
+            SPDLOG_ERROR("MaterialManager::createComputeMaterial: Invalid shader handle for '{}'", shaderName);
+            return SmartAssetHandle<MaterialHandle, Material>();
+        }
+
+        // 4. Create material using factory with default parameters
+        auto material = m_factory.createMaterial(materialName, shaderHandle);
+        if (!material) {
+            SPDLOG_ERROR("MaterialManager::createComputeMaterial: Factory failed to create material '{}'", materialName);
+            return SmartAssetHandle<MaterialHandle, Material>();
+        }
+
+        // 5. Register material and get handle
+        MaterialHandle handle = registerMaterial(std::move(material), materialName);
+        if (!handle.isValid()) {
+            SPDLOG_ERROR("MaterialManager::createComputeMaterial: Failed to register material '{}'", materialName);
+            return SmartAssetHandle<MaterialHandle, Material>();
+        }
+
+        // 6. Create and return smart handle
+        auto smartHandle = createSmartHandle(handle);
+        if (!smartHandle.isValid()) {
+            SPDLOG_ERROR("MaterialManager::createComputeMaterial: Failed to create smart handle for '{}'", materialName);
+            return SmartAssetHandle<MaterialHandle, Material>();
+        }
+
+        SPDLOG_DEBUG("MaterialManager: Created compute material '{}' with handle {}", materialName, handle.id);
+        return smartHandle;
+
+    }
+    catch (const std::exception& e) {
+        SPDLOG_ERROR("MaterialManager::createComputeMaterial: Exception loading shader '{}': {}",
+            shaderName, e.what());
+        return SmartAssetHandle<MaterialHandle, Material>();
+    }
 }
 
 MaterialHandle MaterialManager::loadMaterialFromAsset(

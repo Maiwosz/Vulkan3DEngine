@@ -1,7 +1,7 @@
 #include "pch.h"
 #include "ShaderBuilder.h"
-#include "ShaderStruct.h"
-#include "ShaderArray.h"
+#include "ShaderArrayInstance.h"
+#include "ShaderStructInstance.h"
 #include <TypeConversions.h>
 #include <BuiltInBuffers.h>
 #include <Serialization.h>

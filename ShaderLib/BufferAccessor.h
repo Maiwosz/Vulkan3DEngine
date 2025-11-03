@@ -1,6 +1,7 @@
 #pragma once
 #include "ShaderLib.h"
 #include "ShaderTypes.h"
+#include "IBufferMapping.h"
 #include <cstring>
 #include <stdexcept>
 
@@ -56,6 +57,7 @@ namespace ShaderLib {
         const BufferObject* m_bufferObject = nullptr;
         void* m_data = nullptr;
         size_t m_dataSize = 0;
+        IBufferMapping* m_bufferMapping = nullptr;
 
         const BufferVariable* findVariable(const std::string& name) const {
             if (!m_bufferObject) {

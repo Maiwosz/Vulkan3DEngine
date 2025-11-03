@@ -2,9 +2,10 @@
 #include <vulkan/vulkan.h>
 #include <VMA/vk_mem_alloc.h>
 #include <utility>
+#include "IBufferMapping.h"
 
 // Base class for all VMA-allocated resources
-class AllocatedResource {
+class AllocatedResource : public ShaderLib::IBufferMapping {
 public:
     virtual ~AllocatedResource() = default;
 
@@ -15,10 +16,10 @@ public:
     AllocatedResource(AllocatedResource&& other) noexcept;
     AllocatedResource& operator=(AllocatedResource&& other) noexcept;
 
-    // Memory mapping operations
-    void* map();
-    void unmap();
-    bool isMapped() const noexcept { return m_mappedData != nullptr; }
+    // Memory mapping operations - implementacja IBufferMapping
+    void* map() override;
+    void unmap() override;
+    bool isMapped() const noexcept override { return m_mappedData != nullptr; }
     VkDeviceSize getAllocatedSize() const noexcept { return m_allocatedSize; }
 
     // Utility for copying data

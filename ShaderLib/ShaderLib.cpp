@@ -1,6 +1,6 @@
 #include "pch.h"
 #include "ShaderLib.h"
-#include "ShaderArray.h"
+#include "ShaderArrayDefinition.h"
 #include <algorithm>
 
 namespace ShaderLib {

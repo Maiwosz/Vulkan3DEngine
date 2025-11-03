@@ -1,8 +1,8 @@
 #include "pch.h"
 #include "ValueSerialization.h"
 #include "TypeSerializationTable.h"
-#include "ShaderStruct.h"
-#include "ShaderArray.h"
+#include "ShaderArrayInstance.h"
+#include "ShaderStructInstance.h"
 
 namespace ShaderLib {
 

@@ -171,14 +171,14 @@ SmartHandle<BufferHandle, Buffer> CameraProcessingStage::createGlobalUniformBuff
 
     // Write entire buffer in one operation
     {
-        auto writer = m_bufferManager.createMappedWriter(globalUboHandle.handle());
+        auto writer = m_bufferManager.createWriter(globalUboHandle.handle());
         if (!writer.isValid()) {
             SPDLOG_ERROR("Failed to create mapped writer for global UBO");
             return SmartHandle<BufferHandle, Buffer>();
         }
 
         // Single memcpy for entire structure
-        if (!writer->writeRaw(&uboData, sizeof(ShaderLib::GlobalUBOData), 0)) {
+        if (!writer.writeRaw(&uboData, sizeof(ShaderLib::GlobalUBOData), 0)) {
             SPDLOG_ERROR("Failed to write GlobalUBOData to buffer");
             return SmartHandle<BufferHandle, Buffer>();
         }

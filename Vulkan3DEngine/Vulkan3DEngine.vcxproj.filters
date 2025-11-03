@@ -174,7 +174,7 @@
       <Filter>Engine\AssetSystem\AssetManager\AssetHandlers\MaterialManager</Filter>
     </ClCompile>
     <ClCompile Include="Src\BufferManager.cpp">
-      <Filter>Engine\EngineCore\UniformBufferManager</Filter>
+      <Filter>Engine\EngineCore\BufferManager</Filter>
     </ClCompile>
     <ClCompile Include="Src\PipelineConfig.cpp">
       <Filter>Engine\EngineCore\PipelineManager\PipelineConfig</Filter>
@@ -564,7 +564,7 @@
       <Filter>Engine\AssetSystem\AssetManager\AssetHandlers\MaterialManager</Filter>
     </ClInclude>
     <ClInclude Include="Src\BufferManager.h">
-      <Filter>Engine\EngineCore\UniformBufferManager</Filter>
+      <Filter>Engine\EngineCore\BufferManager</Filter>
     </ClInclude>
     <ClInclude Include="Src\PipelineConfig.h">
       <Filter>Engine\EngineCore\PipelineManager\PipelineConfig</Filter>
@@ -812,15 +812,6 @@
     </ClInclude>
     <ClInclude Include="Src\DearImGuiProvider.h">
       <Filter>Engine\EngineCore\RenderGraphSystem\RenderGraphExecutor\IImGuiProvider\DearImGuiProvider</Filter>
-    </ClInclude>
-    <ClInclude Include="Src\MappedBufferAccessor.h">
-      <Filter>Engine\EngineCore\UniformBufferManager</Filter>
-    </ClInclude>
-    <ClInclude Include="Src\MappedBufferWriter.h">
-      <Filter>Engine\EngineCore\UniformBufferManager</Filter>
-    </ClInclude>
-    <ClInclude Include="Src\MappedBufferReader.h">
-      <Filter>Engine\EngineCore\UniformBufferManager</Filter>
     </ClInclude>
     <ClInclude Include="Src\ComputeDispatcher.h">
       <Filter>Engine\EngineCore\Renderer\ComputeDispatcer</Filter>
@@ -1138,9 +1129,6 @@
     <Filter Include="Engine\EngineCore\CommandBufferManager\CommandBuffer">
       <UniqueIdentifier>{ec43ca6a-d206-4b26-a935-fc2683c2a6dd}</UniqueIdentifier>
     </Filter>
-    <Filter Include="Engine\EngineCore\UniformBufferManager">
-      <UniqueIdentifier>{f4f12b53-9db7-47a6-9c37-5077623ee1c0}</UniqueIdentifier>
-    </Filter>
     <Filter Include="Engine\EngineCore\DescriptorSystem">
       <UniqueIdentifier>{91c5c937-c5c2-4cc0-9d19-37d16231a80e}</UniqueIdentifier>
     </Filter>
@@ -1224,6 +1212,9 @@
     </Filter>
     <Filter Include="Engine\AssetSystem\AssetManager\AssetHandlers\MaterialManager\MaterialFactory">
       <UniqueIdentifier>{6fa30650-8874-47f1-a188-15ef50bf4005}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Engine\EngineCore\BufferManager">
+      <UniqueIdentifier>{f4f12b53-9db7-47a6-9c37-5077623ee1c0}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
 </Project>

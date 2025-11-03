@@ -1,8 +1,8 @@
 #pragma once
 #include "BufferAccessor.h"
 #include "ValueSerialization.h"
-#include "ShaderStruct.h"
-#include "ShaderArray.h"
+#include "ShaderArrayInstance.h"
+#include "ShaderStructInstance.h"
 #include <cstring>
 
 namespace ShaderLib {
@@ -11,10 +11,73 @@ namespace ShaderLib {
     public:
         BufferWriter() = default;
 
+        // Destruktor - automatyczne odmapowanie
+        ~BufferWriter() {
+            if (m_bufferMapping && m_bufferMapping->isMapped()) {
+                m_bufferMapping->unmap();
+            }
+        }
+
+        // Zablokuj kopiowanie (RAII)
+        BufferWriter(const BufferWriter&) = delete;
+        BufferWriter& operator=(const BufferWriter&) = delete;
+
+        // Pozwól na przenoszenie
+        BufferWriter(BufferWriter&& other) noexcept {
+            m_bufferObject = other.m_bufferObject;
+            m_data = other.m_data;
+            m_dataSize = other.m_dataSize;
+            m_bufferMapping = other.m_bufferMapping;
+
+            other.m_bufferObject = nullptr;
+            other.m_data = nullptr;
+            other.m_dataSize = 0;
+            other.m_bufferMapping = nullptr;
+        }
+
+        BufferWriter& operator=(BufferWriter&& other) noexcept {
+            if (this != &other) {
+                // Odmapuj obecny bufor
+                if (m_bufferMapping && m_bufferMapping->isMapped()) {
+                    m_bufferMapping->unmap();
+                }
+
+                m_bufferObject = other.m_bufferObject;
+                m_data = other.m_data;
+                m_dataSize = other.m_dataSize;
+                m_bufferMapping = other.m_bufferMapping;
+
+                other.m_bufferObject = nullptr;
+                other.m_data = nullptr;
+                other.m_dataSize = 0;
+                other.m_bufferMapping = nullptr;
+            }
+            return *this;
+        }
+
+        // ręczne podanie wskaźnika (np. dla testów)
         void setBuffer(const BufferObject* bufferObject, void* data, size_t dataSize) {
             m_bufferObject = bufferObject;
             m_data = data;
             m_dataSize = dataSize;
+            m_bufferMapping = nullptr;
+        }
+
+        // automatyczne mapowanie z RAII
+        bool setBufferWithMapping(const BufferObject* bufferObject,
+            IBufferMapping* bufferMapping,
+            size_t dataSize) {
+            if (!bufferMapping) {
+                return false;
+            }
+
+            m_bufferObject = bufferObject;
+            m_bufferMapping = bufferMapping;
+            m_dataSize = dataSize;
+
+            // Automatyczne mapowanie
+            m_data = m_bufferMapping->map();
+            return m_data != nullptr;
         }
 
         bool writeRaw(const void* data, size_t size, size_t offset = 0) {

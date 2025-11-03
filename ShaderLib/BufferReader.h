@@ -1,8 +1,8 @@
 #pragma once
 #include "BufferAccessor.h"
 #include "ValueSerialization.h"
-#include "ShaderStruct.h"
-#include "ShaderArray.h"
+#include "ShaderArrayInstance.h"
+#include "ShaderStructInstance.h"
 #include <cstring>
 
 namespace ShaderLib {
@@ -11,10 +11,70 @@ namespace ShaderLib {
     public:
         BufferReader() = default;
 
+        ~BufferReader() {
+            // Automatyczne odmapowanie przy destrukcji
+            if (m_bufferMapping && m_bufferMapping->isMapped()) {
+                m_bufferMapping->unmap();
+            }
+        }
+
+        BufferReader(const BufferReader&) = delete;
+        BufferReader& operator=(const BufferReader&) = delete;
+
+        BufferReader(BufferReader&& other) noexcept
+            : BufferAccessor() {
+            m_bufferObject = other.m_bufferObject;
+            m_data = other.m_data;
+            m_dataSize = other.m_dataSize;
+            m_bufferMapping = other.m_bufferMapping;
+
+            other.m_bufferObject = nullptr;
+            other.m_data = nullptr;
+            other.m_dataSize = 0;
+            other.m_bufferMapping = nullptr;
+        }
+
+        BufferReader& operator=(BufferReader&& other) noexcept {
+            if (this != &other) {
+                // Odmapuj obecny bufor
+                if (m_bufferMapping && m_bufferMapping->isMapped()) {
+                    m_bufferMapping->unmap();
+                }
+
+                m_bufferObject = other.m_bufferObject;
+                m_data = other.m_data;
+                m_dataSize = other.m_dataSize;
+                m_bufferMapping = other.m_bufferMapping;
+
+                other.m_bufferObject = nullptr;
+                other.m_data = nullptr;
+                other.m_dataSize = 0;
+                other.m_bufferMapping = nullptr;
+            }
+            return *this;
+        }
+
         void setBuffer(const BufferObject* bufferObject, const void* data, size_t dataSize) {
             m_bufferObject = bufferObject;
             m_data = const_cast<void*>(data);
             m_dataSize = dataSize;
+            m_bufferMapping = nullptr;
+        }
+
+        bool setBufferWithMapping(const BufferObject* bufferObject,
+            IBufferMapping* bufferMapping,
+            size_t dataSize) {
+            if (!bufferMapping) {
+                return false;
+            }
+
+            m_bufferObject = bufferObject;
+            m_bufferMapping = bufferMapping;
+            m_dataSize = dataSize;
+
+            // Automatyczne mapowanie
+            m_data = m_bufferMapping->map();
+            return m_data != nullptr;
         }
 
         bool readRaw(void* outData, size_t size, size_t offset = 0) const {

@@ -1,7 +1,5 @@
 #include "pch.h"
 #include "Serialization.h"
-#include "ShaderStruct.h"
-#include "ShaderArray.h"
 
 namespace ShaderLib {
 

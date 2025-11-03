@@ -2,7 +2,8 @@
 #include "ShaderLib.h"
 #include "BufferBuilder.h"
 #include "BuiltInStructures.h"
-#include "ShaderArray.h"
+#include "ShaderArrayInstance.h"
+#include "ShaderStructInstance.h"
 #include <glm/glm.hpp>
 #include <iostream>
 

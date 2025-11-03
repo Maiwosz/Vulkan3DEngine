@@ -1,8 +1,8 @@
 #include "pch.h"
 #include "ShaderTypes.h"
 #include <unordered_map>
-#include "ShaderStruct.h"
-#include "ShaderArray.h"
+#include "ShaderArrayDefinition.h"
+#include "ShaderStructDefinition.h"
 
 namespace ShaderLib {
 

@@ -1,5 +1,6 @@
 #pragma once
-#include "ShaderStruct.h"
+#include "ShaderArrayInstance.h"
+#include "ShaderStructInstance.h"
 #include <glm/glm.hpp>
 #include <memory>
 
@@ -99,52 +100,52 @@ namespace ShaderLib {
 
     inline void SetDirectionalLight(std::shared_ptr<ShaderStructInstance> lightInstance,
         const DirectionalLightData& data) {
-        lightInstance->SetField("direction", data.direction);
-        lightInstance->SetField("color", data.color);
+        (*lightInstance)["direction"] = data.direction;
+        (*lightInstance)["color"] = data.color;
     }
 
     inline DirectionalLightData GetDirectionalLight(std::shared_ptr<ShaderStructInstance> lightInstance) {
         DirectionalLightData data;
-        data.direction = std::get<glm::vec3>(lightInstance->GetField("direction"));
-        data.color = std::get<glm::vec4>(lightInstance->GetField("color"));
+        data.direction = lightInstance->Get<glm::vec3>("direction");
+        data.color = lightInstance->Get<glm::vec4>("color");
         return data;
     }
 
     inline void SetPointLight(std::shared_ptr<ShaderStructInstance> lightInstance,
         const PointLightData& data) {
-        lightInstance->SetField("position", data.position);
-        lightInstance->SetField("radius", data.radius);
-        lightInstance->SetField("color", data.color);
+        (*lightInstance)["position"] = data.position;
+        (*lightInstance)["radius"] = data.radius;
+        (*lightInstance)["color"] = data.color;
     }
 
     inline PointLightData GetPointLight(std::shared_ptr<ShaderStructInstance> lightInstance) {
         PointLightData data;
-        data.position = std::get<glm::vec3>(lightInstance->GetField("position"));
-        data.radius = std::get<float>(lightInstance->GetField("radius"));
-        data.color = std::get<glm::vec4>(lightInstance->GetField("color"));
+        data.position = lightInstance->Get<glm::vec3>("position");
+        data.radius = lightInstance->Get<float>("radius");
+        data.color = lightInstance->Get<glm::vec4>("color");
         return data;
     }
 
     inline void SetSpotLight(std::shared_ptr<ShaderStructInstance> lightInstance,
         const SpotLightData& data) {
-        lightInstance->SetField("position", data.position);
-        lightInstance->SetField("innerCutoff", data.innerCutoff);
-        lightInstance->SetField("direction", data.direction);
-        lightInstance->SetField("outerCutoff", data.outerCutoff);
-        lightInstance->SetField("color", data.color);
-        lightInstance->SetField("range", data.range);
-        lightInstance->SetField("padding", data.padding);
+        (*lightInstance)["position"] = data.position;
+        (*lightInstance)["innerCutoff"] = data.innerCutoff;
+        (*lightInstance)["direction"] = data.direction;
+        (*lightInstance)["outerCutoff"] = data.outerCutoff;
+        (*lightInstance)["color"] = data.color;
+        (*lightInstance)["range"] = data.range;
+        (*lightInstance)["padding"] = data.padding;
     }
 
     inline SpotLightData GetSpotLight(std::shared_ptr<ShaderStructInstance> lightInstance) {
         SpotLightData data;
-        data.position = std::get<glm::vec3>(lightInstance->GetField("position"));
-        data.innerCutoff = std::get<float>(lightInstance->GetField("innerCutoff"));
-        data.direction = std::get<glm::vec3>(lightInstance->GetField("direction"));
-        data.outerCutoff = std::get<float>(lightInstance->GetField("outerCutoff"));
-        data.color = std::get<glm::vec4>(lightInstance->GetField("color"));
-        data.range = std::get<float>(lightInstance->GetField("range"));
-        data.padding = std::get<glm::vec3>(lightInstance->GetField("padding"));
+        data.position = lightInstance->Get<glm::vec3>("position");
+        data.innerCutoff = lightInstance->Get<float>("innerCutoff");
+        data.direction = lightInstance->Get<glm::vec3>("direction");
+        data.outerCutoff = lightInstance->Get<float>("outerCutoff");
+        data.color = lightInstance->Get<glm::vec4>("color");
+        data.range = lightInstance->Get<float>("range");
+        data.padding = lightInstance->Get<glm::vec3>("padding");
         return data;
     }
 

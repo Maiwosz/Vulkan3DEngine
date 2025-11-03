@@ -299,9 +299,6 @@
     <ClInclude Include="Src\MaterialFactory.h" />
     <ClInclude Include="Src\DescriptorSetBuilder.h" />
     <ClInclude Include="Src\ComputeDispatcher.h" />
-    <ClInclude Include="Src\MappedBufferAccessor.h" />
-    <ClInclude Include="Src\MappedBufferReader.h" />
-    <ClInclude Include="Src\MappedBufferWriter.h" />
     <ClInclude Include="Src\DearImGuiProvider.h" />
     <ClInclude Include="Src\IImGuiProvider.h" />
     <ClInclude Include="Src\RenderGraphTemplateManager.h" />

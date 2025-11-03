@@ -52,7 +52,12 @@ public:
     // Register runtime material (not from asset)
     MaterialHandle registerMaterial(std::unique_ptr<Material> material, const std::string& name);
 
-    // Access to factory for runtime material creation
+    // Create a compute material from shader handle
+    SmartAssetHandle<MaterialHandle, Material> createComputeMaterial(
+        const std::string& shaderName
+    );
+
+    // Access to factory for advanced runtime material creation
     MaterialFactory& factory() { return m_factory; }
 
     // Template method for getting handles (needed for AssetManager integration)
@@ -95,6 +100,7 @@ private:
     MaterialFactory m_factory;
 
     // Dependencies (non-owning references)
+    ShaderManager& m_shaderManager;
     TextureManager& m_textureManager;
 
     // Material storage

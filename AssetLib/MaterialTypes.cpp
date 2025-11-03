@@ -1,7 +1,7 @@
 #include "pch.h"
 #include "MaterialTypes.h"
-#include "ShaderStruct.h"
-#include "ShaderArray.h"
+#include "ShaderArrayInstance.h"
+#include "ShaderStructInstance.h"
 #include <algorithm>
 #include <stdexcept>
 

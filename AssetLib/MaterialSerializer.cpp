@@ -6,8 +6,8 @@
 #include <algorithm>
 #include <cstring>
 #include "AssetLib.h"
-#include "ShaderStruct.h"
-#include "ShaderArray.h"
+#include "ShaderArrayInstance.h"
+#include "ShaderStructInstance.h"
 
 namespace AssetLib {
 

@@ -37,7 +37,7 @@ private:
     std::unique_ptr<SelectionManager> m_selectionManager;
     std::unique_ptr<HierarchyWindow> m_hierarchyWindow;
     std::unique_ptr<ComponentInspectorWindow> m_componentInspectorWindow;
-    std::unique_ptr<MaterialCreatorUI> m_materialCreatorWindow;
+    //std::unique_ptr<MaterialCreatorUI> m_materialCreatorWindow;
     std::unique_ptr<SettingsWindow> m_settingsWindow;
 
     // Scene management UI state

@@ -128,9 +128,9 @@ SmartHandle<BufferHandle, Buffer> BufferManager::acquireSmartBuffer(const Shader
     return createSmartHandle(handle);
 }
 
-MappedBufferReader BufferManager::createMappedReader(BufferHandle handle) {
+ShaderLib::BufferReader BufferManager::createReader(BufferHandle handle) {
     if (!isValid(handle)) {
-        SPDLOG_ERROR("Cannot create mapped reader for invalid buffer handle: {}", handle.id);
+        SPDLOG_ERROR("Cannot create reader for invalid buffer handle: {}", handle.id);
         throw std::runtime_error("Invalid buffer handle");
     }
 
@@ -142,24 +142,19 @@ MappedBufferReader BufferManager::createMappedReader(BufferHandle handle) {
         throw std::runtime_error("Failed to get buffer resource");
     }
 
-    void* mappedData = buffer->map();
-    if (!mappedData) {
+    ShaderLib::BufferReader reader;
+    if (!reader.setBufferWithMapping(&bufferInfo.bufferObject, buffer, bufferInfo.size)) {
         SPDLOG_ERROR("Failed to map buffer '{}' for reading", bufferInfo.name);
         throw std::runtime_error("Failed to map buffer");
     }
 
-    ShaderLib::BufferReader reader;
-    reader.setBuffer(&bufferInfo.bufferObject, mappedData, bufferInfo.size);
-
-    SPDLOG_DEBUG("Created mapped reader for buffer '{}'", bufferInfo.name);
-
-    // Return RAII wrapper that will automatically unmap on destruction
-    return MappedBufferReader(buffer, std::move(reader));
+    SPDLOG_DEBUG("Created reader for buffer '{}'", bufferInfo.name);
+    return reader;
 }
 
-MappedBufferWriter BufferManager::createMappedWriter(BufferHandle handle) {
+ShaderLib::BufferWriter BufferManager::createWriter(BufferHandle handle) {
     if (!isValid(handle)) {
-        SPDLOG_ERROR("Cannot create mapped writer for invalid buffer handle: {}", handle.id);
+        SPDLOG_ERROR("Cannot create writer for invalid buffer handle: {}", handle.id);
         throw std::runtime_error("Invalid buffer handle");
     }
 
@@ -171,19 +166,14 @@ MappedBufferWriter BufferManager::createMappedWriter(BufferHandle handle) {
         throw std::runtime_error("Failed to get buffer resource");
     }
 
-    void* mappedData = buffer->map();
-    if (!mappedData) {
+    ShaderLib::BufferWriter writer;
+    if (!writer.setBufferWithMapping(&bufferInfo.bufferObject, buffer, bufferInfo.size)) {
         SPDLOG_ERROR("Failed to map buffer '{}' for writing", bufferInfo.name);
         throw std::runtime_error("Failed to map buffer");
     }
 
-    ShaderLib::BufferWriter writer;
-    writer.setBuffer(&bufferInfo.bufferObject, mappedData, bufferInfo.size);
-
-    SPDLOG_DEBUG("Created mapped writer for buffer '{}'", bufferInfo.name);
-
-    // Return RAII wrapper that will automatically unmap on destruction
-    return MappedBufferWriter(buffer, std::move(writer));
+    SPDLOG_DEBUG("Created writer for buffer '{}'", bufferInfo.name);
+    return writer;
 }
 
 Buffer* BufferManager::getResource(BufferHandle handle) {

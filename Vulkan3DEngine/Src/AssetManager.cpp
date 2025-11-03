@@ -222,50 +222,49 @@ bool AssetManager::ensureReady(const AssetHandle handle) {
 
     // Check if the asset is already ready
     if (handler->isAssetReady(handle.filename)) {
-        // Mark as actively used because ensureReady was called
         updateUsageInfo(handle, true);
 
-        // IMPORTANT FIX: Even if the asset is ready, we need to mark its dependencies as used
+        // Mark dependencies as used
         std::string cacheKey = createCacheKey(handle);
         auto depIt = m_assetDependencies.find(cacheKey);
         if (depIt != m_assetDependencies.end()) {
             for (const auto& dep : depIt->second) {
-                // Mark all dependencies as used, not just UsageTime dependencies
-                updateUsageInfo(dep.handle, true);  // Mark dependency as actively used
+                updateUsageInfo(dep.handle, true);
             }
         }
 
         return true;
     }
 
-    // Ensure asset is loaded first
-    if (!ensureLoaded(handle)) {
-        SPDLOG_ERROR("Failed to load asset {}", handle);
-        return false;
+    // Najpierw sprawdź czy asset jest załadowany, jeśli nie - załaduj
+    std::string cacheKey = createCacheKey(handle);
+    if (m_assetCache.count(cacheKey) == 0) {
+        SPDLOG_DEBUG("Asset {} not loaded yet, loading now before preparing", handle);
+        if (!ensureLoaded(handle)) {
+            SPDLOG_ERROR("Failed to load asset {} before preparing", handle);
+            return false;
+        }
     }
 
     // Get the asset data and prepare it for use
-    std::string cacheKey = createCacheKey(handle);
     auto assetDataIt = m_assetCache.find(cacheKey);
     if (assetDataIt == m_assetCache.end()) {
         SPDLOG_ERROR("Asset data not found in cache: {}", handle);
         return false;
     }
 
-    // Process ALL dependencies, not just UsageTime
+    // Process dependencies
     auto depIt = m_assetDependencies.find(cacheKey);
     if (depIt != m_assetDependencies.end()) {
         for (const auto& dep : depIt->second) {
-            // For UsageTime dependencies, ensure they are ready
             if (dep.type == DependencyType::UsageTime) {
                 if (!ensureReady(dep.handle)) {
                     SPDLOG_ERROR("Failed to prepare usage dependency {} for asset {}", dep.handle, handle);
                     return false;
                 }
             }
-            // For other dependencies, at least mark them as actively used
             else {
-                updateUsageInfo(dep.handle, true);  // Mark dependency as actively used
+                updateUsageInfo(dep.handle, true);
             }
         }
     }
@@ -281,12 +280,7 @@ bool AssetManager::ensureReady(const AssetHandle handle) {
         SPDLOG_ERROR("Exception during asset preparation: {} for asset {}", e.what(), handle);
         return false;
     }
-    catch (...) {
-        SPDLOG_ERROR("Unknown exception during asset preparation for {}", handle);
-        return false;
-    }
 
-    // Mark as actively used
     updateUsageInfo(handle, true);
     SPDLOG_INFO("Asset {} is now ready and actively used", handle);
     return true;

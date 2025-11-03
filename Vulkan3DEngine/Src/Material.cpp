@@ -422,7 +422,7 @@ void Material::bindParametersToBuilder(DescriptorSetBuilder& builder) {
         // CACHE THE BUFFER HANDLE
         m_materialBuffers[binding] = bufferHandle;
 
-        auto mappedWriter = m_bufferManager.createMappedWriter(bufferHandle.handle());
+        auto mappedWriter = m_bufferManager.createWriter(bufferHandle.handle());
         if (!mappedWriter.isValid()) {
             SPDLOG_ERROR("Material {}: Failed to map buffer '{}' for writing", m_name, bufferName);
             continue;
@@ -434,14 +434,14 @@ void Material::bindParametersToBuilder(DescriptorSetBuilder& builder) {
 
             if (std::holds_alternative<std::shared_ptr<ShaderLib::ShaderStructInstance>>(value)) {
                 auto structInstance = std::get<std::shared_ptr<ShaderLib::ShaderStructInstance>>(value);
-                success = mappedWriter->writeStruct(varName, structInstance);
+                success = mappedWriter.writeStruct(varName, structInstance);
             }
             else if (std::holds_alternative<std::shared_ptr<ShaderLib::ShaderArrayInstance>>(value)) {
                 auto arrayInstance = std::get<std::shared_ptr<ShaderLib::ShaderArrayInstance>>(value);
-                success = mappedWriter->writeArray(varName, arrayInstance);
+                success = mappedWriter.writeArray(varName, arrayInstance);
             }
             else {
-                success = mappedWriter->write(varName, value);
+                success = mappedWriter.write(varName, value);
             }
 
             if (success) {
@@ -532,7 +532,7 @@ bool Material::readParameterFromBuffer(Parameter& param) {
     }
 
     // Create a reader for the buffer
-    auto mappedReader = m_bufferManager.createMappedReader(bufferHandle.handle());
+    auto mappedReader = m_bufferManager.createReader(bufferHandle.handle());
     if (!mappedReader.isValid()) {
         SPDLOG_ERROR("Material {}: Failed to map buffer for reading parameter '{}'", m_name, param.name);
         return false;
@@ -563,14 +563,14 @@ bool Material::readParameterFromBuffer(Parameter& param) {
 
         if (varDef->composite->IsStruct()) {
             std::shared_ptr<ShaderLib::ShaderStructInstance> structInstance;
-            readSuccess = mappedReader->readStruct(param.name, structInstance);
+            readSuccess = mappedReader.readStruct(param.name, structInstance);
             if (readSuccess) {
                 readValue = structInstance;
             }
         }
         else if (varDef->composite->IsArray()) {
             std::shared_ptr<ShaderLib::ShaderArrayInstance> arrayInstance;
-            readSuccess = mappedReader->readArray(param.name, arrayInstance);
+            readSuccess = mappedReader.readArray(param.name, arrayInstance);
             if (readSuccess) {
                 readValue = arrayInstance;
             }
@@ -578,7 +578,7 @@ bool Material::readParameterFromBuffer(Parameter& param) {
     }
     // Handle base types
     else {
-        readSuccess = mappedReader->read(param.name, readValue);
+        readSuccess = mappedReader.read(param.name, readValue);
     }
 
     if (!readSuccess) {

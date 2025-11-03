@@ -11,8 +11,6 @@
 #include "Buffer.h"
 #include "Handle.h"
 #include "ISmartHandleManager.h"
-#include "MappedBufferReader.h"
-#include "MappedBufferWriter.h"
 
 struct BufferInfo {
     VramHandle vramHandle;
@@ -41,8 +39,8 @@ public:
     SmartHandle<BufferHandle, Buffer> acquireSmartBuffer(const ShaderLib::BufferObject& bufferInfo);
 
     // Create RAII-wrapped Reader/Writer for a buffer (RECOMMENDED)
-    MappedBufferReader createMappedReader(BufferHandle handle);
-    MappedBufferWriter createMappedWriter(BufferHandle handle);
+    ShaderLib::BufferReader createReader(BufferHandle handle);
+    ShaderLib::BufferWriter createWriter(BufferHandle handle);
 
     // IResourceManager interface implementation
     Buffer* getResource(BufferHandle handle) override;

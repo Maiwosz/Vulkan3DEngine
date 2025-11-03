@@ -80,19 +80,19 @@ ProcessingResult UniformBufferStage::processMeshOrder(std::shared_ptr<MeshRender
 
     // Create RAII-wrapped writer - automatically unmaps on destruction
     {
-        auto writer = m_bufferManager.createMappedWriter(smartObjectUbo.handle());
+        auto writer = m_bufferManager.createWriter(smartObjectUbo.handle());
         if (!writer.isValid()) {
             SPDLOG_ERROR("Failed to create mapped writer for object UBO");
             return ProcessingResult::Failure;
         }
 
         // Write data using BufferWriter
-        if (!writer->write("model", transformComponent.getWorldMatrix())) {
+        if (!writer.write("model", transformComponent.getWorldMatrix())) {
             SPDLOG_ERROR("Failed to write model matrix to object UBO");
             return ProcessingResult::Failure;
         }
 
-        if (!writer->write("color", glm::vec4(1.0f))) {
+        if (!writer.write("color", glm::vec4(1.0f))) {
             SPDLOG_ERROR("Failed to write color to object UBO");
             return ProcessingResult::Failure;
         }

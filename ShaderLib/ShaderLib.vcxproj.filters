@@ -4,33 +4,161 @@
     <ClInclude Include="pch.h" />
     <ClInclude Include="framework.h" />
     <ClInclude Include="ShaderLib.h" />
-    <ClInclude Include="Serialization.h" />
-    <ClInclude Include="TypeConversions.h" />
-    <ClInclude Include="VulkanHelper.h" />
-    <ClInclude Include="ShaderTypes.h" />
-    <ClInclude Include="BuiltInStructures.h" />
-    <ClInclude Include="BufferBuilder.h" />
-    <ClInclude Include="BuiltInBuffers.h" />
-    <ClInclude Include="BufferReader.h" />
-    <ClInclude Include="BufferWriter.h" />
-    <ClInclude Include="BufferAccessor.h" />
-    <ClInclude Include="ShaderStruct.h" />
-    <ClInclude Include="ShaderArray.h" />
-    <ClInclude Include="ShaderDescriptors.h" />
-    <ClInclude Include="DescriptorBuilder.h" />
-    <ClInclude Include="ValueSerialization.h" />
-    <ClInclude Include="TypeSerializationTable.h" />
+    <ClInclude Include="ShaderTypes.h">
+      <Filter>ShaderTypes</Filter>
+    </ClInclude>
+    <ClInclude Include="ShaderStructInstance.h">
+      <Filter>ShaderTypes\ShaderStruct\ShaderStructInstance</Filter>
+    </ClInclude>
+    <ClInclude Include="ShaderStructDefinition.h">
+      <Filter>ShaderTypes\ShaderStruct\ShaderStructDefinition</Filter>
+    </ClInclude>
+    <ClInclude Include="ShaderArrayInstance.h">
+      <Filter>ShaderTypes\ShaderArray\ShaderArrayInstance</Filter>
+    </ClInclude>
+    <ClInclude Include="ShaderArrayDefinition.h">
+      <Filter>ShaderTypes\ShaderArray\ShaderArrayDefinition</Filter>
+    </ClInclude>
+    <ClInclude Include="TypeConversions.h">
+      <Filter>ShaderTypes\TypeConversions</Filter>
+    </ClInclude>
+    <ClInclude Include="TypeSerializationTable.h">
+      <Filter>ShaderTypes\TypeSerializationTable</Filter>
+    </ClInclude>
+    <ClInclude Include="ValueSerialization.h">
+      <Filter>ShaderTypes\ValueSerialization</Filter>
+    </ClInclude>
+    <ClInclude Include="BufferBuilder.h">
+      <Filter>Buffers</Filter>
+    </ClInclude>
+    <ClInclude Include="BuiltInBuffers.h">
+      <Filter>Buffers</Filter>
+    </ClInclude>
+    <ClInclude Include="BuiltInStructures.h">
+      <Filter>Buffers</Filter>
+    </ClInclude>
+    <ClInclude Include="BufferAccessor.h">
+      <Filter>Buffers\BufferAccesors</Filter>
+    </ClInclude>
+    <ClInclude Include="BufferReader.h">
+      <Filter>Buffers\BufferAccesors</Filter>
+    </ClInclude>
+    <ClInclude Include="BufferWriter.h">
+      <Filter>Buffers\BufferAccesors</Filter>
+    </ClInclude>
+    <ClInclude Include="Serialization.h">
+      <Filter>Serialization</Filter>
+    </ClInclude>
+    <ClInclude Include="VulkanHelper.h">
+      <Filter>VulkanHelper</Filter>
+    </ClInclude>
+    <ClInclude Include="ShaderDescriptors.h">
+      <Filter>Descriptors</Filter>
+    </ClInclude>
+    <ClInclude Include="DescriptorBuilder.h">
+      <Filter>Descriptors</Filter>
+    </ClInclude>
+    <ClInclude Include="IBufferMapping.h">
+      <Filter>Buffers\BufferAccesors</Filter>
+    </ClInclude>
+    <ClInclude Include="BufferObjectDefinition.h">
+      <Filter>Buffers\BufferObjectDefinition</Filter>
+    </ClInclude>
+    <ClInclude Include="BufferObjectInstance.h">
+      <Filter>Buffers\BufferObjectInstance</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="pch.cpp" />
-    <ClCompile Include="Serialization.cpp" />
-    <ClCompile Include="TypeConversions.cpp" />
-    <ClCompile Include="VulkanHelper.cpp" />
-    <ClCompile Include="ShaderTypes.cpp" />
     <ClCompile Include="ShaderLib.cpp" />
-    <ClCompile Include="ValueSerialization.cpp" />
-    <ClCompile Include="ShaderStruct.cpp" />
-    <ClCompile Include="ShaderArray.cpp" />
-    <ClCompile Include="TypeSerializationTable.cpp" />
+    <ClCompile Include="ShaderTypes.cpp">
+      <Filter>ShaderTypes</Filter>
+    </ClCompile>
+    <ClCompile Include="ShaderStructInstance.cpp">
+      <Filter>ShaderTypes\ShaderStruct\ShaderStructInstance</Filter>
+    </ClCompile>
+    <ClCompile Include="ShaderStructDefinition.cpp">
+      <Filter>ShaderTypes\ShaderStruct\ShaderStructDefinition</Filter>
+    </ClCompile>
+    <ClCompile Include="ShaderArrayInstance.cpp">
+      <Filter>ShaderTypes\ShaderArray\ShaderArrayInstance</Filter>
+    </ClCompile>
+    <ClCompile Include="ShaderArrayDefinition.cpp">
+      <Filter>ShaderTypes\ShaderArray\ShaderArrayDefinition</Filter>
+    </ClCompile>
+    <ClCompile Include="TypeConversions.cpp">
+      <Filter>ShaderTypes\TypeConversions</Filter>
+    </ClCompile>
+    <ClCompile Include="TypeSerializationTable.cpp">
+      <Filter>ShaderTypes\TypeSerializationTable</Filter>
+    </ClCompile>
+    <ClCompile Include="ValueSerialization.cpp">
+      <Filter>ShaderTypes\ValueSerialization</Filter>
+    </ClCompile>
+    <ClCompile Include="Serialization.cpp">
+      <Filter>Serialization</Filter>
+    </ClCompile>
+    <ClCompile Include="VulkanHelper.cpp">
+      <Filter>VulkanHelper</Filter>
+    </ClCompile>
+    <ClCompile Include="BufferObjectDefinition.cpp">
+      <Filter>Buffers\BufferObjectDefinition</Filter>
+    </ClCompile>
+    <ClCompile Include="BufferObjectInstance.cpp">
+      <Filter>Buffers\BufferObjectInstance</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <Filter Include="ShaderTypes">
+      <UniqueIdentifier>{6fcb24b2-5e9a-44fb-ad03-93b45477347f}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="ShaderTypes\ShaderStruct">
+      <UniqueIdentifier>{cfed2a8b-0b64-4fb6-9d53-09b66cdc610e}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="ShaderTypes\ShaderArray">
+      <UniqueIdentifier>{8a4ce404-47da-4140-8f38-517e47bb3c77}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="ShaderTypes\ShaderArray\ShaderArrayDefinition">
+      <UniqueIdentifier>{3b325938-6c6e-4f30-b7c9-cb69c07efbb7}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="ShaderTypes\ShaderArray\ShaderArrayInstance">
+      <UniqueIdentifier>{7221711f-4088-4958-ba33-812206473b64}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="ShaderTypes\ShaderStruct\ShaderStructDefinition">
+      <UniqueIdentifier>{9fdf5223-abac-417d-97eb-39254fa2a653}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="ShaderTypes\ShaderStruct\ShaderStructInstance">
+      <UniqueIdentifier>{08033418-924b-4f01-8d3c-e8ef3b7a1887}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="ShaderTypes\TypeConversions">
+      <UniqueIdentifier>{567953aa-46ea-495f-a152-44f1912422b8}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="ShaderTypes\TypeSerializationTable">
+      <UniqueIdentifier>{5e83fc35-6f00-4600-8abc-d656cde79790}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="ShaderTypes\ValueSerialization">
+      <UniqueIdentifier>{6622776e-8739-4fb5-85de-dc0819673054}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Buffers">
+      <UniqueIdentifier>{28df3c98-015c-4517-804f-a9c828e08058}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Buffers\BufferAccesors">
+      <UniqueIdentifier>{d3f1bda0-c31d-4366-84f6-ff9102928dd4}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Serialization">
+      <UniqueIdentifier>{795623d0-2eb8-4746-a3f4-452083d76b8b}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="VulkanHelper">
+      <UniqueIdentifier>{4ebb2933-0170-415e-890f-f9468c3c0072}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Descriptors">
+      <UniqueIdentifier>{71f87e11-59d4-4ea8-95c1-d52fd96a7b79}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Buffers\BufferObjectDefinition">
+      <UniqueIdentifier>{4c8ecd09-62bd-4d03-9513-8f264a5fbb2f}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Buffers\BufferObjectInstance">
+      <UniqueIdentifier>{f160becd-ded1-46ef-80aa-fb2ca60f7bdf}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
 </Project>

@@ -2,8 +2,8 @@
 #include <string>
 #include "AssetLib.h"
 #include <json.hpp>
-#include <ShaderArray.h>
-#include <ShaderStruct.h>
+#include "ShaderArrayInstance.h"
+#include "ShaderStructInstance.h"
 #include <ValueSerialization.h>
 
 using namespace AssetLib;
