@@ -1,7 +1,6 @@
 #include "ShaderManager.h"
 #include "AssetManager.h"
 #include <stdexcept>
-#include <VulkanHelper.h>
 #include <spdlog/spdlog.h>
 #include <TypeConversions.h>
 
@@ -414,10 +413,10 @@ std::unordered_map<uint32_t, DescriptorLayoutHandle> ShaderManager::createDescri
                     // Add bindings from slots
                     for (const auto& slot : descriptorSet.slots) {
                         VkDescriptorType vulkanDescriptorType =
-                            static_cast<VkDescriptorType>(ShaderLib::GetVulkanDescriptorType(slot.type));
+                            static_cast<VkDescriptorType>(ShaderLib::TypeConversion::DescriptorTypeToVulkan(slot.type));
 
                         // Convert the stage flags for this slot
-                        VkShaderStageFlags stageFlags = ShaderLib::GetVulkanShaderStageFlags(slot.stages);
+                        VkShaderStageFlags stageFlags = ShaderLib::TypeConversion::StageToVulkan(slot.stages);
                         combinedStageFlags |= stageFlags;
 
                         builder.addBinding(slot.binding, vulkanDescriptorType);
@@ -458,7 +457,7 @@ PipelineLayoutHandle ShaderManager::createPipelineLayout(
     layoutConfig.pushConstantRanges.reserve(metadata.pushConstants.size());
     for (const auto& pushConstant : metadata.pushConstants) {
         VkPushConstantRange range;
-        range.stageFlags = ShaderLib::GetVulkanShaderStageFlags(pushConstant.stages);
+        range.stageFlags = ShaderLib::TypeConversion::StageToVulkan(pushConstant.stages);
         range.offset = pushConstant.offset;
         range.size = pushConstant.size;
         layoutConfig.pushConstantRanges.push_back(range);

@@ -12,7 +12,25 @@ UniformBufferStage::UniformBufferStage(ProcessingContext& context, Registry& reg
     , m_bufferManager(renderer.bufferManager())
     , m_materialManager(assetSystem.materialManager())
 {
-    SPDLOG_INFO("Initializing UniformBufferStage");
+    // Create and cache object UBO definition once
+    m_objectUBODef = ShaderLib::CreateObjectUBODefinition();
+
+    // Create reusable instance once - we'll just swap the mapped buffer each frame
+    m_cachedInstance = m_objectUBODef->CreateInstance();
+
+    // Cache field offsets for direct memory writes (O(1) access, no lookups!)
+    const auto* modelField = m_objectUBODef->FindField("model");
+    const auto* colorField = m_objectUBODef->FindField("color");
+
+    if (!modelField || !colorField) {
+        throw std::runtime_error("Failed to find required fields in object UBO definition");
+    }
+
+    m_fieldOffsets.model = modelField->offset;
+    m_fieldOffsets.color = colorField->offset;
+
+    SPDLOG_INFO("Initialized UniformBufferStage with cached instance and field offsets");
+    SPDLOG_DEBUG("Field offsets - model: {}, color: {}", m_fieldOffsets.model, m_fieldOffsets.color);
 }
 
 ProcessingResult UniformBufferStage::process(std::shared_ptr<RenderOrder> order)
@@ -41,36 +59,19 @@ ProcessingResult UniformBufferStage::processMeshOrder(std::shared_ptr<MeshRender
         return ProcessingResult::Failure;
     }
 
-    // Get material if specified in the order
-    Material* material = nullptr;
-    if (order->materialHandle) {
-        material = m_materialManager.getMaterial(order->materialHandle);
-        if (!material) {
-            SPDLOG_WARN("Invalid material handle in render order: {}", order->materialHandle.id);
-            return ProcessingResult::Failure;
-        }
-    }
-    else {
+    // Validate material handle
+    if (!order->materialHandle) {
         SPDLOG_WARN("No material handle specified in mesh render order");
         return ProcessingResult::Failure;
     }
 
-    // Get shader handle - either from material or directly from order
-    ShaderHandle shaderHandle = material->shader().handle();
-
-    if (!shaderHandle) {
-        SPDLOG_ERROR("Invalid shader handle for mesh render order");
+    Material* material = m_materialManager.getMaterial(order->materialHandle);
+    if (!material) {
+        SPDLOG_WARN("Invalid material handle in render order: {}", order->materialHandle.id);
         return ProcessingResult::Failure;
     }
 
-    // Create object UBO using SmartHandle
-    auto smartObjectUbo = m_bufferManager.acquireSmartBuffer(ShaderLib::CreateObjectUBO());
-    if (!smartObjectUbo.isValid()) {
-        SPDLOG_ERROR("Failed to acquire object uniform buffer");
-        return ProcessingResult::Failure;
-    }
-
-    // Get transform component
+    // Validate transform component
     if (!m_registry.components().hasComponent<TransformComponent>(order->entity)) {
         SPDLOG_ERROR("Entity {} missing TransformComponent", order->entity.id);
         return ProcessingResult::Failure;
@@ -78,29 +79,42 @@ ProcessingResult UniformBufferStage::processMeshOrder(std::shared_ptr<MeshRender
 
     auto& transformComponent = m_registry.components().getComponent<TransformComponent>(order->entity);
 
-    // Create RAII-wrapped writer - automatically unmaps on destruction
-    {
-        auto writer = m_bufferManager.createWriter(smartObjectUbo.handle());
-        if (!writer.isValid()) {
-            SPDLOG_ERROR("Failed to create mapped writer for object UBO");
-            return ProcessingResult::Failure;
-        }
+    // Acquire buffer
+    auto smartObjectUbo = m_bufferManager.acquireSmartBuffer(m_objectUBODef);
+    if (!smartObjectUbo.isValid()) {
+        SPDLOG_ERROR("Failed to acquire object uniform buffer");
+        return ProcessingResult::Failure;
+    }
 
-        // Write data using BufferWriter
-        if (!writer.write("model", transformComponent.getWorldMatrix())) {
-            SPDLOG_ERROR("Failed to write model matrix to object UBO");
-            return ProcessingResult::Failure;
-        }
+    // Reuse cached instance - just update the mapped buffer pointer
+    m_cachedInstance->SetMappedBuffer(smartObjectUbo.get());
 
-        if (!writer.write("color", glm::vec4(1.0f))) {
-            SPDLOG_ERROR("Failed to write color to object UBO");
-            return ProcessingResult::Failure;
-        }
+    // OPTIMIZATION: Direct memory writes using cached offsets
+    // This bypasses all lookups and proxy object creation!
+    uint8_t* rawBuffer = m_cachedInstance->GetRawBuffer();
 
-        SPDLOG_DEBUG("Successfully wrote data to object UBO for entity {}", order->entity.id);
-    } // writer goes out of scope - buffer is automatically unmapped
+    // Write model matrix directly to cached offset
+    glm::mat4 worldMatrix = transformComponent.getWorldMatrix();
+    std::memcpy(rawBuffer + m_fieldOffsets.model, &worldMatrix, sizeof(glm::mat4));
 
-    // Store the SmartHandle in the order - automatic cleanup when order is destroyed
+    // Write color directly to cached offset
+    glm::vec4 color(1.0f, 1.0f, 1.0f, 1.0f);
+    std::memcpy(rawBuffer + m_fieldOffsets.color, &color, sizeof(glm::vec4));
+
+    SPDLOG_DEBUG("Set object UBO data for entity {} using direct memory writes", order->entity.id);
+
+    // Synchronize to GPU buffer
+    try {
+        m_cachedInstance->SyncToBuffer();
+        smartObjectUbo->unmap();
+        SPDLOG_DEBUG("Successfully synchronized object UBO data to GPU for entity {}", order->entity.id);
+    }
+    catch (const std::exception& e) {
+        SPDLOG_ERROR("Failed to sync object UBO to buffer: {}", e.what());
+        return ProcessingResult::Failure;
+    }
+
+    // Store the SmartHandle in the order
     order->objectUBOHandle = smartObjectUbo;
 
     SPDLOG_DEBUG("Created and updated object UBO for entity {}", order->entity.id);

@@ -8,7 +8,8 @@ struct LightComponent : public Component {
     enum class Type { Directional, Point };
 
     Type type;
-    glm::vec4 color;
+    glm::vec3 color;      // RGB tylko
+    float intensity;      // Osobna intensywność
 
     // Dane specyficzne dla typu światła
     glm::vec3 direction; // Używane tylko dla Type::Directional
@@ -16,19 +17,21 @@ struct LightComponent : public Component {
 
     // Default constructor - initializes as a Directional light by default
     LightComponent() : type(Type::Directional) {
-        color = glm::vec4(1.0f);
+        color = glm::vec3(1.0f);
+        intensity = 1.0f;
         direction = glm::vec3(0.0f, -1.0f, 0.0f);
-        radius = 0.0f; // Nieużywane dla światła kierunkowego
+        radius = 0.0f;
     }
 
     explicit LightComponent(Type lightType) : type(lightType) {
-        color = glm::vec4(1.0f);
+        color = glm::vec3(1.0f);
+        intensity = 1.0f;
         if (type == Type::Directional) {
             direction = glm::vec3(0.0f, -1.0f, 0.0f);
-            radius = 0.0f; // Nieużywane
+            radius = 0.0f;
         }
         else {
-            direction = glm::vec3(0.0f); // Nieużywane
+            direction = glm::vec3(0.0f);
             radius = 10.0f;
         }
     }
@@ -61,11 +64,9 @@ struct LightComponent : public Component {
         return radius;
     }
 
-    // Method to change light type if needed
     void setType(Type newType) {
         if (type != newType) {
             type = newType;
-            // Reset properties based on new type
             if (type == Type::Directional) {
                 direction = glm::vec3(0.0f, -1.0f, 0.0f);
                 radius = 0.0f;
@@ -82,21 +83,36 @@ struct LightComponent : public Component {
         return type;
     }
 
-    // Wspólna metoda dla koloru
-    void setColor(const glm::vec4& col) {
+    // Wspólne metody dla koloru i intensywności
+    void setColor(const glm::vec3& col) {
         color = col;
         incrementVersion();
     }
 
-    const glm::vec4& getColor() const {
+    const glm::vec3& getColor() const {
         return color;
+    }
+
+    void setIntensity(float i) {
+        intensity = i;
+        incrementVersion();
+    }
+
+    float getIntensity() const {
+        return intensity;
+    }
+
+    // Helper do pakowania koloru i intensywności do vec4
+    glm::vec4 getColorWithIntensity() const {
+        return glm::vec4(color, intensity);
     }
 
     // ISerializable implementation
     json serialize() const override {
         json j;
         j["type"] = (type == Type::Directional) ? "directional" : "point";
-        j["color"] = { color.r, color.g, color.b, color.a };
+        j["color"] = { color.r, color.g, color.b };
+        j["intensity"] = intensity;
 
         if (type == Type::Directional) {
             j["direction"] = { direction.x, direction.y, direction.z };
@@ -114,8 +130,15 @@ struct LightComponent : public Component {
             type = (typeStr == "directional") ? Type::Directional : Type::Point;
         }
 
-        if (j.contains("color") && j["color"].is_array() && j["color"].size() == 4) {
-            color = glm::vec4(j["color"][0], j["color"][1], j["color"][2], j["color"][3]);
+        if (j.contains("color") && j["color"].is_array() && j["color"].size() == 3) {
+            color = glm::vec3(j["color"][0], j["color"][1], j["color"][2]);
+        }
+
+        if (j.contains("intensity") && j["intensity"].is_number()) {
+            intensity = j["intensity"];
+        }
+        else if (j.contains("color") && j["color"].is_array() && j["color"].size() == 4) {
+            intensity = j["color"][3];
         }
 
         if (type == Type::Directional && j.contains("direction") &&
@@ -142,10 +165,16 @@ struct LightComponent : public Component {
             setType(newType);
         }
 
-        // Color picker
-        glm::vec4 lightColor = getColor();
-        if (ImGui::ColorEdit4("Color", &lightColor.r)) {
+        // Color picker (RGB tylko)
+        glm::vec3 lightColor = getColor();
+        if (ImGui::ColorEdit3("Color", &lightColor.r)) {
             setColor(lightColor);
+        }
+
+        // Intensity slider
+        float lightIntensity = getIntensity();
+        if (ImGui::DragFloat("Intensity", &lightIntensity, 0.1f, 0.0f, 10.0f)) {
+            setIntensity(lightIntensity);
         }
 
         // Type-specific properties

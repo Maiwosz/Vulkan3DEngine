@@ -145,6 +145,7 @@ Scene::Scene(Engine& engine, Registry& registry) :
 
         light.setDirection(directionalLightDir);
         light.setColor(directionalLightColor);
+        light.setIntensity(directionalLightColor.w);
     }
 
     //Point light with orbit script
@@ -207,202 +208,110 @@ Scene::~Scene()
 void Scene::update()
 {
     m_registry.systems().updateAll();
-    testComputeShader();
+    static bool firstRun = true;
+    if (firstRun) {
+        firstRun = false;
+        testComputeShader();
+    }
 }
 
 void Scene::testComputeShader()
 {
-    SPDLOG_INFO("=== Starting Compute Shader Test ===");
-    AssetManager& assetManager = m_engine.assetSystem().assetManager();
-    ShaderManager& shaderManager = m_engine.assetSystem().shaderManager();
-    MaterialManager& materialManager = m_engine.assetSystem().materialManager();
-    ComputeDispatcher& computeDispatcher = m_engine.engineCore().renderer().computeDispatcher();
-
-    // Create smart handle for the material
-    auto smartMaterial = materialManager.createComputeMaterial("ComputeTest");
-    if (!smartMaterial) {
-        SPDLOG_ERROR("Failed to create smart material handle");
-        return;
-    }
-
-    SPDLOG_INFO("Compute material created");
-
-    // Find the InputOutputData buffer in shader metadata
-    SPDLOG_INFO("Looking for InputOutputData buffer...");
-    const ShaderLib::BufferObject* bufferObject = nullptr;
-
-    ShaderLib::ShaderMetadata metadata = smartMaterial->shader()->metadata;
-
-    for (const auto& buffer : metadata.customBuffers) {
-        if (buffer.name == "InputOutputData")
-        {
-            bufferObject = &buffer;
-            SPDLOG_INFO("Found buffer: {} (size: {} bytes)", buffer.name, buffer.size);
-            break;
-        }
-    }
-
-    if (!bufferObject) {
-        SPDLOG_ERROR("InputOutputData buffer not found in shader metadata");
-        return;
-    }
-
-    // Find the 'values' variable in the buffer
-    SPDLOG_INFO("Looking for 'values' array variable...");
-    const ShaderLib::BufferVariable* valuesVariable = nullptr;
-    for (const auto& variable : bufferObject->variables) {
-        if (variable.name == "values") {
-            valuesVariable = &variable;
-            break;
-        }
-    }
-
-    if (!valuesVariable || !valuesVariable->IsComposite()) {
-        SPDLOG_ERROR("'values' array variable not found or is not composite type");
-        return;
-    }
-
-    SPDLOG_INFO("Found 'values' array variable");
-
-    // Create ShaderArray instance from the variable's composite definition
-    SPDLOG_INFO("Creating shader array instance...");
-    auto arrayInstance = std::dynamic_pointer_cast<ShaderLib::ShaderArrayInstance>(
-        valuesVariable->composite->CreateInstance()
-    );
-
-    if (!arrayInstance) {
-        SPDLOG_ERROR("Failed to create array instance");
-        return;
-    }
-
-    const uint32_t DATA_SIZE = arrayInstance->size();
-    SPDLOG_INFO("Array instance created (size: {}, element count: {})",
-        arrayInstance->GetDefinition()->GetSize(),
-        DATA_SIZE);
-
-    // Fill array directly with test data: 0.0, 1.0, 2.0, ..., 255.0
-    SPDLOG_INFO("Filling array with test data...");
-
-    // Option 2: Using standard loop with operator[]
-    for (uint32_t i = 0; i < DATA_SIZE; ++i) {
-        (*arrayInstance)[i] = static_cast<float>(i);
-    }
-
-    SPDLOG_INFO("Input data prepared (first 5 values: {}, {}, {}, {}, {})",
-        arrayInstance->Get<float>(0),
-        arrayInstance->Get<float>(1),
-        arrayInstance->Get<float>(2),
-        arrayInstance->Get<float>(3),
-        arrayInstance->Get<float>(4));
-
-    // Set array as material parameter
-    SPDLOG_INFO("Setting array parameter in material...");
-    Material* mat = materialManager.getMaterial(smartMaterial.handle());
-    if (!mat) {
-        SPDLOG_ERROR("Failed to get material pointer");
-        return;
-    }
-
-    // Set the array as a BufferValue parameter
-    ShaderLib::BufferValue bufferValue = arrayInstance;
-    bool paramSet = mat->setParameter("values", bufferValue);
-
-    if (!paramSet) {
-        SPDLOG_ERROR("Failed to set array parameter in material");
-        return;
-    }
-
-    SPDLOG_INFO("Array parameter set successfully");
-
-    // Dispatch compute shader using the material
-    SPDLOG_INFO("Dispatching compute shader...");
-    SPDLOG_INFO("  Using automatic workgroup calculation for {} elements", DATA_SIZE);
-
-    bool dispatchSuccess = computeDispatcher.dispatchForDataSize(
-        smartMaterial,
-        DATA_SIZE,  // dataSizeX - will be divided by local_size_x (256)
-        1,          // dataSizeY
-        1           // dataSizeZ
-    );
-
-    if (!dispatchSuccess) {
-        SPDLOG_ERROR("Compute dispatch failed");
-        return;
-    }
-
-    SPDLOG_INFO("Compute shader executed successfully");
-
-    // Read back results from material parameter
-    SPDLOG_INFO("Reading results from material...");
-
-    Material::ParamValue resultParam;
-    bool getSuccess = mat->getParameter("values", resultParam);
-
-    if (!getSuccess) {
-        SPDLOG_ERROR("Failed to get parameter from material");
-        return;
-    }
-
-    // Extract the array instance from the parameter
-    auto resultBufferValue = std::get_if<ShaderLib::BufferValue>(&resultParam);
-    if (!resultBufferValue) {
-        SPDLOG_ERROR("Parameter is not a BufferValue");
-        return;
-    }
-
-    auto resultArray = std::get_if<std::shared_ptr<ShaderLib::ShaderArrayInstance>>(resultBufferValue);
-    if (!resultArray || !(*resultArray)) {
-        SPDLOG_ERROR("BufferValue does not contain a ShaderArrayInstance");
-        return;
-    }
-
-    SPDLOG_INFO("Results array retrieved from material");
-
-    // Extract float values from array
-    std::vector<float> outputData;
     try {
-        outputData = (*resultArray)->ToVectorOf<float>();
+        SPDLOG_WARN("=== Starting Compute Shader Test ===");
+
+        MaterialManager& materialManager = m_engine.assetSystem().materialManager();
+        ComputeDispatcher& computeDispatcher = m_engine.engineCore().renderer().computeDispatcher();
+
+        // Create compute material
+        auto material = materialManager.createComputeMaterial("ComputeTest");
+        if (!material) {
+            SPDLOG_ERROR("Failed to create compute material");
+            return;
+        }
+
+        SPDLOG_WARN("Compute material created: {}", material->GetName());
+
+        // Verify 'values' field exists
+        if (!material->HasField("values")) {
+            SPDLOG_ERROR("Material doesn't have 'values' field");
+            SPDLOG_WARN("Available fields:");
+            for (const auto& fieldName : material->GetFieldNames()) {
+                SPDLOG_WARN("  - {}", fieldName);
+            }
+            return;
+        }
+
+        // Get array size
+        size_t dataSize = material->GetArraySize("values");
+        if (dataSize == 0) {
+            SPDLOG_ERROR("'values' is not an array");
+            return;
+        }
+
+        SPDLOG_WARN("Array size: {} elements", dataSize);
+
+        // Fill array with test data: 0.0, 1.0, 2.0, ...
+        SPDLOG_WARN("Filling array with test data...");
+        auto values = (*material)["values"];
+        for (uint32_t i = 0; i < dataSize; ++i) {
+            values[i] = static_cast<float>(i);
+        }
+
+        // Sync to GPU
+        SPDLOG_WARN("Syncing data to GPU...");
+        material->SyncToGPU();
+
+        // Dispatch compute shader
+        SPDLOG_WARN("Dispatching compute shader for {} elements...", dataSize);
+        if (!computeDispatcher.dispatchForDataSize(material, dataSize, 1, 1)) {
+            SPDLOG_ERROR("Compute dispatch failed");
+            return;
+        }
+
+        SPDLOG_WARN("Compute shader executed successfully");
+
+        // Sync results from GPU
+        SPDLOG_WARN("Syncing results from GPU...");
+        material->SyncFromGPU();
+
+        // Verify results
+        SPDLOG_WARN("Verifying results (expected: each value doubled)...");
+        SPDLOG_WARN("Output data (first 10 values):");
+
+        bool allCorrect = true;
+        for (uint32_t i = 0; i < std::min(10u, static_cast<uint32_t>(dataSize)); ++i) {
+            float outputValue = values[i];
+            float expected = static_cast<float>(i) * 2.0f;
+            bool correct = std::abs(outputValue - expected) < 0.001f;
+            allCorrect &= correct;
+
+            SPDLOG_WARN("  [{}] Output: {:.1f}, Expected: {:.1f} {}",
+                i, outputValue, expected, correct ? "✓" : "✗");
+        }
+
+        // Check remaining values
+        for (uint32_t i = 10; i < dataSize; ++i) {
+            float outputValue = values[i];
+            float expected = static_cast<float>(i) * 2.0f;
+            if (std::abs(outputValue - expected) >= 0.001f) {
+                allCorrect = false;
+                SPDLOG_ERROR("  [{}] Mismatch! Output: {:.1f}, Expected: {:.1f}",
+                    i, outputValue, expected);
+            }
+        }
+
+        if (allCorrect) {
+            SPDLOG_WARN("=== TEST PASSED: All {} values correctly doubled ===", dataSize);
+        }
+        else {
+            SPDLOG_ERROR("=== TEST FAILED: Some values incorrect ===");
+        }
+
+        SPDLOG_WARN("=== Compute Shader Test Complete ===");
     }
     catch (const std::exception& e) {
-        SPDLOG_ERROR("Failed to extract float vector: {}", e.what());
-        return;
+        SPDLOG_ERROR("Exception in testComputeShader: {}", e.what());
+        SPDLOG_WARN("=== Compute Shader Test Failed ===");
     }
-
-    SPDLOG_INFO("Results extracted successfully");
-
-    // Verify results
-    SPDLOG_INFO("Verifying results...");
-    SPDLOG_INFO("Expected: each value should be doubled");
-    SPDLOG_INFO("Output data (first 10 values):");
-
-    bool allCorrect = true;
-    for (uint32_t i = 0; i < std::min(10u, DATA_SIZE); ++i) {
-        float expected = static_cast<float>(i) * 2.0f;
-        bool correct = std::abs(outputData[i] - expected) < 0.001f;
-        allCorrect &= correct;
-
-        SPDLOG_INFO("  [{}] Input: {:.1f}, Output: {:.1f}, Expected: {:.1f} {}",
-            i, static_cast<float>(i), outputData[i], expected,
-            correct ? "✓" : "✗");
-    }
-
-    // Check all values
-    for (uint32_t i = 10; i < DATA_SIZE; ++i) {
-        float expected = static_cast<float>(i) * 2.0f;
-        if (std::abs(outputData[i] - expected) >= 0.001f) {
-            allCorrect = false;
-            SPDLOG_ERROR("  [{}] Mismatch! Input: {:.1f}, Output: {:.1f}, Expected: {:.1f}",
-                i, static_cast<float>(i), outputData[i], expected);
-        }
-    }
-
-    if (allCorrect) {
-        SPDLOG_INFO("=== TEST PASSED: All values correctly doubled ===");
-    }
-    else {
-        SPDLOG_ERROR("=== TEST FAILED: Some values incorrect ===");
-    }
-
-    // Cleanup handled automatically by smart handles
-    SPDLOG_INFO("=== Compute Shader Test Complete ===");
 }

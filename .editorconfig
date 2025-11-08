@@ -1,0 +1,108 @@
+# Ustawienia główne
+root = true
+
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+trim_trailing_whitespace = true
+indent_style = space
+indent_size = 4
+tab_width = 4
+
+# Dotyczy plików C++
+[*.{cpp,cxx,cc,h,hpp,hxx}]
+# Styl nawiasów
+cpp_new_line_before_open_brace_type = allman
+cpp_new_line_before_open_brace_namespace = allman
+cpp_new_line_before_open_brace_function = allman
+cpp_new_line_before_open_brace_control_block = allman
+
+# Wcięcia
+cpp_indent_case_contents = true
+cpp_indent_braces = false
+cpp_indent_labels = flush_left
+cpp_indent_namespace_contents = true
+
+# Spacje
+cpp_space_after_keywords_in_control_flow_statements = true
+cpp_space_before_paren_control_statements = true
+cpp_space_inside_braces = false
+cpp_space_after_cast = false
+cpp_space_around_operators = true
+
+# Sortowanie include’ów
+cpp_sort_include_directives = true
+
+# Preferencje stylu
+cpp_style_namespace_declarations = block
+cpp_style_brace_new_line_before_function = allman
+cpp_style_brace_new_line_before_class = allman
+cpp_style_brace_new_line_before_control = allman
+
+##########################################################
+#                   KONWENCJE NAZEWNICTWA
+##########################################################
+
+# Aktywacja nazw
+cpp_naming_rules = \
+    classes_rule, \
+    structs_rule, \
+    enums_rule, \
+    functions_rule, \
+    local_variables_rule, \
+    parameters_rule, \
+    member_fields_rule, \
+    static_fields_rule, \
+    constants_rule
+
+# Klasy — PascalCase
+cpp_naming_rule.classes_rule.symbol_kind = class
+cpp_naming_rule.classes_rule.capitalization = pascal_case
+
+# Struktury — PascalCase
+cpp_naming_rule.structs_rule.symbol_kind = struct
+cpp_naming_rule.structs_rule.capitalization = pascal_case
+
+# Enumy — PascalCase
+cpp_naming_rule.enums_rule.symbol_kind = enum
+cpp_naming_rule.enums_rule.capitalization = pascal_case
+
+# Funkcje i metody — PascalCase
+cpp_naming_rule.functions_rule.symbol_kind = function
+cpp_naming_rule.functions_rule.capitalization = pascal_case
+
+# Zmienne lokalne — camelCase
+cpp_naming_rule.local_variables_rule.symbol_kind = local
+cpp_naming_rule.local_variables_rule.capitalization = camel_case
+
+# Parametry — camelCase
+cpp_naming_rule.parameters_rule.symbol_kind = parameter
+cpp_naming_rule.parameters_rule.capitalization = camel_case
+
+# Pola członkowskie (private/protected) — prefiks m_ + camelCase
+cpp_naming_rule.member_fields_rule.symbol_kind = field
+cpp_naming_rule.member_fields_rule.applicable_accessibilities = private, protected
+cpp_naming_rule.member_fields_rule.required_prefix = m_
+cpp_naming_rule.member_fields_rule.capitalization = camel_case
+
+# Statyczne pola klas — prefiks s_ + PascalCase
+cpp_naming_rule.static_fields_rule.symbol_kind = field
+cpp_naming_rule.static_fields_rule.applicable_accessibilities = public, private, protected
+cpp_naming_rule.static_fields_rule.required_prefix = s_
+cpp_naming_rule.static_fields_rule.capitalization = pascal_case
+
+# Stałe — prefiks k + PascalCase (np. kMaxSize)
+cpp_naming_rule.constants_rule.symbol_kind = constant
+cpp_naming_rule.constants_rule.required_prefix = k
+cpp_naming_rule.constants_rule.capitalization = pascal_case
+
+##########################################################
+#              POZIOMY RYGORU (jeśli obsługiwane)
+##########################################################
+
+# Możesz ustawić, by Visual Studio pokazywało ostrzeżenia lub błędy.
+# W C++ nie wszystkie są egzekwowane, ale zostaną odczytane przez analizatory.
+dotnet_naming_rule.member_fields_rule.severity = warning
+dotnet_naming_rule.functions_rule.severity = suggestion
+dotnet_naming_rule.constants_rule.severity = warning

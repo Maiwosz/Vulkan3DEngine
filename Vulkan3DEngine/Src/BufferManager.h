@@ -6,8 +6,6 @@
 #include "VramManager.h"
 #include "ShaderLib.h"
 #include "ShaderTypes.h"
-#include "BufferReader.h"
-#include "BufferWriter.h"
 #include "Buffer.h"
 #include "Handle.h"
 #include "ISmartHandleManager.h"
@@ -20,9 +18,7 @@ struct BufferInfo {
     ShaderLib::LayoutStandard layoutStandard;
     bool inUse;
     uint32_t referenceCount;
-
-    // Cached BufferObject for Reader/Writer
-    ShaderLib::BufferObject bufferObject;
+    std::shared_ptr<const ShaderLib::BufferObjectDefinition> bufferObject;
 };
 
 // Universal manager for UBO and SSBO
@@ -32,15 +28,12 @@ public:
     ~BufferManager();
 
     // Buffer lifecycle management
-    BufferHandle acquireBuffer(const ShaderLib::BufferObject& bufferInfo);
+    BufferHandle acquireBuffer(std::shared_ptr<const ShaderLib::BufferObjectDefinition> bufferInfo);
     void releaseBuffer(BufferHandle handle);
 
     // Smart handle support
-    SmartHandle<BufferHandle, Buffer> acquireSmartBuffer(const ShaderLib::BufferObject& bufferInfo);
+    SmartHandle<BufferHandle, Buffer> acquireSmartBuffer(std::shared_ptr<const ShaderLib::BufferObjectDefinition> bufferInfo);
 
-    // Create RAII-wrapped Reader/Writer for a buffer (RECOMMENDED)
-    ShaderLib::BufferReader createReader(BufferHandle handle);
-    ShaderLib::BufferWriter createWriter(BufferHandle handle);
 
     // IResourceManager interface implementation
     Buffer* getResource(BufferHandle handle) override;
@@ -54,7 +47,7 @@ public:
 
     // Info access
     const BufferInfo& getBufferInfo(BufferHandle handle) const;
-    const ShaderLib::BufferObject& getBufferObject(BufferHandle handle) const;
+    std::shared_ptr<const ShaderLib::BufferObjectDefinition> getBufferObject(BufferHandle handle) const;
 
 private:
     struct BufferPoolKey {
@@ -76,8 +69,8 @@ private:
         }
     };
 
-    BufferHandle createNewBuffer(const ShaderLib::BufferObject& bufferInfo);
-    BufferHandle findReusableBuffer(const ShaderLib::BufferObject& bufferInfo);
+    BufferHandle createNewBuffer(std::shared_ptr<const ShaderLib::BufferObjectDefinition> bufferInfo);
+    BufferHandle findReusableBuffer(std::shared_ptr<const ShaderLib::BufferObjectDefinition> bufferInfo);
 
     std::unordered_map<BufferPoolKey, std::deque<BufferHandle>, BufferPoolKeyHash> m_bufferPool;
     std::unordered_map<BufferHandle, BufferInfo> m_buffers;

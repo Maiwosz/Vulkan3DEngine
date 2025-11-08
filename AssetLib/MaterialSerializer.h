@@ -7,7 +7,7 @@ namespace AssetLib {
     using json = nlohmann::json;
 
     // ============================================================================
-    // HIGH-LEVEL SERIALIZATION (Material <-> AssetData)
+    // HIGH-LEVEL SERIALIZATION
     // ============================================================================
 
     // Serialize Material to AssetData (ready to write to file)
@@ -21,61 +21,69 @@ namespace AssetLib {
     // Deserialize Material from AssetData
     MaterialDefinition ReadMaterial(const AssetData& asset);
 
-    // Read only dependencies from AssetData (fast, no decompression needed)
-    MaterialDependencies ReadMaterialDependencies(const AssetData& asset);
+    // Read only shader name and texture dependencies (fast, no decompression)
+    std::string GetMaterialShaderName(const AssetData& asset);
+    std::vector<std::string> GetMaterialTextureDependencies(const AssetData& asset);
+    std::unordered_map<std::string, ColorSpace> GetMaterialTextureColorSpaces(const AssetData& asset);
 
     // ============================================================================
-    // INTERMEDIATE FORMAT CONVERSIONS
+    // JSON CONVERSIONS (for .mat text files)
     // ============================================================================
 
-    // Convert high-level Material to low-level MaterialData
-    MaterialData MaterialToData(const MaterialDefinition& material);
-
-    // Convert low-level MaterialData to high-level Material
-    MaterialDefinition DataToMaterial(const MaterialData& data);
-
-    // ============================================================================
-    // JSON CONVERSIONS
-    // ============================================================================
-
-    // Serialize Material to JSON (for .mat files)
-    json MaterialToJson(const MaterialDefinition& material);
-
-    // Deserialize Material from JSON
+    // All fields must use explicit type annotation format:
+    // {
+    //   "fieldName": {
+    //     "baseType": "float",
+    //     "value": 1.0
+    //   }
+    // }
+    //
+    // Supported baseType values:
+    // - Scalars: "bool", "float", "int", "uint", "double"
+    // - Float vectors: "vec2", "vec3", "vec4"
+    // - Integer vectors: "ivec2", "ivec3", "ivec4"
+    // - Unsigned vectors: "uvec2", "uvec3", "uvec4"
+    // - Double vectors: "dvec2", "dvec3", "dvec4"
+    // - Matrices: "mat2", "mat3", "mat4"
+    // - Atomic: "atomic_uint"
+    //
+    // Arrays are specified as:
+    // {
+    //   "lights": {
+    //     "baseType": "vec3",
+    //     "value": [[1,0,0], [0,1,0], [0,0,1]]
+    //   }
+    // }
+    //
+    // Nested structures are plain objects without baseType/value:
+    // {
+    //   "material": {
+    //     "diffuse": { "baseType": "vec3", "value": [1,1,1] },
+    //     "specular": { "baseType": "vec3", "value": [1,1,1] }
+    //   }
+    // }
+    //
+    // Buffers are automatically configured:
+    // - inputBuffer: Uniform buffer, std140 layout, binding 0
+    // - outputBuffer: Storage buffer, std430 layout, WriteOnly, binding 1
+    // - inputOutputBuffer: Storage buffer, std430 layout, ReadWrite, binding 2
+    // - Samplers: Starting at binding 3
     MaterialDefinition MaterialFromJson(const json& j);
 
-    // Serialize ParameterValue to JSON
-    json ParameterValueToJson(const ParameterValue& param);
-
-    // Deserialize ParameterValue from JSON
-    ParameterValue ParameterValueFromJson(const json& j);
-
-    // Serialize SamplerDescription to JSON
-    json SamplerDescriptionToJson(const SamplerDescription& sampler);
-
-    // Deserialize SamplerDescription from JSON
-    SamplerDescription SamplerDescriptionFromJson(const json& j);
-
-    // Serialize MaterialDependencies to JSON
-    json MaterialDependenciesToJson(const MaterialDependencies& deps);
-
-    // Deserialize MaterialDependencies from JSON
-    MaterialDependencies MaterialDependenciesFromJson(const json& j);
+    // Sampler configuration helpers
+    SamplerDescription SamplerConfigFromJson(const json& j);
 
     // ============================================================================
-    // BINARY FORMAT HELPERS
+    // STRING CONVERSIONS
     // ============================================================================
 
-    // Serialize MaterialParameter (binary struct) to JSON
-    json MaterialParameterToJson(const MaterialParameter& param);
+    std::string ColorSpaceToString(ColorSpace cs);
+    ColorSpace StringToColorSpace(const std::string& str);
 
-    // Deserialize MaterialParameter from JSON
-    MaterialParameter MaterialParameterFromJson(const json& j);
+    std::string FilterToString(SamplerDescription::Filter filter);
+    SamplerDescription::Filter StringToFilter(const std::string& str);
 
-    // Serialize MaterialInfo to JSON
-    json MaterialInfoToJson(const MaterialInfo& info);
-
-    // Deserialize MaterialInfo from JSON
-    MaterialInfo MaterialInfoFromJson(const json& j);
+    std::string AddressModeToString(SamplerDescription::AddressMode mode);
+    SamplerDescription::AddressMode StringToAddressMode(const std::string& str);
 
 } // namespace AssetLib

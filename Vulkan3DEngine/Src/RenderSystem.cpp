@@ -121,12 +121,32 @@ void RenderSystem::createCameraPipeline() {
         m_cameraPipeline->getStageCount(), m_cameraPipeline->getSemaphoreCount());
 }
 
+void RenderSystem::addOrderToCurrentFrame(std::shared_ptr<RenderOrder> order) {
+    // Add the order to current frame's renderOrders vector
+    auto& currentFrame = m_renderer.frameManager().getCurrentFrame();
+    currentFrame.renderOrders.push_back(order);
+
+    SPDLOG_TRACE("Added {} order to frame {}",
+        renderOrderTypeToString(order->getType()),
+        m_renderer.frameManager().getCurrentFrameIndex());
+}
+
 void RenderSystem::submitRenderOrder(std::shared_ptr<RenderOrder> order) {
-    m_pendingOrders.push_back(std::move(order));
+    // Add to pending orders for processing
+    m_pendingOrders.push_back(order);
+
+    // Also add to current frame data
+    addOrderToCurrentFrame(order);
 }
 
 void RenderSystem::submitRenderOrders(const std::vector<std::shared_ptr<RenderOrder>>& orders) {
+    // Add all orders to pending list
     m_pendingOrders.insert(m_pendingOrders.end(), orders.begin(), orders.end());
+
+    // Also add all orders to current frame data
+    for (const auto& order : orders) {
+        addOrderToCurrentFrame(order);
+    }
 }
 
 void RenderSystem::processOrders() {
@@ -153,7 +173,8 @@ void RenderSystem::processOrders() {
         categorizeOrders(meshOrders, lightOrders, cameraOrders, otherOrders);
 
         // Log order counts
-        SPDLOG_DEBUG("Processing frame: {} mesh, {} light, {} camera, {} other orders",
+        SPDLOG_DEBUG("Processing frame {}: {} mesh, {} light, {} camera, {} other orders",
+            m_renderer.frameManager().getCurrentFrameIndex(),
             meshOrders.size(), lightOrders.size(), cameraOrders.size(), otherOrders.size());
 
         // If no lights, signal lights_stored semaphore so camera pipeline can proceed
@@ -266,7 +287,7 @@ void RenderSystem::processOrders() {
             }
         }
 
-        // Clear pending orders
+        // Clear pending orders (but NOT FrameData orders - they persist for frames in flight)
         m_pendingOrders.clear();
 
         SPDLOG_DEBUG("Frame processing completed successfully after {} global iterations", globalIteration);
@@ -317,8 +338,10 @@ void RenderSystem::prepareForNextFrame() {
 }
 
 void RenderSystem::reset() {
-    // Clear current frame data
-    m_renderer.frameManager().clearCurrentFrameOrders();
+    // DON'T clear FrameManager's renderOrders - they persist for frames in flight
+    // FrameManager will clear them when the frame is recycled
+
+    // Only clear RenderSystem's local pending orders
     m_pendingOrders.clear();
 
     // Reset processing context
@@ -337,5 +360,5 @@ void RenderSystem::reset() {
         m_cameraPipeline->resetAllSemaphores();
     }
 
-    SPDLOG_DEBUG("RenderSystem reset for next frame");
+    SPDLOG_DEBUG("RenderSystem reset for next frame (FrameData orders preserved for frames in flight)");
 }

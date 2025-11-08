@@ -7,20 +7,22 @@ namespace ShaderLib
     private:
         uint32_t setNumber_;
         std::vector<DescriptorSlot> slots_;
-        std::unordered_map<std::string, BufferObject> buffers_;
+        std::unordered_map<std::string, std::shared_ptr<BufferObjectDefinition>> buffers_;
 
     public:
         DescriptorSetBuilder(uint32_t setNumber) : setNumber_(setNumber) {}
 
-        // Add buffer with full BufferObject
-        DescriptorSetBuilder& AddBuffer(uint32_t binding,
-            BufferObject buffer,
+        // Add buffer with BufferObjectDefinition
+        DescriptorSetBuilder& AddBuffer(
+            uint32_t binding,
+            std::shared_ptr<const BufferObjectDefinition> buffer,
             StageFlags stages) {
-            DescriptorType type = buffer.IsUniformBuffer()
+
+            DescriptorType type = buffer->GetBufferType() == BufferType::Uniform
                 ? DescriptorType::UniformBuffer
                 : DescriptorType::StorageBuffer;
 
-            std::string name = buffer.name;
+            std::string name = buffer->GetName();
 
             // Add slot
             slots_.push_back({
@@ -30,17 +32,19 @@ namespace ShaderLib
                 name
                 });
 
-            // Store buffer data
-            buffers_[name] = std::move(buffer);
+            // Store buffer definition (need to cast away const for storage)
+            buffers_[name] = std::const_pointer_cast<BufferObjectDefinition>(buffer);
 
             return *this;
         }
 
         // Add sampler/image (no buffer data needed)
-        DescriptorSetBuilder& AddSampler(uint32_t binding,
+        DescriptorSetBuilder& AddSampler(
+            uint32_t binding,
             const std::string& name,
             DescriptorType samplerType,
             StageFlags stages) {
+
             slots_.push_back({
                 binding,
                 samplerType,
@@ -51,10 +55,12 @@ namespace ShaderLib
         }
 
         // Add descriptor slot only (for samplers/images)
-        DescriptorSetBuilder& AddDescriptor(uint32_t binding,
+        DescriptorSetBuilder& AddDescriptor(
+            uint32_t binding,
             const std::string& name,
             DescriptorType type,
             StageFlags stages) {
+
             if (type == DescriptorType::UniformBuffer ||
                 type == DescriptorType::StorageBuffer) {
                 throw std::invalid_argument(
@@ -95,4 +101,3 @@ namespace ShaderLib
         }
     };
 }
-

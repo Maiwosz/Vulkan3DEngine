@@ -43,9 +43,6 @@ ProcessingResult DescriptorSetStage::process(std::shared_ptr<RenderOrder> order)
         auto cameraOrder = std::static_pointer_cast<CameraRenderOrder>(order);
         return processCameraOrder(cameraOrder);
     }
-    case RenderOrderType::Light:
-        SPDLOG_DEBUG("DescriptorSetStage skipping light order - no descriptor sets needed");
-        return ProcessingResult::Success; // Light orders are valid but don't need descriptor sets
     default:
         SPDLOG_WARN("DescriptorSetStage received unknown render order type: {}",
             renderOrderTypeToString(order->getType()));
@@ -73,7 +70,7 @@ ProcessingResult DescriptorSetStage::processMeshOrder(std::shared_ptr<MeshRender
 
     // Get shader handle - either from material or directly from order
     if (material) {
-        shaderHandle = material->shader().handle();
+        shaderHandle = material->GetShader().handle();
     }
 
     if (!shaderHandle) {
@@ -90,7 +87,7 @@ ProcessingResult DescriptorSetStage::processMeshOrder(std::shared_ptr<MeshRender
     // Assign material descriptor set if available
     if (order->materialHandle) {
         auto material = m_materialManager.getMaterial(order->materialHandle);
-        auto materialDescriptorSet = material->getDescriptorSet();
+        auto materialDescriptorSet = material->GetDescriptorSet();
         if (materialDescriptorSet.isValid()) {
             order->drawCall->setCustomDescriptorSet(materialDescriptorSet);
             SPDLOG_DEBUG("Assigned material descriptor set to mesh entity: {}", order->entity.id);

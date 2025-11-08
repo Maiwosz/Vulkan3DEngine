@@ -52,9 +52,22 @@ public:
     // Register runtime material (not from asset)
     MaterialHandle registerMaterial(std::unique_ptr<Material> material, const std::string& name);
 
-    // Create a compute material from shader handle
+    // Create a material from shader with default buffers
+    SmartAssetHandle<MaterialHandle, Material> createMaterialFromShader(
+        const std::string& shaderName,
+        const std::string& materialName = ""
+    );
+
+    // Convenience: Create a compute material from compute shader (auto-generates name)
     SmartAssetHandle<MaterialHandle, Material> createComputeMaterial(
         const std::string& shaderName
+    );
+
+    // Create a material instance (variant) from existing material
+    // Creates new buffer instances by cloning from source material
+    SmartAssetHandle<MaterialHandle, Material> createMaterialInstance(
+        MaterialHandle sourceMaterial,
+        const std::string& instanceName
     );
 
     // Access to factory for advanced runtime material creation
@@ -81,6 +94,7 @@ private:
         uint64_t estimatedSize;
         bool isReady;
         bool isFromAsset;
+        std::string sourceMaterialName; // For instances, name of source material
 
         MaterialData() : estimatedSize(0), isReady(false), isFromAsset(true) {}
     };
@@ -95,6 +109,9 @@ private:
 
     // Texture dependency management
     void updateTextureHandles(MaterialHandle materialHandle, AssetManager& manager);
+
+    // Helper to estimate material memory size
+    uint64_t estimateMaterialSize(const Material* material) const;
 
     // Material factory
     MaterialFactory m_factory;

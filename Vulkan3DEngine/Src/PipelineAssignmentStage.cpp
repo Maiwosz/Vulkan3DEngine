@@ -88,13 +88,13 @@ GraphicsPipelineConfig PipelineAssignmentStage::createPipelineConfig(
     }
 
     SPDLOG_DEBUG("Creating pipeline for material '{}', mesh attributes {}",
-        material->name(), mesh->attributes);
+        material->GetName(), mesh->attributes);
 
     // Create a pipeline configuration
     GraphicsPipelineConfig config;
 
     // Get the shader from the material
-    ShaderHandle shaderHandle = material->shader().handle();
+    ShaderHandle shaderHandle = material->GetShader().handle();
 
     // Get shader resources (zawiera teraz wszystko czego potrzebujemy!)
     const ShaderResources& shaderResources = m_shaderManager.getShaderResources(shaderHandle);

@@ -85,10 +85,10 @@ namespace Shader {
         ShaderBuilder builder;
         ShaderReflector reflector;
 
-        // Build buffers
-        std::optional<BufferObject> inputBuffer;
-        std::optional<BufferObject> outputBuffer;
-        std::optional<BufferObject> inputOutputBuffer;
+        // Build buffer definitions
+        std::shared_ptr<const BufferObjectDefinition> inputBuffer;
+        std::shared_ptr<const BufferObjectDefinition> outputBuffer;
+        std::shared_ptr<const BufferObjectDefinition> inputOutputBuffer;
 
         if (data.HasInputData()) {
             inputBuffer = builder.BuildInputBuffer(data.inputVariables);
@@ -122,19 +122,17 @@ namespace Shader {
         // Build Global descriptor set (set 0)
         if (data.usesGlobalUBO) {
             DescriptorSetBuilder globalBuilder(GLOBAL_DESCRIPTOR_SET);
-            BufferObject globalUBO = CreateGlobalUBO();
+            auto globalUBO = CreateGlobalUBODefinition();
             globalBuilder.AddBuffer(GLOBAL_UBO_BINDING, globalUBO, stageFlags);
             globalSet = globalBuilder.Build();
-            metadata.globalUBO = globalUBO;
         }
 
         // Build Object descriptor set (set 1)
         if (data.usesObjectUBO) {
             DescriptorSetBuilder objectBuilder(OBJECT_DESCRIPTOR_SET);
-            BufferObject objectUBO = CreateObjectUBO();
+            auto objectUBO = CreateObjectUBODefinition();
             objectBuilder.AddBuffer(OBJECT_UBO_BINDING, objectUBO, stageFlags);
             objectSet = objectBuilder.Build();
-            metadata.objectUBO = objectUBO;
         }
 
         // Build Custom descriptor set (set 2)
@@ -143,9 +141,9 @@ namespace Shader {
 
             customSet = builder.BuildCustomDescriptorSet(
                 data,
-                inputBuffer ? &(*inputBuffer) : nullptr,
-                outputBuffer ? &(*outputBuffer) : nullptr,
-                inputOutputBuffer ? &(*inputOutputBuffer) : nullptr
+                inputBuffer,
+                outputBuffer,
+                inputOutputBuffer
             );
         }
 
@@ -158,17 +156,6 @@ namespace Shader {
         }
         if (customSet) {
             metadata.descriptorSets.push_back(*customSet);
-        }
-
-        // Store custom buffers for easy access
-        if (inputBuffer) {
-            metadata.customBuffers.push_back(*inputBuffer);
-        }
-        if (outputBuffer) {
-            metadata.customBuffers.push_back(*outputBuffer);
-        }
-        if (inputOutputBuffer) {
-            metadata.customBuffers.push_back(*inputOutputBuffer);
         }
 
         // Compile stages

@@ -7,9 +7,11 @@
 #include "DescriptorAllocator.h"
 #include "DescriptorLayoutManager.h"
 #include "AssetLib.h"
+#include "BufferObjectDefinition.h"
+#include "BufferObjectInstance.h"
+#include "BufferValidator.h"
 #include <memory>
 #include <string>
-#include <vector>
 
 class MaterialFactory {
 public:
@@ -23,20 +25,38 @@ public:
         DescriptorLayoutManager& descriptorLayoutManager
     );
 
-    // Create material with default parameters from shader
+    // =========================================================================
+    //  API - Three clear creation paths
+    // =========================================================================
+
+    /**
+     * Create material with default buffer instances from shader
+     * - Buffers initialized with default values
+     * - No validation needed (created from shader definition)
+     */
     std::unique_ptr<Material> createMaterial(
         const std::string& name,
         ShaderHandle shaderHandle
     );
 
-    // Create material with custom parameters
+    /**
+     * Create material with custom buffer instances
+     * - Validates and synchronizes buffers against shader
+     * - Single validation point
+     */
     std::unique_ptr<Material> createMaterial(
         const std::string& name,
         ShaderHandle shaderHandle,
-        const std::vector<Material::Parameter>& parameters
+        std::shared_ptr<ShaderLib::BufferObjectInstance> inputBuffer,
+        std::shared_ptr<ShaderLib::BufferObjectInstance> outputBuffer,
+        std::shared_ptr<ShaderLib::BufferObjectInstance> inputOutputBuffer
     );
 
-    // Create material from asset definition
+    /**
+     * Create material from asset definition
+     * - Validates asset buffers against shader
+     * - Initializes textures
+     */
     std::unique_ptr<Material> createMaterialFromAsset(
         const std::string& name,
         ShaderHandle shaderHandle,
@@ -44,31 +64,56 @@ public:
         AssetManager& assetManager
     );
 
-    // Helper: Create parameter from asset definition
-    Material::Parameter createParameterFromAsset(
-        const AssetLib::ParameterValue& assetParam,
-        ShaderHandle shaderHandle,
-        AssetManager& assetManager
-    );
+    /**
+     * Clone buffer instances from material (for creating variants)
+     * Simple wrapper - no validation needed
+     */
+    struct BufferInstanceSet {
+        std::shared_ptr<ShaderLib::BufferObjectInstance> inputBuffer;
+        std::shared_ptr<ShaderLib::BufferObjectInstance> outputBuffer;
+        std::shared_ptr<ShaderLib::BufferObjectInstance> inputOutputBuffer;
+    };
+
+    BufferInstanceSet cloneBufferInstances(const Material* sourceMaterial) const;
 
 private:
-    // Generate default parameters from shader metadata
-    std::vector<Material::Parameter> createDefaultParameters(ShaderHandle shaderHandle);
+    // =========================================================================
+    // SINGLE VALIDATION/SYNC POINT - Called once during creation
+    // =========================================================================
 
-    // Find binding for parameter in shader metadata
-    uint32_t findBindingForParameter(
+    /**
+     * Prepare buffer instances for material
+     * - Validates against shader definition
+     * - Synchronizes structure if needed
+     * - Returns validated instances ready for use
+     *
+     * This is the ONLY place where validation happens!
+     */
+    struct PreparedBuffers {
+        std::shared_ptr<ShaderLib::BufferObjectInstance> inputBuffer;
+        std::shared_ptr<ShaderLib::BufferObjectInstance> outputBuffer;
+        std::shared_ptr<ShaderLib::BufferObjectInstance> inputOutputBuffer;
+        bool isValid = true;
+    };
+
+    PreparedBuffers prepareBufferInstances(
         ShaderHandle shaderHandle,
-        const std::string& paramName,
-        ShaderLib::DescriptorType descriptorType
+        std::shared_ptr<ShaderLib::BufferObjectInstance> inputBuffer,
+        std::shared_ptr<ShaderLib::BufferObjectInstance> outputBuffer,
+        std::shared_ptr<ShaderLib::BufferObjectInstance> inputOutputBuffer
     );
 
-    // Convert asset parameter to material parameter value
-    Material::ParamValue convertParameterValue(
-        const AssetLib::ParameterValue& assetParam,
-        AssetManager& assetManager
+    // Helper: Validate and sync single buffer
+    std::shared_ptr<ShaderLib::BufferObjectInstance> validateAndSyncBuffer(
+        std::shared_ptr<const ShaderLib::BufferObjectDefinition> shaderDef,
+        std::shared_ptr<const ShaderLib::BufferObjectInstance> instance,
+        const std::string& bufferName
     );
 
-    // Create smart shader handle
+    // Helper: Create default buffers from shader
+    PreparedBuffers createDefaultBuffers(ShaderHandle shaderHandle);
+
+    // Helper: Create smart shader handle
     SmartAssetHandle<ShaderHandle, ShaderAsset> createSmartShaderHandle(ShaderHandle shaderHandle);
 
     // Dependencies

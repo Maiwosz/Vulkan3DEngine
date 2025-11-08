@@ -21,7 +21,6 @@ struct SpotLight {
     vec3 padding;
 };
 
-
 layout(std140, set = 0, binding = 0) uniform GlobalUBO {
     mat4 view;
     mat4 proj;
@@ -58,7 +57,6 @@ layout(location = 3) out vec3 fragPos;
 layout(location = 4) out vec3 directionToCamera;
 
 void main() {
-
     vec4 posWorld = model * vec4(inPosition, 1.0);
     gl_Position = proj * view * posWorld;
     fragColor = inColor.rgb;

@@ -35,9 +35,11 @@ public:
     RenderSystem& operator=(RenderSystem&&) = delete;
 
     // Submit a render order to the pipeline
+    // Now also stores it in current FrameData
     void submitRenderOrder(std::shared_ptr<RenderOrder> order);
 
     // Submit a batch of render orders
+    // Now also stores them in current FrameData
     void submitRenderOrders(const std::vector<std::shared_ptr<RenderOrder>>& orders);
 
     // Process all pending render orders
@@ -121,4 +123,7 @@ private:
         std::vector<std::shared_ptr<RenderOrder>>& lightOrders,
         std::vector<std::shared_ptr<RenderOrder>>& cameraOrders,
         std::vector<std::shared_ptr<RenderOrder>>& otherOrders);
+
+    // Helper method to add order to current frame
+    void addOrderToCurrentFrame(std::shared_ptr<RenderOrder> order);
 };

@@ -15,13 +15,13 @@ BufferManager::~BufferManager() {
     m_resourceCache.clear();
 }
 
-BufferHandle BufferManager::createNewBuffer(const ShaderLib::BufferObject& bufferInfo) {
+BufferHandle BufferManager::createNewBuffer(std::shared_ptr<const ShaderLib::BufferObjectDefinition> bufferInfo) {
     BufferHandle handle(m_nextHandleId++);
 
     VkBufferUsageFlags usage;
     VkMemoryPropertyFlags memoryProperties;
 
-    if (bufferInfo.IsUniformBuffer()) {
+    if (bufferInfo->IsUniformBuffer()) {
         usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT;
         memoryProperties = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
     }
@@ -31,29 +31,29 @@ BufferHandle BufferManager::createNewBuffer(const ShaderLib::BufferObject& buffe
     }
 
     VramHandle vramHandle = m_vramManager.createBuffer(
-        bufferInfo.size,
+        bufferInfo->GetTotalSize(),
         usage,
         memoryProperties
     );
 
     if (!vramHandle) {
         SPDLOG_ERROR("Failed to create VRAM buffer for {} '{}'",
-            bufferInfo.IsUniformBuffer() ? "UBO" : "SSBO", bufferInfo.name);
+            bufferInfo->IsUniformBuffer() ? "UBO" : "SSBO", bufferInfo->GetName());
         return BufferHandle(0);
     }
 
     SPDLOG_DEBUG("Created new {} buffer '{}' with size {} (layout: {})",
-        bufferInfo.IsUniformBuffer() ? "uniform" : "storage",
-        bufferInfo.name,
-        bufferInfo.size,
-        bufferInfo.layoutStandard == ShaderLib::LayoutStandard::Std140 ? "std140" : "std430");
+        bufferInfo->IsUniformBuffer() ? "uniform" : "storage",
+        bufferInfo->GetName(),
+        bufferInfo->GetTotalSize(),
+        bufferInfo->GetLayoutStandard() == ShaderLib::LayoutStandard::Std140 ? "std140" : "std430");
 
     BufferInfo bufInfo;
     bufInfo.vramHandle = vramHandle;
-    bufInfo.name = bufferInfo.name;
-    bufInfo.size = bufferInfo.size;
-    bufInfo.bufferType = bufferInfo.bufferType;
-    bufInfo.layoutStandard = bufferInfo.layoutStandard;
+    bufInfo.name = bufferInfo->GetName();
+    bufInfo.size = bufferInfo->GetTotalSize();
+    bufInfo.bufferType = bufferInfo->GetBufferType();
+    bufInfo.layoutStandard = bufferInfo->GetLayoutStandard();
     bufInfo.inUse = true;
     bufInfo.referenceCount = 0;
     bufInfo.bufferObject = bufferInfo;
@@ -63,8 +63,8 @@ BufferHandle BufferManager::createNewBuffer(const ShaderLib::BufferObject& buffe
     return handle;
 }
 
-BufferHandle BufferManager::findReusableBuffer(const ShaderLib::BufferObject& bufferInfo) {
-    BufferPoolKey key{ bufferInfo.name, bufferInfo.size, bufferInfo.bufferType };
+BufferHandle BufferManager::findReusableBuffer(std::shared_ptr<const ShaderLib::BufferObjectDefinition> bufferInfo) {
+    BufferPoolKey key{ bufferInfo->GetName(), bufferInfo->GetTotalSize(), bufferInfo->GetBufferType()};
     auto it = m_bufferPool.find(key);
 
     if (it != m_bufferPool.end() && !it->second.empty()) {
@@ -75,20 +75,20 @@ BufferHandle BufferManager::findReusableBuffer(const ShaderLib::BufferObject& bu
         bufInfo.inUse = true;
 
         SPDLOG_DEBUG("Reusing existing {} buffer '{}' from pool",
-            bufferInfo.IsUniformBuffer() ? "uniform" : "storage", bufferInfo.name);
+            bufferInfo->IsUniformBuffer() ? "uniform" : "storage", bufferInfo->GetName());
         return handle;
     }
 
     return BufferHandle(0);
 }
 
-BufferHandle BufferManager::acquireBuffer(const ShaderLib::BufferObject& bufferInfo) {
+BufferHandle BufferManager::acquireBuffer(std::shared_ptr<const ShaderLib::BufferObjectDefinition> bufferInfo) {
     std::lock_guard<std::mutex> lock(m_poolMutex);
 
     BufferHandle handle = findReusableBuffer(bufferInfo);
 
     if (!handle.isValid()) {
-        SPDLOG_DEBUG("No available buffer in pool for '{}', creating new", bufferInfo.name);
+        SPDLOG_DEBUG("No available buffer in pool for '{}', creating new", bufferInfo->GetName());
         handle = createNewBuffer(bufferInfo);
     }
 
@@ -123,57 +123,9 @@ void BufferManager::releaseBuffer(BufferHandle handle) {
         bufferInfo.name);
 }
 
-SmartHandle<BufferHandle, Buffer> BufferManager::acquireSmartBuffer(const ShaderLib::BufferObject& bufferInfo) {
+SmartHandle<BufferHandle, Buffer> BufferManager::acquireSmartBuffer(std::shared_ptr<const ShaderLib::BufferObjectDefinition> bufferInfo) {
     BufferHandle handle = acquireBuffer(bufferInfo);
     return createSmartHandle(handle);
-}
-
-ShaderLib::BufferReader BufferManager::createReader(BufferHandle handle) {
-    if (!isValid(handle)) {
-        SPDLOG_ERROR("Cannot create reader for invalid buffer handle: {}", handle.id);
-        throw std::runtime_error("Invalid buffer handle");
-    }
-
-    const auto& bufferInfo = m_buffers[handle];
-    Buffer* buffer = getResource(handle);
-
-    if (!buffer) {
-        SPDLOG_ERROR("Failed to get buffer resource for '{}'", bufferInfo.name);
-        throw std::runtime_error("Failed to get buffer resource");
-    }
-
-    ShaderLib::BufferReader reader;
-    if (!reader.setBufferWithMapping(&bufferInfo.bufferObject, buffer, bufferInfo.size)) {
-        SPDLOG_ERROR("Failed to map buffer '{}' for reading", bufferInfo.name);
-        throw std::runtime_error("Failed to map buffer");
-    }
-
-    SPDLOG_DEBUG("Created reader for buffer '{}'", bufferInfo.name);
-    return reader;
-}
-
-ShaderLib::BufferWriter BufferManager::createWriter(BufferHandle handle) {
-    if (!isValid(handle)) {
-        SPDLOG_ERROR("Cannot create writer for invalid buffer handle: {}", handle.id);
-        throw std::runtime_error("Invalid buffer handle");
-    }
-
-    auto& bufferInfo = m_buffers[handle];
-    Buffer* buffer = getResource(handle);
-
-    if (!buffer) {
-        SPDLOG_ERROR("Failed to get buffer resource for '{}'", bufferInfo.name);
-        throw std::runtime_error("Failed to get buffer resource");
-    }
-
-    ShaderLib::BufferWriter writer;
-    if (!writer.setBufferWithMapping(&bufferInfo.bufferObject, buffer, bufferInfo.size)) {
-        SPDLOG_ERROR("Failed to map buffer '{}' for writing", bufferInfo.name);
-        throw std::runtime_error("Failed to map buffer");
-    }
-
-    SPDLOG_DEBUG("Created writer for buffer '{}'", bufferInfo.name);
-    return writer;
 }
 
 Buffer* BufferManager::getResource(BufferHandle handle) {
@@ -247,7 +199,7 @@ const BufferInfo& BufferManager::getBufferInfo(BufferHandle handle) const {
     return it->second;
 }
 
-const ShaderLib::BufferObject& BufferManager::getBufferObject(BufferHandle handle) const {
+std::shared_ptr<const ShaderLib::BufferObjectDefinition> BufferManager::getBufferObject(BufferHandle handle) const {
     return getBufferInfo(handle).bufferObject;
 }
 

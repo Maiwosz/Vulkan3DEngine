@@ -2,9 +2,6 @@
 #include <string>
 #include "AssetLib.h"
 #include <json.hpp>
-#include "ShaderArrayInstance.h"
-#include "ShaderStructInstance.h"
-#include <ValueSerialization.h>
 
 using namespace AssetLib;
 using json = nlohmann::json;

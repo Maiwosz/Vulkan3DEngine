@@ -1,5 +1,7 @@
 #include "pch.h"
 #include "Serialization.h"
+#include "BufferObjectDefinition.h"
+#include "StructureDefinition.h"
 
 namespace ShaderLib {
 
@@ -146,42 +148,6 @@ namespace ShaderLib {
     }
 
     // ============================================================================
-    // BUFFER VARIABLE SERIALIZATION
-    // ============================================================================
-
-    void to_json(json& j, const BufferVariable& var) {
-        j = json{
-            {"name", var.name},
-            {"baseType", var.baseType},
-            {"size", var.size},
-            {"offset", var.offset},
-            {"accessMode", var.accessMode}
-        };
-
-        // Serialize composite structure if present
-        if (var.composite) {
-            j["composite"] = var.composite->ToJson();
-        }
-    }
-
-    void from_json(const json& j, BufferVariable& var) {
-        j.at("name").get_to(var.name);
-        j.at("baseType").get_to(var.baseType);
-        j.at("size").get_to(var.size);
-        j.at("offset").get_to(var.offset);
-        j.at("accessMode").get_to(var.accessMode);
-
-        // Deserialize composite structure if present
-        if (j.contains("composite") && !j["composite"].is_null()) {
-            // Use static method from base class - no need to include specific types!
-            var.composite = CompositeTypeDefinition::FromJson(j["composite"]);
-        }
-        else {
-            var.composite = nullptr;
-        }
-    }
-
-    // ============================================================================
     // PUSH CONSTANT RANGE SERIALIZATION
     // ============================================================================
 
@@ -226,39 +192,32 @@ namespace ShaderLib {
     void to_json(json& j, const DescriptorSet& set) {
         j = json{
             {"setNumber", set.setNumber},
-            {"slots", set.slots},
-            {"buffers", set.buffers}
+            {"slots", set.slots}
         };
+
+        // Serialize buffers map
+        json buffersObj = json::object();
+        for (const auto& [name, buffer] : set.buffers) {
+            if (buffer) {
+                buffersObj[name] = buffer->ToJson();
+            }
+        }
+        j["buffers"] = buffersObj;
     }
 
     void from_json(const json& j, DescriptorSet& set) {
         j.at("setNumber").get_to(set.setNumber);
         j.at("slots").get_to(set.slots);
-        j.at("buffers").get_to(set.buffers);
-    }
 
-    // ============================================================================
-    // BUFFER OBJECT SERIALIZATION
-    // ============================================================================
-
-    void to_json(json& j, const BufferObject& buffer) {
-        j = json{
-            {"name", buffer.name},
-            {"size", buffer.size},
-            {"bufferType", buffer.bufferType},
-            {"layoutStandard", buffer.layoutStandard},
-            {"accessMode", buffer.accessMode},
-            {"variables", buffer.variables}
-        };
-    }
-
-    void from_json(const json& j, BufferObject& buffer) {
-        j.at("name").get_to(buffer.name);
-        j.at("size").get_to(buffer.size);
-        j.at("bufferType").get_to(buffer.bufferType);
-        j.at("layoutStandard").get_to(buffer.layoutStandard);
-        j.at("accessMode").get_to(buffer.accessMode);
-        j.at("variables").get_to(buffer.variables);
+        // Deserialize buffers map
+        if (j.contains("buffers") && j["buffers"].is_object()) {
+            set.buffers.clear();
+            for (const auto& [name, bufferJson] : j["buffers"].items()) {
+                if (!bufferJson.is_null()) {
+                    set.buffers[name] = BufferObjectDefinition::FromJson(bufferJson);
+                }
+            }
+        }
     }
 
     // ============================================================================
@@ -297,20 +256,10 @@ namespace ShaderLib {
             {"usesGlobalUBO", metadata.usesGlobalUBO},
             {"usesObjectUBO", metadata.usesObjectUBO},
             {"pushConstants", metadata.pushConstants},
-            {"descriptorSets", metadata.descriptorSets},
-            {"customBuffers", metadata.customBuffers}
+            {"descriptorSets", metadata.descriptorSets}
         };
 
-        // Only serialize globalUBO if it's actually used
-        if (metadata.usesGlobalUBO) {
-            j["globalUBO"] = metadata.globalUBO;
-        }
-
-        // Only serialize objectUBO if it's actually used
-        if (metadata.usesObjectUBO) {
-            j["objectUBO"] = metadata.objectUBO;
-        }
-
+        // Serialize compute info if present
         if (metadata.computeInfo) {
             j["computeInfo"] = *metadata.computeInfo;
         }
@@ -322,19 +271,9 @@ namespace ShaderLib {
         j.at("usesObjectUBO").get_to(metadata.usesObjectUBO);
         j.at("pushConstants").get_to(metadata.pushConstants);
         j.at("descriptorSets").get_to(metadata.descriptorSets);
-        j.at("customBuffers").get_to(metadata.customBuffers);
 
-        // Only deserialize globalUBO if it's actually used
-        if (metadata.usesGlobalUBO && j.contains("globalUBO")) {
-            j.at("globalUBO").get_to(metadata.globalUBO);
-        }
-
-        // Only deserialize objectUBO if it's actually used
-        if (metadata.usesObjectUBO && j.contains("objectUBO")) {
-            j.at("objectUBO").get_to(metadata.objectUBO);
-        }
-
-        if (j.contains("computeInfo")) {
+        // Deserialize compute info if present
+        if (j.contains("computeInfo") && !j["computeInfo"].is_null()) {
             metadata.computeInfo = j["computeInfo"].get<ComputeShaderInfo>();
         }
     }

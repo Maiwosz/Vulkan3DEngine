@@ -2,11 +2,40 @@
 #include "DescriptorSetBuilder.h"
 #include <stdexcept>
 #include <spdlog/spdlog.h>
+#include <algorithm>
+
+// =============================================================================
+// FIELD MAPPING HELPER
+// =============================================================================
+
+std::shared_ptr<ShaderLib::BufferObjectInstance>
+Material::FieldMapping::GetBufferInstance(
+    const std::shared_ptr<ShaderLib::BufferObjectInstance>& input,
+    const std::shared_ptr<ShaderLib::BufferObjectInstance>& output,
+    const std::shared_ptr<ShaderLib::BufferObjectInstance>& inputOutput
+) const {
+    switch (binding) {
+    case ShaderLib::INPUT_DATA_BINDING:
+        return input;
+    case ShaderLib::OUTPUT_DATA_BINDING:
+        return output;
+    case ShaderLib::INPUT_OUTPUT_DATA_BINDING:
+        return inputOutput;
+    default:
+        return nullptr;
+    }
+}
+
+// =============================================================================
+// CONSTRUCTOR / DESTRUCTOR
+// =============================================================================
 
 Material::Material(
     const std::string& name,
-    SmartAssetHandle<ShaderHandle, ShaderAsset> smartShader,
-    const std::vector<Parameter>& params,
+    SmartAssetHandle<ShaderHandle, ShaderAsset> shader,
+    std::shared_ptr<ShaderLib::BufferObjectInstance> inputBuffer,
+    std::shared_ptr<ShaderLib::BufferObjectInstance> outputBuffer,
+    std::shared_ptr<ShaderLib::BufferObjectInstance> inputOutputBuffer,
     const LogicalDevice& device,
     BufferManager& bufferManager,
     ImageSamplerManager& samplerManager,
@@ -14,289 +43,411 @@ Material::Material(
     DescriptorAllocator& descriptorAllocator,
     DescriptorLayoutManager& descriptorLayoutManager
 )
-    : m_name(name),
-    m_shader(smartShader),
-    m_parameters(params),
-    m_device(device),
-    m_bufferManager(bufferManager),
-    m_samplerManager(samplerManager),
-    m_textureManager(textureManager),
-    m_descriptorAllocator(descriptorAllocator),
-    m_descriptorLayoutManager(descriptorLayoutManager),
-    m_descriptorSetValid(false)
+    : m_name(name)
+    , m_shader(shader)
+    , m_inputBuffer(inputBuffer)
+    , m_outputBuffer(outputBuffer)
+    , m_inputOutputBuffer(inputOutputBuffer)
+    , m_device(device)
+    , m_bufferManager(bufferManager)
+    , m_samplerManager(samplerManager)
+    , m_textureManager(textureManager)
+    , m_descriptorAllocator(descriptorAllocator)
+    , m_descriptorLayoutManager(descriptorLayoutManager)
+    , m_descriptorSetValid(false)
 {
-    // Build parameter indices map for quick lookup
-    for (size_t i = 0; i < m_parameters.size(); ++i) {
-        m_parameterIndices[m_parameters[i].name] = i;
+    if (!m_shader.isValid()) {
+        throw std::runtime_error("Material " + m_name + ": Invalid shader");
     }
 
-    // Collect sampler handles for dirty checking
-    collectSamplerHandles();
+    BuildFieldMappings();
+    CollectSamplerHandles();
+
+    SPDLOG_INFO("Material '{}': Created with {} field mappings and {} texture bindings",
+        m_name, m_fieldMappings.size(), m_textureBindings.size());
 }
 
 Material::~Material() {
-    // Smart handles will automatically clean up
+    ReleaseDescriptorSetBuffers();
 }
 
-bool Material::setParameter(const std::string& name, const ParamValue& value) {
-    auto it = m_parameterIndices.find(name);
-    if (it == m_parameterIndices.end()) {
-        SPDLOG_WARN("Material {}: Parameter '{}' not found", m_name, name);
-        return false;
-    }
+// =============================================================================
+// INITIALIZATION
+// =============================================================================
 
-    Parameter& param = m_parameters[it->second];
-
-    // Handle texture parameters
-    if (std::holds_alternative<TextureParam>(value)) {
-        if (!ShaderLib::IsTexture(param.descriptorType)) {
-            SPDLOG_WARN("Material {}: Parameter '{}' is not a texture parameter (type: {})",
-                m_name, name, ShaderLib::DescriptorTypeToString(param.descriptorType));
-            return false;
-        }
-        param.value = value;
-        invalidateDescriptorSet();
-        collectSamplerHandles();
-        return true;
-    }
-
-    // Handle buffer parameters (both UBO and SSBO)
-    const ShaderLib::BufferValue* bufVal = std::get_if<ShaderLib::BufferValue>(&value);
-    if (!bufVal) {
-        SPDLOG_WARN("Material {}: Invalid parameter value type for '{}'", m_name, name);
-        return false;
-    }
-
-    // Validate that parameter is actually a buffer type
-    if (!ShaderLib::IsBuffer(param.descriptorType)) {
-        SPDLOG_WARN("Material {}: Parameter '{}' is not a buffer parameter (type: {})",
-            m_name, name, ShaderLib::DescriptorTypeToString(param.descriptorType));
-        return false;
-    }
-
-    // Get expected type from shader metadata
-    const auto& metadata = m_shader->metadata;
-    const ShaderLib::DescriptorSet* customSet = metadata.GetCustomSet();
-
+void Material::BuildFieldMappings() {
+    const ShaderLib::DescriptorSet* customSet = GetCustomDescriptorSet();
     if (!customSet) {
-        SPDLOG_ERROR("Material {}: No custom descriptor set", m_name);
-        return false;
+        return;
     }
 
-    // Find the buffer variable to get expected type
-    const ShaderLib::BufferObject* ownerBuffer = findBufferForVariable(*customSet, param.name);
-    if (!ownerBuffer) {
-        SPDLOG_WARN("Material {}: Could not find buffer for variable '{}'", m_name, param.name);
-        return false;
-    }
+    m_fieldMappings.clear();
+    m_topLevelToPaths.clear();
+    m_fieldInfoCache.clear();
+    m_textureBindings.clear();
 
-    // Validate buffer type matches (UBO vs SSBO)
-    bool bufferTypeMatches = (param.descriptorType == ShaderLib::DescriptorType::UniformBuffer && ownerBuffer->IsUniformBuffer()) ||
-        (param.descriptorType == ShaderLib::DescriptorType::StorageBuffer && ownerBuffer->IsStorageBuffer());
+    // Process buffer fields
+    for (const auto& slot : customSet->slots) {
+        if (slot.IsBuffer()) {
+            auto bufferDef = customSet->GetBufferByBinding(slot.binding);
+            if (!bufferDef) continue;
 
-    if (!bufferTypeMatches) {
-        SPDLOG_WARN("Material {}: Buffer type mismatch for '{}': parameter type is {}, but buffer is {}",
-            m_name, name,
-            ShaderLib::DescriptorTypeToString(param.descriptorType),
-            ownerBuffer->IsUniformBuffer() ? "UniformBuffer" : "StorageBuffer");
-        return false;
-    }
+            // Get buffer instance
+            std::shared_ptr<ShaderLib::BufferObjectInstance> bufferInstance = nullptr;
+            switch (slot.binding) {
+            case ShaderLib::INPUT_DATA_BINDING:
+                bufferInstance = m_inputBuffer;
+                break;
+            case ShaderLib::OUTPUT_DATA_BINDING:
+                bufferInstance = m_outputBuffer;
+                break;
+            case ShaderLib::INPUT_OUTPUT_DATA_BINDING:
+                bufferInstance = m_inputOutputBuffer;
+                break;
+            }
 
-    // Find the variable definition
-    const ShaderLib::BufferVariable* varDef = nullptr;
-    for (const auto& var : ownerBuffer->variables) {
-        if (var.name == param.name) {
-            varDef = &var;
-            break;
+            if (!bufferInstance) continue;
+
+            // Get ALL fields (including structures)
+            const auto& allFields = bufferDef->GetAllFields();
+
+            for (const auto& field : allFields) {
+                // Map ALL fields (structures and base types)
+                FieldMapping mapping;
+                mapping.fieldName = field.name;
+                mapping.fullPath = field.path;
+                mapping.bufferType = bufferDef->GetBufferType();
+                mapping.binding = slot.binding;
+                mapping.isBaseType = field.isBaseType;
+                mapping.isArray = field.isArray;
+                mapping.arraySize = field.arraySize;
+
+                // Add to main mapping (by full path)
+                m_fieldMappings[field.path] = mapping;
+
+                // Build field info cache
+                FieldInfo info;
+                info.name = field.name;
+                info.path = field.path;
+                info.baseType = field.baseType;
+                info.binding = slot.binding;
+                info.isBaseType = field.isBaseType;
+                info.isArray = field.isArray;
+                info.arraySize = field.arraySize;
+                info.offset = field.offset;
+                info.size = field.size;
+
+                m_fieldInfoCache[field.path] = info;
+
+                // Extract top-level name for quick lookup
+                std::string topLevelName = ExtractTopLevelName(field.path);
+                m_topLevelToPaths[topLevelName].push_back(field.path);
+            }
+        }
+        else if (slot.IsSampler()) {
+            // Map textures
+            TextureBinding texBinding;
+            texBinding.name = slot.name;
+            texBinding.binding = slot.binding;
+            texBinding.type = slot.type;
+            m_textureBindings[texBinding.name] = texBinding;
         }
     }
 
-    if (!varDef) {
-        SPDLOG_WARN("Material {}: Variable '{}' not found in buffer metadata", m_name, param.name);
-        return false;
-    }
-
-    // Validate type compatibility
-    if (varDef->IsComposite()) {
-        // For composites, extract from BufferValue
-        std::shared_ptr<ShaderLib::CompositeTypeInstance> newInstance;
-
-        if (auto structPtr = std::get_if<std::shared_ptr<ShaderLib::ShaderStructInstance>>(bufVal)) {
-            newInstance = std::static_pointer_cast<ShaderLib::CompositeTypeInstance>(*structPtr);
-        }
-        else if (auto arrayPtr = std::get_if<std::shared_ptr<ShaderLib::ShaderArrayInstance>>(bufVal)) {
-            newInstance = std::static_pointer_cast<ShaderLib::CompositeTypeInstance>(*arrayPtr);
-        }
-
-        if (!newInstance) {
-            SPDLOG_WARN("Material {}: Expected composite type for parameter '{}'", m_name, name);
-            return false;
-        }
-
-        if (newInstance->GetDefinition()->GetTypeName() != varDef->composite->GetTypeName()) {
-            SPDLOG_WARN("Material {}: Composite type mismatch for '{}': expected '{}', got '{}'",
-                m_name, name,
-                varDef->composite->GetTypeName(),
-                newInstance->GetDefinition()->GetTypeName());
-            return false;
-        }
-    }
-    else {
-        // For base types, check BaseType matches
-        ShaderLib::BaseType newType = ShaderLib::GetBaseTypeFromVariant(*bufVal);
-
-        if (newType != varDef->baseType) {
-            SPDLOG_WARN("Material {}: Type mismatch for '{}': expected {}, got {}",
-                m_name, name,
-                ShaderLib::BaseTypeToString(varDef->baseType),
-                ShaderLib::BaseTypeToString(newType));
-            return false;
-        }
-    }
-
-    // Type validation passed - update parameter
-    param.value = value;
-    invalidateDescriptorSet();
-
-    SPDLOG_DEBUG("Material {}: Updated parameter '{}'", m_name, name);
-    return true;
+    SPDLOG_DEBUG("Material '{}': Built {} field mappings ({} top-level fields)",
+        m_name, m_fieldMappings.size(), m_topLevelToPaths.size());
 }
 
-bool Material::getParameter(const std::string& name, ParamValue& outValue) const {
-    auto it = m_parameterIndices.find(name);
-    if (it == m_parameterIndices.end()) {
-        return false;
-    }
+void Material::CollectSamplerHandles() {
+    m_samplerHandles.clear();
 
-    outValue = m_parameters[it->second].value;
-    return true;
+    for (const auto& [name, binding] : m_textureBindings) {
+        if (binding.texture.samplerHandle.isValid()) {
+            m_samplerHandles.push_back(binding.texture.samplerHandle);
+        }
+    }
 }
 
-bool Material::readbackBufferParameters() {
-    if (!m_shader.isValid()) {
-        SPDLOG_ERROR("Material {}: Cannot readback - invalid shader", m_name);
-        return false;
+// =============================================================================
+// FIELD ACCESS - WITH CHAINING SUPPORT
+// =============================================================================
+
+ShaderLib::FieldProxy Material::operator[](const std::string& name) {
+    // Check if this is a path (contains . or [)
+    if (name.find('.') != std::string::npos || name.find('[') != std::string::npos) {
+        // Path notation - delegate to GetField
+        return GetField(name);
     }
 
-    bool anySuccess = false;
-    bool anyFailure = false;
-
-    // Read back all buffer parameters
-    for (auto& param : m_parameters) {
-        if (!param.isBufferParameter()) {
-            continue;
-        }
-
-        if (readParameterFromBuffer(param)) {
-            anySuccess = true;
-            SPDLOG_TRACE("Material {}: Successfully read back parameter '{}'", m_name, param.name);
-        }
-        else {
-            anyFailure = true;
-            SPDLOG_WARN("Material {}: Failed to read back parameter '{}'", m_name, param.name);
-        }
+    // Top-level field access - find the buffer and delegate
+    auto it = m_topLevelToPaths.find(name);
+    if (it == m_topLevelToPaths.end() || it->second.empty()) {
+        throw std::runtime_error("Material " + m_name + ": Field not found: " + name);
     }
 
-    if (anySuccess && !anyFailure) {
-        SPDLOG_DEBUG("Material {}: All buffer parameters read back successfully", m_name);
+    // Use first path (base case without array index if it's an array)
+    const std::string& firstPath = it->second[0];
+    const FieldMapping* mapping = FindFieldMapping(firstPath);
+    if (!mapping) {
+        throw std::runtime_error("Material " + m_name + ": Field mapping not found: " + name);
+    }
+
+    auto buffer = mapping->GetBufferInstance(m_inputBuffer, m_outputBuffer, m_inputOutputBuffer);
+    if (!buffer) {
+        throw std::runtime_error("Material " + m_name + ": Buffer not found for field: " + name);
+    }
+
+    // Return FieldProxy for the top-level field (supports chaining)
+    return (*buffer)[name];
+}
+
+ShaderLib::FieldProxy Material::operator[](const char* name) {
+    return operator[](std::string(name));
+}
+
+ShaderLib::FieldProxy Material::GetField(const std::string& path) {
+    auto buffer = GetBufferForField(path);
+    if (!buffer) {
+        throw std::runtime_error("Material " + m_name + ": Field not found: " + path);
+    }
+
+    return buffer->GetField(path);
+}
+
+bool Material::HasField(const std::string& nameOrPath) const {
+    // Try as path first
+    if (m_fieldMappings.find(nameOrPath) != m_fieldMappings.end()) {
         return true;
     }
-    else if (anySuccess) {
-        SPDLOG_WARN("Material {}: Some buffer parameters failed to read back", m_name);
+
+    // Try as top-level name
+    if (m_topLevelToPaths.find(nameOrPath) != m_topLevelToPaths.end()) {
         return true;
     }
-    else {
-        SPDLOG_ERROR("Material {}: No buffer parameters were read back", m_name);
-        return false;
-    }
-}
 
-bool Material::readbackBufferParameter(const std::string& name) {
-    auto it = m_parameterIndices.find(name);
-    if (it == m_parameterIndices.end()) {
-        SPDLOG_WARN("Material {}: Parameter '{}' not found", m_name, name);
-        return false;
-    }
-
-    Parameter& param = m_parameters[it->second];
-
-    if (!param.isBufferParameter()) {
-        SPDLOG_WARN("Material {}: Parameter '{}' is not a buffer parameter", m_name, name);
-        return false;
-    }
-
-    return readParameterFromBuffer(param);
-}
-
-std::vector<std::string> Material::getBufferParameterNames() const {
-    std::vector<std::string> names;
-
-    for (const auto& param : m_parameters) {
-        if (param.isBufferParameter()) {
-            names.push_back(param.name);
-        }
-    }
-
-    return names;
-}
-
-bool Material::hasBufferParameters() const {
-    for (const auto& param : m_parameters) {
-        if (param.isBufferParameter()) {
-            return true;
-        }
-    }
     return false;
 }
 
-SmartHandle<DescriptorSetHandle, VkDescriptorSet> Material::getDescriptorSet() {
-    // Check if we need to recreate the descriptor set
-    if (needsDescriptorSetRecreation()) {
-        m_descriptorSet = createDescriptorSet();
+std::vector<std::string> Material::GetFieldNames() const {
+    std::vector<std::string> names;
+    names.reserve(m_topLevelToPaths.size());
+
+    for (const auto& [name, _] : m_topLevelToPaths) {
+        names.push_back(name);
+    }
+
+    std::sort(names.begin(), names.end());
+    return names;
+}
+
+std::vector<std::string> Material::GetAllFieldPaths() const {
+    std::vector<std::string> paths;
+    paths.reserve(m_fieldMappings.size());
+
+    for (const auto& [path, _] : m_fieldMappings) {
+        paths.push_back(path);
+    }
+
+    std::sort(paths.begin(), paths.end());
+    return paths;
+}
+
+const Material::FieldInfo* Material::GetFieldInfo(const std::string& nameOrPath) const {
+    // Try as path first
+    auto it = m_fieldInfoCache.find(nameOrPath);
+    if (it != m_fieldInfoCache.end()) {
+        return &it->second;
+    }
+
+    // Try as top-level name
+    auto topIt = m_topLevelToPaths.find(nameOrPath);
+    if (topIt != m_topLevelToPaths.end() && !topIt->second.empty()) {
+        const std::string& firstPath = topIt->second[0];
+        auto infoIt = m_fieldInfoCache.find(firstPath);
+        if (infoIt != m_fieldInfoCache.end()) {
+            return &infoIt->second;
+        }
+    }
+
+    return nullptr;
+}
+
+// =============================================================================
+// ARRAY OPERATIONS
+// =============================================================================
+
+bool Material::IsArrayField(const std::string& name) const {
+    const FieldInfo* info = GetFieldInfo(name);
+    return info && info->isArray;
+}
+
+size_t Material::GetArraySize(const std::string& name) const {
+    const FieldInfo* info = GetFieldInfo(name);
+    return info ? info->arraySize : 0;
+}
+
+// =============================================================================
+// STRUCTURE OPERATIONS
+// =============================================================================
+
+bool Material::IsStructureField(const std::string& name) const {
+    const FieldInfo* info = GetFieldInfo(name);
+    return info && !info->isBaseType;
+}
+
+std::vector<std::string> Material::GetStructureChildren(const std::string& name) const {
+    if (!IsStructureField(name)) {
+        return {};
+    }
+
+    std::vector<std::string> children;
+    std::string prefix = name + ".";
+
+    // Find all paths that start with "name."
+    for (const auto& [path, _] : m_fieldMappings) {
+        if (path.find(prefix) == 0) {
+            // Extract immediate child name (without further nesting)
+            std::string remainder = path.substr(prefix.length());
+            size_t dotPos = remainder.find('.');
+            size_t bracketPos = remainder.find('[');
+            size_t endPos = std::min(dotPos, bracketPos);
+
+            std::string childName = (endPos != std::string::npos)
+                ? remainder.substr(0, endPos)
+                : remainder;
+
+            // Add unique child names
+            if (std::find(children.begin(), children.end(), childName) == children.end()) {
+                children.push_back(childName);
+            }
+        }
+    }
+
+    std::sort(children.begin(), children.end());
+    return children;
+}
+
+// =============================================================================
+// TEXTURE MANAGEMENT
+// =============================================================================
+
+bool Material::SetTexture(const std::string& name, const TextureParam& texture) {
+    auto it = m_textureBindings.find(name);
+    if (it == m_textureBindings.end()) {
+        SPDLOG_WARN("Material '{}': Texture binding '{}' not found", m_name, name);
+        return false;
+    }
+
+    it->second.texture = texture;
+    InvalidateDescriptorSet();
+    CollectSamplerHandles();
+
+    SPDLOG_DEBUG("Material '{}': Set texture '{}'", m_name, name);
+    return true;
+}
+
+bool Material::GetTexture(const std::string& name, TextureParam& outTexture) const {
+    auto it = m_textureBindings.find(name);
+    if (it == m_textureBindings.end()) {
+        return false;
+    }
+
+    outTexture = it->second.texture;
+    return true;
+}
+
+std::vector<std::string> Material::GetTextureNames() const {
+    std::vector<std::string> names;
+    names.reserve(m_textureBindings.size());
+
+    for (const auto& [name, _] : m_textureBindings) {
+        names.push_back(name);
+    }
+
+    std::sort(names.begin(), names.end());
+    return names;
+}
+
+bool Material::HasTexture(const std::string& name) const {
+    return m_textureBindings.find(name) != m_textureBindings.end();
+}
+
+// =============================================================================
+// GPU SYNCHRONIZATION
+// =============================================================================
+
+void Material::SyncToGPU() {
+    if (!IsDescriptorSetValid()) {
+        GetDescriptorSet();
+    }
+
+    if (m_inputBuffer) m_inputBuffer->SyncToBuffer();
+    if (m_outputBuffer) m_outputBuffer->SyncToBuffer();
+    if (m_inputOutputBuffer) m_inputOutputBuffer->SyncToBuffer();
+
+    SPDLOG_TRACE("Material '{}': Synced all buffers to GPU", m_name);
+}
+
+void Material::SyncFromGPU() {
+    if (!IsDescriptorSetValid()) {
+        GetDescriptorSet();
+    }
+
+    if (m_inputBuffer) m_inputBuffer->SyncFromBuffer();
+    if (m_outputBuffer) m_outputBuffer->SyncFromBuffer();
+    if (m_inputOutputBuffer) m_inputOutputBuffer->SyncFromBuffer();
+
+    SPDLOG_TRACE("Material '{}': Synced all buffers from GPU", m_name);
+}
+
+// =============================================================================
+// DESCRIPTOR SET MANAGEMENT
+// =============================================================================
+
+SmartHandle<DescriptorSetHandle, VkDescriptorSet> Material::GetDescriptorSet() {
+    if (NeedsDescriptorSetRecreation()) {
+        m_descriptorSet = CreateDescriptorSet();
 
         if (m_descriptorSet.isValid()) {
             m_descriptorSetValid = true;
 
-            // Clear dirty flags for all samplers
             for (SamplerHandle samplerHandle : m_samplerHandles) {
                 m_samplerManager.clearDirty(samplerHandle);
             }
 
-            SPDLOG_DEBUG("Material {}: Created descriptor set", m_name);
+            SPDLOG_DEBUG("Material '{}': Created descriptor set", m_name);
         }
         else {
-            SPDLOG_ERROR("Material {}: Failed to create descriptor set", m_name);
+            SPDLOG_ERROR("Material '{}': Failed to create descriptor set", m_name);
         }
     }
 
     return m_descriptorSet;
 }
 
-void Material::invalidateDescriptorSet() {
+void Material::InvalidateDescriptorSet() {
     m_descriptorSetValid = false;
-    SPDLOG_DEBUG("Material {}: Invalidated descriptor set", m_name);
+    SPDLOG_DEBUG("Material '{}': Invalidated descriptor set", m_name);
 }
 
-SmartHandle<DescriptorSetHandle, VkDescriptorSet> Material::createDescriptorSet() {
-    // Get shader metadata
+SmartHandle<DescriptorSetHandle, VkDescriptorSet> Material::CreateDescriptorSet() {
     const auto& metadata = m_shader->metadata;
     const auto& resources = m_shader->resources;
 
-    // Find the custom descriptor set (set 2)
-    const ShaderLib::DescriptorSet* customSet = metadata.GetCustomSet();
+    const ShaderLib::DescriptorSet* customSet = GetCustomDescriptorSet();
     if (!customSet) {
-        SPDLOG_ERROR("Material {}: Shader does not have a custom descriptor set", m_name);
+        SPDLOG_ERROR("Material '{}': Shader does not have a custom descriptor set", m_name);
         return SmartHandle<DescriptorSetHandle, VkDescriptorSet>();
     }
 
-    // Get the descriptor layout handle for the custom set
     auto layoutIt = resources.descriptorLayouts.find(ShaderLib::CUSTOM_DESCRIPTOR_SET);
     if (layoutIt == resources.descriptorLayouts.end()) {
-        SPDLOG_ERROR("Material {}: No descriptor layout found for custom descriptor set", m_name);
+        SPDLOG_ERROR("Material '{}': No descriptor layout found for custom descriptor set", m_name);
         return SmartHandle<DescriptorSetHandle, VkDescriptorSet>();
     }
 
-    // Create descriptor set builder
+    AcquireBuffersForDescriptorSet();
+
     DescriptorSetBuilder builder(
         m_device,
         m_bufferManager,
@@ -306,32 +457,68 @@ SmartHandle<DescriptorSetHandle, VkDescriptorSet> Material::createDescriptorSet(
         m_descriptorLayoutManager
     );
 
-    // Set the descriptor set metadata
     builder.forDescriptorSet(*customSet, layoutIt->second);
 
-    // Bind parameters (optimized to use cached bindings)
-    bindParametersToBuilder(builder);
+    uint32_t bufferCount = 0;
 
-    // Build and return descriptor set
+    if (m_inputBufferHandle.isValid()) {
+        builder.bindBufferToSlot(ShaderLib::INPUT_DATA_BINDING, m_inputBufferHandle);
+        if (m_inputBuffer) {
+            m_inputBuffer->SetMappedBuffer(m_bufferManager.getResource(m_inputBufferHandle.handle()));
+        }
+        bufferCount++;
+    }
+
+    if (m_outputBufferHandle.isValid()) {
+        builder.bindBufferToSlot(ShaderLib::OUTPUT_DATA_BINDING, m_outputBufferHandle);
+        if (m_outputBuffer) {
+            m_outputBuffer->SetMappedBuffer(m_bufferManager.getResource(m_outputBufferHandle.handle()));
+        }
+        bufferCount++;
+    }
+
+    if (m_inputOutputBufferHandle.isValid()) {
+        builder.bindBufferToSlot(ShaderLib::INPUT_OUTPUT_DATA_BINDING, m_inputOutputBufferHandle);
+        if (m_inputOutputBuffer) {
+            m_inputOutputBuffer->SetMappedBuffer(m_bufferManager.getResource(m_inputOutputBufferHandle.handle()));
+        }
+        bufferCount++;
+    }
+
+    uint32_t textureCount = 0;
+    for (const auto& [name, binding] : m_textureBindings) {
+        if (!binding.texture.textureHandle.isValid()) {
+            SPDLOG_WARN("Material '{}': Texture '{}' is not loaded", m_name, name);
+            continue;
+        }
+
+        builder.bindTextureToSlot(binding.binding, binding.texture.textureHandle,
+            binding.texture.samplerHandle);
+        textureCount++;
+    }
+
     auto descriptorSet = builder.build();
 
     if (!descriptorSet.isValid()) {
-        SPDLOG_ERROR("Material {}: Failed to build descriptor set", m_name);
+        SPDLOG_ERROR("Material '{}': Failed to build descriptor set", m_name);
+        ReleaseDescriptorSetBuffers();
+    }
+    else {
+        SPDLOG_INFO("Material '{}': Created descriptor set with {} buffer(s) and {} texture(s)",
+            m_name, bufferCount, textureCount);
     }
 
     return descriptorSet;
 }
 
-bool Material::needsDescriptorSetRecreation() const {
-    // Need recreation if descriptor set is invalid or not created yet
+bool Material::NeedsDescriptorSetRecreation() const {
     if (!m_descriptorSetValid || !m_descriptorSet.isValid()) {
         return true;
     }
 
-    // Check if any samplers are dirty
     for (SamplerHandle samplerHandle : m_samplerHandles) {
         if (m_samplerManager.isDirty(samplerHandle)) {
-            SPDLOG_DEBUG("Material {}: Sampler {} is dirty, need descriptor set recreation",
+            SPDLOG_DEBUG("Material '{}': Sampler {} is dirty, need descriptor set recreation",
                 m_name, samplerHandle.id);
             return true;
         }
@@ -340,286 +527,141 @@ bool Material::needsDescriptorSetRecreation() const {
     return false;
 }
 
-void Material::collectSamplerHandles() {
-    m_samplerHandles.clear();
+void Material::AcquireBuffersForDescriptorSet() {
+    ReleaseDescriptorSetBuffers();
 
-    for (const auto& param : m_parameters) {
-        if (std::holds_alternative<TextureParam>(param.value)) {
-            const auto& textureParam = std::get<TextureParam>(param.value);
-            if (textureParam.samplerHandle.isValid()) {
-                m_samplerHandles.push_back(textureParam.samplerHandle);
-            }
-        }
+    if (m_inputBuffer) {
+        m_inputBufferHandle = m_bufferManager.acquireSmartBuffer(
+            m_inputBuffer->GetDefinition()
+        );
+    }
+
+    if (m_outputBuffer) {
+        m_outputBufferHandle = m_bufferManager.acquireSmartBuffer(
+            m_outputBuffer->GetDefinition()
+        );
+    }
+
+    if (m_inputOutputBuffer) {
+        m_inputOutputBufferHandle = m_bufferManager.acquireSmartBuffer(
+            m_inputOutputBuffer->GetDefinition()
+        );
     }
 }
 
-void Material::bindParametersToBuilder(DescriptorSetBuilder& builder) {
-    const auto& metadata = m_shader->metadata;
-    const ShaderLib::DescriptorSet* customSet = metadata.GetCustomSet();
-
-    if (!customSet) {
-        SPDLOG_ERROR("Material {}: No custom descriptor set available", m_name);
-        return;
-    }
-
-    // Clear previous buffer cache
-    m_materialBuffers.clear();
-
-    std::unordered_map<uint32_t, std::pair<std::string, std::unordered_map<std::string, ShaderLib::BufferValue>>> buffersByBinding;
-
-    // First pass: collect ALL buffer variables
-    for (const auto& param : m_parameters) {
-        if (!ShaderLib::IsBuffer(param.descriptorType)) {
-            continue;
-        }
-
-        const auto* bufferValue = std::get_if<ShaderLib::BufferValue>(&param.value);
-        if (!bufferValue) {
-            SPDLOG_WARN("Material {}: Parameter '{}' is marked as buffer but has wrong value type",
-                m_name, param.name);
-            continue;
-        }
-
-        const ShaderLib::BufferObject* ownerBuffer = findBufferForVariable(*customSet, param.name);
-        if (!ownerBuffer) {
-            SPDLOG_WARN("Material {}: Could not find buffer for variable '{}'", m_name, param.name);
-            continue;
-        }
-
-        bool bufferTypeMatches = (param.descriptorType == ShaderLib::DescriptorType::UniformBuffer && ownerBuffer->IsUniformBuffer()) ||
-            (param.descriptorType == ShaderLib::DescriptorType::StorageBuffer && ownerBuffer->IsStorageBuffer());
-
-        if (!bufferTypeMatches) {
-            SPDLOG_WARN("Material {}: Buffer type mismatch for '{}': parameter says {}, buffer is {}",
-                m_name, param.name,
-                ShaderLib::DescriptorTypeToString(param.descriptorType),
-                ownerBuffer->IsUniformBuffer() ? "UniformBuffer" : "StorageBuffer");
-            continue;
-        }
-
-        auto& bufferData = buffersByBinding[param.binding];
-        bufferData.first = ownerBuffer->name;
-        bufferData.second[param.name] = *bufferValue;
-    }
-
-    // Second pass: create and bind buffers
-    for (const auto& [binding, bufferData] : buffersByBinding) {
-        const auto& [bufferName, variables] = bufferData;
-
-        const ShaderLib::BufferObject* bufferObj = customSet->GetBuffer(bufferName);
-        if (!bufferObj) {
-            SPDLOG_ERROR("Material {}: Buffer metadata not found for '{}'", m_name, bufferName);
-            continue;
-        }
-
-        const char* bufferTypeStr = bufferObj->IsUniformBuffer() ? "UBO" :
-            (bufferObj->IsStorageBuffer() ? "SSBO" : "Unknown");
-        SPDLOG_DEBUG("Material {}: Binding {} '{}' with {} variables to slot {}",
-            m_name, bufferTypeStr, bufferName, variables.size(), binding);
-
-        auto bufferHandle = m_bufferManager.acquireSmartBuffer(*bufferObj);
-
-        // CACHE THE BUFFER HANDLE
-        m_materialBuffers[binding] = bufferHandle;
-
-        auto mappedWriter = m_bufferManager.createWriter(bufferHandle.handle());
-        if (!mappedWriter.isValid()) {
-            SPDLOG_ERROR("Material {}: Failed to map buffer '{}' for writing", m_name, bufferName);
-            continue;
-        }
-
-        uint32_t updatedCount = 0;
-        for (const auto& [varName, value] : variables) {
-            bool success = false;
-
-            if (std::holds_alternative<std::shared_ptr<ShaderLib::ShaderStructInstance>>(value)) {
-                auto structInstance = std::get<std::shared_ptr<ShaderLib::ShaderStructInstance>>(value);
-                success = mappedWriter.writeStruct(varName, structInstance);
-            }
-            else if (std::holds_alternative<std::shared_ptr<ShaderLib::ShaderArrayInstance>>(value)) {
-                auto arrayInstance = std::get<std::shared_ptr<ShaderLib::ShaderArrayInstance>>(value);
-                success = mappedWriter.writeArray(varName, arrayInstance);
-            }
-            else {
-                success = mappedWriter.write(varName, value);
-            }
-
-            if (success) {
-                updatedCount++;
-                SPDLOG_TRACE("Material {}: Updated variable '{}' in buffer '{}'",
-                    m_name, varName, bufferName);
-            }
-            else {
-                SPDLOG_WARN("Material {}: Failed to write variable '{}' to buffer '{}'",
-                    m_name, varName, bufferName);
-            }
-        }
-
-        SPDLOG_DEBUG("Material {}: Updated {} variables in buffer '{}'", m_name, updatedCount, bufferName);
-
-        builder.bindBufferToSlot(binding, bufferHandle);
-    }
-
-    // Third pass: bind textures (unchanged)
-    uint32_t textureCount = 0;
-    for (const auto& param : m_parameters) {
-        if (!ShaderLib::IsTexture(param.descriptorType)) {
-            continue;
-        }
-
-        const TextureParam* textureParam = std::get_if<TextureParam>(&param.value);
-        if (!textureParam) {
-            SPDLOG_WARN("Material {}: Parameter '{}' is marked as texture but has wrong value type",
-                m_name, param.name);
-            continue;
-        }
-
-        if (!textureParam->textureHandle.isValid()) {
-            SPDLOG_WARN("Material {}: Texture '{}' is not loaded", m_name, param.name);
-            continue;
-        }
-
-        SPDLOG_DEBUG("Material {}: Binding texture '{}' to slot {}",
-            m_name, param.name, param.binding);
-        builder.bindTextureToSlot(param.binding, textureParam->textureHandle, textureParam->samplerHandle);
-        textureCount++;
-    }
-
-    SPDLOG_INFO("Material {}: Bound {} buffer(s) and {} texture(s) to descriptor set",
-        m_name, buffersByBinding.size(), textureCount);
+void Material::ReleaseDescriptorSetBuffers() {
+    m_inputBufferHandle = SmartHandle<BufferHandle, Buffer>();
+    m_outputBufferHandle = SmartHandle<BufferHandle, Buffer>();
+    m_inputOutputBufferHandle = SmartHandle<BufferHandle, Buffer>();
 }
 
-const ShaderLib::BufferObject* Material::findBufferForVariable(
-    const ShaderLib::DescriptorSet& descriptorSet,
-    const std::string& variableName
-) const {
-    for (const auto& [bufferName, buffer] : descriptorSet.buffers) {
-        for (const auto& variable : buffer.variables) {
-            if (variable.name == variableName) {
-                return &buffer;
-            }
+// =============================================================================
+// HELPER METHODS
+// =============================================================================
+
+const Material::FieldMapping* Material::FindFieldMapping(const std::string& nameOrPath) const {
+    // Try as path first
+    auto it = m_fieldMappings.find(nameOrPath);
+    if (it != m_fieldMappings.end()) {
+        return &it->second;
+    }
+
+    // Try as top-level name
+    auto topIt = m_topLevelToPaths.find(nameOrPath);
+    if (topIt != m_topLevelToPaths.end() && !topIt->second.empty()) {
+        const std::string& firstPath = topIt->second[0];
+        auto mappingIt = m_fieldMappings.find(firstPath);
+        if (mappingIt != m_fieldMappings.end()) {
+            return &mappingIt->second;
         }
     }
+
     return nullptr;
 }
 
-bool Material::readParameterFromBuffer(Parameter& param) {
-    if (!m_shader.isValid()) {
-        SPDLOG_ERROR("Material {}: Invalid shader", m_name);
-        return false;
+std::string Material::ExtractTopLevelName(const std::string& path) const {
+    // Extract name before first '.' or '['
+    size_t dotPos = path.find('.');
+    size_t bracketPos = path.find('[');
+    size_t endPos = std::min(dotPos, bracketPos);
+
+    if (endPos == std::string::npos) {
+        return path;
     }
 
-    const auto& metadata = m_shader->metadata;
-    const ShaderLib::DescriptorSet* customSet = metadata.GetCustomSet();
-
-    if (!customSet) {
-        SPDLOG_ERROR("Material {}: No custom descriptor set", m_name);
-        return false;
-    }
-
-    // Find the buffer this variable belongs to
-    const ShaderLib::BufferObject* ownerBuffer = findBufferForVariable(*customSet, param.name);
-    if (!ownerBuffer) {
-        SPDLOG_WARN("Material {}: Could not find buffer for variable '{}'", m_name, param.name);
-        return false;
-    }
-
-    // Get or find the buffer handle
-    SmartHandle<BufferHandle, Buffer> bufferHandle = getBufferForParameter(param);
-    if (!bufferHandle.isValid()) {
-        SPDLOG_ERROR("Material {}: Failed to get buffer handle for parameter '{}'", m_name, param.name);
-        return false;
-    }
-
-    // Create a reader for the buffer
-    auto mappedReader = m_bufferManager.createReader(bufferHandle.handle());
-    if (!mappedReader.isValid()) {
-        SPDLOG_ERROR("Material {}: Failed to map buffer for reading parameter '{}'", m_name, param.name);
-        return false;
-    }
-
-    // Read the parameter value
-    ShaderLib::BufferValue readValue;
-
-    // Find the variable definition
-    const ShaderLib::BufferVariable* varDef = nullptr;
-    for (const auto& var : ownerBuffer->variables) {
-        if (var.name == param.name) {
-            varDef = &var;
-            break;
-        }
-    }
-
-    if (!varDef) {
-        SPDLOG_WARN("Material {}: Variable '{}' not found in buffer metadata", m_name, param.name);
-        return false;
-    }
-
-    bool readSuccess = false;
-
-    // Handle composite types
-    if (varDef->IsComposite()) {
-        std::shared_ptr<ShaderLib::CompositeTypeInstance> instance;
-
-        if (varDef->composite->IsStruct()) {
-            std::shared_ptr<ShaderLib::ShaderStructInstance> structInstance;
-            readSuccess = mappedReader.readStruct(param.name, structInstance);
-            if (readSuccess) {
-                readValue = structInstance;
-            }
-        }
-        else if (varDef->composite->IsArray()) {
-            std::shared_ptr<ShaderLib::ShaderArrayInstance> arrayInstance;
-            readSuccess = mappedReader.readArray(param.name, arrayInstance);
-            if (readSuccess) {
-                readValue = arrayInstance;
-            }
-        }
-    }
-    // Handle base types
-    else {
-        readSuccess = mappedReader.read(param.name, readValue);
-    }
-
-    if (!readSuccess) {
-        SPDLOG_WARN("Material {}: Failed to read value for parameter '{}'", m_name, param.name);
-        return false;
-    }
-
-    // Update the parameter value (without invalidating descriptor set)
-    // We only read from GPU, we don't change the descriptor bindings
-    param.value = readValue;
-
-    SPDLOG_DEBUG("Material {}: Successfully read back parameter '{}'", m_name, param.name);
-    return true;
+    return path.substr(0, endPos);
 }
 
-SmartHandle<BufferHandle, Buffer> Material::getBufferForParameter(const Parameter& param) {
-    // Check if buffer is in cache
-    auto it = m_materialBuffers.find(param.binding);
-    if (it != m_materialBuffers.end() && it->second.isValid()) {
-        return it->second;
+const ShaderLib::DescriptorSet* Material::GetCustomDescriptorSet() const {
+    if (!m_shader.isValid()) {
+        return nullptr;
     }
 
-    // Buffer not in cache - descriptor set hasn't been created yet
-    // Create it now (this will populate the cache)
-    SPDLOG_WARN("Material {}: Buffer for parameter '{}' (binding {}) not in cache. "
-        "Creating descriptor set to populate buffer cache.",
-        m_name, param.name, param.binding);
+    return m_shader->metadata.GetCustomSet();
+}
 
-    auto descriptorSet = getDescriptorSet();
-    if (!descriptorSet.isValid()) {
-        SPDLOG_ERROR("Material {}: Failed to create descriptor set for buffer readback", m_name);
-        return SmartHandle<BufferHandle, Buffer>();
+std::shared_ptr<ShaderLib::BufferObjectInstance> Material::GetBufferForField(const std::string& path) const {
+    const FieldMapping* mapping = FindFieldMapping(path);
+    if (!mapping) {
+        return nullptr;
     }
 
-    // Try again after descriptor set creation
-    it = m_materialBuffers.find(param.binding);
-    if (it == m_materialBuffers.end() || !it->second.isValid()) {
-        SPDLOG_ERROR("Material {}: Buffer for parameter '{}' (binding {}) still not in cache after descriptor set creation",
-            m_name, param.name, param.binding);
-        return SmartHandle<BufferHandle, Buffer>();
+    return mapping->GetBufferInstance(m_inputBuffer, m_outputBuffer, m_inputOutputBuffer);
+}
+
+std::vector<std::string> Material::CollectStructurePaths(const std::string& structureName) const {
+    std::vector<std::string> paths;
+
+    // Find the structure field info
+    const FieldInfo* info = GetFieldInfo(structureName);
+    if (!info || info->isBaseType) {
+        return paths;
     }
 
-    return it->second;
+    // Get all paths that start with "structureName."
+    std::string prefix = structureName + ".";
+
+    for (const auto& [path, _] : m_fieldMappings) {
+        if (path.find(prefix) == 0) {
+            paths.push_back(path);
+        }
+    }
+
+    // Also include the structure itself if it exists
+    if (m_fieldMappings.find(structureName) != m_fieldMappings.end()) {
+        paths.insert(paths.begin(), structureName);
+    }
+
+    std::sort(paths.begin(), paths.end());
+    return paths;
+}
+
+std::vector<std::string> Material::CollectArrayPaths(const std::string& arrayName) const {
+    std::vector<std::string> paths;
+
+    // Find the array field info
+    const FieldInfo* info = GetFieldInfo(arrayName);
+    if (!info || !info->isArray) {
+        return paths;
+    }
+
+    // Generate all array element paths
+    for (uint32_t i = 0; i < info->arraySize; ++i) {
+        std::string elementPath = arrayName + "[" + std::to_string(i) + "]";
+
+        // Check if this path exists
+        if (m_fieldMappings.find(elementPath) != m_fieldMappings.end()) {
+            paths.push_back(elementPath);
+
+            // If array of structures, also include nested paths
+            const FieldInfo* elementInfo = GetFieldInfo(elementPath);
+            if (elementInfo && !elementInfo->isBaseType) {
+                auto nestedPaths = CollectStructurePaths(elementPath);
+                paths.insert(paths.end(), nestedPaths.begin(), nestedPaths.end());
+            }
+        }
+    }
+
+    std::sort(paths.begin(), paths.end());
+    return paths;
 }

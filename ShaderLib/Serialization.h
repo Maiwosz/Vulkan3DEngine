@@ -41,10 +41,6 @@ namespace ShaderLib {
     // STRUCTURE SERIALIZATION
     // ============================================================================
 
-    // BufferVariable
-    void to_json(json& j, const BufferVariable& var);
-    void from_json(const json& j, BufferVariable& var);
-
     // PushConstantRange
     void to_json(json& j, const PushConstantRange& range);
     void from_json(const json& j, PushConstantRange& range);
@@ -56,10 +52,6 @@ namespace ShaderLib {
     // DescriptorSet
     void to_json(json& j, const DescriptorSet& set);
     void from_json(const json& j, DescriptorSet& set);
-
-    // BufferObject
-    void to_json(json& j, const BufferObject& buffer);
-    void from_json(const json& j, BufferObject& buffer);
 
     // ComputeShaderInfo
     void to_json(json& j, const ComputeShaderInfo& info);

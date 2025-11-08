@@ -14,13 +14,13 @@ namespace ShaderLib {
         BaseType type;
 
         // Binary serialization
-        BufferValue(*readFromBuffer)(const void* src);
-        bool (*writeToFixedBuffer)(void* dst, const BufferValue& value);
-        bool (*writeToBuffer)(std::vector<uint8_t>& dst, const BufferValue& value);
+        BaseTypeValue(*readFromBuffer)(const void* src);
+        bool (*writeToFixedBuffer)(void* dst, const BaseTypeValue& value);
+        bool (*writeToBuffer)(std::vector<uint8_t>& dst, const BaseTypeValue& value);
 
         // JSON serialization
-        json(*toJson)(const BufferValue& value);
-        BufferValue(*fromJson)(const json& j);
+        json(*toJson)(const BaseTypeValue& value);
+        BaseTypeValue(*fromJson)(const json& j);
         bool (*writeFromJson)(std::vector<uint8_t>& dst, const json& j);
 
         constexpr bool IsValid() const {

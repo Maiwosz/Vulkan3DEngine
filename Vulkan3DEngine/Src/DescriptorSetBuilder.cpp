@@ -209,73 +209,6 @@ DescriptorSetBuilder& DescriptorSetBuilder::bindImageViewToSlot(uint32_t binding
     return *this;
 }
 
-DescriptorSetBuilder& DescriptorSetBuilder::bindBufferVariables(
-    const std::string& bufferName,
-    const std::unordered_map<std::string, ShaderLib::BufferValue>& variables
-) {
-    if (!m_descriptorSetMetadata) {
-        SPDLOG_ERROR("Cannot bind buffer variables for '{}': no descriptor set metadata set", bufferName);
-        return *this;
-    }
-
-    // Find the buffer in metadata
-    const ShaderLib::BufferObject* bufferObj = findBufferByName(bufferName);
-    if (!bufferObj) {
-        SPDLOG_ERROR("Buffer '{}' not found in descriptor set {}",
-            bufferName, m_descriptorSetMetadata->setNumber);
-        return *this;
-    }
-
-    // Check if we already created a buffer for this name
-    auto it = m_createdBuffers.find(bufferName);
-    SmartHandle<BufferHandle, Buffer> bufferHandle;
-
-    if (it != m_createdBuffers.end()) {
-        bufferHandle = it->second;
-    }
-    else {
-        // Create new buffer from BufferObject metadata
-        bufferHandle = m_bufferManager.acquireSmartBuffer(*bufferObj);
-        m_createdBuffers[bufferName] = bufferHandle;
-    }
-
-    // Update buffer with variables
-    auto mappedWriter = m_bufferManager.createWriter(bufferHandle.handle());
-    if (!mappedWriter.isValid()) {
-        SPDLOG_ERROR("Failed to map buffer '{}' for writing", bufferName);
-        return *this;
-    }
-
-    uint32_t updatedCount = 0;
-    for (const auto& [varName, value] : variables) {
-        if (mappedWriter.write(varName, value)) {
-            updatedCount++;
-            SPDLOG_TRACE("Updated variable '{}' in buffer '{}'", varName, bufferName);
-        }
-        else {
-            SPDLOG_WARN("Failed to write variable '{}' to buffer '{}'", varName, bufferName);
-        }
-    }
-
-    SPDLOG_DEBUG("Updated {} variables in buffer '{}'", updatedCount, bufferName);
-
-    // Find the slot for this buffer and add to pending bindings
-    const ShaderLib::DescriptorSlot* slot = findSlotByName(bufferName);
-    if (!slot) {
-        SPDLOG_ERROR("Cannot find descriptor slot for buffer '{}'", bufferName);
-        return *this;
-    }
-
-    PendingBinding pending;
-    pending.binding = slot->binding;
-    pending.value = BufferBinding{ bufferHandle };
-    pending.slot = slot;
-
-    m_pendingBindings.push_back(std::move(pending));
-
-    return *this;
-}
-
 SmartHandle<DescriptorSetHandle, VkDescriptorSet> DescriptorSetBuilder::build() {
     if (!m_descriptorSetMetadata) {
         SPDLOG_ERROR("Cannot build descriptor set: no metadata set");
@@ -311,7 +244,7 @@ SmartHandle<DescriptorSetHandle, VkDescriptorSet> DescriptorSetBuilder::build() 
     SPDLOG_INFO("Built descriptor set {} with {} bindings",
         m_descriptorSetMetadata->setNumber, m_pendingBindings.size());
 
-    // Clear builder state for reuse
+    // Clear pending bindings but keep buffer instances
     m_pendingBindings.clear();
 
     return descriptorSet;
@@ -321,7 +254,6 @@ void DescriptorSetBuilder::clear() {
     m_descriptorSetMetadata = nullptr;
     m_layoutHandle = DescriptorLayoutHandle{};
     m_pendingBindings.clear();
-    m_createdBuffers.clear();
 }
 
 bool DescriptorSetBuilder::validateBindings() const {
@@ -377,7 +309,7 @@ const ShaderLib::DescriptorSlot* DescriptorSetBuilder::findSlotByName(const std:
     return m_descriptorSetMetadata->FindSlot(name);
 }
 
-const ShaderLib::BufferObject* DescriptorSetBuilder::findBufferByName(const std::string& name) const {
+std::shared_ptr<const ShaderLib::BufferObjectDefinition> DescriptorSetBuilder::findBufferDefinitionByName(const std::string& name) const {
     if (!m_descriptorSetMetadata) {
         return nullptr;
     }

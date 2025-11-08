@@ -2,9 +2,12 @@
 #include "MaterialManager.h"
 #include "Material.h"
 #include "AssetManager.h"
+#include "AssetLoader.h"
+#include "Engine.h"
+#include "Paths.h"
 #include <imgui.h>
 #include <algorithm>
-#include "Engine.h"
+#include <filesystem>
 
 void MaterialComponent::setMaterial(AssetHandle material) {
     m_material = material;
@@ -32,8 +35,21 @@ void MaterialComponent::deserialize(const json& j) {
 }
 
 void MaterialComponent::renderUI() {
-    ImGui::Text("Material Asset");
+    ImGui::Text("Material Component");
+    ImGui::Separator();
 
+    renderMaterialSelectionUI();
+
+    ImGui::Separator();
+
+    renderMaterialParametersUI();
+}
+
+// =============================================================================
+// MATERIAL SELECTION UI
+// =============================================================================
+
+void MaterialComponent::renderMaterialSelectionUI() {
     // Display current material info
     if (!m_material.filename.empty()) {
         ImGui::Text("File: %s", m_material.filename.c_str());
@@ -48,93 +64,90 @@ void MaterialComponent::renderUI() {
 
     if (materialFiles.empty()) {
         ImGui::TextDisabled("No material files found in assets directory");
+        return;
     }
-    else {
-        // Find current selection index
-        int currentSelection = -1;
-        for (int i = 0; i < materialFiles.size(); i++) {
-            if (materialFiles[i] == m_material.filename) {
-                currentSelection = i;
-                break;
-            }
-        }
 
-        // Create combo items
-        std::vector<const char*> items;
-        items.push_back("None"); // First option for no selection
-        for (const auto& file : materialFiles) {
-            items.push_back(file.c_str());
-        }
-
-        int comboSelection = currentSelection + 1; // +1 because "None" is at index 0
-
-        if (ImGui::Combo("Material File", &comboSelection, items.data(), items.size())) {
-            if (comboSelection == 0) {
-                // "None" selected
-                setMaterial(AssetHandle());
-            }
-            else {
-                // Material file selected
-                AssetHandle newHandle(AssetType::Material, materialFiles[comboSelection - 1]);
-                setMaterial(newHandle);
-            }
+    // Find current selection index
+    int currentSelection = -1;
+    for (int i = 0; i < materialFiles.size(); i++) {
+        if (materialFiles[i] == m_material.filename) {
+            currentSelection = i;
+            break;
         }
     }
 
-    // Material parameters section
-    ImGui::Separator();
-    renderMaterialParametersUI();
+    // Create combo items
+    std::vector<const char*> items;
+    items.push_back("None");
+    for (const auto& file : materialFiles) {
+        items.push_back(file.c_str());
+    }
+
+    int comboSelection = currentSelection + 1;
+
+    if (ImGui::Combo("Material File", &comboSelection, items.data(), items.size())) {
+        if (comboSelection == 0) {
+            setMaterial(AssetHandle());
+        }
+        else {
+            AssetHandle newHandle(AssetType::Material, materialFiles[comboSelection - 1]);
+            setMaterial(newHandle);
+        }
+    }
 }
 
 std::vector<std::string> MaterialComponent::getAvailableMaterialFiles() {
     std::vector<std::string> files;
 
     try {
-        std::string materialDir = std::string(ASSETS_COMP) + AssetLoader::GetAssetSubdirectory(AssetType::Material);
+        std::string materialDir = std::string(ASSETS_COMP) +
+            AssetLoader::GetAssetSubdirectory(AssetType::Material);
 
-        if (std::filesystem::exists(materialDir) && std::filesystem::is_directory(materialDir)) {
+        if (std::filesystem::exists(materialDir) &&
+            std::filesystem::is_directory(materialDir)) {
             for (const auto& entry : std::filesystem::directory_iterator(materialDir)) {
                 if (entry.is_regular_file()) {
-                    std::string filename = entry.path().stem().string(); // Get filename without extension
-                    files.push_back(filename);
+                    files.push_back(entry.path().stem().string());
                 }
             }
         }
     }
-    catch (const std::filesystem::filesystem_error& e) {
-        // Handle filesystem errors silently in UI context
+    catch (const std::filesystem::filesystem_error&) {
+        // Handle silently in UI context
     }
 
     std::sort(files.begin(), files.end());
     return files;
 }
 
+// =============================================================================
+// MATERIAL PARAMETERS UI
+// =============================================================================
+
 void MaterialComponent::renderMaterialParametersUI() {
-    ImGui::Text("Material Parameters");
-    AssetManager& assetManager = getEngine()->assetSystem().assetManager();
-    MaterialManager& materialManager = getEngine()->assetSystem().materialManager();
-
-    assetManager.ensureReady(m_material);
-
     if (m_material.filename.empty()) {
         ImGui::TextDisabled("No material selected");
         return;
     }
 
-    // Check if material is ready
+    AssetManager& assetManager = getEngine()->assetSystem().assetManager();
+    MaterialManager& materialManager = getEngine()->assetSystem().materialManager();
+
+    // Ensure material is loaded
+    assetManager.ensureReady(m_material);
+
     if (!materialManager.isAssetReady(m_material.filename)) {
-        ImGui::TextDisabled("Material not loaded");
+        ImGui::TextDisabled("Material loading...");
         return;
     }
 
-    // Get material handle
+    // Get material
     MaterialHandle materialHandle = materialManager.getHandle<MaterialHandle>(m_material.filename);
     if (!materialHandle.isValid()) {
         ImGui::TextDisabled("Invalid material handle");
         return;
     }
 
-    // Get material
     Material* material = materialManager.getMaterial(materialHandle);
     if (!material) {
         ImGui::TextDisabled("Material not found");
@@ -142,158 +155,279 @@ void MaterialComponent::renderMaterialParametersUI() {
     }
 
     // Display shader info
-    ImGui::Text("Shader: %s", material->name().c_str());
-
+    ImGui::Text("Shader: %s", material->GetName().c_str());
     ImGui::Separator();
 
-    // Render parameter controls
-    if (ImGui::CollapsingHeader("Parameters", ImGuiTreeNodeFlags_DefaultOpen)) {
-        const auto& parameters = material->parameters();
+    // Buffer Fields
+    if (ImGui::CollapsingHeader("Buffer Parameters", ImGuiTreeNodeFlags_DefaultOpen)) {
+        std::vector<std::string> fieldNames = material->GetFieldNames();
 
-        if (parameters.empty()) {
-            ImGui::TextDisabled("No parameters");
+        if (fieldNames.empty()) {
+            ImGui::TextDisabled("No buffer parameters");
         }
         else {
-            for (const auto& param : parameters) {
-                ImGui::PushID(param.name.c_str());
-
-                // Create a mutable copy for editing
-                Material::ParamValue paramValue = param.value;
-
-                ImGui::Text("%s:", param.name.c_str());
-                ImGui::SameLine();
-
-                // Render the parameter UI
-                bool changed = false;
-                ImGui::PushItemWidth(200.0f);
-
-                // Check if this is a buffer parameter
-                if (auto* bufferVal = std::get_if<ShaderLib::BufferValue>(&paramValue)) {
-                    // Now check the actual type inside BufferValue
-                    if (auto* val = std::get_if<bool>(bufferVal)) {
-                        bool temp = *val;
-                        if (ImGui::Checkbox("##value", &temp)) {
-                            *bufferVal = temp;
-                            changed = true;
-                        }
-                    }
-                    else if (auto* val = std::get_if<float>(bufferVal)) {
-                        float temp = *val;
-                        if (ImGui::DragFloat("##value", &temp, 0.01f)) {
-                            *bufferVal = temp;
-                            changed = true;
-                        }
-                    }
-                    else if (auto* val = std::get_if<glm::vec2>(bufferVal)) {
-                        glm::vec2 temp = *val;
-                        if (ImGui::DragFloat2("##value", &temp.x, 0.01f)) {
-                            *bufferVal = temp;
-                            changed = true;
-                        }
-                    }
-                    else if (auto* val = std::get_if<glm::vec3>(bufferVal)) {
-                        glm::vec3 temp = *val;
-                        if (ImGui::DragFloat3("##value", &temp.x, 0.01f)) {
-                            *bufferVal = temp;
-                            changed = true;
-                        }
-                    }
-                    else if (auto* val = std::get_if<glm::vec4>(bufferVal)) {
-                        glm::vec4 temp = *val;
-                        if (ImGui::DragFloat4("##value", &temp.x, 0.01f)) {
-                            *bufferVal = temp;
-                            changed = true;
-                        }
-                    }
-                    else if (auto* val = std::get_if<int32_t>(bufferVal)) {
-                        int32_t temp = *val;
-                        if (ImGui::DragInt("##value", &temp)) {
-                            *bufferVal = temp;
-                            changed = true;
-                        }
-                    }
-                    else if (auto* val = std::get_if<glm::ivec2>(bufferVal)) {
-                        glm::ivec2 temp = *val;
-                        if (ImGui::DragInt2("##value", &temp.x)) {
-                            *bufferVal = temp;
-                            changed = true;
-                        }
-                    }
-                    else if (auto* val = std::get_if<glm::ivec3>(bufferVal)) {
-                        glm::ivec3 temp = *val;
-                        if (ImGui::DragInt3("##value", &temp.x)) {
-                            *bufferVal = temp;
-                            changed = true;
-                        }
-                    }
-                    else if (auto* val = std::get_if<glm::ivec4>(bufferVal)) {
-                        glm::ivec4 temp = *val;
-                        if (ImGui::DragInt4("##value", &temp.x)) {
-                            *bufferVal = temp;
-                            changed = true;
-                        }
-                    }
-                    else if (auto* val = std::get_if<uint32_t>(bufferVal)) {
-                        int temp = static_cast<int>(*val);
-                        if (ImGui::DragInt("##value", &temp, 1.0f, 0)) {
-                            *bufferVal = static_cast<uint32_t>(std::max(0, temp));
-                            changed = true;
-                        }
-                    }
-                    else if (auto* val = std::get_if<glm::uvec2>(bufferVal)) {
-                        int temp[2] = { static_cast<int>(val->x), static_cast<int>(val->y) };
-                        if (ImGui::DragInt2("##value", temp, 1.0f, 0)) {
-                            *bufferVal = glm::uvec2(std::max(0, temp[0]), std::max(0, temp[1]));
-                            changed = true;
-                        }
-                    }
-                    else if (auto* val = std::get_if<glm::uvec3>(bufferVal)) {
-                        int temp[3] = { static_cast<int>(val->x), static_cast<int>(val->y), static_cast<int>(val->z) };
-                        if (ImGui::DragInt3("##value", temp, 1.0f, 0)) {
-                            *bufferVal = glm::uvec3(std::max(0, temp[0]), std::max(0, temp[1]), std::max(0, temp[2]));
-                            changed = true;
-                        }
-                    }
-                    else if (auto* val = std::get_if<glm::uvec4>(bufferVal)) {
-                        int temp[4] = { static_cast<int>(val->x), static_cast<int>(val->y), static_cast<int>(val->z), static_cast<int>(val->w) };
-                        if (ImGui::DragInt4("##value", temp, 1.0f, 0)) {
-                            *bufferVal = glm::uvec4(std::max(0, temp[0]), std::max(0, temp[1]), std::max(0, temp[2]), std::max(0, temp[3]));
-                            changed = true;
-                        }
-                    }
-                    else if (auto* val = std::get_if<double>(bufferVal)) {
-                        float temp = static_cast<float>(*val);
-                        if (ImGui::DragFloat("##value", &temp, 0.01f)) {
-                            *bufferVal = static_cast<double>(temp);
-                            changed = true;
-                        }
-                    }
-                    else {
-                        ImGui::TextDisabled("Unsupported buffer type");
-                    }
-                }
-                else if (auto* texParam = std::get_if<Material::TextureParam>(&paramValue)) {
-                    if (!texParam->handle.filename.empty()) {
-                        ImGui::Text("Texture: %s", texParam->handle.filename.c_str());
-                    }
-                    else {
-                        ImGui::TextDisabled("No texture");
-                    }
-                }
-                else {
-                    ImGui::TextDisabled("Unsupported parameter type");
-                }
-
-                ImGui::PopItemWidth();
-
-                // Update parameter if changed
-                if (changed) {
-                    material->setParameter(param.name, paramValue);
-                    incrementVersion(); // Mark component as changed
-                }
-
-                ImGui::PopID();
+            for (const auto& fieldName : fieldNames) {
+                renderFieldUI(fieldName, material);
             }
         }
     }
+
+    // Texture Samplers
+    if (ImGui::CollapsingHeader("Textures", ImGuiTreeNodeFlags_DefaultOpen)) {
+        std::vector<std::string> textureNames = material->GetTextureNames();
+
+        if (textureNames.empty()) {
+            ImGui::TextDisabled("No texture parameters");
+        }
+        else {
+            for (const auto& textureName : textureNames) {
+                renderTextureUI(textureName, material);
+            }
+        }
+    }
+}
+
+// =============================================================================
+// FIELD UI RENDERING
+// =============================================================================
+
+void MaterialComponent::renderFieldUI(const std::string& fieldName, Material* material) {
+    try {
+        // Get buffer containing the field
+        auto buffer = material->GetBufferForField(fieldName);
+        if (!buffer) {
+            ImGui::TextDisabled("%s: Buffer not found", fieldName.c_str());
+            return;
+        }
+
+        // Get field descriptor through FindField (O(1) lookup)
+        auto bufferDef = buffer->GetDefinition();
+        const ShaderLib::FieldDescriptor* fieldDesc = bufferDef->FindField(fieldName);
+
+        if (!fieldDesc) {
+            ImGui::TextDisabled("%s: Field not found", fieldName.c_str());
+            return;
+        }
+
+        // Skip non-base types (structures)
+        if (!fieldDesc->isBaseType) {
+            ImGui::TextDisabled("%s: Structure type (not editable)", fieldName.c_str());
+            return;
+        }
+
+        // Get field proxy for value access
+        auto fieldProxy = (*material)[fieldName];
+
+        ImGui::PushID(fieldName.c_str());
+        ImGui::Text("%s:", fieldName.c_str());
+        ImGui::SameLine();
+        ImGui::PushItemWidth(200.0f);
+
+        // Render UI based on base type
+        bool changed = renderBaseTypeUI("##value", fieldDesc->baseType, fieldProxy);
+
+        ImGui::PopItemWidth();
+        ImGui::PopID();
+
+        if (changed) {
+            // Sync field to GPU buffer
+            material->SyncToGPU();
+            incrementVersion();
+        }
+    }
+    catch (const std::exception& e) {
+        ImGui::TextDisabled("%s: Error (%s)", fieldName.c_str(), e.what());
+    }
+}
+
+bool MaterialComponent::renderBaseTypeUI(const std::string& label,
+    ShaderLib::BaseType type,
+    ShaderLib::FieldProxy& proxy) {
+    using namespace ShaderLib;
+
+    bool changed = false;
+
+    switch (type) {
+    case BaseType::Bool: {
+        bool value = proxy;
+        if (ImGui::Checkbox(label.c_str(), &value)) {
+            proxy = value;
+            changed = true;
+        }
+        break;
+    }
+
+    case BaseType::Float: {
+        float value = proxy;
+        if (ImGui::DragFloat(label.c_str(), &value, 0.01f)) {
+            proxy = value;
+            changed = true;
+        }
+        break;
+    }
+
+    case BaseType::Vec2: {
+        glm::vec2 value = proxy;
+        if (ImGui::DragFloat2(label.c_str(), &value.x, 0.01f)) {
+            proxy = value;
+            changed = true;
+        }
+        break;
+    }
+
+    case BaseType::Vec3: {
+        glm::vec3 value = proxy;
+        if (ImGui::DragFloat3(label.c_str(), &value.x, 0.01f)) {
+            proxy = value;
+            changed = true;
+        }
+        break;
+    }
+
+    case BaseType::Vec4: {
+        glm::vec4 value = proxy;
+        if (ImGui::DragFloat4(label.c_str(), &value.x, 0.01f)) {
+            proxy = value;
+            changed = true;
+        }
+        break;
+    }
+
+    case BaseType::Int: {
+        int32_t value = proxy;
+        if (ImGui::DragInt(label.c_str(), &value)) {
+            proxy = value;
+            changed = true;
+        }
+        break;
+    }
+
+    case BaseType::IVec2: {
+        glm::ivec2 value = proxy;
+        if (ImGui::DragInt2(label.c_str(), &value.x)) {
+            proxy = value;
+            changed = true;
+        }
+        break;
+    }
+
+    case BaseType::IVec3: {
+        glm::ivec3 value = proxy;
+        if (ImGui::DragInt3(label.c_str(), &value.x)) {
+            proxy = value;
+            changed = true;
+        }
+        break;
+    }
+
+    case BaseType::IVec4: {
+        glm::ivec4 value = proxy;
+        if (ImGui::DragInt4(label.c_str(), &value.x)) {
+            proxy = value;
+            changed = true;
+        }
+        break;
+    }
+
+    case BaseType::UInt: {
+        uint32_t value = proxy;
+        int temp = static_cast<int>(value);
+        if (ImGui::DragInt(label.c_str(), &temp, 1.0f, 0)) {
+            proxy = static_cast<uint32_t>(std::max(0, temp));
+            changed = true;
+        }
+        break;
+    }
+
+    case BaseType::UVec2: {
+        glm::uvec2 value = proxy;
+        int temp[2] = { static_cast<int>(value.x), static_cast<int>(value.y) };
+        if (ImGui::DragInt2(label.c_str(), temp, 1.0f, 0)) {
+            proxy = glm::uvec2(std::max(0, temp[0]), std::max(0, temp[1]));
+            changed = true;
+        }
+        break;
+    }
+
+    case BaseType::UVec3: {
+        glm::uvec3 value = proxy;
+        int temp[3] = {
+            static_cast<int>(value.x),
+            static_cast<int>(value.y),
+            static_cast<int>(value.z)
+        };
+        if (ImGui::DragInt3(label.c_str(), temp, 1.0f, 0)) {
+            proxy = glm::uvec3(
+                std::max(0, temp[0]),
+                std::max(0, temp[1]),
+                std::max(0, temp[2])
+            );
+            changed = true;
+        }
+        break;
+    }
+
+    case BaseType::UVec4: {
+        glm::uvec4 value = proxy;
+        int temp[4] = {
+            static_cast<int>(value.x),
+            static_cast<int>(value.y),
+            static_cast<int>(value.z),
+            static_cast<int>(value.w)
+        };
+        if (ImGui::DragInt4(label.c_str(), temp, 1.0f, 0)) {
+            proxy = glm::uvec4(
+                std::max(0, temp[0]),
+                std::max(0, temp[1]),
+                std::max(0, temp[2]),
+                std::max(0, temp[3])
+            );
+            changed = true;
+        }
+        break;
+    }
+
+    case BaseType::Double: {
+        double value = proxy;
+        float temp = static_cast<float>(value);
+        if (ImGui::DragFloat(label.c_str(), &temp, 0.01f)) {
+            proxy = static_cast<double>(temp);
+            changed = true;
+        }
+        break;
+    }
+
+    default:
+        ImGui::TextDisabled("Unsupported type");
+        break;
+    }
+
+    return changed;
+}
+
+// =============================================================================
+// TEXTURE UI RENDERING
+// =============================================================================
+
+void MaterialComponent::renderTextureUI(const std::string& name, Material* material) {
+    ImGui::PushID(name.c_str());
+
+    Material::TextureParam texture;
+    if (material->GetTexture(name, texture)) {
+        ImGui::Text("%s:", name.c_str());
+
+        if (!texture.assetHandle.filename.empty()) {
+            ImGui::SameLine();
+            ImGui::Text("%s", texture.assetHandle.filename.c_str());
+
+            // Could add texture selection UI here
+            // if (ImGui::Button("Change...")) { ... }
+        }
+        else {
+            ImGui::SameLine();
+            ImGui::TextDisabled("No texture assigned");
+        }
+    }
+
+    ImGui::PopID();
 }

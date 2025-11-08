@@ -2,554 +2,229 @@
 #include "MaterialSerializer.h"
 #include "Serialization.h"
 #include "TypeSerializationTable.h"
-#include "ValueSerialization.h"
 #include <algorithm>
 #include <cstring>
 #include "AssetLib.h"
-#include "ShaderArrayInstance.h"
-#include "ShaderStructInstance.h"
 
 namespace AssetLib {
 
+    // ============================================================================
+// BUFFER RECONSTRUCTION FROM JSON (Helper functions)
+// ============================================================================
+
     namespace {
-        // Helper to safely copy string to fixed-size array
         template<size_t N>
-        void CopyToFixedArray(std::array<char, N>& dest, const std::string& src) {
+        void CopyToArray(std::array<char, N>& dest, const std::string& src) {
             std::fill(dest.begin(), dest.end(), '\0');
             std::copy_n(src.c_str(), std::min(src.size(), N - 1), dest.data());
         }
 
-        // Helper to safely extract string from fixed-size array
         template<size_t N>
-        std::string ExtractFromFixedArray(const std::array<char, N>& src) {
+        std::string ExtractFromArray(const std::array<char, N>& src) {
             return std::string(src.data(), strnlen(src.data(), N));
         }
-    }
 
-    // ============================================================================
-    // JSON SERIALIZATION - MATERIAL DEPENDENCIES
-    // ============================================================================
-
-    json MaterialDependenciesToJson(const MaterialDependencies& deps) {
-        json texturesArray = json::array();
-        for (size_t i = 0; i < deps.textureNames.size(); ++i) {
-            texturesArray.push_back({
-                {"name", deps.textureNames[i]},
-                {"colorSpace", ColorSpaceToString(deps.textureColorSpaces[i])}
-                });
-        }
-
-        return {
-            {"shader", deps.shaderName},
-            {"textures", texturesArray}
+        // Parse field value - expects {baseType, value} format
+        struct FieldSpec {
+            ShaderLib::BaseType baseType;
+            json value;
+            bool isArray = false;
+            uint32_t arraySize = 0;
         };
-    }
 
-    MaterialDependencies MaterialDependenciesFromJson(const json& j) {
-        MaterialDependencies deps;
-
-        deps.shaderName = j.at("shader").get<std::string>();
-
-        if (j.contains("textures") && j["textures"].is_array()) {
-            for (const auto& tex : j["textures"]) {
-                deps.textureNames.push_back(tex.at("name").get<std::string>());
-                deps.textureColorSpaces.push_back(
-                    StringToColorSpace(tex.at("colorSpace").get<std::string>())
+        FieldSpec ParseFieldSpec(const json& fieldJson, const std::string& fieldName) {
+            if (!fieldJson.is_object()) {
+                throw std::runtime_error(
+                    "Field '" + fieldName + "' must be an object with 'baseType' and 'value'"
                 );
             }
-        }
 
-        return deps;
-    }
-
-    // ============================================================================
-    // JSON SERIALIZATION - SAMPLER DESCRIPTION
-    // ============================================================================
-
-    json SamplerDescriptionToJson(const SamplerDescription& sampler) {
-        return {
-            {"magFilter", SamplerFilterToString(sampler.magFilter)},
-            {"minFilter", SamplerFilterToString(sampler.minFilter)},
-            {"addressModeU", AddressModeToString(sampler.addressModeU)},
-            {"addressModeV", AddressModeToString(sampler.addressModeV)},
-            {"addressModeW", AddressModeToString(sampler.addressModeW)},
-            {"anisotropy", sampler.anisotropy},
-            {"minLod", sampler.minLod},
-            {"maxLod", sampler.maxLod},
-            {"colorSpace", ColorSpaceToString(sampler.colorSpace)}
-        };
-    }
-
-    SamplerDescription SamplerDescriptionFromJson(const json& j) {
-        SamplerDescription desc;
-
-        if (j.is_null() || !j.is_object()) {
-            return GetDefaultSampler();
-        }
-
-        desc.magFilter = StringToSamplerFilter(j.value("magFilter", "Linear"));
-        desc.minFilter = StringToSamplerFilter(j.value("minFilter", "Linear"));
-        desc.addressModeU = StringToAddressMode(j.value("addressModeU", "Repeat"));
-        desc.addressModeV = StringToAddressMode(j.value("addressModeV", "Repeat"));
-        desc.addressModeW = StringToAddressMode(j.value("addressModeW", "Repeat"));
-        desc.anisotropy = j.value("anisotropy", 1.0f);
-        desc.minLod = j.value("minLod", 0.0f);
-        desc.maxLod = j.value("maxLod", 1000.0f);
-        desc.colorSpace = StringToColorSpace(j.value("colorSpace", "Linear"));
-
-        return desc;
-    }
-
-    // ============================================================================
-    // JSON SERIALIZATION - PARAMETER VALUE
-    // ============================================================================
-
-    json ParameterValueToJson(const ParameterValue& param) {
-        json result = {
-            {"name", param.name},
-            {"descriptorType", ShaderLib::DescriptorTypeToString(param.descriptorType)},
-            {"valueType", ParameterValueTypeToString(param.valueType)},
-            {"arraySize", param.arraySize}
-        };
-
-        // Add sampler for textures/samplers
-        const auto& descInfo = ShaderLib::GetDescriptorTypeInfo(param.descriptorType);
-        if (descInfo.IsTexture() || param.IsSampler()) {
-            result["sampler"] = SamplerDescriptionToJson(param.samplerDesc);
-        }
-
-        // Serialize value based on type
-        switch (param.valueType) {
-        case ParameterValueType::BaseType: {
-            if (param.baseType != ShaderLib::BaseType::Unknown) {
-                result["baseType"] = ShaderLib::BaseTypeToString(param.baseType);
-
-                const auto& serInfo = ShaderLib::GetSerializationInfo(param.baseType);
-                if (serInfo.SupportsJson()) {
-                    result["data"] = serInfo.toJson(param.GetBaseValue());
-                }
-            }
-            break;
-        }
-
-        case ParameterValueType::Struct:
-        case ParameterValueType::Array: {
-            auto composite = param.GetComposite();
-            result["typeDef"] = composite->GetDefinition()->ToJson();
-            result["data"] = composite->ToJson();
-            break;
-        }
-
-        case ParameterValueType::TexturePath: {
-            result["path"] = param.GetTexturePath();
-            break;
-        }
-        }
-
-        return result;
-    }
-
-    ParameterValue ParameterValueFromJson(const json& j) {
-        ParameterValue param;
-
-        // Nazwa zawsze musi być w JSON
-        param.name = j.at("name").get<std::string>();
-
-        param.descriptorType = ShaderLib::StringToDescriptorType(
-            j.at("descriptorType").get<std::string>()
-        );
-        param.valueType = StringToParameterValueType(
-            j.at("valueType").get<std::string>()
-        );
-        param.arraySize = j.value("arraySize", 1u);
-
-        // Parse sampler if present
-        if (j.contains("sampler")) {
-            param.samplerDesc = SamplerDescriptionFromJson(j["sampler"]);
-        }
-        else {
-            param.samplerDesc = GetDefaultSampler();
-        }
-
-        // Deserialize value based on type
-        switch (param.valueType) {
-        case ParameterValueType::BaseType: {
-            if (j.contains("baseType")) {
-                param.baseType = ShaderLib::StringToBaseType(
-                    j.at("baseType").get<std::string>()
+            if (!fieldJson.contains("baseType")) {
+                throw std::runtime_error(
+                    "Field '" + fieldName + "' is missing required 'baseType' field"
                 );
+            }
 
-                if (j.contains("data")) {
-                    const auto& serInfo = ShaderLib::GetSerializationInfo(param.baseType);
-                    if (serInfo.SupportsJson()) {
-                        param.value = serInfo.fromJson(j["data"]);
-                    }
+            if (!fieldJson.contains("value")) {
+                throw std::runtime_error(
+                    "Field '" + fieldName + "' is missing required 'value' field"
+                );
+            }
+
+            FieldSpec spec;
+            std::string typeStr = fieldJson.at("baseType").get<std::string>();
+            spec.baseType = ShaderLib::StringToBaseType(typeStr);
+
+            if (spec.baseType == ShaderLib::BaseType::Unknown) {
+                throw std::runtime_error(
+                    "Field '" + fieldName + "' has invalid baseType: " + typeStr
+                );
+            }
+
+            spec.value = fieldJson.at("value");
+
+            // Check if it's an array
+            if (spec.value.is_array()) {
+                spec.isArray = true;
+                spec.arraySize = static_cast<uint32_t>(spec.value.size());
+
+                if (spec.arraySize == 0) {
+                    throw std::runtime_error(
+                        "Field '" + fieldName + "' has empty array"
+                    );
                 }
             }
-            break;
+
+            return spec;
         }
 
-        case ParameterValueType::Struct: {
-            if (!j.contains("typeDef") || !j.contains("data")) {
-                throw std::runtime_error("Struct parameter missing typeDef or data");
-            }
-
-            auto compositeDef = ShaderLib::CompositeTypeDefinition::FromJson(j["typeDef"]);
-            auto instance = compositeDef->CreateInstance();
-
-            if (!instance->FromJson(j["data"])) {
-                throw std::runtime_error("Failed to deserialize struct data");
-            }
-
-            auto structInstance = std::dynamic_pointer_cast<ShaderLib::ShaderStructInstance>(instance);
-            if (!structInstance) {
-                throw std::runtime_error("Failed to cast to ShaderStructInstance");
-            }
-            param.value = structInstance;
-            break;
+        // Set field value from parsed spec
+        void SetFieldValueFromSpec(
+            std::shared_ptr<ShaderLib::BufferObjectInstance> buffer,
+            const std::string& path,
+            const json& value,
+            ShaderLib::BaseType expectedType)
+        {
+            const auto& info = ShaderLib::GetSerializationInfo(expectedType);
+            (*buffer)[path] = info.fromJson(value);
         }
 
-        case ParameterValueType::Array: {
-            if (!j.contains("typeDef") || !j.contains("data")) {
-                throw std::runtime_error("Array parameter missing typeDef or data");
-            }
+        // Recursively build StructureDefinition from field specs
+        void BuildStructureFromFields(
+            std::shared_ptr<ShaderLib::StructureDefinition> structDef,
+            const json& fieldsJson)
+        {
+            for (const auto& [fieldName, fieldValue] : fieldsJson.items()) {
+                // Check if it's a nested structure (object without baseType/value)
+                if (fieldValue.is_object() &&
+                    !fieldValue.contains("baseType") &&
+                    !fieldValue.contains("value")) {
 
-            auto compositeDef = ShaderLib::CompositeTypeDefinition::FromJson(j["typeDef"]);
-            auto instance = compositeDef->CreateInstance();
+                    // Nested structure - create it and recurse
+                    auto nestedStruct = ShaderLib::MakeStruct(fieldName);
 
-            if (!instance->FromJson(j["data"])) {
-                throw std::runtime_error("Failed to deserialize array data");
-            }
+                    BuildStructureFromFields(nestedStruct, fieldValue);
 
-            auto arrayInstance = std::dynamic_pointer_cast<ShaderLib::ShaderArrayInstance>(instance);
-            if (!arrayInstance) {
-                throw std::runtime_error("Failed to cast to ShaderArrayInstance");
-            }
-            param.value = arrayInstance;
-            break;
-        }
-
-        case ParameterValueType::TexturePath: {
-            param.value = j.at("path").get<std::string>();
-            break;
-        }
-        }
-
-        return param;
-    }
-
-    // ============================================================================
-    // JSON SERIALIZATION - MATERIAL
-    // ============================================================================
-
-    json MaterialToJson(const MaterialDefinition& material) {
-        json result = {
-            {"shader", material.shaderName},
-            {"parameters", json::array()}
-        };
-
-        // Serialize jako array, każdy parametr to osobny obiekt
-        for (const auto& param : material.parameters) {
-            result["parameters"].push_back(ParameterValueToJson(param));
-        }
-
-        return result;
-    }
-
-    MaterialDefinition MaterialFromJson(const json& j) {
-        MaterialDefinition material;
-
-        material.shaderName = j.at("shader").get<std::string>();
-
-        // Teraz parameters to ARRAY, nie object
-        if (j.contains("parameters") && j["parameters"].is_array()) {
-            for (const auto& paramJson : j["parameters"]) {
-                material.parameters.push_back(ParameterValueFromJson(paramJson));
-            }
-        }
-
-        if (!material.Validate()) {
-            throw std::runtime_error("Invalid material structure");
-        }
-
-        return material;
-    }
-
-    // ============================================================================
-    // BINARY FORMAT HELPERS
-    // ============================================================================
-
-    json MaterialParameterToJson(const MaterialParameter& param) {
-        json j = {
-            {"name", ExtractFromFixedArray(param.name)},
-            {"descriptorType", static_cast<int>(param.descriptorType)},
-            {"valueType", static_cast<int>(param.valueType)},
-            {"baseType", static_cast<int>(param.baseType)},
-            {"arraySize", param.arraySize},
-            {"dataOffset", param.dataOffset},
-            {"dataSize", param.dataSize},
-            {"compositeDefOffset", param.compositeDefOffset},
-            {"compositeDefSize", param.compositeDefSize}
-        };
-
-        // Add sampler for relevant types
-        const auto& descInfo = ShaderLib::GetDescriptorTypeInfo(param.descriptorType);
-        if (descInfo.IsTexture() || param.descriptorType == ShaderLib::DescriptorType::Sampler) {
-            j["sampler"] = {
-                {"magFilter", static_cast<int>(param.samplerDesc.magFilter)},
-                {"minFilter", static_cast<int>(param.samplerDesc.minFilter)},
-                {"addressModeU", static_cast<int>(param.samplerDesc.addressModeU)},
-                {"addressModeV", static_cast<int>(param.samplerDesc.addressModeV)},
-                {"addressModeW", static_cast<int>(param.samplerDesc.addressModeW)},
-                {"anisotropy", param.samplerDesc.anisotropy},
-                {"minLod", param.samplerDesc.minLod},
-                {"maxLod", param.samplerDesc.maxLod},
-                {"colorSpace", static_cast<int>(param.samplerDesc.colorSpace)}
-            };
-        }
-
-        return j;
-    }
-
-    MaterialParameter MaterialParameterFromJson(const json& j) {
-        MaterialParameter param{};
-
-        CopyToFixedArray(param.name, j.at("name").get<std::string>());
-        param.descriptorType = static_cast<ShaderLib::DescriptorType>(j.at("descriptorType").get<int>());
-        param.valueType = static_cast<ParameterValueType>(j.at("valueType").get<int>());
-        param.baseType = static_cast<ShaderLib::BaseType>(j.at("baseType").get<int>());
-        param.arraySize = j.at("arraySize").get<uint32_t>();
-        param.dataOffset = j.at("dataOffset").get<uint32_t>();
-        param.dataSize = j.at("dataSize").get<uint32_t>();
-        param.compositeDefOffset = j.value("compositeDefOffset", 0u);
-        param.compositeDefSize = j.value("compositeDefSize", 0u);
-
-        if (j.contains("sampler")) {
-            const auto& s = j["sampler"];
-            param.samplerDesc.magFilter = static_cast<SamplerDescription::Filter>(s.at("magFilter").get<int>());
-            param.samplerDesc.minFilter = static_cast<SamplerDescription::Filter>(s.at("minFilter").get<int>());
-            param.samplerDesc.addressModeU = static_cast<SamplerDescription::AddressMode>(s.at("addressModeU").get<int>());
-            param.samplerDesc.addressModeV = static_cast<SamplerDescription::AddressMode>(s.at("addressModeV").get<int>());
-            param.samplerDesc.addressModeW = static_cast<SamplerDescription::AddressMode>(s.at("addressModeW").get<int>());
-            param.samplerDesc.anisotropy = s.at("anisotropy").get<float>();
-            param.samplerDesc.minLod = s.at("minLod").get<float>();
-            param.samplerDesc.maxLod = s.at("maxLod").get<float>();
-            param.samplerDesc.colorSpace = static_cast<ColorSpace>(s.value("colorSpace", 0));
-        }
-        else {
-            param.samplerDesc = GetDefaultSampler();
-        }
-
-        return param;
-    }
-
-    json MaterialInfoToJson(const MaterialInfo& info) {
-        return {
-            {"shaderName", ExtractFromFixedArray(info.shaderName)},
-            {"parameterCount", info.parameterCount},
-            {"dataSize", info.dataSize},
-            {"compositeDefsSize", info.compositeDefsSize}
-        };
-    }
-
-    MaterialInfo MaterialInfoFromJson(const json& j) {
-        MaterialInfo info{};
-        CopyToFixedArray(info.shaderName, j.at("shaderName").get<std::string>());
-        info.parameterCount = j.at("parameterCount").get<uint32_t>();
-        info.dataSize = j.at("dataSize").get<uint32_t>();
-        info.compositeDefsSize = j.at("compositeDefsSize").get<uint32_t>();
-        return info;
-    }
-
-    // ============================================================================
-    // HIGH-LEVEL TO LOW-LEVEL CONVERSION
-    // ============================================================================
-
-    MaterialData MaterialToData(const MaterialDefinition& material) {
-        if (!material.Validate()) {
-            throw std::runtime_error("Invalid material");
-        }
-
-        MaterialData data;
-        std::vector<uint8_t> paramData;
-        json compositeDefsJson = json::object();
-
-        // Set shader name
-        CopyToFixedArray(data.info.shaderName, material.shaderName);
-
-        // Process each parameter
-        for (const auto& param : material.parameters) {
-            MaterialParameter binParam{};
-
-            CopyToFixedArray(binParam.name, param.name);
-            binParam.descriptorType = param.descriptorType;
-            binParam.valueType = param.valueType;
-            binParam.baseType = param.baseType;
-            binParam.arraySize = param.arraySize;
-            binParam.samplerDesc = param.samplerDesc;
-            binParam.dataOffset = static_cast<uint32_t>(paramData.size());
-
-            // Serialize value to binary
-            switch (param.valueType) {
-            case ParameterValueType::BaseType: {
-                if (param.baseType != ShaderLib::BaseType::Unknown) {
-                    size_t sizeBefore = paramData.size();
-                    if (!ShaderLib::WriteBaseTypeToBuffer(param.baseType, paramData, param.GetBaseValue())) {
-                        throw std::runtime_error("Failed to serialize base type: " + param.name);
-                    }
-                    binParam.dataSize = static_cast<uint32_t>(paramData.size() - sizeBefore);
+                    structDef->AddField(fieldName, nestedStruct);
                 }
                 else {
-                    binParam.dataSize = 0;
+                    // Base type field - must have baseType and value
+                    FieldSpec spec = ParseFieldSpec(fieldValue, fieldName);
+
+                    if (spec.isArray) {
+                        structDef->AddField(fieldName, spec.baseType, spec.arraySize);
+                    }
+                    else {
+                        structDef->AddField(fieldName, spec.baseType);
+                    }
                 }
-                binParam.compositeDefOffset = 0;
-                binParam.compositeDefSize = 0;
-                break;
             }
-
-            case ParameterValueType::Struct:
-            case ParameterValueType::Array: {
-                auto composite = param.GetComposite();
-
-                // Store composite definition
-                binParam.compositeDefOffset = static_cast<uint32_t>(compositeDefsJson.size());
-                json def = composite->GetDefinition()->ToJson();  // ✅ NOWA METODA
-                compositeDefsJson[param.name] = def;
-                binParam.compositeDefSize = static_cast<uint32_t>(def.dump().size());
-
-                // Store binary data
-                size_t sizeBefore = paramData.size();
-                const auto& buffer = composite->GetRawBuffer();
-                paramData.insert(paramData.end(), buffer.begin(), buffer.end());
-                binParam.dataSize = static_cast<uint32_t>(paramData.size() - sizeBefore);
-                break;
-            }
-
-            case ParameterValueType::TexturePath: {
-                const std::string& path = param.GetTexturePath();
-                paramData.insert(paramData.end(), path.begin(), path.end());
-                paramData.push_back('\0');
-                binParam.dataSize = static_cast<uint32_t>(path.length() + 1);
-                binParam.compositeDefOffset = 0;
-                binParam.compositeDefSize = 0;
-                break;
-            }
-            }
-
-            data.parameters.push_back(binParam);
         }
 
-        // Finalize
-        data.info.parameterCount = static_cast<uint32_t>(data.parameters.size());
-        data.info.dataSize = static_cast<uint32_t>(paramData.size());
-        data.parameterData = std::move(paramData);
-        data.compositeDefinitions = compositeDefsJson.dump();
-        data.info.compositeDefsSize = static_cast<uint32_t>(data.compositeDefinitions.size());
+        // Recursively fill buffer with values
+        void FillBufferFromFields(
+            std::shared_ptr<ShaderLib::BufferObjectInstance> buffer,
+            const json& fieldsJson,
+            const std::string& parentPath = "")
+        {
+            for (const auto& [fieldName, fieldValue] : fieldsJson.items()) {
+                std::string fieldPath = parentPath.empty()
+                    ? fieldName
+                    : parentPath + "." + fieldName;
 
-        return data;
+                // Check if nested structure
+                if (fieldValue.is_object() &&
+                    !fieldValue.contains("baseType") &&
+                    !fieldValue.contains("value")) {
+
+                    // Recurse into nested structure
+                    FillBufferFromFields(buffer, fieldValue, fieldPath);
+                }
+                else {
+                    // Base type field
+                    FieldSpec spec = ParseFieldSpec(fieldValue, fieldName);
+
+                    if (spec.isArray) {
+                        // Fill array elements
+                        for (uint32_t i = 0; i < spec.arraySize; ++i) {
+                            std::string elemPath = fieldPath + "[" + std::to_string(i) + "]";
+                            SetFieldValueFromSpec(buffer, elemPath, spec.value[i], spec.baseType);
+                        }
+                    }
+                    else {
+                        // Fill single value
+                        SetFieldValueFromSpec(buffer, fieldPath, spec.value, spec.baseType);
+                    }
+                }
+            }
+        }
+
+        // Reconstruct buffer from JSON with explicit types
+        std::shared_ptr<ShaderLib::BufferObjectInstance> ReconstructBufferFromJson(
+            const json& bufferJson,
+            const std::string& bufferName,
+            ShaderLib::BufferType bufferType,
+            ShaderLib::LayoutStandard layoutStandard)
+        {
+            // Step 1: Create structure definition
+            auto structDef = ShaderLib::MakeStruct(bufferName);
+
+            // Step 2: Build structure from fields recursively
+            BuildStructureFromFields(structDef, bufferJson);
+
+            // Step 3: Create BufferLayout from structure
+            auto layout = std::make_shared<ShaderLib::BufferLayout>(
+                structDef,
+                layoutStandard
+            );
+
+            // Step 4: Create BufferObjectDefinition
+            auto bufferDef = std::make_shared<ShaderLib::BufferObjectDefinition>(
+                layout,
+                bufferType
+            );
+
+            // Step 5: Create BufferObjectInstance
+            auto bufferInstance = bufferDef->CreateInstance();
+
+            // Step 6: Fill with values recursively
+            FillBufferFromFields(bufferInstance, bufferJson);
+
+            return bufferInstance;
+        }
+
+        // Deserialize BufferObjectInstance from full JSON format (with definition)
+        std::shared_ptr<ShaderLib::BufferObjectInstance> DeserializeBufferInstance(
+            const json& j)
+        {
+            if (j.is_null()) {
+                return nullptr;
+            }
+
+            // BufferObjectInstance::ToJson() produces format with 'definition' and 'fields'
+            if (!j.contains("definition")) {
+                throw std::runtime_error(
+                    "Invalid buffer instance JSON: missing 'definition' field"
+                );
+            }
+
+            // Reconstruct definition first
+            auto bufferDef = ShaderLib::BufferObjectDefinition::FromJson(j.at("definition"));
+
+            // Create instance
+            auto instance = bufferDef->CreateInstance();
+
+            // Load field values
+            if (!instance->FromJson(j)) {
+                throw std::runtime_error("Failed to deserialize buffer instance fields");
+            }
+
+            return instance;
+        }
     }
 
     // ============================================================================
-    // LOW-LEVEL TO HIGH-LEVEL CONVERSION
-    // ============================================================================
-
-    MaterialDefinition DataToMaterial(const MaterialData& data) {
-        MaterialDefinition material;
-        material.shaderName = ExtractFromFixedArray(data.info.shaderName);
-
-        // Parse composite definitions
-        json compositeDefsJson = data.compositeDefinitions.empty() ?
-            json::object() : json::parse(data.compositeDefinitions);
-
-        // Process each parameter
-        for (const auto& binParam : data.parameters) {
-            ParameterValue param;
-
-            param.name = ExtractFromFixedArray(binParam.name);
-            param.descriptorType = binParam.descriptorType;
-            param.valueType = binParam.valueType;
-            param.baseType = binParam.baseType;
-            param.arraySize = binParam.arraySize;
-            param.samplerDesc = binParam.samplerDesc;
-
-            // Deserialize value from binary
-            switch (param.valueType) {
-            case ParameterValueType::BaseType: {
-                if (binParam.baseType != ShaderLib::BaseType::Unknown && binParam.dataSize > 0) {
-                    const void* dataPtr = data.parameterData.data() + binParam.dataOffset;
-                    // Store directly in BufferValue
-                    param.value = ShaderLib::ReadBaseTypeFromBuffer(binParam.baseType, dataPtr);
-                }
-                break;
-            }
-
-            case ParameterValueType::Struct: {
-                if (!compositeDefsJson.contains(param.name)) {
-                    throw std::runtime_error("Missing composite definition for: " + param.name);
-                }
-
-                auto compositeDef = ShaderLib::CompositeTypeDefinition::FromJson(
-                    compositeDefsJson[param.name]
-                );
-                auto instance = compositeDef->CreateInstance();
-
-                const void* dataPtr = data.parameterData.data() + binParam.dataOffset;
-                if (!instance->ReadFromBuffer(dataPtr)) {
-                    throw std::runtime_error("Failed to read struct data: " + param.name);
-                }
-
-                auto structInstance = std::dynamic_pointer_cast<ShaderLib::ShaderStructInstance>(instance);
-                if (!structInstance) {
-                    throw std::runtime_error("Failed to cast to ShaderStructInstance");
-                }
-                param.value = structInstance;
-                break;
-            }
-
-            case ParameterValueType::Array: {
-                if (!compositeDefsJson.contains(param.name)) {
-                    throw std::runtime_error("Missing composite definition for: " + param.name);
-                }
-
-                auto compositeDef = ShaderLib::CompositeTypeDefinition::FromJson(
-                    compositeDefsJson[param.name]
-                );
-                auto instance = compositeDef->CreateInstance();
-
-                const void* dataPtr = data.parameterData.data() + binParam.dataOffset;
-                if (!instance->ReadFromBuffer(dataPtr)) {
-                    throw std::runtime_error("Failed to read array data: " + param.name);
-                }
-
-                auto arrayInstance = std::dynamic_pointer_cast<ShaderLib::ShaderArrayInstance>(instance);
-                if (!arrayInstance) {
-                    throw std::runtime_error("Failed to cast to ShaderArrayInstance");
-                }
-                param.value = arrayInstance;
-                break;
-            }
-
-            case ParameterValueType::TexturePath: {
-                const char* pathPtr = reinterpret_cast<const char*>(
-                    data.parameterData.data() + binParam.dataOffset
-                    );
-                param.value = std::string(pathPtr, binParam.dataSize - 1); // -1 for null terminator
-                break;
-            }
-            }
-
-            material.parameters.push_back(std::move(param));
-        }
-
-        if (!material.Validate()) {
-            throw std::runtime_error("Deserialized invalid material");
-        }
-
-        return material;
-    }
-
-    // ============================================================================
-    // HIGH-LEVEL ASSET SERIALIZATION
+    // BINARY SERIALIZATION
     // ============================================================================
 
     AssetData WriteMaterial(
@@ -558,34 +233,94 @@ namespace AssetLib {
         CompressionType compression,
         int compressionLevel)
     {
-        // Convert to low-level format
-        MaterialData data = MaterialToData(material);
+        if (!material.Validate()) {
+            throw std::runtime_error("Invalid material");
+        }
 
-        // Extract dependencies for metadata
-        MaterialDependencies deps = material.ExtractDependencies();
+        std::vector<uint8_t> binaryData;
+
+        MaterialHeader header{};
+        CopyToArray(header.shaderName, material.shaderName);
+        header.samplerCount = static_cast<uint32_t>(material.samplers.size());
+
+        std::string inputBufferJson, outputBufferJson, inputOutputBufferJson;
+
+        // IMPORTANT: Serialize with FULL definition (not just fields)
+        if (material.inputBuffer) {
+            inputBufferJson = material.inputBuffer->ToJson().dump();
+            header.inputBufferSize = static_cast<uint32_t>(inputBufferJson.size());
+        }
+
+        if (material.outputBuffer) {
+            outputBufferJson = material.outputBuffer->ToJson().dump();
+            header.outputBufferSize = static_cast<uint32_t>(outputBufferJson.size());
+        }
+
+        if (material.inputOutputBuffer) {
+            inputOutputBufferJson = material.inputOutputBuffer->ToJson().dump();
+            header.inputOutputBufferSize = static_cast<uint32_t>(inputOutputBufferJson.size());
+        }
+
+        header.totalDataSize = header.inputBufferSize + header.outputBufferSize +
+            header.inputOutputBufferSize;
+
+        // Write header
+        const uint8_t* headerBytes = reinterpret_cast<const uint8_t*>(&header);
+        binaryData.insert(binaryData.end(), headerBytes, headerBytes + sizeof(MaterialHeader));
+
+        // Write buffer JSONs
+        if (!inputBufferJson.empty()) {
+            binaryData.insert(binaryData.end(), inputBufferJson.begin(), inputBufferJson.end());
+        }
+        if (!outputBufferJson.empty()) {
+            binaryData.insert(binaryData.end(), outputBufferJson.begin(), outputBufferJson.end());
+        }
+        if (!inputOutputBufferJson.empty()) {
+            binaryData.insert(binaryData.end(), inputOutputBufferJson.begin(),
+                inputOutputBufferJson.end());
+        }
+
+        // Write samplers
+        for (const auto& sampler : material.samplers) {
+            BinarySamplerConfig binSampler{};
+            CopyToArray(binSampler.name, sampler.name);
+            binSampler.descriptorType = sampler.descriptorType;
+            binSampler.binding = sampler.binding;
+            CopyToArray(binSampler.texturePath, sampler.texturePath);
+            binSampler.colorSpace = sampler.colorSpace;
+            binSampler.magFilter = sampler.magFilter;
+            binSampler.minFilter = sampler.minFilter;
+            binSampler.addressModeU = sampler.addressModeU;
+            binSampler.addressModeV = sampler.addressModeV;
+            binSampler.addressModeW = sampler.addressModeW;
+            binSampler.anisotropy = sampler.anisotropy;
+            binSampler.minLod = sampler.minLod;
+            binSampler.maxLod = sampler.maxLod;
+
+            const uint8_t* samplerBytes = reinterpret_cast<const uint8_t*>(&binSampler);
+            binaryData.insert(binaryData.end(), samplerBytes,
+                samplerBytes + sizeof(BinarySamplerConfig));
+        }
 
         // Create asset
         AssetData asset;
         asset.header.assetType = AssetType::Material;
         asset.header.compression = compression;
-        asset.header.decompressedSize = static_cast<uint32_t>(data.parameterData.size());
+        asset.header.decompressedSize = static_cast<uint32_t>(binaryData.size());
 
-        // Set metadata
         asset.metadata["source"] = source;
-        asset.metadata["material"] = MaterialInfoToJson(data.info);
-        asset.metadata["dependencies"] = MaterialDependenciesToJson(deps);
+        asset.metadata["shader"] = material.shaderName;
+        asset.metadata["textures"] = material.GetTextureDependencies();
 
-        json paramsJson = json::array();
-        for (const auto& param : data.parameters) {
-            paramsJson.push_back(MaterialParameterToJson(param));
+        json textureColorSpaces = json::object();
+        for (const auto& sampler : material.samplers) {
+            textureColorSpaces[sampler.texturePath] = ColorSpaceToString(sampler.colorSpace);
         }
-        asset.metadata["parameters"] = paramsJson;
-        asset.metadata["compositeDefinitions"] = data.compositeDefinitions;
+        asset.metadata["textureColorSpaces"] = textureColorSpaces;
 
-        // Compress data
         asset.compressedData = Compress(
-            data.parameterData.data(),
-            data.parameterData.size(),
+            binaryData.data(),
+            binaryData.size(),
             compression,
             compressionLevel
         );
@@ -598,38 +333,233 @@ namespace AssetLib {
             throw std::runtime_error("Not a material asset");
         }
 
-        MaterialData data;
-
-        // Deserialize metadata
-        data.info = MaterialInfoFromJson(asset.metadata.at("material"));
-
-        for (const auto& paramJson : asset.metadata.at("parameters")) {
-            data.parameters.push_back(MaterialParameterFromJson(paramJson));
-        }
-
-        data.compositeDefinitions = asset.metadata.value("compositeDefinitions", "");
-
-        // Decompress data
-        data.parameterData = Decompress(
+        std::vector<uint8_t> binaryData = Decompress(
             asset.compressedData.data(),
             asset.compressedData.size(),
             asset.header.decompressedSize
         );
 
-        // Convert to high-level format
-        return DataToMaterial(data);
+        if (binaryData.size() < sizeof(MaterialHeader)) {
+            throw std::runtime_error("Invalid material data: too small");
+        }
+
+        const MaterialHeader* header = reinterpret_cast<const MaterialHeader*>(binaryData.data());
+        size_t offset = sizeof(MaterialHeader);
+
+        MaterialDefinition material;
+        material.shaderName = ExtractFromArray(header->shaderName);
+
+        // FIXED: Deserialize buffers from stored JSON (full format with definition)
+        if (header->inputBufferSize > 0) {
+            std::string bufferJson(
+                reinterpret_cast<const char*>(binaryData.data() + offset),
+                header->inputBufferSize
+            );
+            offset += header->inputBufferSize;
+
+            json j = json::parse(bufferJson);
+            material.inputBuffer = DeserializeBufferInstance(j);
+        }
+
+        if (header->outputBufferSize > 0) {
+            std::string bufferJson(
+                reinterpret_cast<const char*>(binaryData.data() + offset),
+                header->outputBufferSize
+            );
+            offset += header->outputBufferSize;
+
+            json j = json::parse(bufferJson);
+            material.outputBuffer = DeserializeBufferInstance(j);
+        }
+
+        if (header->inputOutputBufferSize > 0) {
+            std::string bufferJson(
+                reinterpret_cast<const char*>(binaryData.data() + offset),
+                header->inputOutputBufferSize
+            );
+            offset += header->inputOutputBufferSize;
+
+            json j = json::parse(bufferJson);
+            material.inputOutputBuffer = DeserializeBufferInstance(j);
+        }
+
+        // Deserialize samplers
+        for (uint32_t i = 0; i < header->samplerCount; ++i) {
+            if (offset + sizeof(BinarySamplerConfig) > binaryData.size()) {
+                throw std::runtime_error("Invalid material data: truncated");
+            }
+
+            const BinarySamplerConfig* binSampler =
+                reinterpret_cast<const BinarySamplerConfig*>(binaryData.data() + offset);
+            offset += sizeof(BinarySamplerConfig);
+
+            SamplerDescription sampler;
+            sampler.name = ExtractFromArray(binSampler->name);
+            sampler.descriptorType = binSampler->descriptorType;
+            sampler.binding = binSampler->binding;
+            sampler.texturePath = ExtractFromArray(binSampler->texturePath);
+            sampler.colorSpace = binSampler->colorSpace;
+            sampler.magFilter = binSampler->magFilter;
+            sampler.minFilter = binSampler->minFilter;
+            sampler.addressModeU = binSampler->addressModeU;
+            sampler.addressModeV = binSampler->addressModeV;
+            sampler.addressModeW = binSampler->addressModeW;
+            sampler.anisotropy = binSampler->anisotropy;
+            sampler.minLod = binSampler->minLod;
+            sampler.maxLod = binSampler->maxLod;
+
+            material.samplers.push_back(sampler);
+        }
+
+        if (!material.Validate()) {
+            throw std::runtime_error("Deserialized invalid material");
+        }
+
+        return material;
     }
 
-    MaterialDependencies ReadMaterialDependencies(const AssetData& asset) {
+    std::string GetMaterialShaderName(const AssetData& asset) {
+        if (asset.header.assetType != AssetType::Material) {
+            throw std::runtime_error("Not a material asset");
+        }
+        return asset.metadata.at("shader").get<std::string>();
+    }
+
+    std::vector<std::string> GetMaterialTextureDependencies(const AssetData& asset) {
+        if (asset.header.assetType != AssetType::Material) {
+            throw std::runtime_error("Not a material asset");
+        }
+        return asset.metadata.at("textures").get<std::vector<std::string>>();
+    }
+
+    std::unordered_map<std::string, ColorSpace> GetMaterialTextureColorSpaces(const AssetData& asset) {
         if (asset.header.assetType != AssetType::Material) {
             throw std::runtime_error("Not a material asset");
         }
 
-        if (!asset.metadata.contains("dependencies")) {
-            throw std::runtime_error("Material asset missing dependencies metadata");
+        std::unordered_map<std::string, ColorSpace> result;
+
+        if (asset.metadata.contains("textureColorSpaces")) {
+            const auto& colorSpacesJson = asset.metadata.at("textureColorSpaces");
+            for (const auto& [texturePath, colorSpaceStr] : colorSpacesJson.items()) {
+                result[texturePath] = StringToColorSpace(colorSpaceStr.get<std::string>());
+            }
         }
 
-        return MaterialDependenciesFromJson(asset.metadata.at("dependencies"));
+        return result;
+    }
+
+    // ============================================================================
+    // JSON SERIALIZATION 
+    // ============================================================================
+
+    SamplerDescription SamplerConfigFromJson(const json& j) {
+        SamplerDescription config;
+        config.name = j.at("name").get<std::string>();
+        config.descriptorType = ShaderLib::StringToDescriptorType(j.at("descriptorType").get<std::string>());
+        config.binding = j.at("binding").get<uint32_t>();
+        config.texturePath = j.at("texturePath").get<std::string>();
+        config.colorSpace = StringToColorSpace(j.at("colorSpace").get<std::string>());
+        config.magFilter = StringToFilter(j.at("magFilter").get<std::string>());
+        config.minFilter = StringToFilter(j.at("minFilter").get<std::string>());
+        config.addressModeU = StringToAddressMode(j.at("addressModeU").get<std::string>());
+        config.addressModeV = StringToAddressMode(j.at("addressModeV").get<std::string>());
+        config.addressModeW = StringToAddressMode(j.at("addressModeW").get<std::string>());
+        config.anisotropy = j.at("anisotropy").get<float>();
+        config.minLod = j.at("minLod").get<float>();
+        config.maxLod = j.at("maxLod").get<float>();
+        return config;
+    }
+
+    MaterialDefinition MaterialFromJson(const json& j) {
+        MaterialDefinition material;
+        material.shaderName = j.at("shader").get<std::string>();
+
+        // Reconstruct buffers with explicit types
+        if (j.contains("inputBuffer")) {
+            material.inputBuffer = ReconstructBufferFromJson(
+                j["inputBuffer"],
+                "InputData",
+                ShaderLib::BufferType::Uniform,
+                ShaderLib::LayoutStandard::Std140
+            );
+        }
+
+        if (j.contains("outputBuffer")) {
+            material.outputBuffer = ReconstructBufferFromJson(
+                j["outputBuffer"],
+                "OutputData",
+                ShaderLib::BufferType::Storage,
+                ShaderLib::LayoutStandard::Std430
+            );
+        }
+
+        if (j.contains("inputOutputBuffer")) {
+            material.inputOutputBuffer = ReconstructBufferFromJson(
+                j["inputOutputBuffer"],
+                "InputOutputData",
+                ShaderLib::BufferType::Storage,
+                ShaderLib::LayoutStandard::Std430
+            );
+        }
+
+        if (j.contains("samplers") && j["samplers"].is_array()) {
+            for (const auto& samplerJson : j["samplers"]) {
+                material.samplers.push_back(SamplerConfigFromJson(samplerJson));
+            }
+        }
+
+        material.NormalizeSamplerBindings();
+
+        if (!material.Validate()) {
+            throw std::runtime_error("Invalid material structure");
+        }
+
+        return material;
+    }
+
+    // ============================================================================
+    // STRING CONVERSIONS
+    // ============================================================================
+
+    std::string ColorSpaceToString(ColorSpace cs) {
+        switch (cs) {
+        case ColorSpace::Linear: return "Linear";
+        case ColorSpace::SRGB: return "sRGB";
+        case ColorSpace::HDR: return "HDR";
+        default: return "Linear";
+        }
+    }
+
+    ColorSpace StringToColorSpace(const std::string& str) {
+        if (str == "sRGB" || str == "SRGB") return ColorSpace::SRGB;
+        if (str == "HDR") return ColorSpace::HDR;
+        return ColorSpace::Linear;
+    }
+
+    std::string FilterToString(SamplerDescription::Filter filter) {
+        return filter == SamplerDescription::Filter::Linear ? "Linear" : "Nearest";
+    }
+
+    SamplerDescription::Filter StringToFilter(const std::string& str) {
+        return str == "Linear" ? SamplerDescription::Filter::Linear : SamplerDescription::Filter::Nearest;
+    }
+
+    std::string AddressModeToString(SamplerDescription::AddressMode mode) {
+        switch (mode) {
+        case SamplerDescription::AddressMode::Repeat: return "Repeat";
+        case SamplerDescription::AddressMode::MirroredRepeat: return "MirroredRepeat";
+        case SamplerDescription::AddressMode::ClampToEdge: return "ClampToEdge";
+        case SamplerDescription::AddressMode::ClampToBorder: return "ClampToBorder";
+        default: return "Repeat";
+        }
+    }
+
+    SamplerDescription::AddressMode StringToAddressMode(const std::string& str) {
+        if (str == "MirroredRepeat") return SamplerDescription::AddressMode::MirroredRepeat;
+        if (str == "ClampToEdge") return SamplerDescription::AddressMode::ClampToEdge;
+        if (str == "ClampToBorder") return SamplerDescription::AddressMode::ClampToBorder;
+        return SamplerDescription::AddressMode::Repeat;
     }
 
 } // namespace AssetLib

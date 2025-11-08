@@ -1,56 +1,12 @@
 #include "pch.h"
 #include "ShaderLib.h"
-#include "ShaderArrayDefinition.h"
 #include <algorithm>
 
 namespace ShaderLib {
 
     // ============================================================================
-    // BufferVariable Implementation
-    // ============================================================================
-
-    std::string BufferVariable::GetTypeName() const {
-        if (IsComposite()) {
-            return composite->GetTypeName();
-        }
-        return BaseTypeToString(baseType);
-    }
-
-    ShaderTypeCategory BufferVariable::GetCategory() const {
-        if (IsComposite()) {
-            return ShaderTypeCategory::Composite;
-        }
-        return (baseType != BaseType::Unknown)
-            ? ShaderTypeCategory::Base
-            : ShaderTypeCategory::Unknown;
-    }
-
-    std::string BufferVariable::GenerateGLSLDeclaration() const {
-        std::stringstream ss;
-
-        if (IsComposite() && composite->IsArray()) {
-            // Array: "elementType name[count]"
-            auto arrayDef = std::static_pointer_cast<const ShaderArrayDefinition>(composite);
-
-            if (arrayDef->IsCompositeElement()) {
-                ss << arrayDef->GetElementComposite()->GetTypeName();
-            }
-            else {
-                ss << BaseTypeToString(arrayDef->GetElementBaseType());
-            }
-            ss << " " << name << "[" << arrayDef->GetArrayCount() << "]";
-        }
-        else {
-            // Base type or struct: "typeName name"
-            ss << GetTypeName() << " " << name;
-        }
-
-        return ss.str();
-    }
-
-    // ============================================================================
-    // DescriptorSet Implementation
-    // ============================================================================
+// DescriptorSet Implementation
+// ============================================================================
 
     const DescriptorSlot* DescriptorSet::FindSlot(uint32_t binding) const {
         auto it = std::find_if(slots.begin(), slots.end(),
@@ -76,17 +32,17 @@ namespace ShaderLib {
         return it != slots.end() ? &(*it) : nullptr;
     }
 
-    const BufferObject* DescriptorSet::GetBuffer(const std::string& name) const {
+    std::shared_ptr<const BufferObjectDefinition> DescriptorSet::GetBuffer(const std::string& name) const {
         auto it = buffers.find(name);
-        return it != buffers.end() ? &it->second : nullptr;
+        return it != buffers.end() ? it->second : nullptr;
     }
 
-    BufferObject* DescriptorSet::GetBuffer(const std::string& name) {
+    std::shared_ptr<BufferObjectDefinition> DescriptorSet::GetBuffer(const std::string& name) {
         auto it = buffers.find(name);
-        return it != buffers.end() ? &it->second : nullptr;
+        return it != buffers.end() ? it->second : nullptr;
     }
 
-    const BufferObject* DescriptorSet::GetBufferByBinding(uint32_t binding) const {
+    std::shared_ptr<const BufferObjectDefinition> DescriptorSet::GetBufferByBinding(uint32_t binding) const {
         if (const auto* slot = FindSlot(binding)) {
             if (slot->IsBuffer()) {
                 return GetBuffer(slot->name);
@@ -95,7 +51,7 @@ namespace ShaderLib {
         return nullptr;
     }
 
-    BufferObject* DescriptorSet::GetBufferByBinding(uint32_t binding) {
+    std::shared_ptr<BufferObjectDefinition> DescriptorSet::GetBufferByBinding(uint32_t binding) {
         if (auto* slot = FindSlot(binding)) {
             if (slot->IsBuffer()) {
                 return GetBuffer(slot->name);
@@ -123,11 +79,11 @@ namespace ShaderLib {
         return true;
     }
 
-    std::vector<const BufferObject*> DescriptorSet::GetAllBuffers() const {
-        std::vector<const BufferObject*> result;
+    std::vector<std::shared_ptr<const BufferObjectDefinition>> DescriptorSet::GetAllBuffers() const {
+        std::vector<std::shared_ptr<const BufferObjectDefinition>> result;
         for (const auto& slot : slots) {
             if (slot.IsBuffer()) {
-                if (auto* buf = GetBuffer(slot.name)) {
+                if (auto buf = GetBuffer(slot.name)) {
                     result.push_back(buf);
                 }
             }
@@ -158,33 +114,34 @@ namespace ShaderLib {
     std::string DescriptorSet::GenerateGLSL() const {
         std::stringstream ss;
 
-        // Collect all unique composite type definitions from all buffers
-        std::set<std::string> definitions;
+        // FAZA 1: Zbierz wszystkie unikalne definicje zagnieżdżonych struktur
+        std::set<std::string> generatedStructs;
+        std::set<std::string> processedStructNames;
+
         for (const auto& [name, buffer] : buffers) {
-            for (const auto& var : buffer.variables) {
-                if (var.IsComposite()) {
-                    std::string glsl = var.composite->GenerateGLSL();
-                    if (!glsl.empty()) {
-                        definitions.insert(glsl);
-                    }
-                }
+            if (!buffer) {
+                continue;
             }
+
+            // Zbierz zagnieżdżone struktury z tego bufora
+            buffer->CollectNestedStructDefinitions(generatedStructs, processedStructNames);
         }
 
-        // Output struct definitions first
-        for (const auto& def : definitions) {
-            ss << def << "\n";
+        // FAZA 2: Wygeneruj wszystkie zebrane definicje struktur
+        // (std::set gwarantuje unikalność i deterministyczną kolejność)
+        for (const auto& structDef : generatedStructs) {
+            ss << structDef << "\n\n";
         }
 
-        if (!definitions.empty() && !slots.empty()) {
-            ss << "\n";
-        }
-
-        // Generate declarations for each slot in binding order
+        // FAZA 3: Wygeneruj deklaracje buforów i samplerów w kolejności bindingów
         std::vector<const DescriptorSlot*> sortedSlots;
+        sortedSlots.reserve(slots.size());
+
         for (const auto& slot : slots) {
             sortedSlots.push_back(&slot);
         }
+
+        // Sortuj sloty po binding number dla deterministycznej kolejności
         std::sort(sortedSlots.begin(), sortedSlots.end(),
             [](const DescriptorSlot* a, const DescriptorSlot* b) {
                 return a->binding < b->binding;
@@ -192,14 +149,14 @@ namespace ShaderLib {
 
         for (const auto* slot : sortedSlots) {
             if (slot->IsBuffer()) {
-                // Generate buffer declaration
-                auto* buffer = GetBuffer(slot->name);
+                // Wygeneruj deklarację bufora (bez duplikowania struktury)
+                auto buffer = GetBuffer(slot->name);
                 if (buffer) {
-                    ss << GenerateBufferGLSL(*buffer, setNumber, slot->binding) << "\n";
+                    ss << buffer->GenerateBufferGLSL(setNumber, slot->binding) << "\n";
                 }
             }
             else {
-                // Generate sampler/image declaration
+                // Wygeneruj deklarację samplera/image
                 ss << GenerateSamplerGLSL(*slot, setNumber) << "\n";
             }
         }
@@ -207,46 +164,6 @@ namespace ShaderLib {
         return ss.str();
     }
 
-    // Helper function for buffer generation 
-    std::string DescriptorSet::GenerateBufferGLSL(const BufferObject& buffer,
-        uint32_t set,
-        uint32_t binding) const {
-        std::stringstream ss;
-
-        const char* layoutKeyword = (buffer.layoutStandard == LayoutStandard::Std140)
-            ? "std140" : "std430";
-        const char* bufferKeyword = (buffer.bufferType == BufferType::Uniform)
-            ? "uniform" : "buffer";
-
-        std::string accessQualifier = buffer.GetAccessQualifier();
-        if (!accessQualifier.empty()) {
-            accessQualifier += " ";
-        }
-
-        ss << "layout(" << layoutKeyword << ", set = " << set
-            << ", binding = " << binding << ") "
-            << accessQualifier << bufferKeyword << " " << buffer.name << " {\n";
-
-        for (const auto& var : buffer.variables) {
-            ss << "    " << var.GenerateGLSLDeclaration() << ";\n";
-        }
-
-        ss << "}";
-
-        if (buffer.useInstanceName) {
-            std::string instanceName = buffer.name;
-            if (!instanceName.empty()) {
-                instanceName[0] = std::tolower(instanceName[0]);
-            }
-            ss << " " << instanceName;
-        }
-
-        ss << ";";
-
-        return ss.str();
-    }
-
-    // Helper function for sampler/image generation
     std::string DescriptorSet::GenerateSamplerGLSL(const DescriptorSlot& slot, uint32_t set) const {
         std::stringstream ss;
 
@@ -262,23 +179,6 @@ namespace ShaderLib {
         ss << "uniform " << typeInfo.glslName << " " << slot.name << ";";
 
         return ss.str();
-    }
-
-    // ============================================================================
-    // BufferObject Implementation
-    // ============================================================================
-
-    std::string BufferObject::GetAccessQualifier() const {
-        if (bufferType == BufferType::Uniform) {
-            return "";
-        }
-
-        switch (accessMode) {
-        case BufferAccessMode::ReadOnly: return "readonly";
-        case BufferAccessMode::WriteOnly: return "writeonly";
-        case BufferAccessMode::ReadWrite: return "";
-        default: return "";
-        }
     }
 
     // ============================================================================
@@ -310,30 +210,33 @@ namespace ShaderLib {
         return nullptr;
     }
 
-    const BufferObject* ShaderMetadata::FindBuffer(const std::string& name) const {
+    std::shared_ptr<const BufferObjectDefinition> ShaderMetadata::FindBuffer(const std::string& name) const {
         for (const auto& set : descriptorSets) {
-            if (auto* buffer = set.GetBuffer(name)) {
+            if (auto buffer = set.GetBuffer(name)) {
                 return buffer;
             }
         }
         return nullptr;
     }
 
-    BufferObject* ShaderMetadata::FindBuffer(const std::string& name) {
+    std::shared_ptr<BufferObjectDefinition> ShaderMetadata::FindBuffer(const std::string& name) {
         for (auto& set : descriptorSets) {
-            if (auto* buffer = set.GetBuffer(name)) {
+            if (auto buffer = set.GetBuffer(name)) {
                 return buffer;
             }
         }
         return nullptr;
     }
 
-    std::vector<const BufferObject*> ShaderMetadata::GetAllBuffers() const {
-        std::vector<const BufferObject*> result;
+    std::vector<std::shared_ptr<const BufferObjectDefinition>> ShaderMetadata::GetAllBuffers() const {
+        std::vector<std::shared_ptr<const BufferObjectDefinition>> result;
+
+        // Add buffers from all descriptor sets
         for (const auto& set : descriptorSets) {
             auto buffers = set.GetAllBuffers();
             result.insert(result.end(), buffers.begin(), buffers.end());
         }
+
         return result;
     }
 
@@ -355,24 +258,104 @@ namespace ShaderLib {
         return true;
     }
 
-    std::vector<BufferObject> ShaderMetadata::GetCustomUniformBuffers() const {
-        std::vector<BufferObject> result;
-        for (const auto& buf : customBuffers) {
-            if (buf.IsUniformBuffer()) {
-                result.push_back(buf);
-            }
+    std::shared_ptr<const BufferObjectDefinition> ShaderMetadata::GetGlobalUBO() const {
+        if (!usesGlobalUBO) {
+            return nullptr;
         }
-        return result;
+        const auto* globalSet = GetGlobalSet();
+        if (!globalSet) {
+            return nullptr;
+        }
+        return globalSet->GetBufferByBinding(GLOBAL_UBO_BINDING);
     }
 
-    std::vector<BufferObject> ShaderMetadata::GetCustomStorageBuffers() const {
-        std::vector<BufferObject> result;
-        for (const auto& buf : customBuffers) {
-            if (buf.IsStorageBuffer()) {
-                result.push_back(buf);
-            }
+    std::shared_ptr<BufferObjectDefinition> ShaderMetadata::GetGlobalUBO() {
+        if (!usesGlobalUBO) {
+            return nullptr;
         }
-        return result;
+        auto* globalSet = GetSet(GLOBAL_DESCRIPTOR_SET);
+        if (!globalSet) {
+            return nullptr;
+        }
+        return globalSet->GetBufferByBinding(GLOBAL_UBO_BINDING);
+    }
+
+    std::shared_ptr<const BufferObjectDefinition> ShaderMetadata::GetObjectUBO() const {
+        if (!usesObjectUBO) {
+            return nullptr;
+        }
+        const auto* objectSet = GetObjectSet();
+        if (!objectSet) {
+            return nullptr;
+        }
+        return objectSet->GetBufferByBinding(OBJECT_UBO_BINDING);
+    }
+
+    std::shared_ptr<BufferObjectDefinition> ShaderMetadata::GetObjectUBO() {
+        if (!usesObjectUBO) {
+            return nullptr;
+        }
+        auto* objectSet = GetSet(OBJECT_DESCRIPTOR_SET);
+        if (!objectSet) {
+            return nullptr;
+        }
+        return objectSet->GetBufferByBinding(OBJECT_UBO_BINDING);
+    }
+
+    std::shared_ptr<const BufferObjectDefinition> ShaderMetadata::GetInputDataBuffer() const {
+        const auto* customSet = GetCustomSet();
+        if (!customSet) {
+            return nullptr;
+        }
+        return customSet->GetBufferByBinding(INPUT_DATA_BINDING);
+    }
+
+    std::shared_ptr<BufferObjectDefinition> ShaderMetadata::GetInputDataBuffer() {
+        auto* customSet = GetSet(CUSTOM_DESCRIPTOR_SET);
+        if (!customSet) {
+            return nullptr;
+        }
+        return customSet->GetBufferByBinding(INPUT_DATA_BINDING);
+    }
+
+    std::shared_ptr<const BufferObjectDefinition> ShaderMetadata::GetOutputDataBuffer() const {
+        const auto* customSet = GetCustomSet();
+        if (!customSet) {
+            return nullptr;
+        }
+        return customSet->GetBufferByBinding(OUTPUT_DATA_BINDING);
+    }
+
+    std::shared_ptr<BufferObjectDefinition> ShaderMetadata::GetOutputDataBuffer() {
+        auto* customSet = GetSet(CUSTOM_DESCRIPTOR_SET);
+        if (!customSet) {
+            return nullptr;
+        }
+        return customSet->GetBufferByBinding(OUTPUT_DATA_BINDING);
+    }
+
+    std::shared_ptr<const BufferObjectDefinition> ShaderMetadata::GetInputOutputDataBuffer() const {
+        const auto* customSet = GetCustomSet();
+        if (!customSet) {
+            return nullptr;
+        }
+        return customSet->GetBufferByBinding(INPUT_OUTPUT_DATA_BINDING);
+    }
+
+    std::shared_ptr<BufferObjectDefinition> ShaderMetadata::GetInputOutputDataBuffer() {
+        auto* customSet = GetSet(CUSTOM_DESCRIPTOR_SET);
+        if (!customSet) {
+            return nullptr;
+        }
+        return customSet->GetBufferByBinding(INPUT_OUTPUT_DATA_BINDING);
+    }
+
+    std::vector<const DescriptorSlot*> ShaderMetadata::GetCustomSamplers() const {
+        const auto* customSet = GetCustomSet();
+        if (!customSet) {
+            return {};
+        }
+        return customSet->GetAllSamplers();
     }
 
 } // namespace ShaderLib

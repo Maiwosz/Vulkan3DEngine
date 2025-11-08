@@ -11,14 +11,6 @@ using json = nlohmann::json;
 
 namespace ShaderLib {
 
-    // Forward declarations
-    class CompositeTypeDefinition;
-    class CompositeTypeInstance;
-    class ShaderStructDefinition;
-    class ShaderStructInstance;
-    class ShaderArrayDefinition;
-    class ShaderArrayInstance;
-
     // ============================================================================
     // BASE TYPE SYSTEM
     // ============================================================================
@@ -45,20 +37,7 @@ namespace ShaderLib {
         // Atomic types
         AtomicUInt,
 
-        // Composite types (size/alignment known at runtime)
-        Struct, Array,
-
         Unknown, COUNT
-    };
-
-    // ============================================================================
-    // SHADER TYPE CATEGORY
-    // ============================================================================
-
-    enum class ShaderTypeCategory {
-        Base,           // Simple types (BaseType: scalars, vectors, matrices)
-        Composite,      // Complex types (Struct/Array)
-        Unknown
     };
 
     // ============================================================================
@@ -69,6 +48,16 @@ namespace ShaderLib {
         Std140,     // For uniform buffers (UBO)
         Std430,     // For storage buffers (SSBO)
         Packed      // Tight packing (no padding)
+    };
+
+    // ============================================================================
+    // BUFFER ACCESS MODE
+    // ============================================================================
+
+    enum class BufferAccessMode : uint8_t {
+        ReadOnly,   // uniform buffers, readonly storage buffers
+        WriteOnly,  // writeonly storage buffers
+        ReadWrite   // read/write storage buffers
     };
 
     // ============================================================================
@@ -119,10 +108,6 @@ namespace ShaderLib {
             case LayoutStandard::Packed: return 1;
             default: return alignmentStd140;
             }
-        }
-
-        constexpr bool IsComposite() const {
-            return type == BaseType::Struct || type == BaseType::Array;
         }
 
         constexpr bool IsValid() const {
@@ -182,9 +167,6 @@ namespace ShaderLib {
 
         {BaseType::AtomicUInt, sizeof(uint32_t),  4,   4,   S | I | U | A,     1,  "atomic_uint"},
 
-        {BaseType::Struct,    0,  0,  0,  TF::None,  0,  "struct"},
-        {BaseType::Array,     0,  0,  0,  TF::None,  0,  "array"},
-
         {BaseType::Unknown,  0,                   0,   0,   TF::None,          0,  "unknown"},
     };
 
@@ -202,7 +184,7 @@ namespace ShaderLib {
     // C++ TYPE VARIANT - For buffer values
     // ============================================================================
 
-    using BufferValue = std::variant<
+    using BaseTypeValue = std::variant<
         bool,
         float,
         glm::vec2, glm::vec3, glm::vec4,
@@ -212,72 +194,8 @@ namespace ShaderLib {
         glm::uvec2, glm::uvec3, glm::uvec4,
         double,
         glm::dvec2, glm::dvec3, glm::dvec4,
-        glm::mat2, glm::mat3, glm::mat4,
-        std::shared_ptr<ShaderStructInstance>,
-        std::shared_ptr<ShaderArrayInstance>
+        glm::mat2, glm::mat3, glm::mat4
     >;
-
-    // ============================================================================
-    // COMPOSITE TYPE DEFINITION - Immutable type metadata
-    // ============================================================================
-
-    class CompositeTypeDefinition {
-    public:
-        virtual ~CompositeTypeDefinition() = default;
-
-        // Type information (immutable)
-        virtual std::string GetTypeName() const = 0;
-        virtual uint32_t GetSize() const = 0;
-        virtual uint32_t GetAlignment() const = 0;
-        virtual LayoutStandard GetLayoutStandard() const = 0;
-
-        // UNIFIED: Serialization
-        virtual json ToJson() const = 0;
-
-        // GLSL generation
-        virtual std::string GenerateGLSL() const = 0;
-
-        // Type checking
-        virtual bool IsStruct() const = 0;
-        virtual bool IsArray() const = 0;
-
-        // Factory method - creates new instance with this definition
-        virtual std::shared_ptr<CompositeTypeInstance> CreateInstance() const = 0;
-
-        // STATIC FACTORY - deserializes ANY composite type from JSON
-        static std::shared_ptr<const CompositeTypeDefinition> FromJson(const json& j);
-    };
-
-    // ============================================================================
-    // COMPOSITE TYPE INSTANCE - Mutable instance data
-    // ============================================================================
-
-    class CompositeTypeInstance {
-    public:
-        virtual ~CompositeTypeInstance() = default;
-
-        // Access to definition
-        virtual std::shared_ptr<const CompositeTypeDefinition> GetDefinition() const = 0;
-
-        // Data management
-        virtual const std::vector<uint8_t>& GetRawBuffer() const = 0;
-        virtual bool WriteToBuffer(void* dst) const = 0;
-        virtual bool ReadFromBuffer(const void* src) = 0;
-
-        // Instance cloning
-        virtual std::shared_ptr<CompositeTypeInstance> Clone() const = 0;
-
-        // UNIFIED: Serialization (with data)
-        virtual json ToJson() const = 0;
-        virtual bool FromJson(const json& j) = 0;
-
-        // Type checking
-        virtual bool IsStruct() const = 0;
-        virtual bool IsArray() const = 0;
-
-        // STATIC FACTORY - deserializes ANY composite instance from JSON
-        static std::shared_ptr<CompositeTypeInstance> CreateInstanceFromJson(const json& j);
-    };
 
     // ============================================================================
     // TYPE TRAITS
@@ -360,18 +278,11 @@ namespace ShaderLib {
         return BaseTypeTraits<T>::supported;
     }
 
-    inline ShaderTypeCategory GetTypeCategory(BaseType type) {
-        return GetBaseTypeInfo(type).IsComposite()
-            ? ShaderTypeCategory::Composite
-            : (type != BaseType::Unknown ? ShaderTypeCategory::Base : ShaderTypeCategory::Unknown);
-    }
-
     // ============================================================================
     // VARIANT HELPERS
     // ============================================================================
 
     BaseType VariantIndexToBaseType(size_t index);
-    ShaderTypeCategory VariantIndexToCategory(size_t index);
-    BaseType GetBaseTypeFromVariant(const BufferValue& value);
+    BaseType GetBaseTypeFromVariant(const BaseTypeValue& value);
 
 } // namespace ShaderLib

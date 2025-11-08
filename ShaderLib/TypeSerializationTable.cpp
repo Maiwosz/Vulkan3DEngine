@@ -11,14 +11,14 @@ namespace ShaderLib {
     namespace Internal {
         // Generic functions
         template<typename T>
-        BufferValue ReadFromBuffer_Generic(const void* src) {
+        BaseTypeValue ReadFromBuffer_Generic(const void* src) {
             T value;
             std::memcpy(&value, src, sizeof(T));
-            return BufferValue(value);
+            return BaseTypeValue(value);
         }
 
         template<typename T>
-        bool WriteToFixedBuffer_Generic(void* dst, const BufferValue& value) {
+        bool WriteToFixedBuffer_Generic(void* dst, const BaseTypeValue& value) {
             try {
                 const T& val = std::get<T>(value);
                 std::memcpy(dst, &val, sizeof(T));
@@ -30,7 +30,7 @@ namespace ShaderLib {
         }
 
         template<typename T>
-        bool WriteToBuffer_Generic(std::vector<uint8_t>& dst, const BufferValue& value) {
+        bool WriteToBuffer_Generic(std::vector<uint8_t>& dst, const BaseTypeValue& value) {
             try {
                 const T& val = std::get<T>(value);
                 const uint8_t* bytes = reinterpret_cast<const uint8_t*>(&val);
@@ -43,12 +43,12 @@ namespace ShaderLib {
         }
 
         template<typename T>
-        json ToJson_Scalar(const BufferValue& value) {
+        json ToJson_Scalar(const BaseTypeValue& value) {
             return std::get<T>(value);
         }
 
         template<typename T>
-        BufferValue FromJson_Scalar(const json& j) {
+        BaseTypeValue FromJson_Scalar(const json& j) {
             return j.get<T>();
         }
 
@@ -61,13 +61,13 @@ namespace ShaderLib {
         }
 
         // Bool specializations (stored as uint32_t in shaders)
-        BufferValue ReadFromBuffer_Bool(const void* src) {
+        BaseTypeValue ReadFromBuffer_Bool(const void* src) {
             uint32_t shaderBool;
             std::memcpy(&shaderBool, src, sizeof(uint32_t));
-            return BufferValue(shaderBool != 0);
+            return BaseTypeValue(shaderBool != 0);
         }
 
-        bool WriteToFixedBuffer_Bool(void* dst, const BufferValue& value) {
+        bool WriteToFixedBuffer_Bool(void* dst, const BaseTypeValue& value) {
             try {
                 bool boolVal = std::get<bool>(value);
                 uint32_t shaderBool = boolVal ? 1u : 0u;
@@ -79,7 +79,7 @@ namespace ShaderLib {
             }
         }
 
-        bool WriteToBuffer_Bool(std::vector<uint8_t>& dst, const BufferValue& value) {
+        bool WriteToBuffer_Bool(std::vector<uint8_t>& dst, const BaseTypeValue& value) {
             try {
                 bool boolVal = std::get<bool>(value);
                 uint32_t shaderBool = boolVal ? 1u : 0u;
@@ -102,7 +102,7 @@ namespace ShaderLib {
 
         // GLM vector helpers
         template<typename VecType>
-        json ToJson_GlmVec(const BufferValue& value) {
+        json ToJson_GlmVec(const BaseTypeValue& value) {
             const VecType& v = std::get<VecType>(value);
             json arr = json::array();
             for (int i = 0; i < v.length(); ++i) {
@@ -112,7 +112,7 @@ namespace ShaderLib {
         }
 
         template<typename VecType, typename ComponentType>
-        BufferValue FromJson_GlmVec(const json& j) {
+        BaseTypeValue FromJson_GlmVec(const json& j) {
             auto arr = j.get<std::vector<ComponentType>>();
             if (arr.size() != VecType::length()) {
                 throw std::runtime_error("Invalid vector size");
@@ -146,7 +146,7 @@ namespace ShaderLib {
 
         // GLM matrix helpers (column-major)
         template<typename MatType>
-        json ToJson_GlmMat(const BufferValue& value) {
+        json ToJson_GlmMat(const BaseTypeValue& value) {
             const MatType& m = std::get<MatType>(value);
             json arr = json::array();
             for (int col = 0; col < m.length(); ++col) {
@@ -158,7 +158,7 @@ namespace ShaderLib {
         }
 
         template<typename MatType>
-        BufferValue FromJson_GlmMat(const json& j) {
+        BaseTypeValue FromJson_GlmMat(const json& j) {
             constexpr int size = MatType::length() * MatType::length();
             auto arr = j.get<std::vector<float>>();
             if (arr.size() != size) {
@@ -200,10 +200,10 @@ namespace ShaderLib {
 
         // Concrete instantiations for each type
 #define DEFINE_VEC_FUNCS(VecType, ComponentType) \
-            BufferValue FromJson_##VecType(const json& j) { \
+            BaseTypeValue FromJson_##VecType(const json& j) { \
                 return FromJson_GlmVec<glm::VecType, ComponentType>(j); \
             } \
-            json ToJson_##VecType(const BufferValue& v) { \
+            json ToJson_##VecType(const BaseTypeValue& v) { \
                 return ToJson_GlmVec<glm::VecType>(v); \
             } \
             bool WriteFromJson_##VecType(std::vector<uint8_t>& dst, const json& j) { \
@@ -226,10 +226,10 @@ namespace ShaderLib {
 #undef DEFINE_VEC_FUNCS
 
 #define DEFINE_MAT_FUNCS(MatType) \
-            BufferValue FromJson_##MatType(const json& j) { \
+            BaseTypeValue FromJson_##MatType(const json& j) { \
                 return FromJson_GlmMat<glm::MatType>(j); \
             } \
-            json ToJson_##MatType(const BufferValue& v) { \
+            json ToJson_##MatType(const BaseTypeValue& v) { \
                 return ToJson_GlmMat<glm::MatType>(v); \
             } \
             bool WriteFromJson_##MatType(std::vector<uint8_t>& dst, const json& j) { \
@@ -379,18 +379,6 @@ namespace ShaderLib {
             &Internal::ToJson_Scalar<uint32_t>,
             &Internal::FromJson_Scalar<uint32_t>,
             &Internal::WriteFromJson_Scalar<uint32_t>
-        },
-
-        // Struct (not serializable through this table)
-        {
-            BaseType::Struct,
-            nullptr, nullptr, nullptr, nullptr, nullptr, nullptr
-        },
-
-        // Array (not serializable through this table)
-        {
-            BaseType::Array,
-            nullptr, nullptr, nullptr, nullptr, nullptr, nullptr
         },
 
         // Unknown

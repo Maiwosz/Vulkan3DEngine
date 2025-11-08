@@ -1,473 +1,632 @@
 #include "pch.h"
-//#include "BufferObjectInstance.h"
-//#include "ShaderStructInstance.h"
-//#include "ShaderArrayInstance.h"
-//#include "ValueSerialization.h"
-//#include <cstring>
-//#include <algorithm>
-//
-//namespace ShaderLib {
-//
-//    // ============================================================================
-//    // CONSTRUCTORS & ASSIGNMENT
-//    // ============================================================================
-//
-//    BufferObjectInstance::BufferObjectInstance(
-//        std::shared_ptr<const BufferObjectDefinition> def)
-//        : definition(def)
-//        , buffer(def->GetSize(), 0)
-//        , bufferDirty(false) {
-//
-//        if (!definition) {
-//            throw std::invalid_argument("Definition cannot be null");
-//        }
-//
-//        InitializeDefaults();
-//    }
-//
-//    BufferObjectInstance::BufferObjectInstance(const BufferObjectInstance& other)
-//        : definition(other.definition)
-//        , values(other.values)
-//        , buffer(other.buffer)
-//        , bufferDirty(other.bufferDirty) {
-//    }
-//
-//    BufferObjectInstance::BufferObjectInstance(BufferObjectInstance&& other) noexcept
-//        : definition(std::move(other.definition))
-//        , values(std::move(other.values))
-//        , buffer(std::move(other.buffer))
-//        , bufferDirty(other.bufferDirty) {
-//        other.bufferDirty = false;
-//    }
-//
-//    BufferObjectInstance& BufferObjectInstance::operator=(const BufferObjectInstance& other) {
-//        if (this != &other) {
-//            definition = other.definition;
-//            values = other.values;
-//            buffer = other.buffer;
-//            bufferDirty = other.bufferDirty;
-//        }
-//        return *this;
-//    }
-//
-//    BufferObjectInstance& BufferObjectInstance::operator=(BufferObjectInstance&& other) noexcept {
-//        if (this != &other) {
-//            definition = std::move(other.definition);
-//            values = std::move(other.values);
-//            buffer = std::move(other.buffer);
-//            bufferDirty = other.bufferDirty;
-//            other.bufferDirty = false;
-//        }
-//        return *this;
-//    }
-//
-//    // ============================================================================
-//    // ELEMENT ACCESS
-//    // ============================================================================
-//
-//    BufferValue& BufferObjectInstance::at(const std::string& fieldName) {
-//        auto it = values.find(fieldName);
-//        if (it == values.end()) {
-//            throw std::out_of_range("Field '" + fieldName + "' not found");
-//        }
-//        bufferDirty = true;
-//        return it->second;
-//    }
-//
-//    const BufferValue& BufferObjectInstance::at(const std::string& fieldName) const {
-//        auto it = values.find(fieldName);
-//        if (it == values.end()) {
-//            throw std::out_of_range("Field '" + fieldName + "' not found");
-//        }
-//        return it->second;
-//    }
-//
-//    BufferValue& BufferObjectInstance::operator[](const std::string& fieldName) {
-//        bufferDirty = true;
-//        return values[fieldName];
-//    }
-//
-//    std::shared_ptr<CompositeTypeInstance> BufferObjectInstance::GetComposite(
-//        const std::string& fieldName) {
-//
-//        const BufferValue& value = at(fieldName);
-//
-//        if (auto structPtr = std::get_if<std::shared_ptr<ShaderStructInstance>>(&value)) {
-//            return std::static_pointer_cast<CompositeTypeInstance>(*structPtr);
-//        }
-//
-//        if (auto arrayPtr = std::get_if<std::shared_ptr<ShaderArrayInstance>>(&value)) {
-//            return std::static_pointer_cast<CompositeTypeInstance>(*arrayPtr);
-//        }
-//
-//        return nullptr;
-//    }
-//
-//    std::shared_ptr<const CompositeTypeInstance> BufferObjectInstance::GetComposite(
-//        const std::string& fieldName) const {
-//
-//        const BufferValue& value = at(fieldName);
-//
-//        if (auto structPtr = std::get_if<std::shared_ptr<ShaderStructInstance>>(&value)) {
-//            return std::static_pointer_cast<const CompositeTypeInstance>(*structPtr);
-//        }
-//
-//        if (auto arrayPtr = std::get_if<std::shared_ptr<ShaderArrayInstance>>(&value)) {
-//            return std::static_pointer_cast<const CompositeTypeInstance>(*arrayPtr);
-//        }
-//
-//        return nullptr;
-//    }
-//
-//    std::shared_ptr<ShaderStructInstance> BufferObjectInstance::GetStruct(
-//        const std::string& fieldName) {
-//
-//        const BufferValue& value = at(fieldName);
-//
-//        if (auto structPtr = std::get_if<std::shared_ptr<ShaderStructInstance>>(&value)) {
-//            return *structPtr;
-//        }
-//
-//        return nullptr;
-//    }
-//
-//    std::shared_ptr<const ShaderStructInstance> BufferObjectInstance::GetStruct(
-//        const std::string& fieldName) const {
-//
-//        const BufferValue& value = at(fieldName);
-//
-//        if (auto structPtr = std::get_if<std::shared_ptr<ShaderStructInstance>>(&value)) {
-//            return *structPtr;
-//        }
-//
-//        return nullptr;
-//    }
-//
-//    std::shared_ptr<ShaderArrayInstance> BufferObjectInstance::GetArray(
-//        const std::string& fieldName) {
-//
-//        const BufferValue& value = at(fieldName);
-//
-//        if (auto arrayPtr = std::get_if<std::shared_ptr<ShaderArrayInstance>>(&value)) {
-//            return *arrayPtr;
-//        }
-//
-//        return nullptr;
-//    }
-//
-//    std::shared_ptr<const ShaderArrayInstance> BufferObjectInstance::GetArray(
-//        const std::string& fieldName) const {
-//
-//        const BufferValue& value = at(fieldName);
-//
-//        if (auto arrayPtr = std::get_if<std::shared_ptr<ShaderArrayInstance>>(&value)) {
-//            return *arrayPtr;
-//        }
-//
-//        return nullptr;
-//    }
-//
-//    // ============================================================================
-//    // SETTERS
-//    // ============================================================================
-//
-//    void BufferObjectInstance::Set(const std::string& fieldName, const BufferValue& value) {
-//        const BufferFieldDefinition* field = definition->FindField(fieldName);
-//        if (!field) {
-//            throw std::out_of_range("Field '" + fieldName + "' not found");
-//        }
-//
-//        // Type validation
-//        if (field->IsComposite()) {
-//            // Check if value is composite
-//            bool isComposite = std::holds_alternative<std::shared_ptr<ShaderStructInstance>>(value) ||
-//                std::holds_alternative<std::shared_ptr<ShaderArrayInstance>>(value);
-//
-//            if (!isComposite) {
-//                throw std::invalid_argument("Field '" + fieldName + "' requires composite type");
-//            }
-//
-//            // Validate type matches
-//            std::shared_ptr<const CompositeTypeDefinition> valueDef = nullptr;
-//
-//            if (auto structPtr = std::get_if<std::shared_ptr<ShaderStructInstance>>(&value)) {
-//                valueDef = (*structPtr)->GetDefinition();
-//            }
-//            else if (auto arrayPtr = std::get_if<std::shared_ptr<ShaderArrayInstance>>(&value)) {
-//                valueDef = (*arrayPtr)->GetDefinition();
-//            }
-//
-//            if (valueDef && valueDef->GetTypeName() != field->composite->GetTypeName()) {
-//                throw std::invalid_argument("Type mismatch for field '" + fieldName + "'");
-//            }
-//        }
-//        else {
-//            // Base type validation
-//            BaseType valueType = GetBaseTypeFromVariant(value);
-//            if (field->baseType != valueType) {
-//                throw std::invalid_argument("Type mismatch for field '" + fieldName + "'");
-//            }
-//        }
-//
-//        values[fieldName] = value;
-//        WriteFieldToBuffer(fieldName, value);
-//        bufferDirty = false;
-//    }
-//
-//    void BufferObjectInstance::SetComposite(const std::string& fieldName,
-//        std::shared_ptr<CompositeTypeInstance> value) {
-//
-//        const BufferFieldDefinition* field = definition->FindField(fieldName);
-//        if (!field) {
-//            throw std::out_of_range("Field '" + fieldName + "' not found");
-//        }
-//
-//        if (!field->IsComposite()) {
-//            throw std::invalid_argument("Field '" + fieldName + "' is not composite");
-//        }
-//
-//        if (!value) {
-//            throw std::invalid_argument("Composite value cannot be null");
-//        }
-//
-//        if (value->GetDefinition()->GetTypeName() != field->composite->GetTypeName()) {
-//            throw std::invalid_argument("Type mismatch for field '" + fieldName + "'");
-//        }
-//
-//        // Convert to appropriate BufferValue type
-//        if (value->IsStruct()) {
-//            values[fieldName] = std::static_pointer_cast<ShaderStructInstance>(value);
-//        }
-//        else if (value->IsArray()) {
-//            values[fieldName] = std::static_pointer_cast<ShaderArrayInstance>(value);
-//        }
-//        else {
-//            throw std::invalid_argument("Unknown composite type");
-//        }
-//
-//        WriteFieldToBuffer(fieldName, values[fieldName]);
-//        bufferDirty = false;
-//    }
-//
-//    // ============================================================================
-//    // OPERATIONS
-//    // ============================================================================
-//
-//    void BufferObjectInstance::clear() {
-//        std::fill(buffer.begin(), buffer.end(), 0);
-//        InitializeDefaults();
-//    }
-//
-//    void BufferObjectInstance::swap(BufferObjectInstance& other) noexcept {
-//        using std::swap;
-//        swap(definition, other.definition);
-//        swap(values, other.values);
-//        swap(buffer, other.buffer);
-//        swap(bufferDirty, other.bufferDirty);
-//    }
-//
-//    // ============================================================================
-//    // BUFFER MANAGEMENT
-//    // ============================================================================
-//
-//    bool BufferObjectInstance::WriteToBuffer(void* dst) const {
-//        if (!dst) return false;
-//        SyncBufferIfDirty();
-//        std::memcpy(dst, buffer.data(), buffer.size());
-//        return true;
-//    }
-//
-//    bool BufferObjectInstance::ReadFromBuffer(const void* src) {
-//        if (!src) return false;
-//
-//        std::memcpy(buffer.data(), src, buffer.size());
-//
-//        // Read all fields from buffer
-//        for (const auto& field : *definition) {
-//            ReadFieldFromBuffer(field.name);
-//        }
-//
-//        bufferDirty = false;
-//        return true;
-//    }
-//
-//    // ============================================================================
-//    // TYPE CHECKING
-//    // ============================================================================
-//
-//    bool BufferObjectInstance::HasField(const std::string& fieldName) const {
-//        return definition->FindField(fieldName) != nullptr;
-//    }
-//
-//    bool BufferObjectInstance::IsBaseField(const std::string& fieldName) const {
-//        const BufferFieldDefinition* field = definition->FindField(fieldName);
-//        return field && field->IsBase();
-//    }
-//
-//    bool BufferObjectInstance::IsCompositeField(const std::string& fieldName) const {
-//        const BufferFieldDefinition* field = definition->FindField(fieldName);
-//        return field && field->IsComposite();
-//    }
-//
-//    bool BufferObjectInstance::IsStructField(const std::string& fieldName) const {
-//        const BufferFieldDefinition* field = definition->FindField(fieldName);
-//        return field && field->IsStruct();
-//    }
-//
-//    bool BufferObjectInstance::IsArrayField(const std::string& fieldName) const {
-//        const BufferFieldDefinition* field = definition->FindField(fieldName);
-//        return field && field->IsArray();
-//    }
-//
-//    // ============================================================================
-//    // CLONING
-//    // ============================================================================
-//
-//    std::shared_ptr<BufferObjectInstance> BufferObjectInstance::Clone() const {
-//        return std::make_shared<BufferObjectInstance>(*this);
-//    }
-//
-//    // ============================================================================
-//    // COMPARISON
-//    // ============================================================================
-//
-//    bool BufferObjectInstance::operator==(const BufferObjectInstance& other) const {
-//        if (definition->GetName() != other.definition->GetName()) {
-//            return false;
-//        }
-//
-//        if (values.size() != other.values.size()) {
-//            return false;
-//        }
-//
-//        // Deep comparison
-//        for (const auto& [fieldName, value] : values) {
-//            auto it = other.values.find(fieldName);
-//            if (it == other.values.end()) {
-//                return false;
-//            }
-//
-//            const BufferFieldDefinition* field = definition->FindField(fieldName);
-//            if (!field) return false;
-//
-//            if (field->IsComposite()) {
-//                auto comp1 = GetComposite(fieldName);
-//                auto comp2 = other.GetComposite(fieldName);
-//
-//                if (!comp1 || !comp2) return false;
-//
-//                if (comp1->GetRawBuffer() != comp2->GetRawBuffer()) {
-//                    return false;
-//                }
-//            }
-//            else {
-//                if (value != it->second) {
-//                    return false;
-//                }
-//            }
-//        }
-//
-//        return true;
-//    }
-//
-//    // ============================================================================
-//    // VALIDATION
-//    // ============================================================================
-//
-//    bool BufferObjectInstance::Validate() const {
-//        if (!definition) return false;
-//        if (buffer.size() != definition->GetSize()) return false;
-//
-//        // Validate all fields exist
-//        for (const auto& field : *definition) {
-//            if (values.find(field.name) == values.end()) {
-//                return false;
-//            }
-//        }
-//
-//        return true;
-//    }
-//
-//    // ============================================================================
-//    // INTERNAL HELPER METHODS
-//    // ============================================================================
-//
-//    void BufferObjectInstance::InitializeDefaults() {
-//        values.clear();
-//
-//        for (const auto& field : *definition) {
-//            if (field.IsComposite()) {
-//                // Create composite instance
-//                auto instance = field.composite->CreateInstance();
-//
-//                if (field.IsStruct()) {
-//                    values[field.name] = std::static_pointer_cast<ShaderStructInstance>(instance);
-//                }
-//                else if (field.IsArray()) {
-//                    values[field.name] = std::static_pointer_cast<ShaderArrayInstance>(instance);
-//                }
-//            }
-//            else {
-//                // Read default value from zeroed buffer
-//                uint8_t* fieldPtr = buffer.data() + field.offset;
-//                BufferValue defaultValue = ReadBaseTypeFromBuffer(field.baseType, fieldPtr);
-//                values[field.name] = defaultValue;
-//            }
-//        }
-//    }
-//
-//    void BufferObjectInstance::WriteFieldToBuffer(const std::string& fieldName,
-//        const BufferValue& value) {
-//
-//        const BufferFieldDefinition* field = definition->FindField(fieldName);
-//        if (!field) return;
-//
-//        uint8_t* dst = buffer.data() + field->offset;
-//
-//        if (field->IsComposite()) {
-//            auto composite = GetComposite(fieldName);
-//            if (composite) {
-//                const std::vector<uint8_t>& srcBuffer = composite->GetRawBuffer();
-//                std::memcpy(dst, srcBuffer.data(),
-//                    std::min(srcBuffer.size(), static_cast<size_t>(field->size)));
-//            }
-//        }
-//        else {
-//            WriteBaseTypeToFixedBuffer(field->baseType, dst, value);
-//        }
-//    }
-//
-//    void BufferObjectInstance::ReadFieldFromBuffer(const std::string& fieldName) {
-//        const BufferFieldDefinition* field = definition->FindField(fieldName);
-//        if (!field) return;
-//
-//        uint8_t* src = buffer.data() + field->offset;
-//
-//        if (field->IsComposite()) {
-//            auto instance = field->composite->CreateInstance();
-//            instance->ReadFromBuffer(src);
-//
-//            if (instance->IsStruct()) {
-//                values[fieldName] = std::static_pointer_cast<ShaderStructInstance>(instance);
-//            }
-//            else if (instance->IsArray()) {
-//                values[fieldName] = std::static_pointer_cast<ShaderArrayInstance>(instance);
-//            }
-//        }
-//        else {
-//            BufferValue value = ReadBaseTypeFromBuffer(field->baseType, src);
-//            values[fieldName] = value;
-//        }
-//    }
-//
-//    void BufferObjectInstance::SyncBufferIfDirty() const {
-//        if (!bufferDirty) return;
-//
-//        auto* self = const_cast<BufferObjectInstance*>(this);
-//        for (const auto& [fieldName, value] : values) {
-//            self->WriteFieldToBuffer(fieldName, value);
-//        }
-//        bufferDirty = false;
-//    }
-//
-//} // namespace ShaderLib
+#include "BufferObjectInstance.h"
+#include "FieldProxy.h"
+#include "TypeSerializationTable.h"
+#include <stdexcept>
+#include <cstring>
+#include <cassert>
+
+namespace ShaderLib {
+
+    // ============================================================================
+    // CONSTRUCTION
+    // ============================================================================
+
+    BufferObjectInstance::BufferObjectInstance(
+        std::shared_ptr<const BufferObjectDefinition> definition
+    )
+        : m_definition(definition)
+        , m_mappedBuffer(nullptr)
+    {
+        if (!definition) {
+            throw std::runtime_error("Buffer definition cannot be null");
+        }
+
+        InitializeBuffer();
+    }
+
+    void BufferObjectInstance::InitializeBuffer() {
+        size_t bufferSize = m_definition->GetTotalSize();
+        m_buffer.resize(bufferSize);
+
+        std::memset(m_buffer.data(), 0, bufferSize);
+
+        // Initialize matrices with identity values
+        const auto& fields = m_definition->GetAllFields();
+        for (const auto& field : fields) {
+            if (!field.isBaseType) {
+                continue;
+            }
+
+            switch (field.baseType) {
+            case BaseType::Mat2:
+                SetAtOffset(field.offset, glm::mat2(1.0f));
+                break;
+            case BaseType::Mat3:
+                SetAtOffset(field.offset, glm::mat3(1.0f));
+                break;
+            case BaseType::Mat4:
+                SetAtOffset(field.offset, glm::mat4(1.0f));
+                break;
+            default:
+                break;
+            }
+        }
+    }
+
+    // ============================================================================
+    // PROXY ACCESS
+    // ============================================================================
+
+    FieldProxy BufferObjectInstance::operator[](const std::string& name) {
+        const auto& fields = m_definition->GetAllFields();
+        for (const auto& field : fields) {
+            if (field.name == name && field.parentPath.empty()) {
+                return FieldProxy(this, &field);
+            }
+        }
+
+        throw std::runtime_error("Field not found: " + name);
+    }
+
+    FieldProxy BufferObjectInstance::operator[](const char* name) {
+        return operator[](std::string(name));
+    }
+
+    FieldProxy BufferObjectInstance::GetField(const std::string& path) {
+        const FieldDescriptor* field = m_definition->FindField(path);
+        if (!field) {
+            throw std::runtime_error("Field not found: " + path);
+        }
+
+        return FieldProxy(this, field);
+    }
+
+    // ============================================================================
+    // BULK OPERATIONS
+    // ============================================================================
+
+    void BufferObjectInstance::CopyFrom(const BufferObjectInstance& other) {
+        if (m_definition != other.m_definition) {
+            throw std::runtime_error(
+                "Cannot copy between different buffer definitions"
+            );
+        }
+
+        std::memcpy(m_buffer.data(), other.m_buffer.data(), m_buffer.size());
+    }
+
+    void BufferObjectInstance::CopyRegion(
+        const BufferObjectInstance& other,
+        uint32_t srcOffset,
+        uint32_t dstOffset,
+        uint32_t size
+    ) {
+        if (srcOffset + size > other.m_buffer.size()) {
+            throw std::out_of_range("Source region out of range");
+        }
+        if (dstOffset + size > m_buffer.size()) {
+            throw std::out_of_range("Destination region out of range");
+        }
+
+        std::memcpy(
+            m_buffer.data() + dstOffset,
+            other.m_buffer.data() + srcOffset,
+            size
+        );
+    }
+
+    void BufferObjectInstance::Zero() {
+        std::memset(m_buffer.data(), 0, m_buffer.size());
+    }
+
+    void BufferObjectInstance::ZeroRegion(uint32_t offset, uint32_t size) {
+        ValidateOffset(offset, size);
+        std::memset(m_buffer.data() + offset, 0, size);
+    }
+
+    // ============================================================================
+    // GPU BUFFER MAPPING
+    // ============================================================================
+
+    void BufferObjectInstance::SetMappedBuffer(IBufferMapping* buffer) {
+        if (!buffer) {
+            throw std::runtime_error("Cannot set null buffer");
+        }
+
+        m_mappedBuffer = buffer;
+
+        if (!m_mappedBuffer->isMapped()) {
+            void* ptr = m_mappedBuffer->map();
+            if (!ptr) {
+                throw std::runtime_error(
+                    "Buffer is not persistently mapped and fallback mapping failed"
+                );
+            }
+        }
+
+        ValidateBufferSize();
+    }
+
+    bool BufferObjectInstance::IsBufferMapped() const {
+        return m_mappedBuffer && m_mappedBuffer->isMapped();
+    }
+
+    void* BufferObjectInstance::GetMappedPointer() {
+        if (!m_mappedBuffer) {
+            throw std::runtime_error("No buffer assigned to this instance");
+        }
+
+        void* ptr = m_mappedBuffer->getMappedPointer();
+        if (!ptr) {
+            throw std::runtime_error(
+                "Buffer is not mapped. Persistent mapping expected but not found."
+            );
+        }
+
+        return ptr;
+    }
+
+    const void* BufferObjectInstance::GetMappedPointer() const {
+        if (!m_mappedBuffer) {
+            throw std::runtime_error("No buffer assigned to this instance");
+        }
+
+        const void* ptr = m_mappedBuffer->getMappedPointer();
+        if (!ptr) {
+            throw std::runtime_error(
+                "Buffer is not mapped. Persistent mapping expected but not found."
+            );
+        }
+
+        return ptr;
+    }
+
+    void BufferObjectInstance::ValidateBufferSize() const {
+        if (!m_mappedBuffer) {
+            return;
+        }
+
+        const size_t allocatedSize = m_mappedBuffer->getAllocatedSize();
+        const size_t requiredSize = m_buffer.size();
+
+        if (allocatedSize < requiredSize) {
+            throw std::runtime_error(
+                "Mapped buffer size (" + std::to_string(allocatedSize) +
+                " bytes) is smaller than required buffer size (" +
+                std::to_string(requiredSize) + " bytes)"
+            );
+        }
+    }
+
+    void BufferObjectInstance::ValidateSyncRange(uint32_t offset, uint32_t size) const {
+        const size_t bufferSize = m_buffer.size();
+        const size_t allocatedSize = m_mappedBuffer->getAllocatedSize();
+
+        if (offset + size > bufferSize) {
+            throw std::out_of_range(
+                "Sync range [" + std::to_string(offset) + ", " +
+                std::to_string(offset + size) + ") exceeds buffer size (" +
+                std::to_string(bufferSize) + " bytes)"
+            );
+        }
+
+        assert(offset + size <= allocatedSize &&
+            "Sync range exceeds allocated buffer size");
+
+        if (offset + size > allocatedSize) {
+            throw std::runtime_error(
+                "CRITICAL: Sync range exceeds allocated buffer size"
+            );
+        }
+    }
+
+    // ============================================================================
+    // GPU SYNCHRONIZATION
+    // ============================================================================
+
+    void BufferObjectInstance::SyncToBuffer() {
+        void* gpuData = GetMappedPointer();
+        const uint8_t* cpuData = m_buffer.data();
+        const size_t bufferSize = m_buffer.size();
+
+        ValidateSyncRange(0, static_cast<uint32_t>(bufferSize));
+
+        std::memcpy(gpuData, cpuData, bufferSize);
+    }
+
+    void BufferObjectInstance::SyncFromBuffer() {
+        const void* gpuData = GetMappedPointer();
+        uint8_t* cpuData = m_buffer.data();
+        const size_t bufferSize = m_buffer.size();
+
+        ValidateSyncRange(0, static_cast<uint32_t>(bufferSize));
+
+        std::memcpy(cpuData, gpuData, bufferSize);
+    }
+
+    void BufferObjectInstance::SyncRangeToBuffer(uint32_t offset, uint32_t size) {
+        ValidateSyncRange(offset, size);
+
+        void* gpuData = GetMappedPointer();
+        const uint8_t* cpuData = m_buffer.data();
+
+        std::memcpy(
+            static_cast<uint8_t*>(gpuData) + offset,
+            cpuData + offset,
+            size
+        );
+    }
+
+    void BufferObjectInstance::SyncRangeFromBuffer(uint32_t offset, uint32_t size) {
+        ValidateSyncRange(offset, size);
+
+        const void* gpuData = GetMappedPointer();
+        uint8_t* cpuData = m_buffer.data();
+
+        std::memcpy(
+            cpuData + offset,
+            static_cast<const uint8_t*>(gpuData) + offset,
+            size
+        );
+    }
+
+    void BufferObjectInstance::SyncFieldToBuffer(const std::string& path) {
+        const FieldDescriptor* field = m_definition->FindField(path);
+        if (!field) {
+            throw std::runtime_error("Field not found: " + path);
+        }
+
+        if (!field->isBaseType) {
+            throw std::runtime_error("Cannot sync non-base-type field: " + path);
+        }
+
+        ValidateSyncRange(field->offset, field->size);
+
+        void* gpuData = GetMappedPointer();
+        const uint8_t* cpuData = m_buffer.data();
+
+        std::memcpy(
+            static_cast<uint8_t*>(gpuData) + field->offset,
+            cpuData + field->offset,
+            field->size
+        );
+    }
+
+    void BufferObjectInstance::SyncFieldFromBuffer(const std::string& path) {
+        const FieldDescriptor* field = m_definition->FindField(path);
+        if (!field) {
+            throw std::runtime_error("Field not found: " + path);
+        }
+
+        if (!field->isBaseType) {
+            throw std::runtime_error("Cannot sync non-base-type field: " + path);
+        }
+
+        ValidateSyncRange(field->offset, field->size);
+
+        const void* gpuData = GetMappedPointer();
+        uint8_t* cpuData = m_buffer.data();
+
+        std::memcpy(
+            cpuData + field->offset,
+            static_cast<const uint8_t*>(gpuData) + field->offset,
+            field->size
+        );
+    }
+
+    void BufferObjectInstance::SyncFieldsToBuffer(const std::vector<std::string>& paths) {
+        void* gpuData = GetMappedPointer();
+        const uint8_t* cpuData = m_buffer.data();
+
+        for (const auto& path : paths) {
+            const FieldDescriptor* field = m_definition->FindField(path);
+            if (!field || !field->isBaseType) {
+                continue;
+            }
+
+            ValidateSyncRange(field->offset, field->size);
+
+            std::memcpy(
+                static_cast<uint8_t*>(gpuData) + field->offset,
+                cpuData + field->offset,
+                field->size
+            );
+        }
+    }
+
+    void BufferObjectInstance::SyncFieldsFromBuffer(const std::vector<std::string>& paths) {
+        const void* gpuData = GetMappedPointer();
+        uint8_t* cpuData = m_buffer.data();
+
+        for (const auto& path : paths) {
+            const FieldDescriptor* field = m_definition->FindField(path);
+            if (!field || !field->isBaseType) {
+                continue;
+            }
+
+            ValidateSyncRange(field->offset, field->size);
+
+            std::memcpy(
+                cpuData + field->offset,
+                static_cast<const uint8_t*>(gpuData) + field->offset,
+                field->size
+            );
+        }
+    }
+
+    void BufferObjectInstance::SyncFieldToBufferByIndex(size_t fieldIndex) {
+        const auto& allFields = m_definition->GetAllFields();
+        if (fieldIndex >= allFields.size()) {
+            throw std::out_of_range("Field index out of range");
+        }
+
+        const auto& field = allFields[fieldIndex];
+        if (!field.isBaseType) {
+            throw std::runtime_error(
+                "Cannot sync non-base-type field at index: " +
+                std::to_string(fieldIndex)
+            );
+        }
+
+        ValidateSyncRange(field.offset, field.size);
+
+        void* gpuData = GetMappedPointer();
+        const uint8_t* cpuData = m_buffer.data();
+
+        std::memcpy(
+            static_cast<uint8_t*>(gpuData) + field.offset,
+            cpuData + field.offset,
+            field.size
+        );
+    }
+
+    void BufferObjectInstance::SyncFieldFromBufferByIndex(size_t fieldIndex) {
+        const auto& allFields = m_definition->GetAllFields();
+        if (fieldIndex >= allFields.size()) {
+            throw std::out_of_range("Field index out of range");
+        }
+
+        const auto& field = allFields[fieldIndex];
+        if (!field.isBaseType) {
+            throw std::runtime_error(
+                "Cannot sync non-base-type field at index: " +
+                std::to_string(fieldIndex)
+            );
+        }
+
+        ValidateSyncRange(field.offset, field.size);
+
+        const void* gpuData = GetMappedPointer();
+        uint8_t* cpuData = m_buffer.data();
+
+        std::memcpy(
+            cpuData + field.offset,
+            static_cast<const uint8_t*>(gpuData) + field.offset,
+            field.size
+        );
+    }
+
+    void BufferObjectInstance::SyncFieldsToBufferByIndices(
+        const std::vector<size_t>& fieldIndices
+    ) {
+        void* gpuData = GetMappedPointer();
+        const uint8_t* cpuData = m_buffer.data();
+        const auto& allFields = m_definition->GetAllFields();
+
+        for (size_t fieldIndex : fieldIndices) {
+            if (fieldIndex >= allFields.size()) {
+                continue;
+            }
+
+            const auto& field = allFields[fieldIndex];
+            if (!field.isBaseType) {
+                continue;
+            }
+
+            ValidateSyncRange(field.offset, field.size);
+
+            std::memcpy(
+                static_cast<uint8_t*>(gpuData) + field.offset,
+                cpuData + field.offset,
+                field.size
+            );
+        }
+    }
+
+    void BufferObjectInstance::SyncFieldsFromBufferByIndices(
+        const std::vector<size_t>& fieldIndices
+    ) {
+        const void* gpuData = GetMappedPointer();
+        uint8_t* cpuData = m_buffer.data();
+        const auto& allFields = m_definition->GetAllFields();
+
+        for (size_t fieldIndex : fieldIndices) {
+            if (fieldIndex >= allFields.size()) {
+                continue;
+            }
+
+            const auto& field = allFields[fieldIndex];
+            if (!field.isBaseType) {
+                continue;
+            }
+
+            ValidateSyncRange(field.offset, field.size);
+
+            std::memcpy(
+                cpuData + field.offset,
+                static_cast<const uint8_t*>(gpuData) + field.offset,
+                field.size
+            );
+        }
+    }
+
+    void BufferObjectInstance::SyncFieldRangeToBuffer(
+        size_t startIndex,
+        size_t endIndex
+    ) {
+        const auto& allFields = m_definition->GetAllFields();
+        if (startIndex >= allFields.size()) {
+            throw std::out_of_range("Start index out of range");
+        }
+        if (endIndex > allFields.size()) {
+            throw std::out_of_range("End index out of range");
+        }
+        if (startIndex >= endIndex) {
+            throw std::invalid_argument("Start index must be less than end index");
+        }
+
+        void* gpuData = GetMappedPointer();
+        const uint8_t* cpuData = m_buffer.data();
+
+        for (size_t i = startIndex; i < endIndex; ++i) {
+            const auto& field = allFields[i];
+            if (!field.isBaseType) {
+                continue;
+            }
+
+            ValidateSyncRange(field.offset, field.size);
+
+            std::memcpy(
+                static_cast<uint8_t*>(gpuData) + field.offset,
+                cpuData + field.offset,
+                field.size
+            );
+        }
+    }
+
+    void BufferObjectInstance::SyncFieldRangeFromBuffer(
+        size_t startIndex,
+        size_t endIndex
+    ) {
+        const auto& allFields = m_definition->GetAllFields();
+        if (startIndex >= allFields.size()) {
+            throw std::out_of_range("Start index out of range");
+        }
+        if (endIndex > allFields.size()) {
+            throw std::out_of_range("End index out of range");
+        }
+        if (startIndex >= endIndex) {
+            throw std::invalid_argument("Start index must be less than end index");
+        }
+
+        const void* gpuData = GetMappedPointer();
+        uint8_t* cpuData = m_buffer.data();
+
+        for (size_t i = startIndex; i < endIndex; ++i) {
+            const auto& field = allFields[i];
+            if (!field.isBaseType) {
+                continue;
+            }
+
+            ValidateSyncRange(field.offset, field.size);
+
+            std::memcpy(
+                cpuData + field.offset,
+                static_cast<const uint8_t*>(gpuData) + field.offset,
+                field.size
+            );
+        }
+    }
+
+    // ============================================================================
+    // CLONING
+    // ============================================================================
+
+    std::shared_ptr<BufferObjectInstance> BufferObjectInstance::Clone() const {
+        auto clone = std::make_shared<BufferObjectInstance>(m_definition);
+        clone->CopyFrom(*this);
+        return clone;
+    }
+
+    // ============================================================================
+    // SERIALIZATION
+    // ============================================================================
+
+    json BufferObjectInstance::ToJson() const {
+        json j;
+
+        j["definition"] = m_definition->ToJson();
+
+        json fieldsJson = json::object();
+        const auto& fields = m_definition->GetAllFields();
+
+        for (const auto& field : fields) {
+            if (!field.isBaseType) {
+                continue;
+            }
+
+            const auto& serInfo = GetSerializationInfo(field.baseType);
+
+            if (!serInfo.SupportsJson()) {
+                continue;
+            }
+
+            BaseTypeValue value = serInfo.readFromBuffer(m_buffer.data() + field.offset);
+            fieldsJson[field.path] = serInfo.toJson(value);
+        }
+
+        j["fields"] = fieldsJson;
+        return j;
+    }
+
+    bool BufferObjectInstance::FromJson(const json& j) {
+        try {
+            if (!j.contains("fields")) {
+                return false;
+            }
+
+            const auto& fieldsJson = j.at("fields");
+            const auto& fields = m_definition->GetAllFields();
+
+            for (const auto& field : fields) {
+                if (!field.isBaseType) {
+                    continue;
+                }
+
+                if (!fieldsJson.contains(field.path)) {
+                    continue;
+                }
+
+                const json& valueJson = fieldsJson.at(field.path);
+                const auto& serInfo = GetSerializationInfo(field.baseType);
+
+                if (!serInfo.SupportsJson()) {
+                    continue;
+                }
+
+                BaseTypeValue value = serInfo.fromJson(valueJson);
+                serInfo.writeToFixedBuffer(m_buffer.data() + field.offset, value);
+            }
+
+            return true;
+        }
+        catch (const std::exception&) {
+            return false;
+        }
+    }
+
+    std::shared_ptr<BufferObjectInstance> BufferObjectInstance::FromJson(
+        const json& j,
+        std::shared_ptr<const BufferObjectDefinition> definition
+    ) {
+        if (!definition) {
+            throw std::runtime_error("Definition cannot be null");
+        }
+
+        auto instance = std::make_shared<BufferObjectInstance>(definition);
+
+        if (!instance->FromJson(j)) {
+            throw std::runtime_error("Failed to deserialize buffer instance");
+        }
+
+        return instance;
+    }
+
+    void BufferObjectInstance::ValidateOffset(uint32_t offset, uint32_t size) const {
+        if (offset + size > m_buffer.size()) {
+            throw std::out_of_range("Buffer access out of range");
+        }
+    }
+
+} // namespace ShaderLib

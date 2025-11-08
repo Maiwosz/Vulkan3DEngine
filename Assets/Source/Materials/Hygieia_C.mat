@@ -1,50 +1,38 @@
 {
   "shader": "Phong",
-  "parameters": [
-    {
-      "name": "shininess",
-      "descriptorType": "uniform",
-      "valueType": "BaseType",
+  "inputBuffer": {
+    "shininess": {
       "baseType": "float",
-      "data": 1.0
+      "value": 1.0
     },
-    {
-      "name": "ka",
-      "descriptorType": "uniform",
-      "valueType": "BaseType",
+    "ka": {
       "baseType": "float",
-      "data": 0.005
+      "value": 0.005
     },
-    {
-      "name": "kd",
-      "descriptorType": "uniform",
-      "valueType": "BaseType",
+    "kd": {
       "baseType": "float",
-      "data": 0.8
+      "value": 0.8
     },
-    {
-      "name": "ks",
-      "descriptorType": "uniform",
-      "valueType": "BaseType",
+    "ks": {
       "baseType": "float",
-      "data": 0.2
-    },
+      "value": 0.2
+    }
+  },
+  "samplers": [
     {
       "name": "albedo",
       "descriptorType": "sampler2D",
-      "valueType": "TexturePath",
-      "path": "Hygieia_C_Hygieia_O",
-      "sampler": {
-        "magFilter": "Linear",
-        "minFilter": "Linear",
-        "addressModeU": "Repeat",
-        "addressModeV": "Repeat",
-        "addressModeW": "Repeat",
-        "anisotropy": 8.0,
-        "minLod": 0.0,
-        "maxLod": 16.0,
-        "colorSpace": "sRGB"
-      }
+      "binding": 3,
+      "texturePath": "Hygieia_C_Hygieia_O",
+      "colorSpace": "sRGB",
+      "magFilter": "Linear",
+      "minFilter": "Linear",
+      "addressModeU": "Repeat",
+      "addressModeV": "Repeat",
+      "addressModeW": "Repeat",
+      "anisotropy": 8.0,
+      "minLod": 0.0,
+      "maxLod": 16.0
     }
   ]
 }

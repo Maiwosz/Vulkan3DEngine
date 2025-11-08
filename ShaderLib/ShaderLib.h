@@ -12,6 +12,7 @@
 #include <json.hpp>
 #include "ShaderDescriptors.h"
 #include <set>
+#include "BufferObjectDefinition.h"
 
 namespace ShaderLib {
     constexpr uint32_t GLOBAL_DESCRIPTOR_SET = 0;
@@ -39,126 +40,6 @@ namespace ShaderLib {
         TessellationEvaluation = 1 << 5
     };
     using StageFlags = uint32_t;
-
-    // ============================================================================
-    // BUFFER ACCESS MODE
-    // ============================================================================
-
-    enum class BufferAccessMode : uint8_t {
-        ReadOnly,   // uniform buffers, readonly storage buffers
-        WriteOnly,  // writeonly storage buffers
-        ReadWrite   // read/write storage buffers
-    };
-
-    // ============================================================================
-    // BUFFER VARIABLE DEFINITION
-    // ============================================================================
-
-    struct BufferVariable {
-        std::string name;
-        BaseType baseType;
-        std::shared_ptr<const CompositeTypeDefinition> composite;
-        uint32_t size;
-        uint32_t offset;
-        BufferAccessMode accessMode;
-
-        // Default constructor for deserialization
-        BufferVariable()
-            : name(""), baseType(BaseType::Unknown), composite(nullptr),
-            size(0), offset(0), accessMode(BufferAccessMode::ReadOnly) {
-        }
-
-        // Constructor for base types
-        BufferVariable(const std::string& n, BaseType t, uint32_t sz, uint32_t off,
-            BufferAccessMode mode = BufferAccessMode::ReadWrite)
-            : name(n), baseType(t), composite(nullptr),
-            size(sz), offset(off), accessMode(mode) {
-        }
-
-        // Constructor for composite types
-        BufferVariable(const std::string& n, std::shared_ptr<const CompositeTypeDefinition> comp,
-            uint32_t off, BufferAccessMode mode = BufferAccessMode::ReadWrite)
-            : name(n),
-            baseType(comp->IsStruct() ? BaseType::Struct : BaseType::Array),
-            composite(comp),
-            size(comp->GetSize()),
-            offset(off),
-            accessMode(mode) {
-        }
-
-        // Inline helper methods
-        bool IsBase() const {
-            return !IsComposite() && baseType != BaseType::Unknown;
-        }
-
-        bool IsComposite() const {
-            return composite != nullptr;
-        }
-
-        bool IsReadOnly() const {
-            return accessMode == BufferAccessMode::ReadOnly;
-        }
-
-        bool IsWriteOnly() const {
-            return accessMode == BufferAccessMode::WriteOnly;
-        }
-
-        bool IsReadWrite() const {
-            return accessMode == BufferAccessMode::ReadWrite;
-        }
-
-        // Complex helpers
-        std::string GetTypeName() const;
-        ShaderTypeCategory GetCategory() const;
-        std::string GenerateGLSLDeclaration() const;
-    };
-
-    // ============================================================================
-    // BUFFER TYPE
-    // ============================================================================
-
-    enum class BufferType {
-        Uniform,  // UBO - always ReadOnly
-        Storage   // SSBO - can be ReadOnly, WriteOnly, or ReadWrite
-    };
-
-    // ============================================================================
-    // BUFFER OBJECTS (UBO/SSBO)
-    // ============================================================================
-
-    struct BufferObject {
-        std::string name;
-        uint32_t size;
-        BufferType bufferType;
-        LayoutStandard layoutStandard;
-        BufferAccessMode accessMode;
-        std::vector<BufferVariable> variables;
-        bool useInstanceName = true;
-
-        // Inline helper methods
-        bool IsUniformBuffer() const {
-            return bufferType == BufferType::Uniform;
-        }
-
-        bool IsStorageBuffer() const {
-            return bufferType == BufferType::Storage;
-        }
-
-        bool IsReadOnly() const {
-            return accessMode == BufferAccessMode::ReadOnly;
-        }
-
-        bool IsWriteOnly() const {
-            return accessMode == BufferAccessMode::WriteOnly;
-        }
-
-        bool IsReadWrite() const {
-            return accessMode == BufferAccessMode::ReadWrite;
-        }
-
-        // Complex helper - moved to .cpp
-        std::string GetAccessQualifier() const;
-    };
 
     // ============================================================================
     // PUSH CONSTANTS
@@ -206,42 +87,33 @@ namespace ShaderLib {
     struct DescriptorSet {
         uint32_t setNumber;
         std::vector<DescriptorSlot> slots;
-        std::unordered_map<std::string, BufferObject> buffers;
+        std::unordered_map<std::string, std::shared_ptr<BufferObjectDefinition>> buffers;
 
-        // Search/lookup methods - moved to .cpp
+        // Search/lookup methods
         const DescriptorSlot* FindSlot(uint32_t binding) const;
         DescriptorSlot* FindSlot(uint32_t binding);
         const DescriptorSlot* FindSlot(const std::string& name) const;
 
-        const BufferObject* GetBuffer(const std::string& name) const;
-        BufferObject* GetBuffer(const std::string& name);
-        const BufferObject* GetBufferByBinding(uint32_t binding) const;
-        BufferObject* GetBufferByBinding(uint32_t binding);
+        std::shared_ptr<const BufferObjectDefinition> GetBuffer(const std::string& name) const;
+        std::shared_ptr<BufferObjectDefinition> GetBuffer(const std::string& name);
+        std::shared_ptr<const BufferObjectDefinition> GetBufferByBinding(uint32_t binding) const;
+        std::shared_ptr<BufferObjectDefinition> GetBufferByBinding(uint32_t binding);
 
-        // Validation methods - moved to .cpp
+        // Validation methods
         bool HasBindingConflict() const;
         bool ValidateBuffers() const;
 
-        // Collection methods - moved to .cpp
-        std::vector<const BufferObject*> GetAllBuffers() const;
+        // Collection methods
+        std::vector<std::shared_ptr<const BufferObjectDefinition>> GetAllBuffers() const;
         std::vector<const DescriptorSlot*> GetAllSamplers() const;
         std::vector<const DescriptorSlot*> GetSlotsByType(DescriptorType type) const;
 
         // Generate complete GLSL for entire descriptor set
         std::string GenerateGLSL() const;
 
-        // Helper function for buffer generation (could be private static method)
-        std::string GenerateBufferGLSL(
-            const BufferObject& buffer,
-            uint32_t set,
-            uint32_t binding
-        ) const;
-
+    private:
         // Helper function for sampler/image generation
-        std::string GenerateSamplerGLSL(
-            const DescriptorSlot& slot,
-            uint32_t set
-        ) const;
+        std::string GenerateSamplerGLSL(const DescriptorSlot& slot, uint32_t set) const;
     };
 
     // ============================================================================
@@ -271,19 +143,14 @@ namespace ShaderLib {
         bool usesObjectUBO = false;
         std::vector<PushConstantRange> pushConstants;
         std::vector<DescriptorSet> descriptorSets;
-        std::vector<BufferObject> customBuffers;
-
-        BufferObject globalUBO;
-        BufferObject objectUBO;
-
         std::optional<ComputeShaderInfo> computeInfo;
 
-        // Search/lookup methods - moved to .cpp
+        // Search/lookup methods
         const DescriptorSet* GetSet(uint32_t setNumber) const;
         DescriptorSet* GetSet(uint32_t setNumber);
         const DescriptorSlot* FindDescriptor(const std::string& name) const;
-        const BufferObject* FindBuffer(const std::string& name) const;
-        BufferObject* FindBuffer(const std::string& name);
+        std::shared_ptr<const BufferObjectDefinition> FindBuffer(const std::string& name) const;
+        std::shared_ptr<BufferObjectDefinition> FindBuffer(const std::string& name);
 
         // Inline convenience methods
         const DescriptorSet* GetGlobalSet() const {
@@ -302,12 +169,23 @@ namespace ShaderLib {
             return availableStages & static_cast<uint32_t>(Stage::Compute);
         }
 
-        // Collection and validation methods - moved to .cpp
-        std::vector<const BufferObject*> GetAllBuffers() const;
+        // Collection and validation methods
+        std::vector<std::shared_ptr<const BufferObjectDefinition>> GetAllBuffers() const;
         std::vector<const DescriptorSlot*> GetAllSamplers() const;
         bool ValidateDescriptorSets() const;
-        std::vector<BufferObject> GetCustomUniformBuffers() const;
-        std::vector<BufferObject> GetCustomStorageBuffers() const;
+
+        std::shared_ptr<const BufferObjectDefinition> GetGlobalUBO() const;
+        std::shared_ptr<BufferObjectDefinition> GetGlobalUBO();
+        std::shared_ptr<const BufferObjectDefinition> GetObjectUBO() const;
+        std::shared_ptr<BufferObjectDefinition> GetObjectUBO();
+
+        std::shared_ptr<const BufferObjectDefinition> GetInputDataBuffer() const;
+        std::shared_ptr<BufferObjectDefinition> GetInputDataBuffer();
+        std::shared_ptr<const BufferObjectDefinition> GetOutputDataBuffer() const;
+        std::shared_ptr<BufferObjectDefinition> GetOutputDataBuffer();
+        std::shared_ptr<const BufferObjectDefinition> GetInputOutputDataBuffer() const;
+        std::shared_ptr<BufferObjectDefinition> GetInputOutputDataBuffer();
+        std::vector<const DescriptorSlot*> GetCustomSamplers() const;
     };
 
     // ============================================================================

@@ -100,11 +100,9 @@ void CommandBuffer::submit(VkQueue queue,
     if (m_isRecording) {
         end();
     }
-
     if (waitSemaphores.size() != waitStages.size()) {
         throw std::invalid_argument("Wait semaphores and wait stages must have the same size");
     }
-
     const VkSubmitInfo submitInfo{
         .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
         .waitSemaphoreCount = static_cast<uint32_t>(waitSemaphores.size()),
@@ -115,10 +113,10 @@ void CommandBuffer::submit(VkQueue queue,
         .signalSemaphoreCount = static_cast<uint32_t>(signalSemaphores.size()),
         .pSignalSemaphores = signalSemaphores.data()
     };
-
     if (const auto result = vkQueueSubmit(queue, 1, &submitInfo, fence);
         result != VK_SUCCESS) {
-        throw std::runtime_error(std::format("Failed to submit command buffer: {}", static_cast<int>(result)));
+        throw std::runtime_error(std::format("Failed to submit command buffer: {} ({})",
+            string_VkResult(result), static_cast<int>(result)));
     }
 }
 

@@ -1,10 +1,7 @@
 #include "pch.h"
 #include "ShaderBuilder.h"
-#include "ShaderArrayInstance.h"
-#include "ShaderStructInstance.h"
 #include <TypeConversions.h>
 #include <BuiltInBuffers.h>
-#include <Serialization.h>
 #include <sstream>
 
 using namespace ShaderLib;
@@ -32,11 +29,11 @@ namespace Shader {
         }
     }
 
-    std::shared_ptr<const ShaderStructDefinition> ShaderBuilder::BuildStructDefinitionFromParsed(
+    std::shared_ptr<StructureDefinition> ShaderBuilder::BuildStructDefinitionFromParsed(
         const StructDefinition& def,
         LayoutStandard standard) {
 
-        auto structDef = std::make_shared<ShaderStructDefinition>(def.name, standard);
+        auto structDef = MakeStruct(def.name);
 
         for (const auto& field : def.fields) {
             if (field.type.isStruct) {
@@ -47,105 +44,46 @@ namespace Shader {
                 }
 
                 // Recursively build nested struct definition
-                auto nestedStructDef = BuildStructDefinitionFromParsed(*field.type.structDef, standard);
+                auto nestedStructDef = BuildStructDefinitionFromParsed(
+                    *field.type.structDef,
+                    standard
+                );
 
-                if (field.type.isArray) {
-                    // Create array of structs definition
-                    auto arrayDef = std::make_shared<ShaderArrayDefinition>(
-                        nestedStructDef,
-                        field.type.arraySize,
-                        standard
-                    );
-                    structDef->AddCompositeField(field.name, arrayDef);
-                }
-                else {
-                    // Add struct field directly
-                    structDef->AddCompositeField(field.name, nestedStructDef);
-                }
+                // Add field using fluent API
+                structDef->AddField(field.name, nestedStructDef, field.type.arraySize);
             }
             else {
                 // Base type field
                 BaseType baseType = StringToBaseType(field.type.baseType);
                 if (baseType == BaseType::Unknown) {
                     throw std::runtime_error(
-                        "Unknown type '" + field.type.baseType + "' for field '" + field.name + "'"
+                        "Unknown type '" + field.type.baseType +
+                        "' for field '" + field.name + "'"
                     );
                 }
 
-                if (field.type.isArray) {
-                    // Create array of base types definition
-                    auto arrayDef = std::make_shared<ShaderArrayDefinition>(
-                        baseType,
-                        field.type.arraySize,
-                        standard
-                    );
-                    structDef->AddCompositeField(field.name, arrayDef);
-                }
-                else {
-                    // Add base type field directly
-                    structDef->AddField(field.name, baseType);
-                }
+                // Add field using fluent API (arraySize=0 means no array)
+                structDef->AddField(field.name, baseType, field.type.arraySize);
             }
         }
 
-        structDef->Finalize();
         return structDef;
     }
 
-    std::shared_ptr<const CompositeTypeDefinition> ShaderBuilder::BuildCompositeDefinitionFromTypeInfo(
-        const TypeInfo& typeInfo,
-        LayoutStandard standard) {
-
-        if (typeInfo.isArray) {
-            if (typeInfo.isStruct) {
-                if (!typeInfo.structDef) {
-                    throw std::runtime_error("Array of struct has no struct definition");
-                }
-
-                // Build struct definition first
-                auto structDef = BuildStructDefinitionFromParsed(*typeInfo.structDef, standard);
-
-                // Create array of structs definition
-                return std::make_shared<ShaderArrayDefinition>(
-                    structDef,
-                    typeInfo.arraySize,
-                    standard
-                );
-            }
-
-            // Array of base types
-            BaseType baseType = StringToBaseType(typeInfo.baseType);
-            if (baseType == BaseType::Unknown) {
-                throw std::runtime_error("Unknown base type for array: " + typeInfo.baseType);
-            }
-
-            return std::make_shared<ShaderArrayDefinition>(
-                baseType,
-                typeInfo.arraySize,
-                standard
-            );
-        }
-
-        if (typeInfo.isStruct) {
-            if (!typeInfo.structDef) {
-                throw std::runtime_error("Struct type has no definition");
-            }
-
-            return BuildStructDefinitionFromParsed(*typeInfo.structDef, standard);
-        }
-
-        throw std::runtime_error("TypeInfo is neither struct nor array");
-    }
-
-    void ShaderBuilder::AddVariableToBuilder(
-        BufferBuilder& builder,
+    void ShaderBuilder::AddVariableToStructure(
+        std::shared_ptr<StructureDefinition> structDef,
         const InputVariable& var,
         LayoutStandard standard) {
 
-        if (var.typeInfo.isArray || var.typeInfo.isStruct) {
-            // Build composite type definition and add it
-            auto compositeDef = BuildCompositeDefinitionFromTypeInfo(var.typeInfo, standard);
-            builder.AddCompositeField(var.name, compositeDef);
+        if (var.typeInfo.isStruct) {
+            // Build nested struct definition
+            auto nestedStructDef = BuildStructDefinitionFromParsed(
+                *var.typeInfo.structDef,
+                standard
+            );
+
+            // Add to structure (arraySize=0 means no array)
+            structDef->AddField(var.name, nestedStructDef, var.typeInfo.arraySize);
             return;
         }
 
@@ -155,52 +93,67 @@ namespace Shader {
             throw std::runtime_error("Unknown type: " + var.typeInfo.baseType);
         }
 
-        builder.AddField(var.name, baseType);
+        // Add to structure (arraySize=0 means no array)
+        structDef->AddField(var.name, baseType, var.typeInfo.arraySize);
     }
 
-    BufferObject ShaderBuilder::BuildInputBuffer(const std::vector<InputVariable>& variables) {
+    std::shared_ptr<BufferObjectDefinition> ShaderBuilder::BuildInputBuffer(
+        const std::vector<InputVariable>& variables) {
+
         ValidateVariables(variables, "InputData", false);
 
-        BufferBuilder builder("InputData",
-            BufferType::Uniform,
-            BufferAccessMode::ReadOnly,
-            LayoutStandard::Std140);
+        // Create structure definition
+        auto structure = MakeStruct("InputData");
 
+        // Add all variables to the structure
         for (const auto& var : variables) {
-            AddVariableToBuilder(builder, var, LayoutStandard::Std140);
+            AddVariableToStructure(structure, var, LayoutStandard::Std140);
         }
 
-        return builder.Build();
+        // Create uniform buffer with the structure
+        // MakeUniformBuffer automatically creates BufferLayout with std140
+        auto bufferDef = MakeUniformBuffer(structure);
+
+        return bufferDef;
     }
 
-    BufferObject ShaderBuilder::BuildOutputBuffer(const std::vector<InputVariable>& variables) {
+    std::shared_ptr<BufferObjectDefinition> ShaderBuilder::BuildOutputBuffer(
+        const std::vector<InputVariable>& variables) {
+
         ValidateVariables(variables, "OutputData", false);
 
-        BufferBuilder builder("OutputData",
-            BufferType::Storage,
-            BufferAccessMode::WriteOnly,
-            LayoutStandard::Std430);
+        // Create structure definition
+        auto structure = MakeStruct("OutputData");
 
+        // Add all variables to the structure
         for (const auto& var : variables) {
-            AddVariableToBuilder(builder, var, LayoutStandard::Std430);
+            AddVariableToStructure(structure, var, LayoutStandard::Std430);
         }
 
-        return builder.Build();
+        // Create storage buffer with the structure
+        // MakeStorageBuffer automatically creates BufferLayout with std430
+        auto bufferDef = MakeStorageBuffer(structure, LayoutStandard::Std430);
+
+        return bufferDef;
     }
 
-    BufferObject ShaderBuilder::BuildInputOutputBuffer(const std::vector<InputVariable>& variables) {
+    std::shared_ptr<BufferObjectDefinition> ShaderBuilder::BuildInputOutputBuffer(
+        const std::vector<InputVariable>& variables) {
+
         ValidateVariables(variables, "InputOutputData", false);
 
-        BufferBuilder builder("InputOutputData",
-            BufferType::Storage,
-            BufferAccessMode::ReadWrite,
-            LayoutStandard::Std430);
+        // Create structure definition
+        auto structure = MakeStruct("InputOutputData");
 
+        // Add all variables to the structure
         for (const auto& var : variables) {
-            AddVariableToBuilder(builder, var, LayoutStandard::Std430);
+            AddVariableToStructure(structure, var, LayoutStandard::Std430);
         }
 
-        return builder.Build();
+        // Create storage buffer with the structure
+        auto bufferDef = MakeStorageBuffer(structure, LayoutStandard::Std430);
+
+        return bufferDef;
     }
 
     DescriptorType ShaderBuilder::GetSamplerDescriptorType(const std::string& typeStr) {
@@ -213,9 +166,9 @@ namespace Shader {
 
     DescriptorSet ShaderBuilder::BuildCustomDescriptorSet(
         const ParsedShaderData& data,
-        const BufferObject* inputBuffer,
-        const BufferObject* outputBuffer,
-        const BufferObject* inputOutputBuffer) {
+        std::shared_ptr<const BufferObjectDefinition> inputBuffer,
+        std::shared_ptr<const BufferObjectDefinition> outputBuffer,
+        std::shared_ptr<const BufferObjectDefinition> inputOutputBuffer) {
 
         ValidateVariables(data.samplerVariables, "Samplers", true);
 
@@ -237,7 +190,7 @@ namespace Shader {
 
         // Add input buffer (uniform)
         if (inputBuffer) {
-            builder.AddBuffer(INPUT_DATA_BINDING, *inputBuffer, bufferStages);
+            builder.AddBuffer(INPUT_DATA_BINDING, inputBuffer, bufferStages);
         }
 
         // Add output buffer (storage, usually fragment/compute)
@@ -248,12 +201,12 @@ namespace Shader {
                     outputStages |= static_cast<StageFlags>(stage.stage);
                 }
             }
-            builder.AddBuffer(OUTPUT_DATA_BINDING, *outputBuffer, outputStages);
+            builder.AddBuffer(OUTPUT_DATA_BINDING, outputBuffer, outputStages);
         }
 
         // Add input/output buffer (storage, all stages)
         if (inputOutputBuffer) {
-            builder.AddBuffer(INPUT_OUTPUT_DATA_BINDING, *inputOutputBuffer, bufferStages);
+            builder.AddBuffer(INPUT_OUTPUT_DATA_BINDING, inputOutputBuffer, bufferStages);
         }
 
         // Add samplers starting from SAMPLERS_START_BINDING

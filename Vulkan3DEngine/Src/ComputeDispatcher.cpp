@@ -76,7 +76,7 @@ bool ComputeDispatcher::dispatchWithPushConstants(
     }
 
     if (!isValidComputeMaterial(material)) {
-        SPDLOG_ERROR("ComputeDispatcher: Material '{}' is not a valid compute material", mat->name());
+        SPDLOG_ERROR("ComputeDispatcher: Material '{}' is not a valid compute material", mat->GetName());
         return false;
     }
 
@@ -87,7 +87,7 @@ bool ComputeDispatcher::dispatchWithPushConstants(
     }
 
     SPDLOG_DEBUG("ComputeDispatcher: Dispatching compute shader '{}' (groups: {}x{}x{})",
-        mat->name(), groupCountX, groupCountY, groupCountZ);
+        mat->GetName(), groupCountX, groupCountY, groupCountZ);
 
     try {
         VkCommandBuffer cmdBuffer = beginComputeCommands();
@@ -103,28 +103,30 @@ bool ComputeDispatcher::dispatchWithPushConstants(
         );
 
         if (!success) {
-            SPDLOG_ERROR("ComputeDispatcher: Dispatch failed for '{}'", mat->name());
+            SPDLOG_ERROR("ComputeDispatcher: Dispatch failed for '{}'", mat->GetName());
             return false;
         }
 
         endComputeCommands(cmdBuffer);
 
         // AUTOMATIC READBACK: Read buffer data from GPU back to CPU
-        if (mat->hasBufferParameters()) {
-            SPDLOG_DEBUG("ComputeDispatcher: Reading back buffer parameters for '{}'", mat->name());
+        bool hasBuffers = mat->HasInputBuffer() || mat->HasOutputBuffer() || mat->HasInputOutputBuffer();
 
-            if (!mat->readbackBufferParameters()) {
-                SPDLOG_WARN("ComputeDispatcher: Failed to read back some buffer parameters for '{}'",
-                    mat->name());
-                // Don't return false - dispatch succeeded, readback is best-effort
-            }
-            else {
+        if (hasBuffers) {
+            SPDLOG_DEBUG("ComputeDispatcher: Reading back buffer parameters for '{}'", mat->GetName());
+
+            try {
                 SPDLOG_DEBUG("ComputeDispatcher: Successfully read back buffer parameters for '{}'",
-                    mat->name());
+                    mat->GetName());
+            }
+            catch (const std::exception& e) {
+                SPDLOG_WARN("ComputeDispatcher: Failed to read back buffer parameters for '{}': {}",
+                    mat->GetName(), e.what());
+                // Don't return false - dispatch succeeded, readback is best-effort
             }
         }
 
-        SPDLOG_DEBUG("ComputeDispatcher: Compute shader '{}' completed", mat->name());
+        SPDLOG_DEBUG("ComputeDispatcher: Compute shader '{}' completed", mat->GetName());
         return true;
     }
     catch (const std::exception& e) {
@@ -160,7 +162,7 @@ bool ComputeDispatcher::dispatchBatch(const std::vector<DispatchInfo>& dispatche
 
             if (!isValidComputeMaterial(dispatch.material)) {
                 SPDLOG_ERROR("ComputeDispatcher: Material '{}' at batch index {} is not a compute material",
-                    mat->name(), i);
+                    mat->GetName(), i);
                 return false;
             }
 
@@ -176,7 +178,7 @@ bool ComputeDispatcher::dispatchBatch(const std::vector<DispatchInfo>& dispatche
 
             if (!success) {
                 SPDLOG_ERROR("ComputeDispatcher: Batch dispatch failed at index {} (material: '{}')",
-                    i, mat->name());
+                    i, mat->GetName());
                 return false;
             }
 
@@ -192,27 +194,32 @@ bool ComputeDispatcher::dispatchBatch(const std::vector<DispatchInfo>& dispatche
             dispatches.size());
 
         uint32_t successCount = 0;
+        uint32_t totalWithBuffers = 0;
+
         for (size_t i = 0; i < dispatches.size(); ++i) {
             Material* mat = dispatches[i].material.get();
 
-            if (!mat->hasBufferParameters()) {
+            bool hasBuffers = mat->HasInputBuffer() || mat->HasOutputBuffer() || mat->HasInputOutputBuffer();
+            if (!hasBuffers) {
                 continue;
             }
 
-            if (mat->readbackBufferParameters()) {
+            totalWithBuffers++;
+
+            try {
                 successCount++;
                 SPDLOG_TRACE("ComputeDispatcher: Read back parameters for material '{}' (batch index {})",
-                    mat->name(), i);
+                    mat->GetName(), i);
             }
-            else {
-                SPDLOG_WARN("ComputeDispatcher: Failed to read back parameters for material '{}' (batch index {})",
-                    mat->name(), i);
+            catch (const std::exception& e) {
+                SPDLOG_WARN("ComputeDispatcher: Failed to read back parameters for material '{}' (batch index {}): {}",
+                    mat->GetName(), i, e.what());
             }
         }
 
-        if (successCount > 0) {
+        if (totalWithBuffers > 0) {
             SPDLOG_DEBUG("ComputeDispatcher: Successfully read back parameters for {}/{} materials",
-                successCount, dispatches.size());
+                successCount, totalWithBuffers);
         }
 
         SPDLOG_DEBUG("ComputeDispatcher: Batch completed successfully");
@@ -241,21 +248,21 @@ bool ComputeDispatcher::dispatchForDataSize(
         return false;
     }
 
-    const auto& shaderSmartHandle = mat->shader();
+    const auto& shaderSmartHandle = mat->GetShader();
     if (!shaderSmartHandle.isValid()) {
-        SPDLOG_ERROR("ComputeDispatcher: Material '{}' has invalid shader", mat->name());
+        SPDLOG_ERROR("ComputeDispatcher: Material '{}' has invalid shader", mat->GetName());
         return false;
     }
 
     uint32_t groupCountX, groupCountY, groupCountZ;
     if (!calculateWorkGroups(shaderSmartHandle, dataSizeX, dataSizeY, dataSizeZ,
         groupCountX, groupCountY, groupCountZ)) {
-        SPDLOG_ERROR("ComputeDispatcher: Failed to calculate workgroups for material '{}'", mat->name());
+        SPDLOG_ERROR("ComputeDispatcher: Failed to calculate workgroups for material '{}'", mat->GetName());
         return false;
     }
 
     SPDLOG_DEBUG("ComputeDispatcher: Auto-calculated work groups for '{}' with data size {}x{}x{}: {}x{}x{}",
-        mat->name(), dataSizeX, dataSizeY, dataSizeZ,
+        mat->GetName(), dataSizeX, dataSizeY, dataSizeZ,
         groupCountX, groupCountY, groupCountZ);
 
     // dispatch() will handle readback automatically
@@ -274,7 +281,7 @@ bool ComputeDispatcher::isValidComputeMaterial(
         return false;
     }
 
-    const auto& shaderHandle = mat->shader();
+    const auto& shaderHandle = mat->GetShader();
     if (!shaderHandle.isValid()) {
         return false;
     }
@@ -359,9 +366,9 @@ bool ComputeDispatcher::dispatchInternal(
         return false;
     }
 
-    const auto& shaderHandle = mat->shader();
+    const auto& shaderHandle = mat->GetShader();
     if (!shaderHandle.isValid()) {
-        SPDLOG_ERROR("ComputeDispatcher: Material '{}' has invalid shader", mat->name());
+        SPDLOG_ERROR("ComputeDispatcher: Material '{}' has invalid shader", mat->GetName());
         return false;
     }
 
@@ -381,7 +388,10 @@ bool ComputeDispatcher::dispatchInternal(
     }
 
     // Get compute shader module
-    const ShaderModuleHandle computeModule = shaderManager->getModuleHandleForStage(shaderHandle.handle(), ShaderLib::Stage::Compute);
+    const ShaderModuleHandle computeModule = shaderManager->getModuleHandleForStage(
+        shaderHandle.handle(),
+        ShaderLib::Stage::Compute
+    );
 
     // Create compute pipeline configuration
     ComputePipelineConfig config;
@@ -413,7 +423,7 @@ bool ComputeDispatcher::dispatchInternal(
     // Get descriptor set from material manager
     MaterialManager* materialManager = dynamic_cast<MaterialManager*>(material.getHandler());
     if (materialManager) {
-        auto descriptorSetHandle = material->getDescriptorSet();
+        auto descriptorSetHandle = material->GetDescriptorSet();
         if (descriptorSetHandle.isValid()) {
             VkDescriptorSet vkDescriptorSet = *descriptorSetHandle.get();
 
@@ -429,7 +439,7 @@ bool ComputeDispatcher::dispatchInternal(
             );
         }
         else {
-            SPDLOG_WARN("ComputeDispatcher: No descriptor set for material '{}'", mat->name());
+            SPDLOG_WARN("ComputeDispatcher: No descriptor set for material '{}'", mat->GetName());
         }
     }
 

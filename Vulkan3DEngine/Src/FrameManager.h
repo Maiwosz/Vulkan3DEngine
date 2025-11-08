@@ -32,7 +32,7 @@ public:
     ~FrameManager();
 
     FrameData& getCurrentFrame() { return m_frames[m_currentFrame]; }
-    void advanceFrame() { m_currentFrame = (m_currentFrame + 1) % m_maxFrames; }
+    void advanceFrame();
 
     void clearCurrentFrameOrders();
 

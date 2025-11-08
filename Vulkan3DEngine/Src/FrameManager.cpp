@@ -64,6 +64,28 @@ FrameManager::~FrameManager() {
     }
 }
 
+void FrameManager::advanceFrame() {
+    // Wait for the next frame to be ready before using it
+    uint32_t nextFrame = (m_currentFrame + 1) % m_maxFrames;
+    auto& frame = m_frames[nextFrame];
+
+    // Wait for this frame's fence (ensure GPU finished with it)
+    vkWaitForFences(
+        m_vulkanContext.logical().get(),
+        1,
+        &frame.inFlightFence,
+        VK_TRUE,
+        UINT64_MAX
+    );
+
+    // Clear frame data
+    frame.renderOrders.clear();
+    frame.hasTransferCommands = false;
+
+    // Advance to next frame
+    m_currentFrame = nextFrame;
+}
+
 void FrameManager::clearCurrentFrameOrders()
 {
     m_frames[m_currentFrame].renderOrders.clear();

@@ -1,9 +1,6 @@
 #pragma once
 #include <ShaderLib.h>
-#include <BufferBuilder.h>
 #include <DescriptorBuilder.h>
-#include "ShaderArrayInstance.h"
-#include "ShaderStructInstance.h"
 #include "ShaderParserPEGTL.h"
 #include <memory>
 #include <vector>
@@ -15,24 +12,66 @@ namespace Shader {
 
     /**
      * Builds shader buffers and descriptor sets from parsed shader data
+     *
+     * Refactored to use new ShaderLib API:
+     * - BufferObjectDefinition wraps StructureDefinition
+     * - Fluent API for building structures
+     * - Automatic finalization handling
      */
     class ShaderBuilder {
     public:
         ShaderBuilder() = default;
 
-        // Build buffer objects from variables
-        BufferObject BuildInputBuffer(const std::vector<InputVariable>& variables);
-        BufferObject BuildOutputBuffer(const std::vector<InputVariable>& variables);
-        BufferObject BuildInputOutputBuffer(const std::vector<InputVariable>& variables);
+        // ====================================================================
+        // BUFFER BUILDING - Create BufferObjectDefinitions from variables
+        // ====================================================================
 
-        // Build complete descriptor set for custom data
+        /**
+         * Build uniform buffer (UBO) for input data
+         * - Uses std140 layout
+         * - ReadOnly access
+         */
+        std::shared_ptr<BufferObjectDefinition> BuildInputBuffer(
+            const std::vector<InputVariable>& variables);
+
+        /**
+         * Build storage buffer (SSBO) for output data
+         * - Uses std430 layout
+         * - WriteOnly access
+         */
+        std::shared_ptr<BufferObjectDefinition> BuildOutputBuffer(
+            const std::vector<InputVariable>& variables);
+
+        /**
+         * Build storage buffer (SSBO) for input/output data
+         * - Uses std430 layout
+         * - ReadWrite access
+         */
+        std::shared_ptr<BufferObjectDefinition> BuildInputOutputBuffer(
+            const std::vector<InputVariable>& variables);
+
+        // ====================================================================
+        // DESCRIPTOR SET BUILDING
+        // ====================================================================
+
+        /**
+         * Build complete descriptor set for custom data
+         * Includes input/output buffers and samplers
+         */
         DescriptorSet BuildCustomDescriptorSet(
             const ParsedShaderData& data,
-            const BufferObject* inputBuffer,
-            const BufferObject* outputBuffer,
-            const BufferObject* inputOutputBuffer);
+            std::shared_ptr<const BufferObjectDefinition> inputBuffer,
+            std::shared_ptr<const BufferObjectDefinition> outputBuffer,
+            std::shared_ptr<const BufferObjectDefinition> inputOutputBuffer);
 
-        // Generate complete shader source for a stage
+        // ====================================================================
+        // SHADER SOURCE GENERATION
+        // ====================================================================
+
+        /**
+         * Generate complete shader source for a stage
+         * Combines descriptor set GLSL with stage code
+         */
         std::string GenerateShaderSource(
             const ParsedShaderData& data,
             const ShaderStage& stage,
@@ -41,29 +80,38 @@ namespace Shader {
             const DescriptorSet* customSet);
 
     private:
-        // Helper: Add variable to buffer builder
-        void AddVariableToBuilder(
-            BufferBuilder& builder,
+        // ====================================================================
+        // INTERNAL HELPERS
+        // ====================================================================
+
+        /**
+         * Add variable to structure definition
+         * Handles both base types and nested structs
+         */
+        void AddVariableToStructure(
+            std::shared_ptr<StructureDefinition> structDef,
             const InputVariable& var,
             LayoutStandard standard);
 
-        // Helper: Build composite type definition from TypeInfo
-        std::shared_ptr<const CompositeTypeDefinition> BuildCompositeDefinitionFromTypeInfo(
-            const TypeInfo& typeInfo,
-            LayoutStandard standard);
-
-        // Helper: Build struct definition from parsed struct
-        std::shared_ptr<const ShaderStructDefinition> BuildStructDefinitionFromParsed(
+        /**
+         * Build StructureDefinition from parsed struct
+         * Recursively handles nested structs
+         */
+        std::shared_ptr<StructureDefinition> BuildStructDefinitionFromParsed(
             const StructDefinition& def,
             LayoutStandard standard);
 
-        // Validation
+        /**
+         * Validate variables (check for sampler placement, etc.)
+         */
         void ValidateVariables(
             const std::vector<InputVariable>& vars,
             const std::string& structName,
             bool allowSamplers);
 
-        // Helper: Convert sampler type string to DescriptorType
+        /**
+         * Convert sampler type string to DescriptorType
+         */
         DescriptorType GetSamplerDescriptorType(const std::string& typeStr);
     };
 

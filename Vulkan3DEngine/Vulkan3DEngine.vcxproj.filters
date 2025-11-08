@@ -729,9 +729,6 @@
     <ClInclude Include="Src\LightRenderOrder.h">
       <Filter>Engine\RenderSystem\RenderOrder\RenderOrders</Filter>
     </ClInclude>
-    <ClInclude Include="Src\MeshRenderOrder.h">
-      <Filter>Engine\RenderSystem\RenderOrder\RenderOrders\MeshRenderOrder</Filter>
-    </ClInclude>
     <ClInclude Include="Src\ProcessingContext.h">
       <Filter>Engine\RenderSystem\ProcessingContext</Filter>
     </ClInclude>
@@ -777,9 +774,6 @@
     <ClInclude Include="Src\GpuCall.h">
       <Filter>Engine\EngineCore\Renderer\GpuCalls</Filter>
     </ClInclude>
-    <ClInclude Include="Src\DrawCall.h">
-      <Filter>Engine\EngineCore\Renderer\GpuCalls\DrawCall</Filter>
-    </ClInclude>
     <ClInclude Include="Src\RenderGraphExecutor.h">
       <Filter>Engine\EngineCore\RenderGraphSystem\RenderGraphExecutor</Filter>
     </ClInclude>
@@ -821,6 +815,12 @@
     </ClInclude>
     <ClInclude Include="Src\MaterialFactory.h">
       <Filter>Engine\AssetSystem\AssetManager\AssetHandlers\MaterialManager\MaterialFactory</Filter>
+    </ClInclude>
+    <ClInclude Include="Src\MeshRenderOrder.h">
+      <Filter>Engine\RenderSystem\RenderOrder\RenderOrders</Filter>
+    </ClInclude>
+    <ClInclude Include="Src\DrawCall.h">
+      <Filter>Engine\EngineCore\Renderer\GpuCalls\DrawCall</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
@@ -1020,9 +1020,6 @@
     </Filter>
     <Filter Include="Engine\RenderSystem\RenderOrder\RenderOrders">
       <UniqueIdentifier>{c541bbbe-c257-4ad5-b80f-29e1971fcf18}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Engine\RenderSystem\RenderOrder\RenderOrders\MeshRenderOrder">
-      <UniqueIdentifier>{1d312278-ed2b-4f48-8423-ae2f7826ba96}</UniqueIdentifier>
     </Filter>
     <Filter Include="Engine\RenderSystem\ProcessingContext">
       <UniqueIdentifier>{71b407de-17c7-4c14-b5d9-bf427c590135}</UniqueIdentifier>

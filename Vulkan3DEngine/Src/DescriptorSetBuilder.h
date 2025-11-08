@@ -57,12 +57,6 @@ public:
     DescriptorSetBuilder& bindTextureToSlot(uint32_t binding, TextureHandle texture, SamplerHandle sampler);
     DescriptorSetBuilder& bindImageViewToSlot(uint32_t binding, VkImageView imageView, SamplerHandle sampler);
 
-    // Batch binding from ShaderLib buffer values
-    DescriptorSetBuilder& bindBufferVariables(
-        const std::string& bufferName,
-        const std::unordered_map<std::string, ShaderLib::BufferValue>& variables
-    );
-
     // Build the descriptor set
     SmartHandle<DescriptorSetHandle, VkDescriptorSet> build();
 
@@ -82,7 +76,7 @@ private:
 
     // Helper methods
     const ShaderLib::DescriptorSlot* findSlotByName(const std::string& name) const;
-    const ShaderLib::BufferObject* findBufferByName(const std::string& name) const;
+    std::shared_ptr<const ShaderLib::BufferObjectDefinition> findBufferDefinitionByName(const std::string& name) const;
 
     void writeBindingsToWriter(DescriptorWriter& writer);
     void writeBufferBinding(DescriptorWriter& writer, uint32_t binding, const BufferBinding& bufferBinding);
@@ -103,5 +97,4 @@ private:
     const ShaderLib::DescriptorSet* m_descriptorSetMetadata = nullptr;
     DescriptorLayoutHandle m_layoutHandle;
     std::vector<PendingBinding> m_pendingBindings;
-    std::unordered_map<std::string, SmartHandle<BufferHandle, Buffer>> m_createdBuffers; // Buffers created from buffer variables
 };

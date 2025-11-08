@@ -29,7 +29,6 @@ layout(location = 3) out vec3 fragPos;
 layout(location = 4) out vec3 directionToCamera;
 
 void main() {
-
     vec4 posWorld = model * vec4(inPosition, 1.0);
     gl_Position = proj * view * posWorld;
     fragColor = inColor.rgb;

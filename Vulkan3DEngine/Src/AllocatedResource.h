@@ -16,11 +16,17 @@ public:
     AllocatedResource(AllocatedResource&& other) noexcept;
     AllocatedResource& operator=(AllocatedResource&& other) noexcept;
 
-    // Memory mapping operations - implementacja IBufferMapping
+    // IBufferMapping implementation
+    void* getMappedPointer() override { return m_mappedData; }
+    const void* getMappedPointer() const override { return m_mappedData; }
+    bool isMapped() const noexcept override { return m_mappedData != nullptr; }
+    size_t getAllocatedSize() const noexcept override { return static_cast<size_t>(m_allocatedSize); }
+
     void* map() override;
     void unmap() override;
-    bool isMapped() const noexcept override { return m_mappedData != nullptr; }
-    VkDeviceSize getAllocatedSize() const noexcept { return m_allocatedSize; }
+
+    // Legacy VMA-style accessor (kept for compatibility)
+    VkDeviceSize getAllocatedSizeVk() const noexcept { return m_allocatedSize; }
 
     // Utility for copying data
     void copyData(const void* data, VkDeviceSize size);

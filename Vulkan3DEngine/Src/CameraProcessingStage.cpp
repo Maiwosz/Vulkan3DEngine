@@ -10,9 +10,66 @@
 CameraProcessingStage::CameraProcessingStage(ProcessingContext& context, Registry& registry, EngineCore& renderer)
     : ProcessingStage(context),
     m_registry(registry),
-    m_bufferManager(renderer.bufferManager())
+    m_bufferManager(renderer.bufferManager()),
+    m_firstFrame(true)
 {
-    SPDLOG_INFO("Initialized CameraProcessingStage");
+    // Create and cache definitions
+    m_globalUBODef = ShaderLib::CreateGlobalUBODefinition();
+    m_directionalLightDef = ShaderLib::CreateDirectionalLightType();
+    m_pointLightDef = ShaderLib::CreatePointLightType();
+    m_spotLightDef = ShaderLib::CreateSpotLightType();
+
+    // Create reusable instance - we'll swap mapped buffer each frame
+    m_cachedInstance = m_globalUBODef->CreateInstance();
+
+    // Cache all field offsets for O(1) direct memory access
+    const auto* viewField = m_globalUBODef->FindField("view");
+    const auto* projField = m_globalUBODef->FindField("proj");
+    const auto* cameraPosField = m_globalUBODef->FindField("cameraPosition");
+    const auto* activePointLightsField = m_globalUBODef->FindField("activePointLights");
+
+    // Directional light fields
+    const auto* dirLightDirField = m_globalUBODef->FindField("directionalLight.direction");
+    const auto* dirLightColorField = m_globalUBODef->FindField("directionalLight.color");
+
+    // Point lights array - get first element to determine stride
+    const auto* pointLights = m_globalUBODef->FindField("pointLights[0]");
+
+    // Point light fields (relative offsets within each array element)
+    const auto* pointLight0Pos = m_globalUBODef->FindField("pointLights[0].position");
+    const auto* pointLight0Radius = m_globalUBODef->FindField("pointLights[0].radius");
+    const auto* pointLight0Color = m_globalUBODef->FindField("pointLights[0].color");
+
+    // Validate all required fields exist
+    if (!viewField || !projField || !cameraPosField || !activePointLightsField ||
+        !dirLightDirField || !dirLightColorField || !pointLights||
+        !pointLight0Pos || !pointLight0Radius || !pointLight0Color) {
+        throw std::runtime_error("Failed to find required fields in global UBO definition");
+    }
+
+    // Store absolute offsets
+    m_offsets.view = viewField->offset;
+    m_offsets.proj = projField->offset;
+    m_offsets.cameraPosition = cameraPosField->offset;
+    m_offsets.activePointLights = activePointLightsField->offset;
+    m_offsets.dirLight_direction = dirLightDirField->offset;
+    m_offsets.dirLight_color = dirLightColorField->offset;
+
+    // Calculate array stride and base
+    m_offsets.pointLights_base = pointLights->offset;
+    m_offsets.pointLights_stride = pointLights->stride;
+
+    // Calculate relative offsets within array element
+    m_offsets.pointLight_position_rel = pointLight0Pos->relativeOffset;
+    m_offsets.pointLight_radius_rel = pointLight0Radius->relativeOffset;
+    m_offsets.pointLight_color_rel = pointLight0Color->relativeOffset;
+
+    SPDLOG_INFO("Initialized CameraProcessingStage with cached instance and field offsets");
+    SPDLOG_DEBUG("Camera field offsets - view: {}, proj: {}, cameraPos: {}",
+        m_offsets.view, m_offsets.proj, m_offsets.cameraPosition);
+    SPDLOG_DEBUG("Point lights - base: {}, stride: {}, pos_rel: {}, radius_rel: {}, color_rel: {}",
+        m_offsets.pointLights_base, m_offsets.pointLights_stride,
+        m_offsets.pointLight_position_rel, m_offsets.pointLight_radius_rel, m_offsets.pointLight_color_rel);
 }
 
 ProcessingResult CameraProcessingStage::process(std::shared_ptr<RenderOrder> order) {
@@ -39,22 +96,17 @@ ProcessingResult CameraProcessingStage::processCameraOrder(std::shared_ptr<Camer
 
     SPDLOG_DEBUG("Processing camera order for entity: {}", cameraOrder->entity.id);
 
-    // Get all lights from processing context
     const auto& allLights = m_context.getLights();
-
-    // Perform light culling for this camera
     auto culledLights = cullLights(cameraOrder, allLights);
 
     SPDLOG_DEBUG("Camera {} culled {} lights from {} total",
         cameraOrder->entity.id, culledLights.size(), allLights.size());
 
-    // Create global uniform buffer for this camera with culled lights
     auto globalUBO = createGlobalUniformBuffer(cameraOrder, culledLights);
 
     if (globalUBO.isValid()) {
         cameraOrder->globalUBOHandle = globalUBO;
         SPDLOG_DEBUG("Created global UBO for camera entity: {}", cameraOrder->entity.id);
-
         m_context.addProcessedCamera(cameraOrder);
         return ProcessingResult::Success;
     }
@@ -70,7 +122,7 @@ SmartHandle<BufferHandle, Buffer> CameraProcessingStage::createGlobalUniformBuff
 
     Entity cameraEntity = cameraOrder->entity;
 
-    // Get camera components from registry
+    // Validate camera components
     if (!m_registry.components().hasComponent<CameraComponent>(cameraEntity) ||
         !m_registry.components().hasComponent<TransformComponent>(cameraEntity)) {
         SPDLOG_ERROR("Camera entity {} missing required components", cameraEntity.id);
@@ -80,26 +132,38 @@ SmartHandle<BufferHandle, Buffer> CameraProcessingStage::createGlobalUniformBuff
     auto& cameraComponent = m_registry.components().getComponent<CameraComponent>(cameraEntity);
     auto& cameraTransform = m_registry.components().getComponent<TransformComponent>(cameraEntity);
 
-    // Prepare UBO data on CPU
-    ShaderLib::GlobalUBOData uboData;
-    uboData.SetDefaults();
+    // Acquire buffer
+    auto globalUboHandle = m_bufferManager.acquireSmartBuffer(m_globalUBODef);
+    if (!globalUboHandle.isValid()) {
+        SPDLOG_ERROR("Failed to acquire global uniform buffer for camera {}", cameraEntity.id);
+        return SmartHandle<BufferHandle, Buffer>();
+    }
 
-    // Configure camera matrices
+    // Reuse cached instance - just update the mapped buffer pointer
+    m_cachedInstance->SetMappedBuffer(globalUboHandle.get());
+
+    // Get raw buffer for direct memory writes
+    uint8_t* rawBuffer = m_cachedInstance->GetRawBuffer();
+
+    // OPTIMIZATION: Direct memory writes using cached offsets!
+
+    // Write camera matrices
     glm::mat4 viewMatrix = cameraTransform.getViewMatrix();
     glm::mat4 projMatrix = cameraComponent.getProjectionMatrix();
 
-    // Apply Vulkan coordinate system correction
+    // Apply Vulkan coordinate correction
     glm::mat4 vulkanCorrection = glm::mat4(1.0f);
     vulkanCorrection[1][1] = -1.0f;
     glm::mat4 correctedProj = vulkanCorrection * projMatrix;
 
-    uboData.view = viewMatrix;
-    uboData.proj = correctedProj;
-    uboData.cameraPosition = cameraTransform.getPosition();
+    std::memcpy(rawBuffer + m_offsets.view, &viewMatrix, sizeof(glm::mat4));
+    std::memcpy(rawBuffer + m_offsets.proj, &correctedProj, sizeof(glm::mat4));
 
-    // Process lights and populate UBO data
+    glm::vec3 cameraPos = cameraTransform.getPosition();
+    std::memcpy(rawBuffer + m_offsets.cameraPosition, &cameraPos, sizeof(glm::vec3));
+
+    // Process lights with direct memory writes
     int pointLightCount = 0;
-    int spotLightCount = 0;
     bool hasDirectionalLight = false;
 
     for (auto& lightOrder : lights) {
@@ -115,86 +179,61 @@ SmartHandle<BufferHandle, Buffer> CameraProcessingStage::createGlobalUniformBuff
         auto& lightTransform = m_registry.components().getComponent<TransformComponent>(lightEntity);
 
         if (lightComponent.type == LightComponent::Type::Directional && !hasDirectionalLight) {
-            // Process directional light (only first one)
-            uboData.directionalLight.direction = glm::normalize(lightComponent.direction);
-            uboData.directionalLight.color = lightComponent.color;
+            // Write directional light directly
+            glm::vec3 direction = glm::normalize(lightComponent.direction);
+            glm::vec4 color = lightComponent.getColorWithIntensity();
+
+            std::memcpy(rawBuffer + m_offsets.dirLight_direction, &direction, sizeof(glm::vec3));
+            std::memcpy(rawBuffer + m_offsets.dirLight_color, &color, sizeof(glm::vec4));
 
             hasDirectionalLight = true;
-            SPDLOG_DEBUG("Added directional light to global UBO, entity: {}", lightEntity.id);
         }
         else if (lightComponent.type == LightComponent::Type::Point && pointLightCount < 64) {
-            // Process point light
-            auto& pointLight = uboData.pointLights[pointLightCount];
-            pointLight.position = lightTransform.getPosition();
-            pointLight.radius = lightComponent.radius;
-            pointLight.color = lightComponent.color;
+            // Calculate offset for this array element
+            uint32_t elementOffset = m_offsets.pointLights_base +
+                (pointLightCount * m_offsets.pointLights_stride);
 
-            SPDLOG_DEBUG("Added point light {} to global UBO, entity: {}, position: ({}, {}, {}), radius: {}",
+            // Write point light data directly
+            glm::vec3 position = lightTransform.getPosition();
+            float radius = lightComponent.radius;
+            glm::vec4 color = lightComponent.getColorWithIntensity();
+
+            std::memcpy(rawBuffer + elementOffset + m_offsets.pointLight_position_rel,
+                &position, sizeof(glm::vec3));
+            std::memcpy(rawBuffer + elementOffset + m_offsets.pointLight_radius_rel,
+                &radius, sizeof(float));
+            std::memcpy(rawBuffer + elementOffset + m_offsets.pointLight_color_rel,
+                &color, sizeof(glm::vec4));
+
+            SPDLOG_DEBUG("Added point light {} to global UBO, entity: {}, position: ({}, {}, {}), radius: {}, color: ({}, {}, {}, {})",
                 pointLightCount, lightEntity.id,
-                pointLight.position.x,
-                pointLight.position.y,
-                pointLight.position.z,
-                pointLight.radius);
+                position.x, position.y, position.z, radius,
+                color.r, color.g, color.b, color.a);
 
             pointLightCount++;
         }
-		//Not supported yet
-        //else if (lightComponent.type == LightComponent::Type::Spot && spotLightCount < 16) {
-        //    // Process spot light
-        //    auto& spotLight = uboData.spotLights[spotLightCount];
-        //    spotLight.position = lightTransform.getPosition();
-        //    spotLight.direction = glm::normalize(lightComponent.direction);
-        //    spotLight.innerCutoff = lightComponent.innerCutoff;
-        //    spotLight.outerCutoff = lightComponent.outerCutoff;
-        //    spotLight.color = lightComponent.color;
-        //    spotLight.range = lightComponent.range;
-
-        //    SPDLOG_DEBUG("Added spot light {} to global UBO, entity: {}", spotLightCount, lightEntity.id);
-
-        //    spotLightCount++;
-        //}
     }
 
-    // Set active light counts
-    uboData.activePointLights = pointLightCount;
-    uboData.activeSpotLights = spotLightCount;
+    // Write active light count
+    std::memcpy(rawBuffer + m_offsets.activePointLights, &pointLightCount, sizeof(int));
 
-    SPDLOG_DEBUG("Global UBO configured with {} point lights, {} spot lights, directional: {}",
-        pointLightCount, spotLightCount, hasDirectionalLight);
-
-    // Create and acquire buffer
-    auto globalUboHandle = m_bufferManager.acquireSmartBuffer(ShaderLib::CreateGlobalUBO());
-    if (!globalUboHandle.isValid()) {
-        SPDLOG_ERROR("Failed to acquire global uniform buffer for camera {}", cameraEntity.id);
+    // Synchronize to GPU
+    try {
+        m_cachedInstance->SyncToBuffer();
+        globalUboHandle->unmap();
+        SPDLOG_DEBUG("Successfully synchronized global UBO data to GPU for camera {}", cameraEntity.id);
+    }
+    catch (const std::exception& e) {
+        SPDLOG_ERROR("Failed to sync global UBO to buffer: {}", e.what());
         return SmartHandle<BufferHandle, Buffer>();
     }
 
-    // Write entire buffer in one operation
-    {
-        auto writer = m_bufferManager.createWriter(globalUboHandle.handle());
-        if (!writer.isValid()) {
-            SPDLOG_ERROR("Failed to create mapped writer for global UBO");
-            return SmartHandle<BufferHandle, Buffer>();
-        }
-
-        // Single memcpy for entire structure
-        if (!writer.writeRaw(&uboData, sizeof(ShaderLib::GlobalUBOData), 0)) {
-            SPDLOG_ERROR("Failed to write GlobalUBOData to buffer");
-            return SmartHandle<BufferHandle, Buffer>();
-        }
-
-    } // writer goes out of scope - buffer is automatically unmapped
-
-    SPDLOG_DEBUG("Created and updated global uniform buffer for camera {}", cameraEntity.id);
     return globalUboHandle;
 }
 
 std::vector<std::shared_ptr<LightRenderOrder>> CameraProcessingStage::cullLights(
     std::shared_ptr<CameraRenderOrder> cameraOrder,
     const std::vector<std::shared_ptr<LightRenderOrder>>& allLights) {
-
-    // Current implementation: pass-through all lights
-    // Future: implement frustum culling, distance culling, etc.
 
     SPDLOG_DEBUG("Light culling for camera {} - pass-through mode (no culling)",
         cameraOrder->entity.id);
