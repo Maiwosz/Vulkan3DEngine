@@ -172,6 +172,8 @@
     <ClCompile Include="..\Libs\imgui\imgui_impl_vulkan.cpp" />
     <ClCompile Include="..\Libs\imgui\imgui_tables.cpp" />
     <ClCompile Include="..\Libs\imgui\imgui_widgets.cpp" />
+    <ClCompile Include="Src\CppScriptSystem.cpp" />
+    <ClCompile Include="Src\LuaScriptSystem.cpp" />
     <ClCompile Include="Src\MaterialFactory.cpp" />
     <ClCompile Include="Src\DescriptorSetBuilder.cpp" />
     <ClCompile Include="Src\ComputeDispatcher.cpp" />
@@ -296,6 +298,12 @@
     <ClInclude Include="..\Libs\imgui\imstb_rectpack.h" />
     <ClInclude Include="..\Libs\imgui\imstb_textedit.h" />
     <ClInclude Include="..\Libs\imgui\imstb_truetype.h" />
+    <ClInclude Include="Src\ComputeShaderTestScript.h" />
+    <ClInclude Include="Src\CppScriptBase.h" />
+    <ClInclude Include="Src\CppScriptRegistry.h" />
+    <ClInclude Include="Src\CppScriptSystem.h" />
+    <ClInclude Include="Src\IScriptSystem.h" />
+    <ClInclude Include="Src\LuaScriptSystem.h" />
     <ClInclude Include="Src\MaterialFactory.h" />
     <ClInclude Include="Src\DescriptorSetBuilder.h" />
     <ClInclude Include="Src\ComputeDispatcher.h" />

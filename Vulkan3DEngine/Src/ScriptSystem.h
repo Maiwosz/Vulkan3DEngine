@@ -1,12 +1,10 @@
 #pragma once
 #include "System.h"
-#include "ScriptComponent.h"
-#include "TransformComponent.h"
-#include <sol/sol.hpp>
-#include <unordered_map>
+#include "IScriptSystem.h"
 #include <memory>
-#include <set>
+#include <vector>
 
+// Main script system that manages both Lua and C++ script subsystems
 class ScriptSystem : public System<> {
 public:
     ScriptSystem() = default;
@@ -15,27 +13,12 @@ public:
     void initialize() override;
     void update() override;
 
-    // Add a getter for the Lua state to use in bindings
-    sol::state* getLuaState() { return m_luaState.get(); }
+    // Register a script subsystem (Lua, C++, etc.)
+    void registerScriptSubsystem(std::unique_ptr<IScriptSystem> subsystem);
 
-    // Add a method to expose the raw Lua state pointer
-    lua_State* getRawLuaState() {
-        return m_luaState ? m_luaState->lua_state() : nullptr;
-    }
+    // Get specific subsystem by name
+    IScriptSystem* getSubsystem(const std::string& name);
 
 private:
-    // Load a script from file
-    bool loadScript(Entity entity, ScriptComponent& script);
-
-    // Call script lifecycle functions if they exist
-    void callOnCreate(Entity entity, sol::table& scriptTable);
-    void callOnUpdate(Entity entity, sol::table& scriptTable, float deltaTime);
-    void callOnDestroy(Entity entity, sol::table& scriptTable);
-
-    // Track which scripts have been created/destroyed
-    std::set<Entity> m_createdScripts;
-    std::unordered_map<Entity, sol::table> m_scriptInstances;
-
-    // The Lua state
-    std::unique_ptr<sol::state> m_luaState;
+    std::vector<std::unique_ptr<IScriptSystem>> m_subsystems;
 };

@@ -11,6 +11,7 @@
 #include "Engine.h"
 #include "InputSystem.h"
 #include <spdlog/spdlog.h>
+#include "ComputeShaderTestScript.h"
 
 Scene::Scene(Engine& engine, Registry& registry) :
     m_engine(engine), m_registry(registry)
@@ -198,6 +199,11 @@ Scene::Scene(Engine& engine, Registry& registry) :
     //AssetHandle handle = AssetHandle(AssetLib::AssetType::Scene, "testScene");
     //m_engine.assetSystem().assetManager().ensureReady(handle);
     m_registry.scenes().loadScene("testScene");
+
+    Entity computeShaderTestEntity = m_registry.entities().create();
+    {
+        auto& script = m_registry.components().addComponent<ComputeShaderTestScript>(computeShaderTestEntity);
+    }
 }
 
 Scene::~Scene()
@@ -208,110 +214,4 @@ Scene::~Scene()
 void Scene::update()
 {
     m_registry.systems().updateAll();
-    static bool firstRun = true;
-    if (firstRun) {
-        firstRun = false;
-        testComputeShader();
-    }
-}
-
-void Scene::testComputeShader()
-{
-    try {
-        SPDLOG_WARN("=== Starting Compute Shader Test ===");
-
-        MaterialManager& materialManager = m_engine.assetSystem().materialManager();
-        ComputeDispatcher& computeDispatcher = m_engine.engineCore().renderer().computeDispatcher();
-
-        // Create compute material
-        auto material = materialManager.createComputeMaterial("ComputeTest");
-        if (!material) {
-            SPDLOG_ERROR("Failed to create compute material");
-            return;
-        }
-
-        SPDLOG_WARN("Compute material created: {}", material->GetName());
-
-        // Verify 'values' field exists
-        if (!material->HasField("values")) {
-            SPDLOG_ERROR("Material doesn't have 'values' field");
-            SPDLOG_WARN("Available fields:");
-            for (const auto& fieldName : material->GetFieldNames()) {
-                SPDLOG_WARN("  - {}", fieldName);
-            }
-            return;
-        }
-
-        // Get array size
-        size_t dataSize = material->GetArraySize("values");
-        if (dataSize == 0) {
-            SPDLOG_ERROR("'values' is not an array");
-            return;
-        }
-
-        SPDLOG_WARN("Array size: {} elements", dataSize);
-
-        // Fill array with test data: 0.0, 1.0, 2.0, ...
-        SPDLOG_WARN("Filling array with test data...");
-        auto values = (*material)["values"];
-        for (uint32_t i = 0; i < dataSize; ++i) {
-            values[i] = static_cast<float>(i);
-        }
-
-        // Sync to GPU
-        SPDLOG_WARN("Syncing data to GPU...");
-        material->SyncToGPU();
-
-        // Dispatch compute shader
-        SPDLOG_WARN("Dispatching compute shader for {} elements...", dataSize);
-        if (!computeDispatcher.dispatchForDataSize(material, dataSize, 1, 1)) {
-            SPDLOG_ERROR("Compute dispatch failed");
-            return;
-        }
-
-        SPDLOG_WARN("Compute shader executed successfully");
-
-        // Sync results from GPU
-        SPDLOG_WARN("Syncing results from GPU...");
-        material->SyncFromGPU();
-
-        // Verify results
-        SPDLOG_WARN("Verifying results (expected: each value doubled)...");
-        SPDLOG_WARN("Output data (first 10 values):");
-
-        bool allCorrect = true;
-        for (uint32_t i = 0; i < std::min(10u, static_cast<uint32_t>(dataSize)); ++i) {
-            float outputValue = values[i];
-            float expected = static_cast<float>(i) * 2.0f;
-            bool correct = std::abs(outputValue - expected) < 0.001f;
-            allCorrect &= correct;
-
-            SPDLOG_WARN("  [{}] Output: {:.1f}, Expected: {:.1f} {}",
-                i, outputValue, expected, correct ? "✓" : "✗");
-        }
-
-        // Check remaining values
-        for (uint32_t i = 10; i < dataSize; ++i) {
-            float outputValue = values[i];
-            float expected = static_cast<float>(i) * 2.0f;
-            if (std::abs(outputValue - expected) >= 0.001f) {
-                allCorrect = false;
-                SPDLOG_ERROR("  [{}] Mismatch! Output: {:.1f}, Expected: {:.1f}",
-                    i, outputValue, expected);
-            }
-        }
-
-        if (allCorrect) {
-            SPDLOG_WARN("=== TEST PASSED: All {} values correctly doubled ===", dataSize);
-        }
-        else {
-            SPDLOG_ERROR("=== TEST FAILED: Some values incorrect ===");
-        }
-
-        SPDLOG_WARN("=== Compute Shader Test Complete ===");
-    }
-    catch (const std::exception& e) {
-        SPDLOG_ERROR("Exception in testComputeShader: {}", e.what());
-        SPDLOG_WARN("=== Compute Shader Test Failed ===");
-    }
 }

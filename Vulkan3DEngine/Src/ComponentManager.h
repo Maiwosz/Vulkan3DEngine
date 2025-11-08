@@ -14,6 +14,7 @@
 // Forward declaration to avoid circular dependency
 class Engine;
 class Registry;
+class CppScriptSystem;
 
 class ComponentManager {
 public:
@@ -141,6 +142,8 @@ private:
 
     // Helper method
     IComponentPool* getComponentPool(const std::string& componentTypeName) const;
+
+    friend class CppScriptSystem;
 };
 
 // Template implementations
@@ -196,18 +199,30 @@ void ComponentManager::removeComponent(Entity entity) {
 template<typename T>
 T& ComponentManager::getComponent(Entity entity) {
     auto type = std::type_index(typeid(T));
-    auto& pool = static_cast<ComponentPool<T>&>(*m_componentPools.at(type));
-    return pool.m_components[pool.m_entityToIndex.at(entity)];
+    auto it = m_componentPools.find(type);
+    if (it == m_componentPools.end()) {
+        throw std::runtime_error("Component pool not found for type");
+    }
+
+    auto& pool = static_cast<ComponentPool<T>&>(*it->second);
+    auto entityIt = pool.m_entityToIndex.find(entity);
+    if (entityIt == pool.m_entityToIndex.end()) {
+        throw std::runtime_error("Entity does not have this component");
+    }
+
+    return pool.m_components[entityIt->second];
 }
 
 template<typename T>
 bool ComponentManager::hasComponent(Entity entity) const {
     auto type = std::type_index(typeid(T));
-    if (auto it = m_componentPools.find(type); it != m_componentPools.end()) {
-        auto& pool = static_cast<const ComponentPool<T>&>(*it->second);
-        return pool.m_entityToIndex.count(entity) > 0;
+    auto it = m_componentPools.find(type);
+    if (it == m_componentPools.end()) {
+        return false;
     }
-    return false;
+
+    auto& pool = static_cast<const ComponentPool<T>&>(*it->second);
+    return pool.m_entityToIndex.find(entity) != pool.m_entityToIndex.end();
 }
 
 template<typename... Components>
