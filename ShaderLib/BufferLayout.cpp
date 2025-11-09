@@ -44,27 +44,21 @@ namespace ShaderLib {
                 // Array stride
                 uint32_t stride;
                 if (standard == LayoutStandard::Std140) {
-                    // std140: array elements aligned to max(alignment, 16)
                     uint32_t arrayAlignment = std::max(fieldAlignment, 16u);
                     stride = AlignTo(fieldSize, arrayAlignment);
                     fieldAlignment = arrayAlignment;
                 }
                 else {
-                    // std430: array elements aligned to their natural alignment
                     stride = AlignTo(fieldSize, fieldAlignment);
                 }
 
-                // Align field start
                 currentOffset = AlignTo(currentOffset, fieldAlignment);
-
-                // Total array size
                 uint32_t arraySize = field.arraySize * stride;
                 currentOffset += arraySize;
 
                 maxAlignment = std::max(maxAlignment, fieldAlignment);
             }
             else if (field.isBaseType()) {
-                // Simple base type field
                 const BaseTypeInfo& typeInfo = GetBaseTypeInfo(field.baseType);
                 fieldAlignment = typeInfo.GetAlignment(standard);
                 fieldSize = typeInfo.size;
@@ -75,7 +69,6 @@ namespace ShaderLib {
                 maxAlignment = std::max(maxAlignment, fieldAlignment);
             }
             else {
-                // Nested struct field (not array)
                 StructLayoutInfo nestedInfo = ComputeStructLayout(field.structDef, standard);
                 fieldAlignment = nestedInfo.alignment;
                 fieldSize = nestedInfo.size;
@@ -89,12 +82,9 @@ namespace ShaderLib {
 
         // Struct alignment rules
         if (standard == LayoutStandard::Std140) {
-            // std140: struct alignment rounded up to multiple of 16
             maxAlignment = AlignTo(maxAlignment, 16u);
         }
-        // std430: struct alignment = max field alignment (no rounding)
 
-        // Struct size must be multiple of its alignment
         uint32_t structSize = AlignTo(currentOffset, maxAlignment);
 
         return { structSize, maxAlignment };
@@ -136,26 +126,21 @@ namespace ShaderLib {
         uint32_t currentOffset = 0;
         const auto& fields = m_structure->GetFields();
 
-        // Process each top-level field
         for (const auto& fieldDef : fields) {
-            currentOffset = ProcessField(
-                fieldDef,
-                "",           // parent path
-                -1,           // parent index
-                currentOffset
-            );
+            currentOffset = ProcessField(fieldDef, "", -1, currentOffset);
         }
 
-        // Buffer-level alignment rules (different from struct!)
+        // Buffer-level alignment rules
         if (m_standard == LayoutStandard::Std140) {
-            // std140: BUFFER (not struct) has minimum 16 byte alignment
             m_alignment = std::max(m_alignment, 16u);
         }
-        // std430: buffer alignment = max field alignment
 
-        // Total size must be multiple of alignment
         m_totalSize = AlignTo(currentOffset, m_alignment);
     }
+
+    // ============================================================================
+    // UNIFIED FIELD PROCESSING
+    // ============================================================================
 
     uint32_t BufferLayout::ProcessField(
         const StructureDefinition::FieldDef& fieldDef,
@@ -178,30 +163,27 @@ namespace ShaderLib {
         const StructureDefinition::FieldDef& fieldDef,
         const std::string& parentPath,
         int32_t parentIndex,
-        uint32_t currentOffset  // ABSOLUTNY offset
+        uint32_t currentOffset
     ) {
         const BaseTypeInfo& typeInfo = GetBaseTypeInfo(fieldDef.baseType);
         const uint32_t alignment = typeInfo.GetAlignment(m_standard);
 
-        // Align offset
         currentOffset = AlignTo(currentOffset, alignment);
 
-        // Oblicz relative offset (dla top-level będzie równy absolutnemu)
         uint32_t relativeOffset = currentOffset;
         if (parentIndex >= 0) {
             relativeOffset = currentOffset - m_allFields[parentIndex].offset;
         }
 
-        // Create descriptor
         FieldDescriptor desc;
         desc.name = fieldDef.name;
-        desc.path = parentPath.empty() ? fieldDef.name : parentPath + "." + fieldDef.name;
+        desc.path = BuildPath(parentPath, fieldDef.name, false, 0);
         desc.baseType = fieldDef.baseType;
         desc.structTypeName.clear();
         desc.arraySize = 0;
         desc.arrayIndex = 0;
-        desc.offset = currentOffset;           // ABSOLUTNY
-        desc.relativeOffset = relativeOffset;  // WZGLĘDNY
+        desc.offset = currentOffset;
+        desc.relativeOffset = relativeOffset;
         desc.size = typeInfo.size;
         desc.alignment = alignment;
         desc.stride = 0;
@@ -213,8 +195,6 @@ namespace ShaderLib {
         desc.accessMode = fieldDef.accessMode;
 
         m_allFields.push_back(desc);
-
-        // Update buffer alignment
         m_alignment = std::max(m_alignment, alignment);
 
         return currentOffset + typeInfo.size;
@@ -224,7 +204,7 @@ namespace ShaderLib {
         const StructureDefinition::FieldDef& fieldDef,
         const std::string& parentPath,
         int32_t parentIndex,
-        uint32_t currentOffset  // ABSOLUTNY
+        uint32_t currentOffset
     ) {
         // Get element info
         uint32_t elementSize;
@@ -236,13 +216,12 @@ namespace ShaderLib {
             elementAlignment = typeInfo.GetAlignment(m_standard);
         }
         else {
-            // Nested struct - use helper to compute layout
             StructLayoutInfo structInfo = ComputeStructLayout(fieldDef.structDef, m_standard);
             elementSize = structInfo.size;
             elementAlignment = structInfo.alignment;
         }
 
-        // Array stride depends on layout standard
+        // Calculate array stride and alignment
         uint32_t stride;
         uint32_t arrayAlignment;
 
@@ -255,11 +234,9 @@ namespace ShaderLib {
             stride = AlignTo(elementSize, elementAlignment);
         }
 
-        // Align start of array
         currentOffset = AlignTo(currentOffset, arrayAlignment);
         const uint32_t arrayStart = currentOffset;
 
-        // Oblicz relative offset (dla top-level będzie równy absolutnemu)
         uint32_t baseRelativeOffset = arrayStart;
         if (parentIndex >= 0) {
             baseRelativeOffset = arrayStart - m_allFields[parentIndex].offset;
@@ -271,73 +248,21 @@ namespace ShaderLib {
             const uint32_t elementRelativeOffset = baseRelativeOffset + (i * stride);
 
             if (fieldDef.isBaseType()) {
-                // Base type array element
-                const BaseTypeInfo& typeInfo = GetBaseTypeInfo(fieldDef.baseType);
-
-                FieldDescriptor desc;
-                desc.name = fieldDef.name;
-                desc.path = parentPath.empty()
-                    ? fieldDef.name + "[" + std::to_string(i) + "]"
-                    : parentPath + "." + fieldDef.name + "[" + std::to_string(i) + "]";
-                desc.baseType = fieldDef.baseType;
-                desc.structTypeName.clear();
-                desc.arraySize = fieldDef.arraySize;
-                desc.arrayIndex = i;
-                desc.offset = elementOffset;                    // ABSOLUTNY
-                desc.relativeOffset = elementRelativeOffset;    // WZGLĘDNY
-                desc.size = typeInfo.size;
-                desc.alignment = arrayAlignment;
-                desc.stride = stride;
-                desc.parentPath = parentPath;
-                desc.parentIndex = parentIndex;
-                desc.isBaseType = true;
-                desc.isArray = true;
-                desc.isArrayElement = true;
-                desc.accessMode = fieldDef.accessMode;
-
-                m_allFields.push_back(desc);
+                AddArrayElementDescriptor(
+                    fieldDef, parentPath, parentIndex,
+                    elementOffset, elementRelativeOffset,
+                    arrayAlignment, stride, i
+                );
             }
             else {
-                // Struct array element
-                const std::string elementPath = parentPath.empty()
-                    ? fieldDef.name + "[" + std::to_string(i) + "]"
-                    : parentPath + "." + fieldDef.name + "[" + std::to_string(i) + "]";
-
-                const int32_t structDescIndex = static_cast<int32_t>(m_allFields.size());
-
-                // Add struct descriptor
-                FieldDescriptor structDesc;
-                structDesc.name = fieldDef.name;
-                structDesc.path = elementPath;
-                structDesc.baseType = BaseType::Unknown;
-                structDesc.structTypeName = fieldDef.structDef->GetName();
-                structDesc.arraySize = fieldDef.arraySize;
-                structDesc.arrayIndex = i;
-                structDesc.offset = elementOffset;                  // ABSOLUTNY
-                structDesc.relativeOffset = elementRelativeOffset;  // WZGLĘDNY
-                structDesc.size = elementSize;
-                structDesc.alignment = arrayAlignment;
-                structDesc.stride = stride;
-                structDesc.parentPath = parentPath;
-                structDesc.parentIndex = parentIndex;
-                structDesc.isBaseType = false;
-                structDesc.isArray = true;
-                structDesc.isArrayElement = true;
-                structDesc.accessMode = fieldDef.accessMode;
-
-                m_allFields.push_back(structDesc);
-
-                // Recursively add nested struct fields
-                AddNestedStructFields(
-                    fieldDef.structDef,
-                    elementPath,
-                    structDescIndex,
-                    elementOffset  // ABSOLUTNY offset początku struktury
+                AddStructArrayElementDescriptor(
+                    fieldDef, parentPath, parentIndex,
+                    elementOffset, elementRelativeOffset, elementSize,
+                    arrayAlignment, stride, i
                 );
             }
         }
 
-        // Update buffer alignment
         m_alignment = std::max(m_alignment, arrayAlignment);
 
         return arrayStart + (fieldDef.arraySize * stride);
@@ -347,27 +272,21 @@ namespace ShaderLib {
         const StructureDefinition::FieldDef& fieldDef,
         const std::string& parentPath,
         int32_t parentIndex,
-        uint32_t currentOffset  // ABSOLUTNY
+        uint32_t currentOffset
     ) {
-        // Compute struct layout using helper
         StructLayoutInfo structInfo = ComputeStructLayout(fieldDef.structDef, m_standard);
 
         const uint32_t structSize = structInfo.size;
         const uint32_t structAlignment = structInfo.alignment;
 
-        // Align to struct alignment
         currentOffset = AlignTo(currentOffset, structAlignment);
 
-        // Oblicz relative offset (dla top-level będzie równy absolutnemu)
         uint32_t relativeOffset = currentOffset;
         if (parentIndex >= 0) {
             relativeOffset = currentOffset - m_allFields[parentIndex].offset;
         }
 
-        const std::string structPath = parentPath.empty()
-            ? fieldDef.name
-            : parentPath + "." + fieldDef.name;
-
+        const std::string structPath = BuildPath(parentPath, fieldDef.name, false, 0);
         const int32_t structDescIndex = static_cast<int32_t>(m_allFields.size());
 
         // Add struct descriptor
@@ -378,8 +297,8 @@ namespace ShaderLib {
         structDesc.structTypeName = fieldDef.structDef->GetName();
         structDesc.arraySize = 0;
         structDesc.arrayIndex = 0;
-        structDesc.offset = currentOffset;           // ABSOLUTNY
-        structDesc.relativeOffset = relativeOffset;  // WZGLĘDNY
+        structDesc.offset = currentOffset;
+        structDesc.relativeOffset = relativeOffset;
         structDesc.size = structSize;
         structDesc.alignment = structAlignment;
         structDesc.stride = 0;
@@ -393,246 +312,121 @@ namespace ShaderLib {
         m_allFields.push_back(structDesc);
 
         // Recursively add nested fields
-        AddNestedStructFields(
-            fieldDef.structDef,
-            structPath,
-            structDescIndex,
-            currentOffset  // ABSOLUTNY offset początku struktury
-        );
+        AddNestedStructFields(fieldDef.structDef, structPath, structDescIndex, currentOffset);
 
-        // Update buffer alignment
         m_alignment = std::max(m_alignment, structAlignment);
 
         return currentOffset + structSize;
     }
 
+    // ============================================================================
+    // HELPER METHODS
+    // ============================================================================
+
     void BufferLayout::AddNestedStructFields(
         std::shared_ptr<const StructureDefinition> structDef,
         const std::string& structPath,
         int32_t structParentIndex,
-        uint32_t baseOffset  // ABSOLUTNY offset początku struktury
+        uint32_t baseOffset
     ) {
-        // Teraz po prostu przekazujemy absolutny offset do ProcessNestedField
-        // i nie musimy już żonglować lokalnym offsetem!
         uint32_t currentOffset = baseOffset;
 
         for (const auto& field : structDef->GetFields()) {
-            currentOffset = ProcessNestedField(
-                field,
-                structPath,
-                structParentIndex,
-                currentOffset  // Zawsze absolutny offset
-            );
+            currentOffset = ProcessField(field, structPath, structParentIndex, currentOffset);
         }
     }
 
-    uint32_t BufferLayout::ProcessNestedField(
+    void BufferLayout::AddArrayElementDescriptor(
         const StructureDefinition::FieldDef& fieldDef,
         const std::string& parentPath,
         int32_t parentIndex,
-        uint32_t currentOffset
-    ) {
-        if (fieldDef.isArray()) {
-            return ProcessNestedArray(fieldDef, parentPath, parentIndex, currentOffset);
-        }
-        else if (fieldDef.isBaseType()) {
-            return ProcessNestedBaseType(fieldDef, parentPath, parentIndex, currentOffset);
-        }
-        else {
-            return ProcessNestedStruct(fieldDef, parentPath, parentIndex, currentOffset);
-        }
-    }
-
-    uint32_t BufferLayout::ProcessNestedBaseType(
-        const StructureDefinition::FieldDef& fieldDef,
-        const std::string& parentPath,
-        int32_t parentIndex,
-        uint32_t currentOffset  // ABSOLUTNY
+        uint32_t elementOffset,
+        uint32_t elementRelativeOffset,
+        uint32_t arrayAlignment,
+        uint32_t stride,
+        uint32_t arrayIndex
     ) {
         const BaseTypeInfo& typeInfo = GetBaseTypeInfo(fieldDef.baseType);
-        const uint32_t alignment = typeInfo.GetAlignment(m_standard);
-
-        currentOffset = AlignTo(currentOffset, alignment);
-
-        // Oblicz relative offset
-        uint32_t relativeOffset = currentOffset - m_allFields[parentIndex].offset;
 
         FieldDescriptor desc;
         desc.name = fieldDef.name;
-        desc.path = parentPath + "." + fieldDef.name;
+        desc.path = BuildPath(parentPath, fieldDef.name, true, arrayIndex);
         desc.baseType = fieldDef.baseType;
         desc.structTypeName.clear();
-        desc.arraySize = 0;
-        desc.arrayIndex = 0;
-        desc.offset = currentOffset;           // ABSOLUTNY
-        desc.relativeOffset = relativeOffset;  // WZGLĘDNY
+        desc.arraySize = fieldDef.arraySize;
+        desc.arrayIndex = arrayIndex;
+        desc.offset = elementOffset;
+        desc.relativeOffset = elementRelativeOffset;
         desc.size = typeInfo.size;
-        desc.alignment = alignment;
-        desc.stride = 0;
+        desc.alignment = arrayAlignment;
+        desc.stride = stride;
         desc.parentPath = parentPath;
         desc.parentIndex = parentIndex;
         desc.isBaseType = true;
-        desc.isArray = false;
-        desc.isArrayElement = false;
+        desc.isArray = true;
+        desc.isArrayElement = true;
         desc.accessMode = fieldDef.accessMode;
 
         m_allFields.push_back(desc);
-
-        return currentOffset + typeInfo.size;
     }
 
-    uint32_t BufferLayout::ProcessNestedArray(
+    void BufferLayout::AddStructArrayElementDescriptor(
         const StructureDefinition::FieldDef& fieldDef,
         const std::string& parentPath,
         int32_t parentIndex,
-        uint32_t currentOffset  // ABSOLUTNY
+        uint32_t elementOffset,
+        uint32_t elementRelativeOffset,
+        uint32_t elementSize,
+        uint32_t arrayAlignment,
+        uint32_t stride,
+        uint32_t arrayIndex
     ) {
-        uint32_t elementSize;
-        uint32_t elementAlignment;
-
-        if (fieldDef.isBaseType()) {
-            const BaseTypeInfo& typeInfo = GetBaseTypeInfo(fieldDef.baseType);
-            elementSize = typeInfo.size;
-            elementAlignment = typeInfo.GetAlignment(m_standard);
-        }
-        else {
-            StructLayoutInfo structInfo = ComputeStructLayout(fieldDef.structDef, m_standard);
-            elementSize = structInfo.size;
-            elementAlignment = structInfo.alignment;
-        }
-
-        uint32_t stride;
-        uint32_t arrayAlignment;
-
-        if (m_standard == LayoutStandard::Std140) {
-            arrayAlignment = std::max(elementAlignment, 16u);
-            stride = AlignTo(elementSize, arrayAlignment);
-        }
-        else {
-            arrayAlignment = elementAlignment;
-            stride = AlignTo(elementSize, elementAlignment);
-        }
-
-        currentOffset = AlignTo(currentOffset, arrayAlignment);
-        const uint32_t arrayStart = currentOffset;
-
-        // Oblicz base relative offset dla pierwszego elementu
-        const uint32_t baseRelativeOffset = arrayStart - m_allFields[parentIndex].offset;
-
-        for (uint32_t i = 0; i < fieldDef.arraySize; ++i) {
-            const uint32_t elementOffset = arrayStart + (i * stride);
-            const uint32_t elementRelativeOffset = baseRelativeOffset + (i * stride);
-
-            if (fieldDef.isBaseType()) {
-                const BaseTypeInfo& typeInfo = GetBaseTypeInfo(fieldDef.baseType);
-
-                FieldDescriptor desc;
-                desc.name = fieldDef.name;
-                desc.path = parentPath + "." + fieldDef.name + "[" + std::to_string(i) + "]";
-                desc.baseType = fieldDef.baseType;
-                desc.structTypeName.clear();
-                desc.arraySize = fieldDef.arraySize;
-                desc.arrayIndex = i;
-                desc.offset = elementOffset;                    // ABSOLUTNY
-                desc.relativeOffset = elementRelativeOffset;    // WZGLĘDNY
-                desc.size = typeInfo.size;
-                desc.alignment = arrayAlignment;
-                desc.stride = stride;
-                desc.parentPath = parentPath;
-                desc.parentIndex = parentIndex;
-                desc.isBaseType = true;
-                desc.isArray = true;
-                desc.isArrayElement = true;
-                desc.accessMode = fieldDef.accessMode;
-
-                m_allFields.push_back(desc);
-            }
-            else {
-                const std::string elementPath = parentPath + "." + fieldDef.name +
-                    "[" + std::to_string(i) + "]";
-                const int32_t structDescIndex = static_cast<int32_t>(m_allFields.size());
-
-                FieldDescriptor structDesc;
-                structDesc.name = fieldDef.name;
-                structDesc.path = elementPath;
-                structDesc.baseType = BaseType::Unknown;
-                structDesc.structTypeName = fieldDef.structDef->GetName();
-                structDesc.arraySize = fieldDef.arraySize;
-                structDesc.arrayIndex = i;
-                structDesc.offset = elementOffset;                  // ABSOLUTNY
-                structDesc.relativeOffset = elementRelativeOffset;  // WZGLĘDNY
-                structDesc.size = elementSize;
-                structDesc.alignment = arrayAlignment;
-                structDesc.stride = stride;
-                structDesc.parentPath = parentPath;
-                structDesc.parentIndex = parentIndex;
-                structDesc.isBaseType = false;
-                structDesc.isArray = true;
-                structDesc.isArrayElement = true;
-                structDesc.accessMode = fieldDef.accessMode;
-
-                m_allFields.push_back(structDesc);
-
-                AddNestedStructFields(
-                    fieldDef.structDef,
-                    elementPath,
-                    structDescIndex,
-                    elementOffset  // ABSOLUTNY offset początku struktury
-                );
-            }
-        }
-
-        return arrayStart + (fieldDef.arraySize * stride);
-    }
-
-    uint32_t BufferLayout::ProcessNestedStruct(
-        const StructureDefinition::FieldDef& fieldDef,
-        const std::string& parentPath,
-        int32_t parentIndex,
-        uint32_t currentOffset  // ABSOLUTNY
-    ) {
-        StructLayoutInfo structInfo = ComputeStructLayout(fieldDef.structDef, m_standard);
-
-        const uint32_t structSize = structInfo.size;
-        const uint32_t structAlignment = structInfo.alignment;
-
-        currentOffset = AlignTo(currentOffset, structAlignment);
-
-        // Oblicz relative offset
-        const uint32_t relativeOffset = currentOffset - m_allFields[parentIndex].offset;
-
-        const std::string structPath = parentPath + "." + fieldDef.name;
+        const std::string elementPath = BuildPath(parentPath, fieldDef.name, true, arrayIndex);
         const int32_t structDescIndex = static_cast<int32_t>(m_allFields.size());
 
         FieldDescriptor structDesc;
         structDesc.name = fieldDef.name;
-        structDesc.path = structPath;
+        structDesc.path = elementPath;
         structDesc.baseType = BaseType::Unknown;
         structDesc.structTypeName = fieldDef.structDef->GetName();
-        structDesc.arraySize = 0;
-        structDesc.arrayIndex = 0;
-        structDesc.offset = currentOffset;           // ABSOLUTNY
-        structDesc.relativeOffset = relativeOffset;  // WZGLĘDNY
-        structDesc.size = structSize;
-        structDesc.alignment = structAlignment;
-        structDesc.stride = 0;
+        structDesc.arraySize = fieldDef.arraySize;
+        structDesc.arrayIndex = arrayIndex;
+        structDesc.offset = elementOffset;
+        structDesc.relativeOffset = elementRelativeOffset;
+        structDesc.size = elementSize;
+        structDesc.alignment = arrayAlignment;
+        structDesc.stride = stride;
         structDesc.parentPath = parentPath;
         structDesc.parentIndex = parentIndex;
         structDesc.isBaseType = false;
-        structDesc.isArray = false;
-        structDesc.isArrayElement = false;
+        structDesc.isArray = true;
+        structDesc.isArrayElement = true;
         structDesc.accessMode = fieldDef.accessMode;
 
         m_allFields.push_back(structDesc);
 
-        AddNestedStructFields(
-            fieldDef.structDef,
-            structPath,
-            structDescIndex,
-            currentOffset  // ABSOLUTNY offset początku struktury
-        );
+        AddNestedStructFields(fieldDef.structDef, elementPath, structDescIndex, elementOffset);
+    }
 
-        return currentOffset + structSize;
+    std::string BufferLayout::BuildPath(
+        const std::string& parentPath,
+        const std::string& fieldName,
+        bool isArrayElement,
+        uint32_t arrayIndex
+    ) const {
+        std::string path;
+
+        if (!parentPath.empty()) {
+            path = parentPath + ".";
+        }
+
+        path += fieldName;
+
+        if (isArrayElement) {
+            path += "[" + std::to_string(arrayIndex) + "]";
+        }
+
+        return path;
     }
 
     // ============================================================================
@@ -697,7 +491,7 @@ namespace ShaderLib {
     ) const {
         std::string indent(indentLevel * 2, ' ');
 
-        // Show padding before this field (only if we're tracking offsets at this level)
+        // Show padding before this field
         if (showPadding && lastOffset && *lastOffset < field.offset) {
             uint32_t paddingSize = field.offset - *lastOffset;
             ss << indent << "  [PADDING: " << paddingSize << " bytes]\n";
@@ -712,7 +506,6 @@ namespace ShaderLib {
 
         ss << ": " << GetTypeString(field);
 
-        // Show struct keyword for structure types
         if (!field.isBaseType) {
             ss << " (struct)";
         }
@@ -728,11 +521,8 @@ namespace ShaderLib {
 
         ss << "\n";
 
-        // If this is a structure, recursively show its nested fields
+        // Recursively show nested fields for structures
         if (!field.isBaseType) {
-            // Find all direct children of this struct and sort them by offset
-            // KRYTYCZNE: Dzieci nie są w kolejności w m_allFields,
-            // musimy je posortować po offsetach
             std::vector<size_t> childIndices;
             for (size_t i = 0; i < m_allFields.size(); ++i) {
                 const auto& childField = m_allFields[i];
@@ -741,13 +531,11 @@ namespace ShaderLib {
                 }
             }
 
-            // Sort children by offset
             std::sort(childIndices.begin(), childIndices.end(),
                 [this](size_t a, size_t b) {
                     return m_allFields[a].offset < m_allFields[b].offset;
                 });
 
-            // Now print children in order with correct padding calculation
             uint32_t nestedLastOffset = field.offset;
 
             for (size_t childIdx : childIndices) {
@@ -755,7 +543,6 @@ namespace ShaderLib {
                 AppendFieldDebugInfo(ss, childField, indentLevel + 1, showPadding, &nestedLastOffset);
             }
 
-            // Show padding at the end of struct if any
             if (showPadding) {
                 uint32_t structEnd = field.offset + field.size;
                 if (nestedLastOffset < structEnd) {
@@ -774,29 +561,26 @@ namespace ShaderLib {
     std::string BufferLayout::DebugPrint(bool showPadding) const {
         std::stringstream ss;
 
-        ss << "═══════════════════════════════════════════════════════\n";
+        ss << "========================================================\n";
         ss << "BUFFER LAYOUT: " << m_structure->GetName() << "\n";
-        ss << "═══════════════════════════════════════════════════════\n";
+        ss << "========================================================\n";
         ss << "Standard:       "
             << (m_standard == LayoutStandard::Std140 ? "std140" :
                 m_standard == LayoutStandard::Std430 ? "std430" : "packed") << "\n";
         ss << "Total Size:     " << m_totalSize << " bytes\n";
         ss << "Alignment:      " << m_alignment << " bytes\n";
         ss << "Field Count:    " << m_allFields.size() << "\n";
-        ss << "───────────────────────────────────────────────────────\n\n";
+        ss << "-------------------------------------------------------\n\n";
 
         uint32_t lastOffset = 0;
 
-        // Only print top-level fields - nested ones will be printed recursively
         for (size_t i = 0; i < m_allFields.size(); ++i) {
             const auto& field = m_allFields[i];
             if (field.parentIndex == -1 && (!field.isArrayElement || field.arrayIndex == 0)) {
                 AppendFieldDebugInfo(ss, field, 0, showPadding, &lastOffset);
 
-                // For arrays, show all elements
                 if (field.isArray && field.arrayIndex == 0) {
                     for (uint32_t arrIdx = 1; arrIdx < field.arraySize; ++arrIdx) {
-                        // Find next array element
                         for (size_t j = i + 1; j < m_allFields.size(); ++j) {
                             const auto& arrField = m_allFields[j];
                             if (arrField.name == field.name &&
@@ -816,9 +600,9 @@ namespace ShaderLib {
             ss << "  [FINAL PADDING: " << finalPadding << " bytes]\n";
         }
 
-        ss << "───────────────────────────────────────────────────────\n";
+        ss << "-------------------------------------------------------\n";
         ss << "Total: " << m_totalSize << " bytes (aligned to " << m_alignment << ")\n";
-        ss << "═══════════════════════════════════════════════════════\n";
+        ss << "========================================================\n";
 
         return ss.str();
     }

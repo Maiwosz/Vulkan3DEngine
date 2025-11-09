@@ -98,7 +98,7 @@ namespace ShaderLib {
         void ComputeLayout();
 
         // ========================================================================
-        // FIELD PROCESSING - Top level fields
+        // UNIFIED FIELD PROCESSING - Handles both top-level and nested fields
         // ========================================================================
         uint32_t ProcessField(
             const StructureDefinition::FieldDef& fieldDef,
@@ -128,9 +128,6 @@ namespace ShaderLib {
             uint32_t currentOffset
         );
 
-        // ========================================================================
-        // NESTED FIELD PROCESSING - For fields inside structs
-        // ========================================================================
         void AddNestedStructFields(
             std::shared_ptr<const StructureDefinition> structDef,
             const std::string& structPath,
@@ -138,33 +135,35 @@ namespace ShaderLib {
             uint32_t baseOffset
         );
 
-        uint32_t ProcessNestedField(
+        void AddArrayElementDescriptor(
             const StructureDefinition::FieldDef& fieldDef,
             const std::string& parentPath,
             int32_t parentIndex,
-            uint32_t currentOffset
+            uint32_t elementOffset,
+            uint32_t elementRelativeOffset,
+            uint32_t arrayAlignment,
+            uint32_t stride,
+            uint32_t arrayIndex
         );
 
-        uint32_t ProcessNestedBaseType(
+        void AddStructArrayElementDescriptor(
             const StructureDefinition::FieldDef& fieldDef,
             const std::string& parentPath,
             int32_t parentIndex,
-            uint32_t currentOffset
+            uint32_t elementOffset,
+            uint32_t elementRelativeOffset,
+            uint32_t elementSize,
+            uint32_t arrayAlignment,
+            uint32_t stride,
+            uint32_t arrayIndex
         );
 
-        uint32_t ProcessNestedArray(
-            const StructureDefinition::FieldDef& fieldDef,
+        std::string BuildPath(
             const std::string& parentPath,
-            int32_t parentIndex,
-            uint32_t currentOffset
-        );
-
-        uint32_t ProcessNestedStruct(
-            const StructureDefinition::FieldDef& fieldDef,
-            const std::string& parentPath,
-            int32_t parentIndex,
-            uint32_t currentOffset
-        );
+            const std::string& fieldName,
+            bool isArrayElement,
+            uint32_t arrayIndex
+        ) const;
 
         // ========================================================================
         // HELPER METHODS
