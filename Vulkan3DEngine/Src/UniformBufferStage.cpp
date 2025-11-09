@@ -18,19 +18,17 @@ UniformBufferStage::UniformBufferStage(ProcessingContext& context, Registry& reg
     // Create reusable instance once - we'll just swap the mapped buffer each frame
     m_cachedInstance = m_objectUBODef->CreateInstance();
 
-    // Cache field offsets for direct memory writes (O(1) access, no lookups!)
-    const auto* modelField = m_objectUBODef->FindField("model");
-    const auto* colorField = m_objectUBODef->FindField("color");
-
-    if (!modelField || !colorField) {
-        throw std::runtime_error("Failed to find required fields in object UBO definition");
+    // VALIDATE: Ensure C++ struct matches GLSL layout
+    try {
+        ShaderLib::ValidateObjectUBOLayout();
+        SPDLOG_INFO("ObjectUBO layout validation successful");
+    }
+    catch (const std::exception& e) {
+        SPDLOG_ERROR("ObjectUBO layout validation FAILED: {}", e.what());
+        throw; // Fatal error - can't continue with mismatched layouts
     }
 
-    m_fieldOffsets.model = modelField->offset;
-    m_fieldOffsets.color = colorField->offset;
-
-    SPDLOG_INFO("Initialized UniformBufferStage with cached instance and field offsets");
-    SPDLOG_DEBUG("Field offsets - model: {}, color: {}", m_fieldOffsets.model, m_fieldOffsets.color);
+    SPDLOG_INFO("Initialized UniformBufferStage with cached instance");
 }
 
 ProcessingResult UniformBufferStage::process(std::shared_ptr<RenderOrder> order)
@@ -89,19 +87,16 @@ ProcessingResult UniformBufferStage::processMeshOrder(std::shared_ptr<MeshRender
     // Reuse cached instance - just update the mapped buffer pointer
     m_cachedInstance->SetMappedBuffer(smartObjectUbo.get());
 
-    // OPTIMIZATION: Direct memory writes using cached offsets
-    // This bypasses all lookups and proxy object creation!
+    // Use C++ struct for single memcpy
+    ShaderLib::ObjectUBOData objectData;
+    objectData.model = transformComponent.getWorldMatrix();
+    objectData.color = glm::vec4(1.0f, 1.0f, 1.0f, 1.0f);
+
+    // Single memcpy for entire buffer
     uint8_t* rawBuffer = m_cachedInstance->GetRawBuffer();
+    std::memcpy(rawBuffer, &objectData, sizeof(ShaderLib::ObjectUBOData));
 
-    // Write model matrix directly to cached offset
-    glm::mat4 worldMatrix = transformComponent.getWorldMatrix();
-    std::memcpy(rawBuffer + m_fieldOffsets.model, &worldMatrix, sizeof(glm::mat4));
-
-    // Write color directly to cached offset
-    glm::vec4 color(1.0f, 1.0f, 1.0f, 1.0f);
-    std::memcpy(rawBuffer + m_fieldOffsets.color, &color, sizeof(glm::vec4));
-
-    SPDLOG_DEBUG("Set object UBO data for entity {} using direct memory writes", order->entity.id);
+    SPDLOG_DEBUG("Set object UBO data for entity {} using single memcpy", order->entity.id);
 
     // Synchronize to GPU buffer
     try {

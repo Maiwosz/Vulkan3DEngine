@@ -38,11 +38,4 @@ private:
     // Cached definition and reusable instance
     std::shared_ptr<ShaderLib::BufferObjectDefinition> m_objectUBODef;
     std::shared_ptr<ShaderLib::BufferObjectInstance> m_cachedInstance;
-
-    // Cached field offsets for fast direct writes
-    struct FieldOffsets {
-        uint32_t model;
-        uint32_t color;
-    };
-    FieldOffsets m_fieldOffsets;
 };

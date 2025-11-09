@@ -31,8 +31,7 @@ namespace ShaderLib {
             .AddField("direction", BaseType::Vec3)
             .AddField("outerCutoff", BaseType::Float)
             .AddField("color", BaseType::Vec4)  // w is intensity
-            .AddField("range", BaseType::Float)
-            .AddField("padding", BaseType::Vec3);
+            .AddField("range", BaseType::Float);
         return structDef;
     }
 
@@ -42,13 +41,13 @@ namespace ShaderLib {
 
     struct DirectionalLightData {
         glm::vec3 direction;
-        float padding1;
+        float _padding1;
         glm::vec4 color;
 
         void SetDefaults() {
             direction = glm::vec3(0.0f, -1.0f, 0.0f);
             color = glm::vec4(1.0f, 1.0f, 1.0f, 1.0f);
-            padding1 = 0.0f;
+            _padding1 = 0.0f;
         }
     };
 
@@ -71,7 +70,7 @@ namespace ShaderLib {
         float outerCutoff;
         glm::vec4 color;
         float range;
-        glm::vec3 padding;
+        glm::vec3 _padding;
 
         void SetDefaults() {
             position = glm::vec3(0.0f);
@@ -80,7 +79,7 @@ namespace ShaderLib {
             outerCutoff = 0.0f;
             color = glm::vec4(0.0f);
             range = 0.0f;
-            padding = glm::vec3(0.0f);
+            _padding = glm::vec3(0.0f);
         }
     };
 

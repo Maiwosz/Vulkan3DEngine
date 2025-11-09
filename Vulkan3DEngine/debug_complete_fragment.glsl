@@ -18,7 +18,6 @@ struct SpotLight {
     float outerCutoff;
     vec4 color;
     float range;
-    vec3 padding;
 };
 
 layout(std140, set = 0, binding = 0) uniform GlobalUBO {

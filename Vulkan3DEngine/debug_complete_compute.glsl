@@ -1,7 +1,5 @@
 #version 450
 
-#extension GL_EXT_debug_printf : enable
-
 layout(std430, set = 2, binding = 2) buffer InputOutputData {
     float values[256];
 } inputOutputData;

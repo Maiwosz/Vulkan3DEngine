@@ -91,114 +91,123 @@ namespace ShaderLib {
     };
 
     // ============================================================================
-    // BUFFER SIZE VALIDATION
+    // VALIDATION HELPERS
     // ============================================================================
 
-    inline void ValidateBufferStructSizes() {
-        auto globalUBODef = CreateGlobalUBODefinition();
-        auto objectUBODef = CreateObjectUBODefinition();
+    inline void ValidateObjectUBOLayout() {
+        auto bufferDef = CreateObjectUBODefinition();
+        const auto* layout = bufferDef->GetLayout().get();
 
-        uint32_t globalUBOSize = globalUBODef->GetTotalSize();
-        uint32_t objectUBOSize = objectUBODef->GetTotalSize();
-
-        if (sizeof(GlobalUBOData) < globalUBOSize) {
-            std::cerr << "ERROR: GlobalUBOData struct size (" << sizeof(GlobalUBOData)
-                << ") is smaller than GlobalUBO buffer size (" << globalUBOSize << ")" << std::endl;
+        // Validate total size
+        if (sizeof(ObjectUBOData) != layout->GetTotalSize()) {
+            throw std::runtime_error(
+                "ObjectUBOData size mismatch! "
+                "C++ struct: " + std::to_string(sizeof(ObjectUBOData)) + " bytes, "
+                "GLSL layout: " + std::to_string(layout->GetTotalSize()) + " bytes"
+            );
         }
 
-        if (sizeof(ObjectUBOData) < objectUBOSize) {
-            std::cerr << "ERROR: ObjectUBOData struct size (" << sizeof(ObjectUBOData)
-                << ") is smaller than ObjectUBO buffer size (" << objectUBOSize << ")" << std::endl;
+        // Validate field offsets
+        const auto* modelField = layout->FindField("model");
+        const auto* colorField = layout->FindField("color");
+
+        if (!modelField || !colorField) {
+            throw std::runtime_error("Required fields not found in ObjectUBO layout");
+        }
+
+        if (offsetof(ObjectUBOData, model) != modelField->offset) {
+            throw std::runtime_error(
+                "ObjectUBOData::model offset mismatch! "
+                "C++ offset: " + std::to_string(offsetof(ObjectUBOData, model)) + ", "
+                "Layout offset: " + std::to_string(modelField->offset)
+            );
+        }
+
+        if (offsetof(ObjectUBOData, color) != colorField->offset) {
+            throw std::runtime_error(
+                "ObjectUBOData::color offset mismatch! "
+                "C++ offset: " + std::to_string(offsetof(ObjectUBOData, color)) + ", "
+                "Layout offset: " + std::to_string(colorField->offset)
+            );
+        }
+
+        // Validate field sizes
+        if (sizeof(ObjectUBOData::model) != modelField->size) {
+            throw std::runtime_error("ObjectUBOData::model size mismatch");
+        }
+
+        if (sizeof(ObjectUBOData::color) != colorField->size) {
+            throw std::runtime_error("ObjectUBOData::color size mismatch");
+        }
+    }
+
+    inline void ValidateGlobalUBOLayout() {
+        auto bufferDef = CreateGlobalUBODefinition();
+        const auto* layout = bufferDef->GetLayout().get();
+
+        // Validate total size
+        if (sizeof(GlobalUBOData) < layout->GetTotalSize()) {
+            throw std::runtime_error(
+                "GlobalUBOData size too small! "
+                "C++ struct: " + std::to_string(sizeof(GlobalUBOData)) + " bytes, "
+                "GLSL layout: " + std::to_string(layout->GetTotalSize()) + " bytes"
+            );
+        }
+
+        // Validate critical field offsets
+        const auto* viewField = layout->FindField("view");
+        const auto* projField = layout->FindField("proj");
+        const auto* cameraPosField = layout->FindField("cameraPosition");
+        const auto* dirLightField = layout->FindField("directionalLight");
+        const auto* activePointLightsField = layout->FindField("activePointLights");
+        const auto* pointLightsField = layout->FindField("pointLights[0]");
+
+        if (!viewField || !projField || !cameraPosField || !dirLightField ||
+            !activePointLightsField || !pointLightsField) {
+            throw std::runtime_error("Required fields not found in GlobalUBO layout");
+        }
+
+        // Validate offsets
+        if (offsetof(GlobalUBOData, view) != viewField->offset) {
+            throw std::runtime_error(
+                "GlobalUBOData::view offset mismatch! "
+                "C++ offset: " + std::to_string(offsetof(GlobalUBOData, view)) + ", "
+                "Layout offset: " + std::to_string(viewField->offset)
+            );
+        }
+
+        if (offsetof(GlobalUBOData, proj) != projField->offset) {
+            throw std::runtime_error("GlobalUBOData::proj offset mismatch");
+        }
+
+        if (offsetof(GlobalUBOData, cameraPosition) != cameraPosField->offset) {
+            throw std::runtime_error("GlobalUBOData::cameraPosition offset mismatch");
+        }
+
+        if (offsetof(GlobalUBOData, directionalLight) != dirLightField->offset) {
+            throw std::runtime_error("GlobalUBOData::directionalLight offset mismatch");
+        }
+
+        if (offsetof(GlobalUBOData, activePointLights) != activePointLightsField->offset) {
+            throw std::runtime_error("GlobalUBOData::activePointLights offset mismatch");
+        }
+
+        if (offsetof(GlobalUBOData, pointLights) != pointLightsField->offset) {
+            throw std::runtime_error("GlobalUBOData::pointLights offset mismatch");
+        }
+
+        // Validate array stride
+        if (sizeof(PointLightData) != pointLightsField->stride) {
+            throw std::runtime_error(
+                "PointLightData stride mismatch! "
+                "C++ size: " + std::to_string(sizeof(PointLightData)) + ", "
+                "Layout stride: " + std::to_string(pointLightsField->stride)
+            );
         }
     }
 
     // ============================================================================
     // HELPER FUNCTIONS - Convenience wrappers for BufferObjectInstance
     // ============================================================================
-
-    inline void SetGlobalUBOData(std::shared_ptr<BufferObjectInstance> bufferInstance,
-        const GlobalUBOData& data) {
-        bufferInstance->Set("view", data.view);
-        bufferInstance->Set("proj", data.proj);
-        bufferInstance->Set("cameraPosition", data.cameraPosition);
-
-        // Set directional light
-        auto dirLight = bufferInstance->GetField("directionalLight");
-        dirLight["direction"] = data.directionalLight.direction;
-        dirLight["color"] = data.directionalLight.color;
-
-        bufferInstance->Set("activePointLights", data.activePointLights);
-        bufferInstance->Set("activeSpotLights", data.activeSpotLights);
-
-        // Set point lights array
-        for (int i = 0; i < 64; i++) {
-            auto pointLight = bufferInstance->GetField("pointLights[" + std::to_string(i) + "]");
-            pointLight["position"] = data.pointLights[i].position;
-            pointLight["radius"] = data.pointLights[i].radius;
-            pointLight["color"] = data.pointLights[i].color;
-        }
-
-        // Set spot lights array
-        for (int i = 0; i < 16; i++) {
-            auto spotLight = bufferInstance->GetField("spotLights[" + std::to_string(i) + "]");
-            spotLight["position"] = data.spotLights[i].position;
-            spotLight["innerCutoff"] = data.spotLights[i].innerCutoff;
-            spotLight["direction"] = data.spotLights[i].direction;
-            spotLight["outerCutoff"] = data.spotLights[i].outerCutoff;
-            spotLight["color"] = data.spotLights[i].color;
-            spotLight["range"] = data.spotLights[i].range;
-            spotLight["padding"] = data.spotLights[i].padding;
-        }
-    }
-
-    inline GlobalUBOData GetGlobalUBOData(std::shared_ptr<const BufferObjectInstance> bufferInstance) {
-        GlobalUBOData data;
-
-        data.view = bufferInstance->Get<glm::mat4>("view");
-        data.proj = bufferInstance->Get<glm::mat4>("proj");
-        data.cameraPosition = bufferInstance->Get<glm::vec3>("cameraPosition");
-
-        // Get directional light
-        data.directionalLight.direction = bufferInstance->Get<glm::vec3>("directionalLight.direction");
-        data.directionalLight.color = bufferInstance->Get<glm::vec4>("directionalLight.color");
-
-        data.activePointLights = bufferInstance->Get<int32_t>("activePointLights");
-        data.activeSpotLights = bufferInstance->Get<int32_t>("activeSpotLights");
-
-        // Get point lights array
-        for (int i = 0; i < 64; i++) {
-            std::string basePath = "pointLights[" + std::to_string(i) + "]";
-            data.pointLights[i].position = bufferInstance->Get<glm::vec3>(basePath + ".position");
-            data.pointLights[i].radius = bufferInstance->Get<float>(basePath + ".radius");
-            data.pointLights[i].color = bufferInstance->Get<glm::vec4>(basePath + ".color");
-        }
-
-        // Get spot lights array
-        for (int i = 0; i < 16; i++) {
-            std::string basePath = "spotLights[" + std::to_string(i) + "]";
-            data.spotLights[i].position = bufferInstance->Get<glm::vec3>(basePath + ".position");
-            data.spotLights[i].innerCutoff = bufferInstance->Get<float>(basePath + ".innerCutoff");
-            data.spotLights[i].direction = bufferInstance->Get<glm::vec3>(basePath + ".direction");
-            data.spotLights[i].outerCutoff = bufferInstance->Get<float>(basePath + ".outerCutoff");
-            data.spotLights[i].color = bufferInstance->Get<glm::vec4>(basePath + ".color");
-            data.spotLights[i].range = bufferInstance->Get<float>(basePath + ".range");
-            data.spotLights[i].padding = bufferInstance->Get<glm::vec3>(basePath + ".padding");
-        }
-
-        return data;
-    }
-
-    inline void SetObjectUBOData(std::shared_ptr<BufferObjectInstance> bufferInstance,
-        const ObjectUBOData& data) {
-        bufferInstance->Set("model", data.model);
-        bufferInstance->Set("color", data.color);
-    }
-
-    inline ObjectUBOData GetObjectUBOData(std::shared_ptr<const BufferObjectInstance> bufferInstance) {
-        ObjectUBOData data;
-        data.model = bufferInstance->Get<glm::mat4>("model");
-        data.color = bufferInstance->Get<glm::vec4>("color");
-        return data;
-    }
 
 } // namespace ShaderLib
