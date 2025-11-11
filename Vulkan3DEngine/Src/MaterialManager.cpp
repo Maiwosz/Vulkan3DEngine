@@ -13,10 +13,11 @@ MaterialManager::MaterialManager(
     BufferManager& uniformBufferManager,
     DescriptorAllocator& descriptorAllocator,
     DescriptorLayoutManager& descriptorLayoutManager,
-    TextureManager& textureManager
+    TextureManager& textureManager,
+    ThreadPool& threadPool
 )
     : m_factory(device, shaderManager, uniformBufferManager, samplerManager,
-        textureManager, descriptorAllocator, descriptorLayoutManager),
+        textureManager, descriptorAllocator, descriptorLayoutManager, threadPool),
     m_shaderManager(shaderManager),
     m_textureManager(textureManager)
 {

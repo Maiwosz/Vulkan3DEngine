@@ -46,16 +46,17 @@ Editor::Editor(const std::string& sourceRelative, const std::string& destRelativ
     // Initialize EditorUI with engine reference
     m_editorUI = std::make_unique<EditorUI>(*m_engine);
 
-    auto imguiProvider = std::make_shared<DearImGuiProvider>(
-        m_engine->window(),
-		m_engine->engineCore().vulkanContext(),
-        m_engine->engineCore().swapChain()
-    );
-
 	auto& renderGraphExecutor = m_engine->engineCore().renderer().renderGraphExecutor();
-
-	renderGraphExecutor.attachImGuiProvider(imguiProvider);
-    renderGraphExecutor.getImGuiProvider()->registerCallback(
+    if (!renderGraphExecutor.hasImGuiProvider()) {
+        auto imguiProvider = std::make_shared<DearImGuiProvider>(
+            m_engine->window(),
+            m_engine->engineCore().vulkanContext(),
+            m_engine->engineCore().swapChain()
+        );
+        renderGraphExecutor.attachImGuiProvider(imguiProvider);
+    }
+	
+    m_engine->engineCore().renderer().getImGuiProvider()->registerCallback(
         [this]() {
             m_editorUI->renderWindows();
         }

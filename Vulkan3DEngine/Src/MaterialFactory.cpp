@@ -12,7 +12,8 @@ MaterialFactory::MaterialFactory(
     ImageSamplerManager& samplerManager,
     TextureManager& textureManager,
     DescriptorAllocator& descriptorAllocator,
-    DescriptorLayoutManager& descriptorLayoutManager
+    DescriptorLayoutManager& descriptorLayoutManager,
+    ThreadPool& threadPool
 )
     : m_device(device),
     m_shaderManager(shaderManager),
@@ -20,7 +21,8 @@ MaterialFactory::MaterialFactory(
     m_samplerManager(samplerManager),
     m_textureManager(textureManager),
     m_descriptorAllocator(descriptorAllocator),
-    m_descriptorLayoutManager(descriptorLayoutManager)
+    m_descriptorLayoutManager(descriptorLayoutManager),
+    m_threadPool(threadPool)
 {
 }
 
@@ -52,7 +54,8 @@ std::unique_ptr<Material> MaterialFactory::createMaterial(
         m_samplerManager,
         m_textureManager,
         m_descriptorAllocator,
-        m_descriptorLayoutManager
+        m_descriptorLayoutManager,
+        m_threadPool
     );
 }
 
@@ -95,7 +98,8 @@ std::unique_ptr<Material> MaterialFactory::createMaterial(
         m_samplerManager,
         m_textureManager,
         m_descriptorAllocator,
-        m_descriptorLayoutManager
+        m_descriptorLayoutManager,
+        m_threadPool
     );
 }
 
@@ -137,7 +141,8 @@ std::unique_ptr<Material> MaterialFactory::createMaterialFromAsset(
         m_samplerManager,
         m_textureManager,
         m_descriptorAllocator,
-        m_descriptorLayoutManager
+        m_descriptorLayoutManager,
+        m_threadPool
     );
 
     // Setup textures (simple, no validation needed)

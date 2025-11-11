@@ -135,6 +135,15 @@ namespace ShaderLib {
             uint32_t baseOffset
         );
 
+        void AddArrayContainerDescriptor(
+            const StructureDefinition::FieldDef& fieldDef,
+            const std::string& parentPath, int32_t parentIndex,
+            uint32_t arrayStart, uint32_t arrayRelativeOffset,
+            uint32_t arrayAlignment,
+            uint32_t stride,
+            uint32_t elementSize
+        );
+
         void AddArrayElementDescriptor(
             const StructureDefinition::FieldDef& fieldDef,
             const std::string& parentPath,

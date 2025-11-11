@@ -1,24 +1,35 @@
 #version 450
 
-struct ProvinceData {
-    float population;
-    float foodProductionModifier;
-    float wealth;
-    float foodStorage;
+// Province Economic Simulation
+// Each province independently simulates:
+// - Population growth/decline based on food availability
+// - Food production based on production modifier
+// - Wealth generation based on population
+
+ShaderData {
+    struct ProvinceData {
+        float population;           // Current population (in thousands)
+        float foodProductionModifier; // Base food production (food per timestep)
+        float wealth;              // Accumulated wealth
+        float foodStorage;         // Current food reserves
+    };
+    
+    InputData {
+        uint numProvinces;              // Number of active provinces to simulate
+        float foodConsumptionPerPop;    // Food consumed per 1k population per timestep
+        float basePopulationGrowth;     // Growth rate when well-fed (e.g., 0.02 = 2%)
+        float starvationThreshold;      // Below this ratio, population declines
+        float wealthPerPop;             // Wealth generated per 1k population per timestep
+        float maxFoodStorage;           // Maximum food that can be stored
+        float minPopulation;            // Minimum viable population (in thousands)
+    };
+    
+    InputOutputData {
+        ProvinceData provinces[65536];  // Support up to 65536 provinces
+    };
 };
 
-layout(std140, set = 2, binding = 0) uniform InputData {
-    uint numProvinces;
-    float foodConsumptionPerPop;
-    float basePopulationGrowth;
-    float starvationThreshold;
-    float wealthPerPop;
-    float maxFoodStorage;
-    float minPopulation;
-} inputData;
-layout(std430, set = 2, binding = 2) buffer InputOutputData {
-    ProvinceData provinces[65536];
-} inputOutputData;
+#stage compute
 
 layout(local_size_x = 256, local_size_y = 1, local_size_z = 1) in;
 

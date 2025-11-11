@@ -14,6 +14,10 @@
 class Buffer;
 class ImageSampler;
 
+/**
+ * Simplified DescriptorAllocator using DescriptorSetGuards for GPU usage tracking.
+ * No longer needs frame-based tracking - guards handle it automatically.
+ */
 class DescriptorAllocator : public ISmartHandleManager<DescriptorSetHandle, VkDescriptorSet> {
 public:
     struct PoolSizeRatio {
@@ -43,11 +47,7 @@ public:
     void reset();
     void destroy();
 
-    // GPU usage tracking - to be called by RenderSystem
-    void markDescriptorAsUsedByGPU(DescriptorSetHandle handle, uint32_t frameIndex);
-    void markFrameCompleted(uint32_t frameIndex);
-
-    // Enhanced interface with resource tracking
+    // Main interface - simplified (no frame tracking needed)
     DescriptorSetHandle acquireDescriptorSet(VkDescriptorSetLayout layout);
     DescriptorSetHandle acquireDescriptorSet(VkDescriptorSetLayout layout, const DescriptorResources& resources);
 
@@ -74,23 +74,24 @@ public:
     void addReference(DescriptorSetHandle handle) override;
     void removeReference(DescriptorSetHandle handle) override;
 
+    // Statistics for debugging
+    struct Stats {
+        size_t totalAllocated = 0;
+        size_t inUse = 0;
+        size_t reusable = 0;
+        size_t poolCount = 0;
+    };
+    Stats getStats() const;
+
 private:
     struct DescriptorSetEntry {
-        VkDescriptorSet descriptorSet;
-        VkDescriptorSetLayout layout;
-        VkDescriptorPool sourcePool;
-        bool inUse;                    // Czy jest aktywnie używany przez aplikację
-        bool isAllocated;              // Czy został przydzielony z poola
-        bool usedByGPU;                // Czy jest używany przez GPU
-        uint32_t gpuFrameIndex;        // W której klatce jest używany przez GPU
-        uint32_t referenceCount;
+        VkDescriptorSet descriptorSet = VK_NULL_HANDLE;
+        VkDescriptorSetLayout layout = VK_NULL_HANDLE;
+        VkDescriptorPool sourcePool = VK_NULL_HANDLE;
+        bool inUse = false;           // Currently used by application
+        bool isAllocated = false;     // Has been allocated from pool
+        uint32_t referenceCount = 0;
         DescriptorResources resources;
-    };
-
-    // GPU usage tracking structures
-    struct FrameGpuUsage {
-        std::vector<DescriptorSetHandle> usedDescriptors;
-        bool completed = false;
     };
 
     // Pool management methods
@@ -103,9 +104,6 @@ private:
     DescriptorSetHandle createNewDescriptorSet(VkDescriptorSetLayout layout, const DescriptorResources& resources);
     DescriptorSetHandle findReusableDescriptorSet(VkDescriptorSetLayout layout);
 
-    // Internal GPU usage tracking
-    void releaseGpuUsageForFrame(uint32_t frameIndex);
-
     // Pool management
     std::vector<VkDescriptorPool> m_fullPools;
     std::vector<VkDescriptorPool> m_readyPools;
@@ -117,9 +115,6 @@ private:
     std::vector<DescriptorSetEntry> m_descriptorSets;
     std::unordered_map<VkDescriptorSetLayout, std::queue<DescriptorSetHandle>> m_reusableSets;
     uint32_t m_nextHandleId;
-
-    // GPU usage tracking
-    std::unordered_map<uint32_t, FrameGpuUsage> m_frameGpuUsage;
 
     // Cache for getResource (to return pointer)
     mutable std::unordered_map<DescriptorSetHandle, VkDescriptorSet> m_resourceCache;

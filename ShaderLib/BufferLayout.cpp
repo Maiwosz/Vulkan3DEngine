@@ -242,6 +242,13 @@ namespace ShaderLib {
             baseRelativeOffset = arrayStart - m_allFields[parentIndex].offset;
         }
 
+        // NOWE: Dodaj deskryptor dla całej tablicy (bez indeksu)
+        AddArrayContainerDescriptor(
+            fieldDef, parentPath, parentIndex,
+            arrayStart, baseRelativeOffset,
+            arrayAlignment, stride, elementSize
+        );
+
         // Process each array element
         for (uint32_t i = 0; i < fieldDef.arraySize; ++i) {
             const uint32_t elementOffset = arrayStart + (i * stride);
@@ -334,6 +341,53 @@ namespace ShaderLib {
         for (const auto& field : structDef->GetFields()) {
             currentOffset = ProcessField(field, structPath, structParentIndex, currentOffset);
         }
+    }
+
+    void BufferLayout::AddArrayContainerDescriptor(
+        const StructureDefinition::FieldDef& fieldDef,
+        const std::string& parentPath,
+        int32_t parentIndex,
+        uint32_t arrayStart,
+        uint32_t arrayRelativeOffset,
+        uint32_t arrayAlignment,
+        uint32_t stride,
+        uint32_t elementSize
+    ) {
+        // Ścieżka BEZ indeksu - reprezentuje całą tablicę
+        const std::string arrayPath = BuildPath(parentPath, fieldDef.name, false, 0);
+
+        // Całkowity rozmiar tablicy
+        const uint32_t totalArraySize = fieldDef.arraySize * stride;
+
+        FieldDescriptor desc;
+        desc.name = fieldDef.name;
+        desc.path = arrayPath;
+
+        if (fieldDef.isBaseType()) {
+            desc.baseType = fieldDef.baseType;
+            desc.structTypeName.clear();
+            desc.isBaseType = true;
+        }
+        else {
+            desc.baseType = BaseType::Unknown;
+            desc.structTypeName = fieldDef.structDef->GetName();
+            desc.isBaseType = false;
+        }
+
+        desc.arraySize = fieldDef.arraySize;
+        desc.arrayIndex = 0;  // Nie jest konkretnym elementem
+        desc.offset = arrayStart;
+        desc.relativeOffset = arrayRelativeOffset;
+        desc.size = totalArraySize;  // Rozmiar całej tablicy!
+        desc.alignment = arrayAlignment;
+        desc.stride = stride;
+        desc.parentPath = parentPath;
+        desc.parentIndex = parentIndex;
+        desc.isArray = true;
+        desc.isArrayElement = false;  // To cała tablica, nie element!
+        desc.accessMode = fieldDef.accessMode;
+
+        m_allFields.push_back(desc);
     }
 
     void BufferLayout::AddArrayElementDescriptor(
@@ -444,7 +498,8 @@ namespace ShaderLib {
 
             m_pathToIndex[std::string_view(field.path)] = i;
 
-            if (field.parentIndex == -1 && field.arrayIndex == 0) {
+            // Top-level: parent == -1 i nie jest elementem tablicy
+            if (field.parentIndex == -1 && !field.isArrayElement) {
                 m_topLevelIndices.push_back(i);
             }
         }
@@ -500,7 +555,11 @@ namespace ShaderLib {
         // Field header
         ss << indent << "• " << field.name;
 
-        if (field.isArrayElement) {
+        // Czy to cała tablica czy konkretny element?
+        if (field.isArray && !field.isArrayElement) {
+            ss << "[" << field.arraySize << "]";
+        }
+        else if (field.isArrayElement) {
             ss << "[" << field.arrayIndex << "]";
         }
 
@@ -510,7 +569,11 @@ namespace ShaderLib {
             ss << " (struct)";
         }
 
-        ss << indent << "    abs_offset=" << std::setw(4) << field.offset
+        if (field.isArray && !field.isArrayElement) {
+            ss << " (array container)";
+        }
+
+        ss << "\n" << indent << "    abs_offset=" << std::setw(4) << field.offset
             << "  rel_offset=" << std::setw(4) << field.relativeOffset
             << "  size=" << std::setw(4) << field.size
             << "  align=" << std::setw(2) << field.alignment;
@@ -521,8 +584,8 @@ namespace ShaderLib {
 
         ss << "\n";
 
-        // Recursively show nested fields for structures
-        if (!field.isBaseType) {
+        // Recursively show nested fields for structures (nie dla array container)
+        if (!field.isBaseType && field.isArrayElement) {
             std::vector<size_t> childIndices;
             for (size_t i = 0; i < m_allFields.size(); ++i) {
                 const auto& childField = m_allFields[i];
@@ -554,6 +617,7 @@ namespace ShaderLib {
         }
 
         if (lastOffset) {
+            // Dla array container, lastOffset to koniec całej tablicy
             *lastOffset = field.offset + field.size;
         }
     }
@@ -576,17 +640,21 @@ namespace ShaderLib {
 
         for (size_t i = 0; i < m_allFields.size(); ++i) {
             const auto& field = m_allFields[i];
-            if (field.parentIndex == -1 && (!field.isArrayElement || field.arrayIndex == 0)) {
+
+            // Wyświetl tylko top-level (nie array elements, nie nested fields)
+            if (field.parentIndex == -1 && !field.isArrayElement) {
                 AppendFieldDebugInfo(ss, field, 0, showPadding, &lastOffset);
 
-                if (field.isArray && field.arrayIndex == 0) {
-                    for (uint32_t arrIdx = 1; arrIdx < field.arraySize; ++arrIdx) {
+                // Jeśli to array container, pokaż jego elementy
+                if (field.isArray && !field.isArrayElement) {
+                    for (uint32_t arrIdx = 0; arrIdx < field.arraySize; ++arrIdx) {
                         for (size_t j = i + 1; j < m_allFields.size(); ++j) {
                             const auto& arrField = m_allFields[j];
                             if (arrField.name == field.name &&
                                 arrField.parentPath == field.parentPath &&
+                                arrField.isArrayElement &&
                                 arrField.arrayIndex == arrIdx) {
-                                AppendFieldDebugInfo(ss, arrField, 0, showPadding, &lastOffset);
+                                AppendFieldDebugInfo(ss, arrField, 1, showPadding, &lastOffset);
                                 break;
                             }
                         }

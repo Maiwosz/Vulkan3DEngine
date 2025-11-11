@@ -368,6 +368,27 @@
     <ClCompile Include="Src\CppScriptSystem.cpp">
       <Filter>Engine\Scene\EntityComponentSystem\Registry\SystemManager\Systems\ScriptSystem\CppScriptSystem</Filter>
     </ClCompile>
+    <ClCompile Include="Src\ProvinceSimulationUI.cpp">
+      <Filter>Engine\Scene\EntityComponentSystem\Registry\SystemManager\Systems\ScriptSystem\CppScriptSystem\CppScripts\ProvinceSimulationTest</Filter>
+    </ClCompile>
+    <ClCompile Include="Src\ProvinceSimulationTest.cpp">
+      <Filter>Engine\Scene\EntityComponentSystem\Registry\SystemManager\Systems\ScriptSystem\CppScriptSystem\CppScripts\ProvinceSimulationTest</Filter>
+    </ClCompile>
+    <ClCompile Include="Src\BufferBundle.cpp">
+      <Filter>Engine\EngineCore\BufferManager\BufferBundle</Filter>
+    </ClCompile>
+    <ClCompile Include="Src\AsyncBufferSync.cpp">
+      <Filter>Engine\EngineCore\BufferManager\AsyncBufferSync</Filter>
+    </ClCompile>
+    <ClCompile Include="Src\DescriptorSetGuard.cpp">
+      <Filter>Engine\EngineCore\DescriptorSystem\DescriptorSetGuard</Filter>
+    </ClCompile>
+    <ClCompile Include="Src\ProvinceSimluationGPU.cpp">
+      <Filter>Engine\Scene\EntityComponentSystem\Registry\SystemManager\Systems\ScriptSystem\CppScriptSystem\CppScripts\ProvinceSimulationTest</Filter>
+    </ClCompile>
+    <ClCompile Include="Src\ProvinceSimulationCPU.cpp">
+      <Filter>Engine\Scene\EntityComponentSystem\Registry\SystemManager\Systems\ScriptSystem\CppScriptSystem\CppScripts\ProvinceSimulationTest</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Src\Prerequisites.h" />
@@ -846,6 +867,30 @@
     <ClInclude Include="Src\ComputeShaderTestScript.h">
       <Filter>Engine\Scene\EntityComponentSystem\Registry\SystemManager\Systems\ScriptSystem\CppScriptSystem\CppScripts</Filter>
     </ClInclude>
+    <ClInclude Include="Src\ProvinceSimulationTest.h">
+      <Filter>Engine\Scene\EntityComponentSystem\Registry\SystemManager\Systems\ScriptSystem\CppScriptSystem\CppScripts\ProvinceSimulationTest</Filter>
+    </ClInclude>
+    <ClInclude Include="Src\ProvinceSimulationUI.h">
+      <Filter>Engine\Scene\EntityComponentSystem\Registry\SystemManager\Systems\ScriptSystem\CppScriptSystem\CppScripts\ProvinceSimulationTest</Filter>
+    </ClInclude>
+    <ClInclude Include="Src\BufferBundle.h">
+      <Filter>Engine\EngineCore\BufferManager\BufferBundle</Filter>
+    </ClInclude>
+    <ClInclude Include="Src\AsyncBufferSync.h">
+      <Filter>Engine\EngineCore\BufferManager\AsyncBufferSync</Filter>
+    </ClInclude>
+    <ClInclude Include="Src\DescriptorSetGuard.h">
+      <Filter>Engine\EngineCore\DescriptorSystem\DescriptorSetGuard</Filter>
+    </ClInclude>
+    <ClInclude Include="Src\IProvinceSimulation.h">
+      <Filter>Engine\Scene\EntityComponentSystem\Registry\SystemManager\Systems\ScriptSystem\CppScriptSystem\CppScripts\ProvinceSimulationTest</Filter>
+    </ClInclude>
+    <ClInclude Include="Src\ProvinceSimluationGPU.h">
+      <Filter>Engine\Scene\EntityComponentSystem\Registry\SystemManager\Systems\ScriptSystem\CppScriptSystem\CppScripts\ProvinceSimulationTest</Filter>
+    </ClInclude>
+    <ClInclude Include="Src\ProvinceSimulationCPU.h">
+      <Filter>Engine\Scene\EntityComponentSystem\Registry\SystemManager\Systems\ScriptSystem\CppScriptSystem\CppScripts\ProvinceSimulationTest</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <None Include="..\Libs\imgui\.gitattributes">
@@ -1245,6 +1290,18 @@
     </Filter>
     <Filter Include="Engine\Scene\EntityComponentSystem\Registry\SystemManager\Systems\ScriptSystem\CppScriptSystem\CppScripts">
       <UniqueIdentifier>{9f7a093f-73ec-4c2a-bc16-bcc9e5cb8242}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Engine\Scene\EntityComponentSystem\Registry\SystemManager\Systems\ScriptSystem\CppScriptSystem\CppScripts\ProvinceSimulationTest">
+      <UniqueIdentifier>{e5ad38a3-c637-4138-850d-334fb5b68765}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Engine\EngineCore\BufferManager\AsyncBufferSync">
+      <UniqueIdentifier>{b8cdb814-e7e6-46c7-b54b-28559cadbe65}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Engine\EngineCore\BufferManager\BufferBundle">
+      <UniqueIdentifier>{52f8f546-115b-42d6-ad5c-38158aaba9ab}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Engine\EngineCore\DescriptorSystem\DescriptorSetGuard">
+      <UniqueIdentifier>{b38a5d8a-89eb-4713-af74-621bc0ea0694}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
 </Project>

@@ -154,7 +154,7 @@ void Engine::initializeComponents(const InitParams& params) {
 
     // Asset system
     SPDLOG_DEBUG("Initializing asset system");
-    m_assetSystem = std::make_unique<AssetSystem>(*m_engineCore);
+    m_assetSystem = std::make_unique<AssetSystem>(*m_engineCore, *m_threadPool);
 
     SPDLOG_DEBUG("Creating registry");
     m_registry = std::make_unique<Registry>(*this);

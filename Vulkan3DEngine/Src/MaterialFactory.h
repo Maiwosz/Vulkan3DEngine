@@ -22,7 +22,8 @@ public:
         ImageSamplerManager& samplerManager,
         TextureManager& textureManager,
         DescriptorAllocator& descriptorAllocator,
-        DescriptorLayoutManager& descriptorLayoutManager
+        DescriptorLayoutManager& descriptorLayoutManager,
+        ThreadPool& threadPool
     );
 
     // =========================================================================
@@ -124,4 +125,5 @@ private:
     TextureManager& m_textureManager;
     DescriptorAllocator& m_descriptorAllocator;
     DescriptorLayoutManager& m_descriptorLayoutManager;
+    ThreadPool& m_threadPool;
 };

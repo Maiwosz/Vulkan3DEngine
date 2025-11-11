@@ -5,6 +5,8 @@
 // #include "PlayerControllerScript.h"
 // #include "RotatorScript.h"
 #include "ComputeShaderTestScript.h"
+#include "ProvinceSimulationTest.h"
+#include "ProvinceSimulationUI.h"
 
 // Forward declaration
 class CppScriptSystem;
@@ -18,6 +20,8 @@ inline void registerAllCppScripts(CppScriptSystem& scriptSystem) {
     // scriptSystem.registerScriptType<PlayerControllerScript>();
     // scriptSystem.registerScriptType<RotatorScript>();
     scriptSystem.registerScriptType<ComputeShaderTestScript>();
+    scriptSystem.registerScriptType<ProvinceSimulationTest>();
+    scriptSystem.registerScriptType<ProvinceSimulationUI>();
 }
 
 // === INSTRUKCJA DODAWANIA NOWEGO SKRYPTU C++ ===

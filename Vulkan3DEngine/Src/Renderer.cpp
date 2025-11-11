@@ -17,7 +17,8 @@ Renderer::Renderer(
     RenderPassManager& renderPassManager,
     DescriptorAllocator& descriptorAllocator,
     PipelineManager& pipelineManager,
-    CommandBufferManager& cmdBufferManager)
+    CommandBufferManager& cmdBufferManager,
+    SynchronizationResourceManager& syncManager)
     : m_engineCore(engineCore),
     m_vulkanContext(vulkanContext),
     m_frameManager(frameManager),
@@ -39,7 +40,8 @@ Renderer::Renderer(
     m_computeDispatcher = std::make_unique<ComputeDispatcher>(
         vulkanContext,
         pipelineManager,
-        cmdBufferManager
+        cmdBufferManager,
+        syncManager
     );
 }
 
@@ -47,6 +49,9 @@ Renderer::~Renderer() {
     if (m_frameActive) {
         cleanupFrame();
     }
+
+    // Ensure all descriptor guards are cleaned up
+    m_descriptorGuardPool.clear();
 }
 
 // ========== NEW SIMPLIFIED API ==========
@@ -60,32 +65,35 @@ bool Renderer::renderFrame(
         return false;
     }
 
+    // Poll and cleanup completed descriptor guards from previous frames
+    size_t cleanedUp = m_descriptorGuardPool.pollAndCleanup();
+    if (cleanedUp > 0) {
+        SPDLOG_TRACE("Cleaned up {} completed descriptor guards before frame start", cleanedUp);
+    }
+
     SPDLOG_DEBUG("Renderer: Starting frame with render graph (ID: {}), {} GPU calls",
         renderGraph.handle().id, gpuCalls.size());
 
-    // 1. Begin frame
+    // Rest of the function remains the same...
     if (!beginFrame()) {
         SPDLOG_ERROR("Renderer: Failed to begin frame");
         return false;
     }
 
-    // 2. Assign render graph to executor
     m_renderGraphExecutor->assignRenderGraph(renderGraph);
 
     bool success = false;
 
     try {
-        // 3. Execute GPU calls through render graph executor
         if (!gpuCalls.empty()) {
             success = m_renderGraphExecutor->executeGpuCalls(gpuCalls);
-
             if (!success) {
                 SPDLOG_ERROR("Renderer: Failed to execute GPU calls");
             }
         }
         else {
             SPDLOG_DEBUG("Renderer: No GPU calls to execute");
-            success = true; // Empty frame is valid
+            success = true;
         }
     }
     catch (const std::exception& e) {
@@ -93,7 +101,6 @@ bool Renderer::renderFrame(
         success = false;
     }
 
-    // 4. Always end frame, even on error
     endFrame();
 
     if (success) {
@@ -106,12 +113,14 @@ bool Renderer::renderFrame(
 bool Renderer::renderEmptyFrame() {
     SPDLOG_DEBUG("Renderer: Rendering empty frame");
 
+    // Poll and cleanup completed descriptor guards
+    m_descriptorGuardPool.pollAndCleanup();
+
     if (!beginFrame()) {
         SPDLOG_ERROR("Renderer: Failed to begin empty frame");
         return false;
     }
 
-    // Just end frame without executing anything
     endFrame();
 
     SPDLOG_DEBUG("Renderer: Empty frame completed");
@@ -129,6 +138,9 @@ bool Renderer::beginFrame() {
     try {
         prepareFrame();
         m_currentImageIndex = acquireSwapchainImage();
+
+        // Store current frame's fence for descriptor tracking
+        m_currentFrameFence = m_frameManager.getInFlightFence();
 
         m_frameActive = true;
 
@@ -229,13 +241,7 @@ bool Renderer::bindDescriptorSets(const std::vector<DescriptorSetHandle>& descri
         descriptorSets.push_back(descriptorSet);
     }
 
-    // Mark all descriptors as used by GPU BEFORE binding
-    uint32_t currentFrameIndex = m_frameManager.getCurrentFrameIndex();
-    for (const auto& handle : descriptorHandles) {
-        m_descriptorAllocator.markDescriptorAsUsedByGPU(handle, currentFrameIndex);
-    }
-
-    // Now bind descriptors to command buffer
+    // Bind descriptors to command buffer
     vkCmdBindDescriptorSets(
         getCurrentCommandBuffer(),
         VK_PIPELINE_BIND_POINT_GRAPHICS,
@@ -247,8 +253,91 @@ bool Renderer::bindDescriptorSets(const std::vector<DescriptorSetHandle>& descri
         nullptr
     );
 
-    SPDLOG_DEBUG("Descriptor sets bound: {} (frame: {})", descriptorSets.size(), currentFrameIndex);
+    // Create guards for automatic GPU usage tracking
+    for (const auto& handle : descriptorHandles) {
+        auto smartHandle = m_descriptorAllocator.createSmartHandle(handle);
+        auto guard = std::make_unique<DescriptorSetGuard>(
+            std::move(smartHandle),
+            m_currentFrameFence,
+            m_vulkanContext.logical()
+        );
+        m_descriptorGuardPool.addGuard(std::move(guard));
+    }
+
+    SPDLOG_DEBUG("Descriptor sets bound: {} with automatic GPU tracking", descriptorSets.size());
     return true;
+}
+
+bool Renderer::bindDescriptorSets(const std::vector<SmartHandle<DescriptorSetHandle, VkDescriptorSet>>& descriptorHandles) {
+    ensureFrameActive();
+
+    if (m_currentPipelineLayout == VK_NULL_HANDLE) {
+        SPDLOG_ERROR("Cannot bind descriptors - no pipeline bound");
+        return false;
+    }
+
+    if (descriptorHandles.empty()) {
+        SPDLOG_DEBUG("No descriptor sets to bind");
+        return true;
+    }
+
+    // Convert handles to VkDescriptorSet and validate
+    std::vector<VkDescriptorSet> descriptorSets;
+    descriptorSets.reserve(descriptorHandles.size());
+
+    for (size_t i = 0; i < descriptorHandles.size(); ++i) {
+        const auto& smartHandle = descriptorHandles[i];
+
+        if (!smartHandle.isValid()) {
+            SPDLOG_ERROR("Invalid descriptor set handle at index {}", i);
+            return false;
+        }
+
+        VkDescriptorSet descriptorSet = *smartHandle.get();
+        if (descriptorSet == VK_NULL_HANDLE) {
+            SPDLOG_ERROR("Null descriptor set at index {} (handle: {})", i, smartHandle.handle().id);
+            return false;
+        }
+
+        descriptorSets.push_back(descriptorSet);
+    }
+
+    // Bind descriptors to command buffer
+    vkCmdBindDescriptorSets(
+        getCurrentCommandBuffer(),
+        VK_PIPELINE_BIND_POINT_GRAPHICS,
+        m_currentPipelineLayout,
+        0,
+        static_cast<uint32_t>(descriptorSets.size()),
+        descriptorSets.data(),
+        0,
+        nullptr
+    );
+
+    // Create guards for automatic GPU usage tracking
+    for (const auto& smartHandle : descriptorHandles) {
+        // Copy the smart handle for the guard
+        auto guardHandle = smartHandle;
+        auto guard = std::make_unique<DescriptorSetGuard>(
+            std::move(guardHandle),
+            m_currentFrameFence,
+            m_vulkanContext.logical()
+        );
+        m_descriptorGuardPool.addGuard(std::move(guard));
+    }
+
+    SPDLOG_DEBUG("Descriptor sets bound: {} with automatic GPU tracking", descriptorSets.size());
+    return true;
+}
+
+// ========== DESCRIPTOR GUARD MANAGEMENT ==========
+
+void Renderer::addDescriptorGuard(std::unique_ptr<DescriptorSetGuard> guard) {
+    m_descriptorGuardPool.addGuard(std::move(guard));
+}
+
+size_t Renderer::pollDescriptorGuards() {
+    return m_descriptorGuardPool.pollAndCleanup();
 }
 
 // ========== COMMAND BUFFER ACCESS ==========
@@ -308,7 +397,6 @@ void Renderer::prepareFrame() {
     auto inFlightFence = m_frameManager.getInFlightFence();
     vkWaitForFences(m_vulkanContext.logical().get(), 1, &inFlightFence, VK_TRUE, UINT64_MAX);
     vkResetFences(m_vulkanContext.logical().get(), 1, &inFlightFence);
-    m_descriptorAllocator.markFrameCompleted(m_frameManager.getCurrentFrameIndex());
 
     auto& currentFrame = m_frameManager.getCurrentFrame();
 
@@ -403,6 +491,7 @@ void Renderer::cleanupFrame() {
 
     m_currentPipeline = PipelineHandle(0);
     m_currentPipelineLayout = VK_NULL_HANDLE;
+    m_currentFrameFence = VK_NULL_HANDLE;
 
     m_frameActive = false;
     m_currentImageIndex = 0;
@@ -412,7 +501,7 @@ void Renderer::cleanupFrame() {
 void Renderer::handleSwapchainRecreation() {
     cleanupFrame();
 
-    // Wait for all queues to be idle
+    // Wait for all GPU work to complete
     vkQueueWaitIdle(m_vulkanContext.logical().getQueue(LogicalDevice::QueueType::Graphics));
     vkQueueWaitIdle(m_vulkanContext.logical().getQueue(LogicalDevice::QueueType::Transfer));
 
@@ -420,6 +509,9 @@ void Renderer::handleSwapchainRecreation() {
     m_frameManager.resetAllFrames();
 
     vkDeviceWaitIdle(m_vulkanContext.logical().get());
+
+    // Clean up all descriptor guards since GPU is idle
+    m_descriptorGuardPool.clear();
 
     SPDLOG_INFO("Device is idle, proceeding with swapchain recreation");
 

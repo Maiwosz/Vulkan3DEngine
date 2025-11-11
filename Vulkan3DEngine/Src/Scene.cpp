@@ -12,12 +12,14 @@
 #include "InputSystem.h"
 #include <spdlog/spdlog.h>
 #include "ComputeShaderTestScript.h"
+#include "ProvinceSimulationTest.h"
+#include "ProvinceSimulationUI.h"
 
 Scene::Scene(Engine& engine, Registry& registry) :
     m_engine(engine), m_registry(registry)
 {
 
-    if (true) {
+    if (false) {
     // Creating object with mesh
     testEntity = m_registry.entities().create();
     {
@@ -198,12 +200,65 @@ Scene::Scene(Engine& engine, Registry& registry) :
 
     //AssetHandle handle = AssetHandle(AssetLib::AssetType::Scene, "testScene");
     //m_engine.assetSystem().assetManager().ensureReady(handle);
-    m_registry.scenes().loadScene("testScene");
+    //m_registry.scenes().loadScene("testScene");
 
-    Entity computeShaderTestEntity = m_registry.entities().create();
+    /*Entity computeShaderTestEntity = m_registry.entities().create();
     {
         auto& script = m_registry.components().addComponent<ComputeShaderTestScript>(computeShaderTestEntity);
+    }*/
+
+    // Create entity for the simulation
+    Entity provinceSimEntity = m_registry.entities().create();
+    auto& simScript = m_registry.components().addComponent<ProvinceSimulationTest>(provinceSimEntity);
+
+    // Create entity for the UI
+    Entity provinceUIEntity = m_registry.entities().create();
+    auto& uiScript = m_registry.components().addComponent<ProvinceSimulationUI>(provinceUIEntity);
+
+    // Connect UI to simulation
+    uiScript.setSimulation(&simScript);
+
+    testCamera = m_registry.entities().create();
+    {
+        auto& transform = m_registry.components().addComponent<TransformComponent>(testCamera);
+
+        // Add camera component
+        auto& camera = m_registry.components().addComponent<CameraComponent>(testCamera);
+        auto renderTarget = RenderTarget::createSwapChainTarget(&m_engine.engineCore().swapChain());
+        float fieldOfView = 45.0f;
+        float aspectRatio = 1920.0f / 1080.0f;
+        float nearPlane = 0.1f;
+        float farPlane = 100.0f;
+
+        camera.setVerticalFOV(fieldOfView);
+        camera.setAspectRatio(aspectRatio);
+        camera.setClippingPlanes(nearPlane, farPlane);
+        camera.setRenderTarget(renderTarget);
     }
+
+    // floor
+    testFloor = m_registry.entities().create();
+    {
+        // Konfiguracja zasobów
+        std::string meshName = "quad";
+        std::string materialName = "floor";
+
+        // Transform with rotation
+        auto& transform = m_registry.components().addComponent<TransformComponent>(testFloor);
+        transform.setPosition(glm::vec3(0.0f, 0.0f, 0.0f));
+
+        transform.setRotation(glm::vec3(0.0f, 0.0f, 0.0f));
+
+        transform.setScale(glm::vec3(1.0f));
+
+        // Mesh and material
+        auto& mesh = m_registry.components().addComponent<MeshComponent>(testFloor);
+        mesh.setMesh(AssetHandle(AssetLib::AssetType::Mesh, meshName));
+
+        auto& material = m_registry.components().addComponent<MaterialComponent>(testFloor);
+        material.setMaterial(AssetHandle(AssetLib::AssetType::Material, materialName));
+    }
+
 }
 
 Scene::~Scene()

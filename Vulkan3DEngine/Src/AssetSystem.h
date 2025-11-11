@@ -16,7 +16,7 @@ class EngineCore; // Forward declaration
 
 class AssetSystem {
 public:
-    AssetSystem(EngineCore& renderer);
+    AssetSystem(EngineCore& renderer, ThreadPool& threadPool);
     ~AssetSystem();
 
     // Core asset system methods

@@ -4,7 +4,7 @@
 #include "Engine.h"
 #include <spdlog/spdlog.h>
 
-AssetSystem::AssetSystem(EngineCore& renderer)
+AssetSystem::AssetSystem(EngineCore& renderer, ThreadPool& threadPool)
     : m_renderer(renderer)
 {
     SPDLOG_DEBUG("Creating AssetSystem");
@@ -34,7 +34,8 @@ AssetSystem::AssetSystem(EngineCore& renderer)
         m_renderer.bufferManager(),
         m_renderer.descriptorAllocator(),
         m_renderer.descriptorLayoutManager(),
-        *m_textureManager
+        *m_textureManager,
+        threadPool
     );
 
     m_meshManager = std::make_shared<MeshManager>(

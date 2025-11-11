@@ -18,6 +18,8 @@
 #include <string>
 #include <MaterialTypes.h>
 
+using MaterialSmartHandle = SmartAssetHandle<MaterialHandle, Material>;
+
 class MaterialManager : public ISmartAssetHandler<MaterialHandle, Material> {
 public:
     MaterialManager(
@@ -27,7 +29,8 @@ public:
         BufferManager& uniformBufferManager,
         DescriptorAllocator& descriptorAllocator,
         DescriptorLayoutManager& descriptorLayoutManager,
-        TextureManager& textureManager
+        TextureManager& textureManager,
+        ThreadPool& threadPool
     );
     ~MaterialManager();
 

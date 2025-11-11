@@ -193,30 +193,18 @@ void MaterialComponent::renderMaterialParametersUI() {
 
 void MaterialComponent::renderFieldUI(const std::string& fieldName, Material* material) {
     try {
-        // Get buffer containing the field
-        auto buffer = material->GetBufferForField(fieldName);
-        if (!buffer) {
-            ImGui::TextDisabled("%s: Buffer not found", fieldName.c_str());
-            return;
-        }
+        ShaderLib::FieldProxy fieldProxy = (*material)[fieldName];
 
-        // Get field descriptor through FindField (O(1) lookup)
-        auto bufferDef = buffer->GetDefinition();
-        const ShaderLib::FieldDescriptor* fieldDesc = bufferDef->FindField(fieldName);
-
-        if (!fieldDesc) {
+        if (!fieldProxy) {
             ImGui::TextDisabled("%s: Field not found", fieldName.c_str());
             return;
         }
 
         // Skip non-base types (structures)
-        if (!fieldDesc->isBaseType) {
+        if (!fieldProxy.IsBaseType()) {
             ImGui::TextDisabled("%s: Structure type (not editable)", fieldName.c_str());
             return;
         }
-
-        // Get field proxy for value access
-        auto fieldProxy = (*material)[fieldName];
 
         ImGui::PushID(fieldName.c_str());
         ImGui::Text("%s:", fieldName.c_str());
@@ -224,7 +212,7 @@ void MaterialComponent::renderFieldUI(const std::string& fieldName, Material* ma
         ImGui::PushItemWidth(200.0f);
 
         // Render UI based on base type
-        bool changed = renderBaseTypeUI("##value", fieldDesc->baseType, fieldProxy);
+        bool changed = renderBaseTypeUI("##value", fieldProxy.GetBaseType(), fieldProxy);
 
         ImGui::PopItemWidth();
         ImGui::PopID();

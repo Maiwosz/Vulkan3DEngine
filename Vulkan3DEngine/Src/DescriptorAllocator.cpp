@@ -1,5 +1,6 @@
 #include "DescriptorAllocator.h"
 #include "Prerequisites.h"
+#include <spdlog/spdlog.h>
 
 // Static member definition
 const DescriptorAllocator::DescriptorResources DescriptorAllocator::s_emptyResources;
@@ -9,68 +10,16 @@ DescriptorAllocator::DescriptorAllocator(const LogicalDevice& device, const Pool
 {
     // Initialize with first pool
     m_readyPools.push_back(getPool());
+
+    SPDLOG_INFO("DescriptorAllocator initialized with {} initial sets", config.initialSets);
 }
 
 DescriptorAllocator::~DescriptorAllocator() {
     destroy();
 }
 
-// GPU usage tracking methods
-void DescriptorAllocator::markDescriptorAsUsedByGPU(DescriptorSetHandle handle, uint32_t frameIndex) {
-    if (!handle.isValid() || handle.id > m_descriptorSets.size()) {
-        return;
-    }
+// ========== PUBLIC INTERFACE ==========
 
-    auto& entry = m_descriptorSets[handle.id - 1];
-    if (!entry.inUse || !entry.isAllocated) {
-        return;
-    }
-
-    // Mark as used by GPU
-    entry.usedByGPU = true;
-    entry.gpuFrameIndex = frameIndex;
-
-    // Add to frame tracking
-    auto& frameUsage = m_frameGpuUsage[frameIndex];
-    frameUsage.usedDescriptors.push_back(handle);
-    frameUsage.completed = false;
-}
-
-void DescriptorAllocator::markFrameCompleted(uint32_t frameIndex) {
-    auto it = m_frameGpuUsage.find(frameIndex);
-    if (it != m_frameGpuUsage.end()) {
-        it->second.completed = true;
-        releaseGpuUsageForFrame(frameIndex);
-    }
-}
-
-void DescriptorAllocator::releaseGpuUsageForFrame(uint32_t frameIndex) {
-    auto it = m_frameGpuUsage.find(frameIndex);
-    if (it == m_frameGpuUsage.end() || !it->second.completed) {
-        return;
-    }
-
-    // Release GPU usage flag for all descriptors in this frame
-    for (DescriptorSetHandle handle : it->second.usedDescriptors) {
-        if (handle.isValid() && handle.id <= m_descriptorSets.size()) {
-            auto& entry = m_descriptorSets[handle.id - 1];
-            if (entry.gpuFrameIndex == frameIndex) {
-                entry.usedByGPU = false;
-                entry.gpuFrameIndex = 0;
-
-                // If not in use by application, make it reusable
-                if (!entry.inUse && entry.referenceCount == 0) {
-                    m_reusableSets[entry.layout].push(handle);
-                }
-            }
-        }
-    }
-
-    // Remove frame tracking data
-    m_frameGpuUsage.erase(it);
-}
-
-// Enhanced public interface
 DescriptorSetHandle DescriptorAllocator::acquireDescriptorSet(VkDescriptorSetLayout layout) {
     return acquireDescriptorSet(layout, DescriptorResources{});
 }
@@ -79,12 +28,16 @@ DescriptorSetHandle DescriptorAllocator::acquireDescriptorSet(VkDescriptorSetLay
     // Try to find reusable descriptor set
     DescriptorSetHandle handle = findReusableDescriptorSet(layout);
     if (handle.isValid()) {
-        m_descriptorSets[handle.id - 1].inUse = true;
-        m_descriptorSets[handle.id - 1].resources = resources;
+        auto& entry = m_descriptorSets[handle.id - 1];
+        entry.inUse = true;
+        entry.resources = resources;
+
+        SPDLOG_TRACE("Reusing descriptor set {} for layout {:p}", handle.id, (void*)layout);
         return handle;
     }
 
     // Create new if none available
+    SPDLOG_TRACE("Creating new descriptor set for layout {:p}", (void*)layout);
     return createNewDescriptorSet(layout, resources);
 }
 
@@ -99,7 +52,8 @@ VkDescriptorSet DescriptorAllocator::getDescriptorSet(DescriptorSetHandle handle
     return m_descriptorSets[handle.id - 1].descriptorSet;
 }
 
-// Resource management methods
+// ========== RESOURCE MANAGEMENT ==========
+
 void DescriptorAllocator::bindUniformBuffer(DescriptorSetHandle handle, SmartHandle<BufferHandle, Buffer> buffer) {
     if (!handle.isValid() || handle.id > m_descriptorSets.size()) return;
 
@@ -157,7 +111,19 @@ DescriptorAllocator::DescriptorResources& DescriptorAllocator::getDescriptorReso
     return entry.resources;
 }
 
-// IResourceManager interface implementation
+// ========== SMART HANDLE SUPPORT ==========
+
+SmartHandle<DescriptorSetHandle, VkDescriptorSet> DescriptorAllocator::acquireSmartDescriptorSet(VkDescriptorSetLayout layout) {
+    return acquireSmartDescriptorSet(layout, DescriptorResources{});
+}
+
+SmartHandle<DescriptorSetHandle, VkDescriptorSet> DescriptorAllocator::acquireSmartDescriptorSet(VkDescriptorSetLayout layout, const DescriptorResources& resources) {
+    DescriptorSetHandle handle = acquireDescriptorSet(layout, resources);
+    return createSmartHandle(handle);
+}
+
+// ========== IRESOURCEMANAGER INTERFACE ==========
+
 VkDescriptorSet* DescriptorAllocator::getResource(DescriptorSetHandle handle) {
     if (!handle.isValid() || handle.id > m_descriptorSets.size()) {
         return nullptr;
@@ -181,15 +147,16 @@ void DescriptorAllocator::releaseResource(DescriptorSetHandle handle) {
     auto& entry = m_descriptorSets[handle.id - 1];
     if (!entry.inUse) return;
 
+    // Only release if reference count is zero
     if (entry.referenceCount == 0) {
         entry.inUse = false;
         entry.resources.clear();
 
-        // If not used by GPU, make it immediately reusable
-        if (!entry.usedByGPU) {
-            m_reusableSets[entry.layout].push(handle);
-        }
-        // If used by GPU, it will be made reusable when frame completes
+        // Immediately make it reusable
+        // DescriptorSetGuard will handle GPU tracking
+        m_reusableSets[entry.layout].push(handle);
+
+        SPDLOG_TRACE("Released descriptor set {} back to reusable pool", handle.id);
 
         m_resourceCache.erase(handle);
     }
@@ -200,6 +167,8 @@ void DescriptorAllocator::addReference(DescriptorSetHandle handle) {
 
     auto& entry = m_descriptorSets[handle.id - 1];
     entry.referenceCount++;
+
+    SPDLOG_TRACE("Descriptor set {} reference count increased to {}", handle.id, entry.referenceCount);
 }
 
 void DescriptorAllocator::removeReference(DescriptorSetHandle handle) {
@@ -209,31 +178,47 @@ void DescriptorAllocator::removeReference(DescriptorSetHandle handle) {
     if (entry.referenceCount > 0) {
         entry.referenceCount--;
 
+        SPDLOG_TRACE("Descriptor set {} reference count decreased to {}", handle.id, entry.referenceCount);
+
+        // If reference count reaches zero and not in use, release
         if (entry.referenceCount == 0 && entry.inUse) {
             entry.inUse = false;
             entry.resources.clear();
 
-            // If not used by GPU, make it immediately reusable
-            if (!entry.usedByGPU) {
-                m_reusableSets[entry.layout].push(handle);
-            }
-            // If used by GPU, it will be made reusable when frame completes
+            // Make it reusable
+            m_reusableSets[entry.layout].push(handle);
+
+            SPDLOG_TRACE("Descriptor set {} released after reference count reached zero", handle.id);
 
             m_resourceCache.erase(handle);
         }
     }
 }
 
-SmartHandle<DescriptorSetHandle, VkDescriptorSet> DescriptorAllocator::acquireSmartDescriptorSet(VkDescriptorSetLayout layout) {
-    return acquireSmartDescriptorSet(layout, DescriptorResources{});
+// ========== STATISTICS ==========
+
+DescriptorAllocator::Stats DescriptorAllocator::getStats() const {
+    Stats stats;
+    stats.poolCount = m_readyPools.size() + m_fullPools.size();
+
+    for (const auto& entry : m_descriptorSets) {
+        if (entry.isAllocated) {
+            stats.totalAllocated++;
+            if (entry.inUse) {
+                stats.inUse++;
+            }
+        }
+    }
+
+    for (const auto& [layout, queue] : m_reusableSets) {
+        stats.reusable += queue.size();
+    }
+
+    return stats;
 }
 
-SmartHandle<DescriptorSetHandle, VkDescriptorSet> DescriptorAllocator::acquireSmartDescriptorSet(VkDescriptorSetLayout layout, const DescriptorResources& resources) {
-    DescriptorSetHandle handle = acquireDescriptorSet(layout, resources);
-    return createSmartHandle(handle);
-}
+// ========== PRIVATE IMPLEMENTATION ==========
 
-// Private implementation methods
 DescriptorSetHandle DescriptorAllocator::findReusableDescriptorSet(VkDescriptorSetLayout layout) {
     auto& queue = m_reusableSets[layout];
 
@@ -244,7 +229,7 @@ DescriptorSetHandle DescriptorAllocator::findReusableDescriptorSet(VkDescriptorS
         // Check if handle is still valid and allocated
         if (handle.isValid() && handle.id <= m_descriptorSets.size()) {
             auto& entry = m_descriptorSets[handle.id - 1];
-            if (entry.isAllocated && entry.layout == layout && !entry.usedByGPU) {
+            if (entry.isAllocated && entry.layout == layout && !entry.inUse) {
                 return handle;
             }
         }
@@ -274,6 +259,8 @@ DescriptorSetHandle DescriptorAllocator::createNewDescriptorSet(VkDescriptorSetL
         // Move pool to full pools
         m_fullPools.push_back(pool);
 
+        SPDLOG_DEBUG("Pool exhausted, moving to full pools. Creating new pool...");
+
         // Get new pool
         pool = getPool();
         allocInfo.descriptorPool = pool;
@@ -298,20 +285,24 @@ DescriptorSetHandle DescriptorAllocator::createNewDescriptorSet(VkDescriptorSetL
         .sourcePool = pool,
         .inUse = true,
         .isAllocated = true,
-        .usedByGPU = false,
-        .gpuFrameIndex = 0,
         .referenceCount = 0,
         .resources = resources
     };
 
+    SPDLOG_TRACE("Created new descriptor set {} from pool {:p}", handle.id, (void*)pool);
+
     return handle;
 }
+
+// ========== LIFECYCLE MANAGEMENT ==========
 
 void DescriptorAllocator::destroy() {
     // Check if already destroyed
     if (m_readyPools.empty() && m_fullPools.empty() && m_descriptorSets.empty()) {
         return;
     }
+
+    SPDLOG_INFO("Destroying DescriptorAllocator...");
 
     // Ensure all GPU work is complete before destroying anything
     vkDeviceWaitIdle(m_device.get());
@@ -320,7 +311,6 @@ void DescriptorAllocator::destroy() {
     m_descriptorSets.clear();
     m_reusableSets.clear();
     m_resourceCache.clear();
-    m_frameGpuUsage.clear();
 
     // Destroy all pools
     for (auto pool : m_readyPools) {
@@ -340,17 +330,19 @@ void DescriptorAllocator::destroy() {
     // Reset counters
     m_nextHandleId = 1;
     m_nextSetCount = m_config.initialSets;
+
+    SPDLOG_INFO("DescriptorAllocator destroyed");
 }
 
 void DescriptorAllocator::reset() {
+    SPDLOG_INFO("Resetting DescriptorAllocator...");
+
     // Clear all bound resources
     for (auto& entry : m_descriptorSets) {
         if (entry.inUse) {
             entry.resources.clear();
             entry.referenceCount = 0;
             entry.inUse = false;
-            entry.usedByGPU = false;
-            entry.gpuFrameIndex = 0;
         }
     }
 
@@ -372,9 +364,12 @@ void DescriptorAllocator::reset() {
     m_descriptorSets.clear();
     m_reusableSets.clear();
     m_resourceCache.clear();
-    m_frameGpuUsage.clear();
     m_nextHandleId = 1;
+
+    SPDLOG_INFO("DescriptorAllocator reset complete");
 }
+
+// ========== POOL MANAGEMENT ==========
 
 VkResult DescriptorAllocator::createPool(uint32_t setCount, VkDescriptorPool* outPool) const {
     std::vector<VkDescriptorPoolSize> poolSizes;
@@ -389,6 +384,7 @@ VkResult DescriptorAllocator::createPool(uint32_t setCount, VkDescriptorPool* ou
     }
 
     if (poolSizes.empty()) {
+        SPDLOG_ERROR("Cannot create descriptor pool - no valid pool sizes");
         return VK_ERROR_INITIALIZATION_FAILED;
     }
 
@@ -399,7 +395,16 @@ VkResult DescriptorAllocator::createPool(uint32_t setCount, VkDescriptorPool* ou
         .pPoolSizes = poolSizes.data()
     };
 
-    return vkCreateDescriptorPool(m_device.get(), &poolInfo, nullptr, outPool);
+    VkResult result = vkCreateDescriptorPool(m_device.get(), &poolInfo, nullptr, outPool);
+
+    if (result == VK_SUCCESS) {
+        SPDLOG_DEBUG("Created descriptor pool {:p} with {} max sets", (void*)*outPool, setCount);
+    }
+    else {
+        SPDLOG_ERROR("Failed to create descriptor pool with {} sets: {}", setCount, string_VkResult(result));
+    }
+
+    return result;
 }
 
 VkDescriptorPool DescriptorAllocator::getPool() {
@@ -415,20 +420,23 @@ VkDescriptorPool DescriptorAllocator::getPool() {
         VkDescriptorPool pool = m_fullPools.back();
         m_fullPools.pop_back();
 
+        SPDLOG_DEBUG("Resetting full pool {:p}", (void*)pool);
         vkResetDescriptorPool(m_device.get(), pool, 0);
 
         // Mark all descriptor sets from this pool as unallocated
+        size_t invalidatedCount = 0;
         for (auto& entry : m_descriptorSets) {
             if (entry.sourcePool == pool && entry.isAllocated) {
                 entry.isAllocated = false;
                 entry.inUse = false;
-                entry.usedByGPU = false;
-                entry.gpuFrameIndex = 0;
                 entry.referenceCount = 0;
                 entry.resources.clear();
                 entry.descriptorSet = VK_NULL_HANDLE;
+                invalidatedCount++;
             }
         }
+
+        SPDLOG_DEBUG("Invalidated {} descriptor sets from reset pool", invalidatedCount);
 
         return pool;
     }
@@ -443,9 +451,11 @@ VkDescriptorPool DescriptorAllocator::getPool() {
 
         if (result == VK_SUCCESS) {
             m_nextSetCount = static_cast<uint32_t>(newSetCount * m_config.growthFactor);
+            SPDLOG_INFO("Created new pool with {} sets, next pool will have {}", newSetCount, m_nextSetCount);
             return pool;
         }
         else if (result == VK_ERROR_OUT_OF_DEVICE_MEMORY || result == VK_ERROR_FRAGMENTED_POOL) {
+            SPDLOG_WARN("Failed to create pool with {} sets, trying smaller size...", newSetCount);
             newSetCount = std::max(newSetCount / 2, minSetCount);
         }
         else {
@@ -453,6 +463,7 @@ VkDescriptorPool DescriptorAllocator::getPool() {
         }
     }
 
+    SPDLOG_CRITICAL("Cannot create descriptor pool - exhausted all options");
     VK_CHECK(VK_ERROR_OUT_OF_DEVICE_MEMORY);
     return VK_NULL_HANDLE;
 }

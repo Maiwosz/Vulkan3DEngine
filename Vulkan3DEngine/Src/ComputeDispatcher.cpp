@@ -8,300 +8,296 @@
 ComputeDispatcher::ComputeDispatcher(
     VulkanContext& vulkanContext,
     PipelineManager& pipelineManager,
-    CommandBufferManager& cmdBufferManager)
+    CommandBufferManager& cmdBufferManager,
+    SynchronizationResourceManager& syncManager)
     : m_vulkanContext(vulkanContext),
     m_pipelineManager(pipelineManager),
     m_cmdBufferManager(cmdBufferManager),
-    m_computeFence(VK_NULL_HANDLE)
+    m_syncManager(syncManager),
+    m_nextTaskId(1)  // Start from 1, 0 is reserved for errors
 {
-    // Create reusable fence for synchronization
-    VkFenceCreateInfo fenceInfo{};
-    fenceInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
-    fenceInfo.flags = 0;
-
-    VkResult result = vkCreateFence(
-        m_vulkanContext.logical().get(),
-        &fenceInfo,
-        nullptr,
-        &m_computeFence
-    );
-
-    if (result != VK_SUCCESS) {
-        throw std::runtime_error("Failed to create compute fence");
-    }
-
-    SPDLOG_DEBUG("ComputeDispatcher initialized");
+    SPDLOG_DEBUG("ComputeDispatcher initialized (async, multi-task support with descriptor guards)");
 }
 
 ComputeDispatcher::~ComputeDispatcher() {
-    if (m_computeFence != VK_NULL_HANDLE) {
-        vkDestroyFence(m_vulkanContext.logical().get(), m_computeFence, nullptr);
+    if (!m_activeTasks.empty()) {
+        SPDLOG_WARN("ComputeDispatcher: {} pending tasks on destruction, waiting...",
+            m_activeTasks.size());
+        waitForAll();
     }
+
     SPDLOG_DEBUG("ComputeDispatcher destroyed");
 }
 
-bool ComputeDispatcher::dispatch(
+ComputeTaskHandle ComputeDispatcher::dispatch(
     const SmartAssetHandle<MaterialHandle, Material>& material,
     uint32_t groupCountX,
     uint32_t groupCountY,
     uint32_t groupCountZ)
 {
-    return dispatchWithPushConstants(
-        material,
-        nullptr,
-        0,
-        groupCountX,
-        groupCountY,
-        groupCountZ
-    );
-}
-
-bool ComputeDispatcher::dispatchWithPushConstants(
-    const SmartAssetHandle<MaterialHandle, Material>& material,
-    const void* pushConstantData,
-    uint32_t pushConstantSize,
-    uint32_t groupCountX,
-    uint32_t groupCountY,
-    uint32_t groupCountZ)
-{
+    // Validation
     if (!material.isValid()) {
         SPDLOG_ERROR("ComputeDispatcher: Invalid material smart handle");
-        return false;
+        return ComputeTaskHandle{};
     }
 
     Material* mat = material.get();
     if (!mat) {
         SPDLOG_ERROR("ComputeDispatcher: Failed to access material");
-        return false;
+        return ComputeTaskHandle{};
     }
 
     if (!isValidComputeMaterial(material)) {
-        SPDLOG_ERROR("ComputeDispatcher: Material '{}' is not a valid compute material", mat->GetName());
-        return false;
+        SPDLOG_ERROR("ComputeDispatcher: Material '{}' is not a valid compute material",
+            mat->GetName());
+        return ComputeTaskHandle{};
     }
 
     if (groupCountX == 0 || groupCountY == 0 || groupCountZ == 0) {
         SPDLOG_ERROR("ComputeDispatcher: Invalid group counts ({}, {}, {})",
             groupCountX, groupCountY, groupCountZ);
-        return false;
+        return ComputeTaskHandle{};
     }
 
-    SPDLOG_DEBUG("ComputeDispatcher: Dispatching compute shader '{}' (groups: {}x{}x{})",
-        mat->GetName(), groupCountX, groupCountY, groupCountZ);
+    // Generate task handle
+    ComputeTaskHandle taskHandle{ m_nextTaskId++ };
+
+    SPDLOG_DEBUG("ComputeDispatcher: Dispatching task {} '{}' (groups: {}x{}x{})",
+        taskHandle.id, mat->GetName(), groupCountX, groupCountY, groupCountZ);
 
     try {
+        // Acquire resources
         VkCommandBuffer cmdBuffer = beginComputeCommands();
+        VkFence fence = m_syncManager.acquireFence(false);
 
-        bool success = dispatchInternal(
-            cmdBuffer,
-            material,
-            pushConstantData,
-            pushConstantSize,
-            groupCountX,
-            groupCountY,
-            groupCountZ
-        );
+        // Declare descriptor guard
+        std::unique_ptr<DescriptorSetGuard> descriptorGuard;
+
+        // Record commands
+        bool success = dispatchInternal(cmdBuffer, material, groupCountX, groupCountY, groupCountZ);
 
         if (!success) {
-            SPDLOG_ERROR("ComputeDispatcher: Dispatch failed for '{}'", mat->GetName());
-            return false;
+            SPDLOG_ERROR("ComputeDispatcher: Failed to record commands for task {}", taskHandle.id);
+            m_syncManager.releaseFence(fence);
+            return ComputeTaskHandle{};
         }
 
-        endComputeCommands(cmdBuffer);
-
-        // AUTOMATIC READBACK: Read buffer data from GPU back to CPU
-        bool hasBuffers = mat->HasInputBuffer() || mat->HasOutputBuffer() || mat->HasInputOutputBuffer();
-
-        if (hasBuffers) {
-            SPDLOG_DEBUG("ComputeDispatcher: Reading back buffer parameters for '{}'", mat->GetName());
-
-            try {
-                SPDLOG_DEBUG("ComputeDispatcher: Successfully read back buffer parameters for '{}'",
-                    mat->GetName());
-            }
-            catch (const std::exception& e) {
-                SPDLOG_WARN("ComputeDispatcher: Failed to read back buffer parameters for '{}': {}",
-                    mat->GetName(), e.what());
-                // Don't return false - dispatch succeeded, readback is best-effort
-            }
+        // Create descriptor guard now that we have the fence
+        auto descriptorSetHandle = material->GetDescriptorSet();
+        if (descriptorSetHandle.isValid()) {
+            descriptorGuard = std::make_unique<DescriptorSetGuard>(
+                descriptorSetHandle,
+                fence,
+                m_vulkanContext.logical()
+            );
+            SPDLOG_TRACE("ComputeDispatcher: Created descriptor guard for task {}", taskHandle.id);
         }
 
-        SPDLOG_DEBUG("ComputeDispatcher: Compute shader '{}' completed", mat->GetName());
-        return true;
+        // Submit
+        submitAsyncCommands(cmdBuffer, fence);
+
+        // Track task with its descriptor guard
+        m_activeTasks[taskHandle] = ComputeTask{
+            fence,
+            material,
+            groupCountX,
+            groupCountY,
+            groupCountZ,
+            std::move(descriptorGuard)  // Transfer ownership to task
+        };
+
+        SPDLOG_DEBUG("ComputeDispatcher: Task {} submitted successfully", taskHandle.id);
+        return taskHandle;
     }
     catch (const std::exception& e) {
         SPDLOG_ERROR("ComputeDispatcher: Exception during dispatch: {}", e.what());
-        return false;
+        return ComputeTaskHandle{};
     }
 }
 
-bool ComputeDispatcher::dispatchBatch(const std::vector<DispatchInfo>& dispatches) {
-    if (dispatches.empty()) {
-        SPDLOG_WARN("ComputeDispatcher: Empty dispatch batch");
-        return true;
-    }
-
-    SPDLOG_DEBUG("ComputeDispatcher: Dispatching batch of {} compute operations", dispatches.size());
-
-    try {
-        VkCommandBuffer cmdBuffer = beginComputeCommands();
-
-        for (size_t i = 0; i < dispatches.size(); ++i) {
-            const auto& dispatch = dispatches[i];
-
-            if (!dispatch.material.isValid()) {
-                SPDLOG_ERROR("ComputeDispatcher: Invalid material at batch index {}", i);
-                return false;
-            }
-
-            const Material* mat = dispatch.material.get();
-            if (!mat) {
-                SPDLOG_ERROR("ComputeDispatcher: Failed to access material at batch index {}", i);
-                return false;
-            }
-
-            if (!isValidComputeMaterial(dispatch.material)) {
-                SPDLOG_ERROR("ComputeDispatcher: Material '{}' at batch index {} is not a compute material",
-                    mat->GetName(), i);
-                return false;
-            }
-
-            bool success = dispatchInternal(
-                cmdBuffer,
-                dispatch.material,
-                nullptr,
-                0,
-                dispatch.groupCountX,
-                dispatch.groupCountY,
-                dispatch.groupCountZ
-            );
-
-            if (!success) {
-                SPDLOG_ERROR("ComputeDispatcher: Batch dispatch failed at index {} (material: '{}')",
-                    i, mat->GetName());
-                return false;
-            }
-
-            if (i < dispatches.size() - 1) {
-                insertComputeBarrier(cmdBuffer);
-            }
-        }
-
-        endComputeCommands(cmdBuffer);
-
-        // AUTOMATIC READBACK: Read back all materials in batch
-        SPDLOG_DEBUG("ComputeDispatcher: Reading back buffer parameters for {} materials in batch",
-            dispatches.size());
-
-        uint32_t successCount = 0;
-        uint32_t totalWithBuffers = 0;
-
-        for (size_t i = 0; i < dispatches.size(); ++i) {
-            Material* mat = dispatches[i].material.get();
-
-            bool hasBuffers = mat->HasInputBuffer() || mat->HasOutputBuffer() || mat->HasInputOutputBuffer();
-            if (!hasBuffers) {
-                continue;
-            }
-
-            totalWithBuffers++;
-
-            try {
-                successCount++;
-                SPDLOG_TRACE("ComputeDispatcher: Read back parameters for material '{}' (batch index {})",
-                    mat->GetName(), i);
-            }
-            catch (const std::exception& e) {
-                SPDLOG_WARN("ComputeDispatcher: Failed to read back parameters for material '{}' (batch index {}): {}",
-                    mat->GetName(), i, e.what());
-            }
-        }
-
-        if (totalWithBuffers > 0) {
-            SPDLOG_DEBUG("ComputeDispatcher: Successfully read back parameters for {}/{} materials",
-                successCount, totalWithBuffers);
-        }
-
-        SPDLOG_DEBUG("ComputeDispatcher: Batch completed successfully");
-        return true;
-    }
-    catch (const std::exception& e) {
-        SPDLOG_ERROR("ComputeDispatcher: Exception during batch dispatch: {}", e.what());
-        return false;
-    }
-}
-
-bool ComputeDispatcher::dispatchForDataSize(
+ComputeTaskHandle ComputeDispatcher::dispatchForDataSize(
     const SmartAssetHandle<MaterialHandle, Material>& material,
     uint32_t dataSizeX,
     uint32_t dataSizeY,
     uint32_t dataSizeZ)
 {
     if (!material.isValid()) {
-        SPDLOG_ERROR("ComputeDispatcher: Invalid material smart handle for dispatchForDataSize");
-        return false;
+        SPDLOG_ERROR("ComputeDispatcher: Invalid material smart handle");
+        return ComputeTaskHandle{};
     }
 
     const Material* mat = material.get();
     if (!mat) {
-        SPDLOG_ERROR("ComputeDispatcher: Failed to access material for dispatchForDataSize");
-        return false;
+        SPDLOG_ERROR("ComputeDispatcher: Failed to access material");
+        return ComputeTaskHandle{};
     }
 
     const auto& shaderSmartHandle = mat->GetShader();
     if (!shaderSmartHandle.isValid()) {
         SPDLOG_ERROR("ComputeDispatcher: Material '{}' has invalid shader", mat->GetName());
-        return false;
+        return ComputeTaskHandle{};
     }
 
     uint32_t groupCountX, groupCountY, groupCountZ;
     if (!calculateWorkGroups(shaderSmartHandle, dataSizeX, dataSizeY, dataSizeZ,
         groupCountX, groupCountY, groupCountZ)) {
-        SPDLOG_ERROR("ComputeDispatcher: Failed to calculate workgroups for material '{}'", mat->GetName());
+        SPDLOG_ERROR("ComputeDispatcher: Failed to calculate workgroups for '{}'",
+            mat->GetName());
+        return ComputeTaskHandle{};
+    }
+
+    SPDLOG_DEBUG("ComputeDispatcher: Auto-calculated work groups for '{}': {}x{}x{} "
+        "(data size: {}x{}x{})",
+        mat->GetName(), groupCountX, groupCountY, groupCountZ,
+        dataSizeX, dataSizeY, dataSizeZ);
+
+    return dispatch(material, groupCountX, groupCountY, groupCountZ);
+}
+
+bool ComputeDispatcher::isTaskComplete(ComputeTaskHandle task) const {
+    if (!task.isValid()) return false;
+
+    auto it = m_activeTasks.find(task);
+    if (it == m_activeTasks.end()) {
+        // Task not found - either invalid or already completed
         return false;
     }
 
-    SPDLOG_DEBUG("ComputeDispatcher: Auto-calculated work groups for '{}' with data size {}x{}x{}: {}x{}x{}",
-        mat->GetName(), dataSizeX, dataSizeY, dataSizeZ,
-        groupCountX, groupCountY, groupCountZ);
+    VkResult result = vkGetFenceStatus(m_vulkanContext.logical().get(), it->second.fence);
+    return result == VK_SUCCESS;
+}
 
-    // dispatch() will handle readback automatically
-    return dispatch(material, groupCountX, groupCountY, groupCountZ);
+bool ComputeDispatcher::waitForTask(ComputeTaskHandle task) {
+    if (!task.isValid()) {
+        SPDLOG_ERROR("ComputeDispatcher: Invalid task handle");
+        return false;
+    }
+
+    auto it = m_activeTasks.find(task);
+    if (it == m_activeTasks.end()) {
+        SPDLOG_WARN("ComputeDispatcher: Task {} not found (already completed or invalid)", task.id);
+        return false;
+    }
+
+    SPDLOG_DEBUG("ComputeDispatcher: Waiting for task {} to complete", task.id);
+
+    VkResult result = vkWaitForFences(
+        m_vulkanContext.logical().get(),
+        1,
+        &it->second.fence,
+        VK_TRUE,
+        UINT64_MAX
+    );
+
+    if (result != VK_SUCCESS) {
+        SPDLOG_ERROR("ComputeDispatcher: Failed to wait for task {}", task.id);
+        return false;
+    }
+
+    // Release descriptor guard (GPU is done with descriptor set)
+    if (it->second.descriptorGuard) {
+        it->second.descriptorGuard->release();
+    }
+
+    // Return fence to pool and remove task
+    m_syncManager.releaseFence(it->second.fence);
+    m_activeTasks.erase(it);
+
+    SPDLOG_DEBUG("ComputeDispatcher: Task {} completed", task.id);
+    return true;
+}
+
+void ComputeDispatcher::waitForAll() {
+    if (m_activeTasks.empty()) {
+        return;
+    }
+
+    SPDLOG_DEBUG("ComputeDispatcher: Waiting for {} tasks to complete", m_activeTasks.size());
+
+    // Collect all fences
+    std::vector<VkFence> fences;
+    fences.reserve(m_activeTasks.size());
+    for (const auto& [taskId, task] : m_activeTasks) {
+        fences.push_back(task.fence);
+    }
+
+    // Wait for all
+    VkResult result = vkWaitForFences(
+        m_vulkanContext.logical().get(),
+        static_cast<uint32_t>(fences.size()),
+        fences.data(),
+        VK_TRUE,
+        UINT64_MAX
+    );
+
+    if (result != VK_SUCCESS) {
+        SPDLOG_ERROR("ComputeDispatcher: Failed to wait for all tasks");
+    }
+
+    // Release all descriptor guards and return fences
+    for (const auto& [taskHandle, task] : m_activeTasks) {
+        if (task.descriptorGuard) {
+            task.descriptorGuard->release();
+        }
+        m_syncManager.releaseFence(task.fence);
+    }
+    m_activeTasks.clear();
+
+    SPDLOG_DEBUG("ComputeDispatcher: All tasks completed");
+}
+
+void ComputeDispatcher::pollCompletedTasks() {
+    if (m_activeTasks.empty()) {
+        return;
+    }
+
+    // Check each task and cleanup completed ones
+    for (auto it = m_activeTasks.begin(); it != m_activeTasks.end();) {
+        VkResult result = vkGetFenceStatus(m_vulkanContext.logical().get(), it->second.fence);
+
+        if (result == VK_SUCCESS) {
+            SPDLOG_DEBUG("ComputeDispatcher: Task {} completed (auto-cleanup)", it->first.id);
+
+            // Release descriptor guard
+            if (it->second.descriptorGuard) {
+                it->second.descriptorGuard->release();
+            }
+
+            // Return fence to pool
+            m_syncManager.releaseFence(it->second.fence);
+            it = m_activeTasks.erase(it);
+        }
+        else if (result == VK_NOT_READY) {
+            // Still running, continue to next
+            ++it;
+        }
+        else {
+            // Error
+            SPDLOG_ERROR("ComputeDispatcher: Error checking task {} status", it->first.id);
+
+            // Clean up on error
+            if (it->second.descriptorGuard) {
+                it->second.descriptorGuard->release();
+            }
+            m_syncManager.releaseFence(it->second.fence);
+            it = m_activeTasks.erase(it);
+        }
+    }
 }
 
 bool ComputeDispatcher::isValidComputeMaterial(
     const SmartAssetHandle<MaterialHandle, Material>& material) const
 {
-    if (!material.isValid()) {
-        return false;
-    }
-
+    if (!material.isValid()) return false;
     const Material* mat = material.get();
-    if (!mat) {
-        return false;
-    }
-
+    if (!mat) return false;
     const auto& shaderHandle = mat->GetShader();
-    if (!shaderHandle.isValid()) {
-        return false;
-    }
-
+    if (!shaderHandle.isValid()) return false;
     const ShaderAsset* shaderAsset = shaderHandle.get();
-    if (!shaderAsset) {
-        return false;
-    }
-
+    if (!shaderAsset) return false;
     const auto& metadata = shaderAsset->metadata;
-
-    // Check if compute stage exists
-    if (!(metadata.availableStages & static_cast<uint32_t>(ShaderLib::Stage::Compute))) {
-        return false;
-    }
-
-    if (!metadata.computeInfo.has_value()) {
-        return false;
-    }
-
+    if (!(metadata.availableStages & static_cast<uint32_t>(ShaderLib::Stage::Compute))) return false;
+    if (!metadata.computeInfo.has_value()) return false;
     return true;
 }
 
@@ -314,39 +310,17 @@ bool ComputeDispatcher::calculateWorkGroups(
     uint32_t& outGroupsY,
     uint32_t& outGroupsZ
 ) const {
-    if (!shader.isValid()) {
-        SPDLOG_ERROR("ComputeDispatcher: Invalid shader smart handle");
-        return false;
-    }
-
+    if (!shader.isValid()) return false;
     const ShaderAsset* shaderAsset = shader.get();
-    if (!shaderAsset) {
-        SPDLOG_ERROR("ComputeDispatcher: Failed to access shader asset");
-        return false;
-    }
-
+    if (!shaderAsset) return false;
     const auto& metadata = shaderAsset->metadata;
-
-    if (!metadata.computeInfo.has_value()) {
-        SPDLOG_ERROR("ComputeDispatcher: Shader missing compute info");
-        return false;
-    }
-
+    if (!metadata.computeInfo.has_value()) return false;
     const auto& computeInfo = metadata.computeInfo.value();
-
-    if (computeInfo.localSizeX == 0 || computeInfo.localSizeY == 0 || computeInfo.localSizeZ == 0) {
-        SPDLOG_ERROR("ComputeDispatcher: Invalid local size in shader: {}x{}x{}",
-            computeInfo.localSizeX, computeInfo.localSizeY, computeInfo.localSizeZ);
-        return false;
-    }
+    if (computeInfo.localSizeX == 0 || computeInfo.localSizeY == 0 || computeInfo.localSizeZ == 0) return false;
 
     outGroupsX = (dataSizeX + computeInfo.localSizeX - 1) / computeInfo.localSizeX;
     outGroupsY = (dataSizeY + computeInfo.localSizeY - 1) / computeInfo.localSizeY;
     outGroupsZ = (dataSizeZ + computeInfo.localSizeZ - 1) / computeInfo.localSizeZ;
-
-    SPDLOG_DEBUG("ComputeDispatcher: Shader local_size: {}x{}x{}, workgroups: {}x{}x{}",
-        computeInfo.localSizeX, computeInfo.localSizeY, computeInfo.localSizeZ,
-        outGroupsX, outGroupsY, outGroupsZ);
 
     return true;
 }
@@ -354,8 +328,6 @@ bool ComputeDispatcher::calculateWorkGroups(
 bool ComputeDispatcher::dispatchInternal(
     VkCommandBuffer cmdBuffer,
     const SmartAssetHandle<MaterialHandle, Material>& material,
-    const void* pushConstantData,
-    uint32_t pushConstantSize,
     uint32_t groupCountX,
     uint32_t groupCountY,
     uint32_t groupCountZ)
@@ -378,7 +350,6 @@ bool ComputeDispatcher::dispatchInternal(
         return false;
     }
 
-    // Get shader resources and create pipeline config
     const ShaderResources& shaderResources = shaderAsset->resources;
 
     ShaderManager* shaderManager = dynamic_cast<ShaderManager*>(shaderHandle.getHandler());
@@ -387,25 +358,21 @@ bool ComputeDispatcher::dispatchInternal(
         return false;
     }
 
-    // Get compute shader module
     const ShaderModuleHandle computeModule = shaderManager->getModuleHandleForStage(
         shaderHandle.handle(),
         ShaderLib::Stage::Compute
     );
 
-    // Create compute pipeline configuration
     ComputePipelineConfig config;
     config.shaderStage.computeShader = computeModule;
     config.shaderStage.computeEntryPoint = "main";
     config.layoutHandle = shaderResources.pipelineLayout;
 
-    // Validate pipeline layout
     if (!config.layoutHandle.isValid()) {
         SPDLOG_ERROR("ComputeDispatcher: Invalid pipeline layout");
         return false;
     }
 
-    // Get or create compute pipeline through PipelineManager (uses its own cache)
     PipelineHandle pipelineHandle = m_pipelineManager.createComputePipeline(config);
 
     if (!pipelineHandle.isValid()) {
@@ -417,15 +384,14 @@ bool ComputeDispatcher::dispatchInternal(
     VkPipeline vkPipeline = pipeline.get();
     VkPipelineLayout layout = pipeline.getLayout();
 
-    // Bind pipeline
     vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, vkPipeline);
 
-    // Get descriptor set from material manager
+    // Bind descriptor sets if available
     MaterialManager* materialManager = dynamic_cast<MaterialManager*>(material.getHandler());
     if (materialManager) {
-        auto descriptorSetHandle = material->GetDescriptorSet();
-        if (descriptorSetHandle.isValid()) {
-            VkDescriptorSet vkDescriptorSet = *descriptorSetHandle.get();
+        auto descriptorSetSmartHandle = material->GetDescriptorSet();
+        if (descriptorSetSmartHandle.isValid()) {
+            VkDescriptorSet vkDescriptorSet = *descriptorSetSmartHandle.get();
 
             vkCmdBindDescriptorSets(
                 cmdBuffer,
@@ -437,25 +403,12 @@ bool ComputeDispatcher::dispatchInternal(
                 0,
                 nullptr
             );
-        }
-        else {
-            SPDLOG_WARN("ComputeDispatcher: No descriptor set for material '{}'", mat->GetName());
+
+            // Note: Guard will be created after this function returns,
+            // once we have the fence available
         }
     }
 
-    // Push constants if provided
-    if (pushConstantData != nullptr && pushConstantSize > 0) {
-        vkCmdPushConstants(
-            cmdBuffer,
-            layout,
-            VK_SHADER_STAGE_COMPUTE_BIT,
-            0,
-            pushConstantSize,
-            pushConstantData
-        );
-    }
-
-    // Dispatch compute work
     vkCmdDispatch(cmdBuffer, groupCountX, groupCountY, groupCountZ);
 
     return true;
@@ -475,17 +428,14 @@ VkCommandBuffer ComputeDispatcher::beginComputeCommands() {
     }
 
     buffer->begin(VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
-
     return buffer->handle();
 }
 
-void ComputeDispatcher::endComputeCommands(VkCommandBuffer cmdBuffer) {
+void ComputeDispatcher::submitAsyncCommands(VkCommandBuffer cmdBuffer, VkFence fence) {
     VkResult result = vkEndCommandBuffer(cmdBuffer);
     if (result != VK_SUCCESS) {
         throw std::runtime_error("Failed to end compute command buffer");
     }
-
-    vkResetFences(m_vulkanContext.logical().get(), 1, &m_computeFence);
 
     VkSubmitInfo submitInfo{};
     submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
@@ -494,24 +444,12 @@ void ComputeDispatcher::endComputeCommands(VkCommandBuffer cmdBuffer) {
 
     VkQueue computeQueue = m_vulkanContext.logical().getQueue(LogicalDevice::QueueType::Compute);
 
-    result = vkQueueSubmit(computeQueue, 1, &submitInfo, m_computeFence);
+    result = vkQueueSubmit(computeQueue, 1, &submitInfo, fence);
     if (result != VK_SUCCESS) {
         throw std::runtime_error("Failed to submit compute command buffer");
     }
 
-    result = vkWaitForFences(
-        m_vulkanContext.logical().get(),
-        1,
-        &m_computeFence,
-        VK_TRUE,
-        UINT64_MAX
-    );
-
-    if (result != VK_SUCCESS) {
-        throw std::runtime_error("Failed to wait for compute fence");
-    }
-
-    SPDLOG_DEBUG("ComputeDispatcher: Compute commands completed");
+    SPDLOG_DEBUG("ComputeDispatcher: Commands submitted (non-blocking)");
 }
 
 void ComputeDispatcher::insertComputeBarrier(VkCommandBuffer cmdBuffer) {

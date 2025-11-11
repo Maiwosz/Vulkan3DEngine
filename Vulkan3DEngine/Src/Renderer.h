@@ -12,9 +12,11 @@
 #include "PipelineManager.h"
 #include "RenderGraphExecutor.h"
 #include "ISmartHandleManager.h"
+#include "DescriptorSetGuard.h"
 #include <memory>
 #include <vector>
 #include "ComputeDispatcher.h"
+#include "SynchronizationResourceManager.h"
 
 // Forward declarations
 class GpuCall;
@@ -40,26 +42,13 @@ public:
         RenderPassManager& renderPassManager,
         DescriptorAllocator& descriptorAllocator,
         PipelineManager& pipelineManager,
-        CommandBufferManager& cmdBufferManager
+        CommandBufferManager& cmdBufferManager,
+        SynchronizationResourceManager& syncManager
     );
     ~Renderer();
 
     /**
      * Render a complete frame with the given render graph and GPU calls.
-     * This is the primary rendering function - it handles:
-     * - Frame initialization (beginFrame)
-     * - RenderGraph assignment to executor
-     * - GPU call execution through RenderGraphExecutor
-     * - Frame finalization (endFrame)
-     *
-     * @param renderGraph The render graph defining render passes and attachments
-     * @param gpuCalls Vector of GPU commands to execute (DrawCalls, etc.)
-     * @return true if frame was rendered successfully, false on error
-     *
-     * Example usage:
-     *   if (!renderer.renderFrame(cameraOrder.renderGraphHandle, drawCalls)) {
-     *       SPDLOG_ERROR("Frame rendering failed");
-     *   }
      */
     bool renderFrame(
         const SmartRenderGraphHandle& renderGraph,
@@ -68,15 +57,22 @@ public:
 
     /**
      * Render an empty frame without any GPU calls.
-     * Useful for maintaining frame pacing when there's nothing to render.
-     *
-     * @return true if frame was completed successfully
      */
     bool renderEmptyFrame();
 
     // Global rendering state management
     bool bindPipeline(PipelineHandle pipelineHandle);
+
+    /**
+     * Bind descriptor sets with automatic GPU usage tracking.
+     * Creates guards that will automatically release descriptors when GPU work completes.
+     */
     bool bindDescriptorSets(const std::vector<DescriptorSetHandle>& descriptorHandles);
+
+    /**
+     * Bind descriptor sets using smart handles with automatic GPU usage tracking.
+     */
+    bool bindDescriptorSets(const std::vector<SmartHandle<DescriptorSetHandle, VkDescriptorSet>>& descriptorHandles);
 
     // State queries
     bool isFrameActive() const { return m_frameActive; }
@@ -95,10 +91,16 @@ public:
     void setScissor(VkExtent2D extent, VkOffset2D offset = { 0, 0 });
     void setScissor(uint32_t x, uint32_t y, uint32_t width, uint32_t height);
 
+    // Descriptor guard management
+    void addDescriptorGuard(std::unique_ptr<DescriptorSetGuard> guard);
+    size_t pollDescriptorGuards();
+
     // Renderer Sub Systems
     MeshRenderer& meshRenderer() { return *m_meshRenderer; }
     RenderGraphExecutor& renderGraphExecutor() { return *m_renderGraphExecutor; }
     ComputeDispatcher& computeDispatcher() { return *m_computeDispatcher; }
+
+    std::shared_ptr<IImGuiProvider> getImGuiProvider() const { return m_renderGraphExecutor->getImGuiProvider(); }
 
 private:
     // Engine references
@@ -118,6 +120,9 @@ private:
     std::unique_ptr<RenderGraphExecutor> m_renderGraphExecutor;
     std::unique_ptr<ComputeDispatcher> m_computeDispatcher;
 
+    // Descriptor guard pool for automatic GPU usage tracking
+    DescriptorSetGuardPool m_descriptorGuardPool;
+
     // Frame state
     bool m_frameActive = false;
     uint32_t m_currentImageIndex = 0;
@@ -125,6 +130,9 @@ private:
     // Global rendering state
     PipelineHandle m_currentPipeline;
     VkPipelineLayout m_currentPipelineLayout = VK_NULL_HANDLE;
+
+    // Current frame fence for descriptor tracking
+    VkFence m_currentFrameFence = VK_NULL_HANDLE;
 
     // Internal frame lifecycle methods
     bool beginFrame();
