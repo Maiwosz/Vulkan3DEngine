@@ -383,11 +383,14 @@
     <ClCompile Include="Src\DescriptorSetGuard.cpp">
       <Filter>Engine\EngineCore\DescriptorSystem\DescriptorSetGuard</Filter>
     </ClCompile>
-    <ClCompile Include="Src\ProvinceSimluationGPU.cpp">
+    <ClCompile Include="Src\ProvinceSimulationGPU.cpp">
       <Filter>Engine\Scene\EntityComponentSystem\Registry\SystemManager\Systems\ScriptSystem\CppScriptSystem\CppScripts\ProvinceSimulationTest</Filter>
     </ClCompile>
     <ClCompile Include="Src\ProvinceSimulationCPU.cpp">
       <Filter>Engine\Scene\EntityComponentSystem\Registry\SystemManager\Systems\ScriptSystem\CppScriptSystem\CppScripts\ProvinceSimulationTest</Filter>
+    </ClCompile>
+    <ClCompile Include="Src\AsyncMemoryOps.cpp">
+      <Filter>Engine\ThreadPool\AsyncMemoryOps</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -885,11 +888,14 @@
     <ClInclude Include="Src\IProvinceSimulation.h">
       <Filter>Engine\Scene\EntityComponentSystem\Registry\SystemManager\Systems\ScriptSystem\CppScriptSystem\CppScripts\ProvinceSimulationTest</Filter>
     </ClInclude>
-    <ClInclude Include="Src\ProvinceSimluationGPU.h">
+    <ClInclude Include="Src\ProvinceSimulationGPU.h">
       <Filter>Engine\Scene\EntityComponentSystem\Registry\SystemManager\Systems\ScriptSystem\CppScriptSystem\CppScripts\ProvinceSimulationTest</Filter>
     </ClInclude>
     <ClInclude Include="Src\ProvinceSimulationCPU.h">
       <Filter>Engine\Scene\EntityComponentSystem\Registry\SystemManager\Systems\ScriptSystem\CppScriptSystem\CppScripts\ProvinceSimulationTest</Filter>
+    </ClInclude>
+    <ClInclude Include="Src\AsyncMemoryOps.h">
+      <Filter>Engine\ThreadPool\AsyncMemoryOps</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
@@ -1302,6 +1308,9 @@
     </Filter>
     <Filter Include="Engine\EngineCore\DescriptorSystem\DescriptorSetGuard">
       <UniqueIdentifier>{b38a5d8a-89eb-4713-af74-621bc0ea0694}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Engine\ThreadPool\AsyncMemoryOps">
+      <UniqueIdentifier>{4e1dd6d0-efda-47db-a940-5ccbec7ba9ff}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
 </Project>

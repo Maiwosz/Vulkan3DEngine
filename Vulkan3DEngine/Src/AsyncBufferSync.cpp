@@ -1,6 +1,5 @@
 #include "AsyncBufferSync.h"
 #include <spdlog/spdlog.h>
-#include <algorithm>
 
 AsyncBufferSync::AsyncBufferSync(
     std::shared_ptr<ShaderLib::BufferObjectInstance> buffer,
@@ -8,7 +7,7 @@ AsyncBufferSync::AsyncBufferSync(
     const Config& config
 )
     : m_buffer(buffer)
-    , m_threadPool(threadPool)
+    , m_memOps(threadPool, ConvertToMemOpsConfig(config))
     , m_config(config)
     , m_nextTaskId(1)
 {
@@ -82,8 +81,6 @@ BufferSyncTaskHandle AsyncBufferSync::SyncToGPUAsync() {
         return BufferSyncTaskHandle();
     }
 
-    auto chunks = DivideBufferIntoChunks();
-
     BufferSyncTaskHandle taskHandle = CreateTask("SyncToGPU");
     if (!taskHandle.isValid()) {
         return BufferSyncTaskHandle();
@@ -91,22 +88,16 @@ BufferSyncTaskHandle AsyncBufferSync::SyncToGPUAsync() {
 
     SyncTask& task = m_activeTasks[taskHandle];
 
-    if (chunks.size() <= 1) {
-        // Single-threaded
-        task.futures.push_back(m_threadPool.enqueue([buf = m_buffer]() {
-            buf->SyncToBuffer();
-            }));
-    }
-    else {
-        // Multi-threaded
-        for (const auto& chunk : chunks) {
-            task.futures.push_back(m_threadPool.enqueue([buf = m_buffer, chunk]() {
-                buf->SyncRangeToBuffer(chunk.offset, chunk.size);
-                }));
+    // Use AsyncMemoryOps for chunked buffer sync
+    task.futures = m_memOps.ChunkedOperation(
+        bufferSize,
+        [buf = m_buffer](size_t offset, size_t size) {
+            buf->SyncRangeToBuffer(offset, size);
         }
-    }
+    );
 
-    SPDLOG_TRACE("AsyncBufferSync: Started async SyncToGPU with {} tasks", task.futures.size());
+    SPDLOG_TRACE("AsyncBufferSync: Started async SyncToGPU with {} tasks",
+        task.futures.size());
     return taskHandle;
 }
 
@@ -120,8 +111,6 @@ BufferSyncTaskHandle AsyncBufferSync::SyncFromGPUAsync() {
         return BufferSyncTaskHandle();
     }
 
-    auto chunks = DivideBufferIntoChunks();
-
     BufferSyncTaskHandle taskHandle = CreateTask("SyncFromGPU");
     if (!taskHandle.isValid()) {
         return BufferSyncTaskHandle();
@@ -129,89 +118,69 @@ BufferSyncTaskHandle AsyncBufferSync::SyncFromGPUAsync() {
 
     SyncTask& task = m_activeTasks[taskHandle];
 
-    if (chunks.size() <= 1) {
-        task.futures.push_back(m_threadPool.enqueue([buf = m_buffer]() {
-            buf->SyncFromBuffer();
-            }));
-    }
-    else {
-        for (const auto& chunk : chunks) {
-            task.futures.push_back(m_threadPool.enqueue([buf = m_buffer, chunk]() {
-                buf->SyncRangeFromBuffer(chunk.offset, chunk.size);
-                }));
+    task.futures = m_memOps.ChunkedOperation(
+        bufferSize,
+        [buf = m_buffer](size_t offset, size_t size) {
+            buf->SyncRangeFromBuffer(offset, size);
         }
-    }
+    );
 
-    SPDLOG_TRACE("AsyncBufferSync: Started async SyncFromGPU with {} tasks", task.futures.size());
+    SPDLOG_TRACE("AsyncBufferSync: Started async SyncFromGPU with {} tasks",
+        task.futures.size());
     return taskHandle;
 }
 
-BufferSyncTaskHandle AsyncBufferSync::SyncFieldsToGPUAsync(const std::vector<std::string>& paths) {
+BufferSyncTaskHandle AsyncBufferSync::SyncFieldsToGPUAsync(
+    const std::vector<std::string>& paths
+) {
     if (!m_buffer || paths.empty()) {
         return BufferSyncTaskHandle();
     }
 
-    BufferSyncTaskHandle taskHandle = CreateTask("SyncFieldsToGPU (" + std::to_string(paths.size()) + " fields)");
+    BufferSyncTaskHandle taskHandle = CreateTask(
+        "SyncFieldsToGPU (" + std::to_string(paths.size()) + " fields)"
+    );
     if (!taskHandle.isValid()) {
         return BufferSyncTaskHandle();
     }
 
     SyncTask& task = m_activeTasks[taskHandle];
-    auto batches = DivideFieldsIntoBatches(paths);
 
-    if (batches.size() <= 1) {
-        // Single-threaded
-        task.futures.push_back(m_threadPool.enqueue([buf = m_buffer, paths]() {
-            for (const auto& path : paths) {
-                buf->SyncFieldToBuffer(path);
-            }
-            }));
-    }
-    else {
-        // Multi-threaded
-        for (const auto& batch : batches) {
-            task.futures.push_back(m_threadPool.enqueue([buf = m_buffer, batch]() {
-                for (const auto& path : batch) {
-                    buf->SyncFieldToBuffer(path);
-                }
-                }));
+    // Use BatchOperation for field-based operations
+    task.futures = m_memOps.BatchOperation(
+        paths.size(),
+        [buf = m_buffer, &paths](size_t index) {
+            buf->SyncFieldToBuffer(paths[index]);
         }
-    }
+    );
 
     SPDLOG_TRACE("AsyncBufferSync: Started async field sync to GPU ({} fields, {} tasks)",
         paths.size(), task.futures.size());
     return taskHandle;
 }
 
-BufferSyncTaskHandle AsyncBufferSync::SyncFieldsFromGPUAsync(const std::vector<std::string>& paths) {
+BufferSyncTaskHandle AsyncBufferSync::SyncFieldsFromGPUAsync(
+    const std::vector<std::string>& paths
+) {
     if (!m_buffer || paths.empty()) {
         return BufferSyncTaskHandle();
     }
 
-    BufferSyncTaskHandle taskHandle = CreateTask("SyncFieldsFromGPU (" + std::to_string(paths.size()) + " fields)");
+    BufferSyncTaskHandle taskHandle = CreateTask(
+        "SyncFieldsFromGPU (" + std::to_string(paths.size()) + " fields)"
+    );
     if (!taskHandle.isValid()) {
         return BufferSyncTaskHandle();
     }
 
     SyncTask& task = m_activeTasks[taskHandle];
-    auto batches = DivideFieldsIntoBatches(paths);
 
-    if (batches.size() <= 1) {
-        task.futures.push_back(m_threadPool.enqueue([buf = m_buffer, paths]() {
-            for (const auto& path : paths) {
-                buf->SyncFieldFromBuffer(path);
-            }
-            }));
-    }
-    else {
-        for (const auto& batch : batches) {
-            task.futures.push_back(m_threadPool.enqueue([buf = m_buffer, batch]() {
-                for (const auto& path : batch) {
-                    buf->SyncFieldFromBuffer(path);
-                }
-                }));
+    task.futures = m_memOps.BatchOperation(
+        paths.size(),
+        [buf = m_buffer, &paths](size_t index) {
+            buf->SyncFieldFromBuffer(paths[index]);
         }
-    }
+    );
 
     SPDLOG_TRACE("AsyncBufferSync: Started async field sync from GPU ({} fields, {} tasks)",
         paths.size(), task.futures.size());
@@ -236,14 +205,12 @@ bool AsyncBufferSync::IsTaskComplete(BufferSyncTaskHandle task) {
         return true;
     }
 
-    for (const auto& future : syncTask.futures) {
-        if (future.wait_for(std::chrono::seconds(0)) != std::future_status::ready) {
-            return false;
-        }
+    if (AsyncMemoryOps::AreAllReady(syncTask.futures)) {
+        syncTask.completed.store(true);
+        return true;
     }
 
-    syncTask.completed.store(true);
-    return true;
+    return false;
 }
 
 bool AsyncBufferSync::WaitForTask(BufferSyncTaskHandle task) {
@@ -260,14 +227,11 @@ bool AsyncBufferSync::WaitForTask(BufferSyncTaskHandle task) {
 
     lock.unlock();
 
-    // Wait for all futures
-    for (auto& future : futures) {
-        try {
-            future.get();
-        }
-        catch (const std::exception& e) {
-            SPDLOG_ERROR("AsyncBufferSync: Task '{}' failed: {}", debugInfo, e.what());
-        }
+    try {
+        AsyncMemoryOps::WaitForAll(futures);
+    }
+    catch (const std::exception& e) {
+        SPDLOG_ERROR("AsyncBufferSync: Task '{}' failed: {}", debugInfo, e.what());
     }
 
     lock.lock();
@@ -299,15 +263,7 @@ void AsyncBufferSync::PollCompletedTasks() {
         std::lock_guard<std::mutex> lock(m_taskMutex);
 
         for (auto& [handle, task] : m_activeTasks) {
-            bool allComplete = true;
-            for (const auto& future : task.futures) {
-                if (future.wait_for(std::chrono::seconds(0)) != std::future_status::ready) {
-                    allComplete = false;
-                    break;
-                }
-            }
-
-            if (allComplete) {
+            if (AsyncMemoryOps::AreAllReady(task.futures)) {
                 completedTasks.push_back(handle);
             }
         }
@@ -328,56 +284,12 @@ size_t AsyncBufferSync::GetActiveTaskCount() const {
 // INTERNAL HELPERS
 // =============================================================================
 
-std::vector<AsyncBufferSync::BufferChunk> AsyncBufferSync::DivideBufferIntoChunks() const {
-    std::vector<BufferChunk> chunks;
-
-    if (!m_buffer) {
-        return chunks;
-    }
-
-    const size_t bufferSize = m_buffer->GetBufferSize();
-    const size_t numThreads = m_threadPool.getThreadCount();
-
-    if (bufferSize < m_config.minChunkSize || numThreads <= 1) {
-        chunks.push_back({ 0, static_cast<uint32_t>(bufferSize) });
-        return chunks;
-    }
-
-    const size_t idealChunkSize = std::max(m_config.minChunkSize, bufferSize / numThreads);
-    const size_t alignedChunkSize = (idealChunkSize + m_config.cacheLineSize - 1) & ~(m_config.cacheLineSize - 1);
-
-    uint32_t offset = 0;
-    while (offset < bufferSize) {
-        uint32_t chunkSize = static_cast<uint32_t>(std::min(alignedChunkSize, bufferSize - offset));
-        chunks.push_back({ offset, chunkSize });
-        offset += chunkSize;
-    }
-
-    return chunks;
-}
-
-std::vector<std::vector<std::string>> AsyncBufferSync::DivideFieldsIntoBatches(
-    const std::vector<std::string>& paths
-) const {
-    std::vector<std::vector<std::string>> batches;
-
-    const size_t numThreads = m_threadPool.getThreadCount();
-
-    if (paths.size() <= numThreads) {
-        for (const auto& path : paths) {
-            batches.push_back({ path });
-        }
-        return batches;
-    }
-
-    const size_t batchSize = (paths.size() + numThreads - 1) / numThreads;
-
-    for (size_t i = 0; i < paths.size(); i += batchSize) {
-        size_t end = std::min(i + batchSize, paths.size());
-        batches.emplace_back(paths.begin() + i, paths.begin() + end);
-    }
-
-    return batches;
+AsyncMemoryOps::Config AsyncBufferSync::ConvertToMemOpsConfig(const Config& config) {
+    AsyncMemoryOps::Config memOpsConfig;
+    memOpsConfig.minChunkSize = config.minChunkSize;
+    memOpsConfig.cacheLineSize = config.cacheLineSize;
+    memOpsConfig.useMultiThreading = true;
+    return memOpsConfig;
 }
 
 BufferSyncTaskHandle AsyncBufferSync::CreateTask(const std::string& debugInfo) {
@@ -393,7 +305,6 @@ BufferSyncTaskHandle AsyncBufferSync::CreateTask(const std::string& debugInfo) {
 }
 
 void AsyncBufferSync::CleanupTask(BufferSyncTaskHandle task) {
-    // Caller must hold m_taskMutex
     auto it = m_activeTasks.find(task);
     if (it != m_activeTasks.end()) {
         for (auto& future : it->second.futures) {

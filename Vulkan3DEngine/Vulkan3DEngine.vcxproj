@@ -172,7 +172,8 @@
     <ClCompile Include="..\Libs\imgui\imgui_impl_vulkan.cpp" />
     <ClCompile Include="..\Libs\imgui\imgui_tables.cpp" />
     <ClCompile Include="..\Libs\imgui\imgui_widgets.cpp" />
-    <ClCompile Include="Src\ProvinceSimluationGPU.cpp" />
+    <ClCompile Include="Src\AsyncMemoryOps.cpp" />
+    <ClCompile Include="Src\ProvinceSimulationGPU.cpp" />
     <ClCompile Include="Src\ProvinceSimulationCPU.cpp" />
     <ClCompile Include="Src\DescriptorSetGuard.cpp" />
     <ClCompile Include="Src\AsyncBufferSync.cpp" />
@@ -305,8 +306,9 @@
     <ClInclude Include="..\Libs\imgui\imstb_rectpack.h" />
     <ClInclude Include="..\Libs\imgui\imstb_textedit.h" />
     <ClInclude Include="..\Libs\imgui\imstb_truetype.h" />
+    <ClInclude Include="Src\AsyncMemoryOps.h" />
     <ClInclude Include="Src\IProvinceSimulation.h" />
-    <ClInclude Include="Src\ProvinceSimluationGPU.h" />
+    <ClInclude Include="Src\ProvinceSimulationGPU.h" />
     <ClInclude Include="Src\ProvinceSimulationCPU.h" />
     <ClInclude Include="Src\DescriptorSetGuard.h" />
     <ClInclude Include="Src\AsyncBufferSync.h" />

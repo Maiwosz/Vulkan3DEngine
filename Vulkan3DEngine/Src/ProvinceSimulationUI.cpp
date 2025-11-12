@@ -29,6 +29,11 @@ void ProvinceSimulationUI::OnCreate() {
 void ProvinceSimulationUI::OnUpdate(float deltaTime) {
     if (!m_simulation) return;
 
+    // Handle benchmark updates
+    if (m_benchmarkRunning) {
+        updateBenchmark();
+    }
+
     static uint32_t lastCompletedTick = 0;
     uint32_t currentTick = m_simulation->getCurrentTick();
 
@@ -42,8 +47,6 @@ void ProvinceSimulationUI::OnUpdate(float deltaTime) {
 
             m_stepTimingActive = false;
             lastCompletedTick = currentTick;
-
-            // Invalidate cache when tick changes
             invalidateCache();
         }
     }
@@ -117,17 +120,51 @@ void ProvinceSimulationUI::render() {
     if (m_showSettingsWindow) {
         renderSettingsWindow();
     }
+
+    if (m_showBenchmarkWindow) {
+        renderBenchmarkWindow();
+    }
 }
+
 
 void ProvinceSimulationUI::renderControlPanel() {
     ImGui::Text("Simulation Control");
     ImGui::SameLine(ImGui::GetWindowWidth() - 350);
+
+    // Mode selector
+    SimulationMode currentMode = m_simulation->getMode();
+    const char* modeNames[] = { "GPU", "CPU" };
+    int modeIdx = (int)currentMode;
+    ImGui::SetNextItemWidth(80);
+    if (ImGui::Combo("Mode", &modeIdx, modeNames, 2)) {
+        m_simulation->setMode((SimulationMode)modeIdx);
+        invalidateCache();
+    }
+
+    ImGui::SameLine();
+
+    // CPU thread count (only for CPU mode)
+    if (currentMode == SimulationMode::CPU) {
+        int threads = (int)m_simulation->getCPUThreadCount();
+        ImGui::SetNextItemWidth(80);
+        if (ImGui::InputInt("Threads", &threads, 1, 4)) {
+            if (threads < 1) threads = 1;
+            if (threads > 64) threads = 64;
+            m_simulation->setCPUThreadCount(threads);
+        }
+        ImGui::SameLine();
+    }
 
     if (ImGui::Button("Settings", ImVec2(80, 0))) {
         m_showSettingsWindow = !m_showSettingsWindow;
         if (m_showSettingsWindow) {
             loadCurrentSettings();
         }
+    }
+
+    ImGui::SameLine();
+    if (ImGui::Button("Benchmark", ImVec2(90, 0))) {
+        m_showBenchmarkWindow = !m_showBenchmarkWindow;
     }
 
     ImGui::SameLine();
@@ -640,6 +677,154 @@ void ProvinceSimulationUI::renderSettingsWindow() {
     ImGui::End();
 }
 
+void ProvinceSimulationUI::renderBenchmarkWindow() {
+    ImGui::SetNextWindowSize(ImVec2(700, 600), ImGuiCond_FirstUseEver);
+    if (ImGui::Begin("Performance Benchmark", &m_showBenchmarkWindow)) {
+        ImGui::TextColored(ImVec4(0.2f, 0.8f, 1.0f, 1.0f), "GPU vs CPU Performance Comparison");
+        ImGui::Separator();
+        ImGui::Spacing();
+
+        bool canStart = !m_benchmarkRunning && !m_simulation->isComputeInProgress();
+
+        if (!canStart) ImGui::BeginDisabled();
+
+        ImGui::Text("Benchmark Configuration:");
+        ImGui::Spacing();
+
+        ImGui::SetNextItemWidth(200);
+        ImGui::InputInt("Number of Ticks", &m_benchmarkTickCount, 10, 100);
+        if (m_benchmarkTickCount < 10) m_benchmarkTickCount = 10;
+        if (m_benchmarkTickCount > 10000) m_benchmarkTickCount = 10000;
+
+        ImGui::SetNextItemWidth(200);
+        ImGui::InputInt("CPU Threads", &m_benchmarkCPUThreads, 1, 4);
+        if (m_benchmarkCPUThreads < 1) m_benchmarkCPUThreads = 1;
+        if (m_benchmarkCPUThreads > 64) m_benchmarkCPUThreads = 64;
+
+        ImGui::Spacing();
+        ImGui::Checkbox("Benchmark GPU", &m_benchmarkGPU);
+        ImGui::Checkbox("Benchmark CPU", &m_benchmarkCPU);
+
+        ImGui::Spacing();
+        ImGui::Separator();
+        ImGui::Spacing();
+
+        if (ImGui::Button("Run Benchmark", ImVec2(200, 40))) {
+            startBenchmark();
+        }
+
+        if (!canStart) ImGui::EndDisabled();
+
+        ImGui::Spacing();
+        ImGui::Separator();
+        ImGui::Spacing();
+
+        // Show benchmark progress
+        if (m_benchmarkRunning) {
+            ImGui::TextColored(ImVec4(1.0f, 1.0f, 0.2f, 1.0f), "Benchmark running...");
+
+            const char* phaseText = "";
+            switch (m_benchmarkPhase) {
+            case BenchmarkPhase::GPU_Running:
+                phaseText = "Testing GPU performance...";
+                break;
+            case BenchmarkPhase::CPU_Running:
+                phaseText = "Testing CPU performance...";
+                break;
+            default:
+                phaseText = "Preparing...";
+            }
+            ImGui::Text("%s", phaseText);
+
+            uint32_t currentTick = m_simulation->getCurrentTick();
+            uint32_t ticksCompleted = currentTick - m_benchmarkStartTick;
+            float progress = (float)ticksCompleted / m_benchmarkTickCount;
+            ImGui::ProgressBar(progress, ImVec2(-1, 0));
+            ImGui::Text("Tick: %u / %u", ticksCompleted, m_benchmarkTickCount);
+        }
+
+        // Show results
+        if (!m_benchmarkResults.empty()) {
+            ImGui::Spacing();
+            ImGui::TextColored(ImVec4(0.2f, 1.0f, 0.2f, 1.0f), "Benchmark Results:");
+            ImGui::Separator();
+
+            ImGuiTableFlags flags = ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg | ImGuiTableFlags_Resizable;
+
+            if (ImGui::BeginTable("BenchmarkResults", 6, flags)) {
+                ImGui::TableSetupColumn("Mode");
+                ImGui::TableSetupColumn("Threads");
+                ImGui::TableSetupColumn("Ticks");
+                ImGui::TableSetupColumn("Total Time (ms)");
+                ImGui::TableSetupColumn("Avg/Tick (ms)");
+                ImGui::TableSetupColumn("Ticks/sec");
+                ImGui::TableHeadersRow();
+
+                for (const auto& result : m_benchmarkResults) {
+                    ImGui::TableNextRow();
+
+                    ImGui::TableSetColumnIndex(0);
+                    ImGui::Text("%s", result.mode == SimulationMode::GPU ? "GPU" : "CPU");
+
+                    ImGui::TableSetColumnIndex(1);
+                    if (result.mode == SimulationMode::CPU) {
+                        ImGui::Text("%zu", result.cpuThreads);
+                    }
+                    else {
+                        ImGui::Text("-");
+                    }
+
+                    ImGui::TableSetColumnIndex(2);
+                    ImGui::Text("%u", result.numTicks);
+
+                    ImGui::TableSetColumnIndex(3);
+                    ImGui::Text("%.2f", result.totalTimeMs);
+
+                    ImGui::TableSetColumnIndex(4);
+                    ImGui::Text("%.3f", result.avgTimePerTick);
+
+                    ImGui::TableSetColumnIndex(5);
+                    ImGui::Text("%.1f", result.ticksPerSecond);
+                }
+
+                ImGui::EndTable();
+            }
+
+            // Performance comparison
+            if (m_benchmarkResults.size() >= 2) {
+                ImGui::Spacing();
+                ImGui::Separator();
+                ImGui::Spacing();
+                ImGui::Text("Performance Comparison:");
+
+                auto& gpuResult = m_benchmarkResults[0];
+                auto& cpuResult = m_benchmarkResults[1];
+
+                if (gpuResult.mode == SimulationMode::GPU && cpuResult.mode == SimulationMode::CPU) {
+                    double speedup = cpuResult.totalTimeMs / gpuResult.totalTimeMs;
+
+                    ImGui::Text("GPU vs CPU Speedup: %.2fx", speedup);
+
+                    if (speedup > 1.0) {
+                        ImGui::TextColored(ImVec4(0.2f, 1.0f, 0.2f, 1.0f),
+                            "GPU is %.1f%% faster", (speedup - 1.0) * 100.0);
+                    }
+                    else {
+                        ImGui::TextColored(ImVec4(1.0f, 0.2f, 0.2f, 1.0f),
+                            "CPU is %.1f%% faster", (1.0 / speedup - 1.0) * 100.0);
+                    }
+                }
+            }
+
+            ImGui::Spacing();
+            if (ImGui::Button("Clear Results")) {
+                m_benchmarkResults.clear();
+            }
+        }
+    }
+    ImGui::End();
+}
+
 const std::vector<ProvinceDisplayData>& ProvinceSimulationUI::getFilteredAndSortedProvinces() {
     uint32_t currentTick = m_simulation->getCurrentTick();
     std::string currentSearch(m_searchBuffer);
@@ -801,4 +986,112 @@ void ProvinceSimulationUI::resetSettingsToDefault() {
     m_settingsState.simParams = SimulationParameters();
     m_settingsState.randParams = RandomizationParameters();
     m_settingsChanged = true;
+}
+
+void ProvinceSimulationUI::startBenchmark() {
+    if (!m_benchmarkGPU && !m_benchmarkCPU) {
+        SPDLOG_WARN("No benchmark modes selected");
+        return;
+    }
+
+    SPDLOG_INFO("Starting benchmark: {} ticks", m_benchmarkTickCount);
+
+    m_benchmarkResults.clear();
+    m_benchmarkRunning = true;
+    m_benchmarkOriginalMode = m_simulation->getMode();
+    m_benchmarkOriginalThreads = m_simulation->getCPUThreadCount();
+
+    // Reset simulation to ensure fair comparison
+    m_simulation->resetSimulation();
+
+    // Start with GPU if enabled
+    if (m_benchmarkGPU) {
+        m_simulation->setMode(SimulationMode::GPU);
+        m_benchmarkPhase = BenchmarkPhase::GPU_Running;
+    }
+    else {
+        m_simulation->setMode(SimulationMode::CPU);
+        m_simulation->setCPUThreadCount(m_benchmarkCPUThreads);
+        m_benchmarkPhase = BenchmarkPhase::CPU_Running;
+    }
+
+    m_benchmarkStartTick = m_simulation->getCurrentTick();
+    m_benchmarkStartTime = std::chrono::high_resolution_clock::now();
+
+    m_simulation->runMultipleSteps(m_benchmarkTickCount);
+}
+
+void ProvinceSimulationUI::updateBenchmark() {
+    if (!m_benchmarkRunning) return;
+
+    // Wait for computation to finish
+    if (m_simulation->isComputeInProgress()) return;
+
+    uint32_t currentTick = m_simulation->getCurrentTick();
+    uint32_t ticksCompleted = currentTick - m_benchmarkStartTick;
+
+    // Check if current phase is complete
+    if (ticksCompleted >= m_benchmarkTickCount) {
+        completeBenchmarkPhase();
+    }
+}
+
+void ProvinceSimulationUI::completeBenchmarkPhase() {
+    auto endTime = std::chrono::high_resolution_clock::now();
+    double totalTimeMs = std::chrono::duration<double, std::milli>(endTime - m_benchmarkStartTime).count();
+
+    BenchmarkResult result;
+    result.mode = m_simulation->getMode();
+    result.cpuThreads = m_simulation->getCPUThreadCount();
+    result.numTicks = m_benchmarkTickCount;
+    result.numProvinces = m_simulation->getNumProvinces();
+    result.totalTimeMs = totalTimeMs;
+    result.avgTimePerTick = totalTimeMs / m_benchmarkTickCount;
+    result.ticksPerSecond = (m_benchmarkTickCount * 1000.0) / totalTimeMs;
+
+    m_benchmarkResults.push_back(result);
+
+    SPDLOG_INFO("Benchmark phase complete: {} - {:.2f} ms total, {:.3f} ms/tick, {:.1f} ticks/sec",
+        result.mode == SimulationMode::GPU ? "GPU" : "CPU",
+        result.totalTimeMs, result.avgTimePerTick, result.ticksPerSecond);
+
+    // Move to next phase
+    switch (m_benchmarkPhase) {
+    case BenchmarkPhase::GPU_Running:
+        if (m_benchmarkCPU) {
+            // Switch to CPU
+            m_simulation->resetSimulation();
+            m_simulation->setMode(SimulationMode::CPU);
+            m_simulation->setCPUThreadCount(m_benchmarkCPUThreads);
+            m_benchmarkPhase = BenchmarkPhase::CPU_Running;
+            m_benchmarkStartTick = m_simulation->getCurrentTick();
+            m_benchmarkStartTime = std::chrono::high_resolution_clock::now();
+            m_simulation->runMultipleSteps(m_benchmarkTickCount);
+        }
+        else {
+            finalizeBenchmark();
+        }
+        break;
+
+    case BenchmarkPhase::CPU_Running:
+        finalizeBenchmark();
+        break;
+
+    default:
+        finalizeBenchmark();
+    }
+}
+
+void ProvinceSimulationUI::finalizeBenchmark() {
+    SPDLOG_INFO("Benchmark complete!");
+
+    // Restore original mode
+    m_simulation->setMode(m_benchmarkOriginalMode);
+    if (m_benchmarkOriginalMode == SimulationMode::CPU) {
+        m_simulation->setCPUThreadCount(m_benchmarkOriginalThreads);
+    }
+    m_simulation->resetSimulation();
+
+    m_benchmarkRunning = false;
+    m_benchmarkPhase = BenchmarkPhase::Idle;
 }
