@@ -22,7 +22,8 @@ MaterialFactory::MaterialFactory(
     m_textureManager(textureManager),
     m_descriptorAllocator(descriptorAllocator),
     m_descriptorLayoutManager(descriptorLayoutManager),
-    m_threadPool(threadPool)
+    m_threadPool(threadPool),
+    m_asyncMemoryOps(threadPool)
 {
 }
 
@@ -36,6 +37,7 @@ std::unique_ptr<Material> MaterialFactory::createMaterial(
 
     // Create default buffers from shader - no validation needed
     auto buffers = createDefaultBuffers(shaderHandle);
+    setupAsyncOperations(buffers);
 
     auto smartShaderHandle = createSmartShaderHandle(shaderHandle);
     if (!smartShaderHandle.isValid()) {
@@ -54,8 +56,7 @@ std::unique_ptr<Material> MaterialFactory::createMaterial(
         m_samplerManager,
         m_textureManager,
         m_descriptorAllocator,
-        m_descriptorLayoutManager,
-        m_threadPool
+        m_descriptorLayoutManager
     );
 }
 
@@ -82,6 +83,8 @@ std::unique_ptr<Material> MaterialFactory::createMaterial(
         throw std::runtime_error("MaterialFactory: Buffer validation failed");
     }
 
+    setupAsyncOperations(buffers);
+
     auto smartShaderHandle = createSmartShaderHandle(shaderHandle);
     if (!smartShaderHandle.isValid()) {
         throw std::runtime_error("MaterialFactory: Failed to create smart shader handle");
@@ -98,8 +101,7 @@ std::unique_ptr<Material> MaterialFactory::createMaterial(
         m_samplerManager,
         m_textureManager,
         m_descriptorAllocator,
-        m_descriptorLayoutManager,
-        m_threadPool
+        m_descriptorLayoutManager
     );
 }
 
@@ -125,6 +127,8 @@ std::unique_ptr<Material> MaterialFactory::createMaterialFromAsset(
         throw std::runtime_error("MaterialFactory: Buffer validation failed");
     }
 
+    setupAsyncOperations(buffers);
+
     auto smartShaderHandle = createSmartShaderHandle(shaderHandle);
     if (!smartShaderHandle.isValid()) {
         throw std::runtime_error("MaterialFactory: Failed to create smart shader handle");
@@ -141,8 +145,7 @@ std::unique_ptr<Material> MaterialFactory::createMaterialFromAsset(
         m_samplerManager,
         m_textureManager,
         m_descriptorAllocator,
-        m_descriptorLayoutManager,
-        m_threadPool
+        m_descriptorLayoutManager
     );
 
     // Setup textures (simple, no validation needed)
@@ -299,7 +302,7 @@ MaterialFactory::PreparedBuffers MaterialFactory::createDefaultBuffers(ShaderHan
     return result;
 }
 
-MaterialFactory::BufferInstanceSet MaterialFactory::cloneBufferInstances(const Material* sourceMaterial) const {
+MaterialFactory::BufferInstanceSet MaterialFactory::cloneBufferInstances(Material* sourceMaterial) const {
     if (!sourceMaterial) {
         throw std::runtime_error("MaterialFactory: Cannot clone from null material");
     }
@@ -328,4 +331,16 @@ SmartAssetHandle<ShaderHandle, ShaderAsset> MaterialFactory::createSmartShaderHa
     }
 
     return shaderManager->createSmartHandle(shaderHandle);
+}
+
+void MaterialFactory::setupAsyncOperations(PreparedBuffers& buffers) {
+    if (buffers.inputBuffer) {
+        buffers.inputBuffer->SetAsyncOperations(&m_asyncMemoryOps);
+    }
+    if (buffers.outputBuffer) {
+        buffers.outputBuffer->SetAsyncOperations(&m_asyncMemoryOps);
+    }
+    if (buffers.inputOutputBuffer) {
+        buffers.inputOutputBuffer->SetAsyncOperations(&m_asyncMemoryOps);
+    }
 }

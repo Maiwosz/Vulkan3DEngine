@@ -153,6 +153,7 @@
     <ClInclude Include="FieldDescriptor.h" />
     <ClInclude Include="FieldProxy.h" />
     <ClInclude Include="framework.h" />
+    <ClInclude Include="IAsyncMemoryOperations.h" />
     <ClInclude Include="IBufferMapping.h" />
     <ClInclude Include="Serialization.h" />
     <ClInclude Include="pch.h" />

@@ -12,6 +12,8 @@
 #include "BufferValidator.h"
 #include <memory>
 #include <string>
+#include "ThreadPool.h"
+#include "AsyncMemoryOps.h"
 
 class MaterialFactory {
 public:
@@ -75,7 +77,7 @@ public:
         std::shared_ptr<ShaderLib::BufferObjectInstance> inputOutputBuffer;
     };
 
-    BufferInstanceSet cloneBufferInstances(const Material* sourceMaterial) const;
+    BufferInstanceSet cloneBufferInstances(Material* sourceMaterial) const;
 
 private:
     // =========================================================================
@@ -117,6 +119,9 @@ private:
     // Helper: Create smart shader handle
     SmartAssetHandle<ShaderHandle, ShaderAsset> createSmartShaderHandle(ShaderHandle shaderHandle);
 
+    // Helper: Setup async operations for buffer instances
+    void setupAsyncOperations(PreparedBuffers& buffers);
+
     // Dependencies
     const LogicalDevice& m_device;
     ShaderManager& m_shaderManager;
@@ -126,4 +131,7 @@ private:
     DescriptorAllocator& m_descriptorAllocator;
     DescriptorLayoutManager& m_descriptorLayoutManager;
     ThreadPool& m_threadPool;
+
+    // Async memory operations
+    AsyncMemoryOps m_asyncMemoryOps;
 };

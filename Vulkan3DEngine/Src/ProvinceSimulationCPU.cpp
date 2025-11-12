@@ -142,12 +142,12 @@ void ProvinceSimulationCPU::dispatchCompute() {
     }
 
     computeInProgress_ = true;
-    activeFutures_.clear();
+    activeOperationHandle_ = ShaderLib::AsyncOperationHandle();
 
-    // Split work across threads using AsyncMemoryOps::BatchOperation
+    // Split work across threads using AsyncMemoryOps::ExecuteBatch
     if (asyncMemOps_) {
         // Use AsyncMemoryOps for optimal work distribution
-        activeFutures_ = asyncMemOps_->BatchOperation(
+        activeOperationHandle_ = asyncMemOps_->ExecuteBatch(
             simParams_.numProvinces,
             [this](size_t provinceIdx) {
                 simulateSingleProvince(static_cast<uint32_t>(provinceIdx));
@@ -155,7 +155,8 @@ void ProvinceSimulationCPU::dispatchCompute() {
         );
     }
     else {
-        // Fallback: manual distribution
+        // Fallback: manual distribution using ThreadPool directly
+        activeFutures_.clear();
         uint32_t provincesPerThread = (simParams_.numProvinces + threadCount_ - 1) / threadCount_;
 
         for (size_t i = 0; i < threadCount_; ++i) {
@@ -175,8 +176,24 @@ void ProvinceSimulationCPU::dispatchCompute() {
     // Launch async completion handler
     threadPool_->enqueue([this]() {
         // Wait for all worker threads
-        AsyncMemoryOps::WaitForAll(activeFutures_);
-        activeFutures_.clear();
+        if (asyncMemOps_ && activeOperationHandle_.isValid()) {
+            asyncMemOps_->WaitForOperation(activeOperationHandle_);
+            activeOperationHandle_ = ShaderLib::AsyncOperationHandle();
+        }
+        else {
+            // Wait for manual futures
+            for (auto& future : activeFutures_) {
+                if (future.valid()) {
+                    try {
+                        future.get();
+                    }
+                    catch (const std::exception& e) {
+                        SPDLOG_ERROR("CPU Simulation: Exception in worker thread: {}", e.what());
+                    }
+                }
+            }
+            activeFutures_.clear();
+        }
 
         stepCounter_++;
 

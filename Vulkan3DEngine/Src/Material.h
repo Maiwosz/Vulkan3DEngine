@@ -13,7 +13,6 @@
 #include "BufferObjectInstance.h"
 #include "BufferBundle.h"
 #include "ShaderLib.h"
-#include "ThreadPool.h"
 #include "Handle.h"
 
 // Forward declarations
@@ -22,16 +21,11 @@ class MaterialManager;
 /**
  * Material - High-level wrapper for Custom Descriptor Set (set 2)
  *
- * Simplified design using BufferBundle:
- * - Delegates all buffer operations to BufferBundle
- * - Manages textures and descriptor sets
- * - Provides convenient field access API
- * - Thread-safe async operations via BufferBundle
- *
  * Design principles:
- * - BufferBundle handles all buffer sync AND metadata complexity
- * - Material focuses on descriptor set management and textures
- * - Clean separation of concerns
+ * - GPU buffers are created immediately in constructor (always available)
+ * - Descriptor sets are created lazily on first GetDescriptorSet() call
+ * - BufferBundle manages all buffer instances and field routing
+ * - Material is fully functional immediately after construction
  */
 class Material {
 public:
@@ -43,7 +37,7 @@ public:
         AssetLib::ColorSpace colorSpace = AssetLib::ColorSpace::SRGB;
     };
 
-    // Constructor
+    // Constructor - Creates GPU buffers immediately
     Material(
         const std::string& name,
         SmartAssetHandle<ShaderHandle, ShaderAsset> shader,
@@ -55,8 +49,7 @@ public:
         ImageSamplerManager& samplerManager,
         TextureManager& textureManager,
         DescriptorAllocator& descriptorAllocator,
-        DescriptorLayoutManager& descriptorLayoutManager,
-        ThreadPool& threadPool
+        DescriptorLayoutManager& descriptorLayoutManager
     );
 
     ~Material();
@@ -66,26 +59,52 @@ public:
     const SmartAssetHandle<ShaderHandle, ShaderAsset>& GetShader() const { return m_shader; }
 
     // ==========================================================================
-    // FIELD ACCESS - Full FieldProxy support with chaining
+    // BUFFER BUNDLE ACCESS
     // ==========================================================================
 
-    ShaderLib::FieldProxy operator[](const std::string& name);
-    ShaderLib::FieldProxy operator[](const char* name);
-    ShaderLib::FieldProxy GetField(const std::string& path);
+    BufferBundle& GetBufferBundle() { return m_bufferBundle; }
+    const BufferBundle& GetBufferBundle() const { return m_bufferBundle; }
 
-    template<typename T>
-    T Get(const std::string& path) const;
-
-    template<typename T>
-    void Set(const std::string& path, const T& value);
-
-    // ==========================================================================
-    // FIELD METADATA - Delegated to BufferBundle
-    // ==========================================================================
-
-    bool HasField(const std::string& nameOrPath) const {
-        return m_bufferBundle.HasField(nameOrPath);
+    // Direct buffer access (convenience wrappers)
+    BufferBundle::BufferProxy GetInputBuffer() {
+        return m_bufferBundle.GetBuffer("input");
     }
+    BufferBundle::BufferProxy GetOutputBuffer() {
+        return m_bufferBundle.GetBuffer("output");
+    }
+    BufferBundle::BufferProxy GetInputOutputBuffer() {
+        return m_bufferBundle.GetBuffer("input_output");
+    }
+
+    bool HasInputBuffer() const { return m_bufferBundle.HasBuffer("input"); }
+    bool HasOutputBuffer() const { return m_bufferBundle.HasBuffer("output"); }
+    bool HasInputOutputBuffer() const { return m_bufferBundle.HasBuffer("input_output"); }
+
+    // ==========================================================================
+    // FIELD ACCESS - Delegates to BufferBundle
+    // ==========================================================================
+
+    ShaderLib::FieldProxy operator[](const std::string& name) {
+        return m_bufferBundle.GetField(name);
+    }
+
+    ShaderLib::FieldProxy operator[](const char* name) {
+        return m_bufferBundle.GetField(std::string(name));
+    }
+
+    template<typename T>
+    T Get(const std::string& path) const {
+        return m_bufferBundle.Get<T>(path);
+    }
+
+    template<typename T>
+    void Set(const std::string& path, const T& value) {
+        m_bufferBundle.Set(path, value);
+    }
+
+    // ==========================================================================
+    // FIELD QUERIES - Delegates to BufferBundle
+    // ==========================================================================
 
     std::vector<std::string> GetFieldNames() const {
         return m_bufferBundle.GetTopLevelFieldNames();
@@ -95,35 +114,42 @@ public:
         return m_bufferBundle.GetAllFieldPaths();
     }
 
-    const BufferBundle::FieldInfo* GetFieldInfo(const std::string& nameOrPath) const {
-        return m_bufferBundle.GetFieldInfo(nameOrPath);
+    std::vector<std::string> GetFieldNames(const std::string& bufferIdentifier) const {
+        return m_bufferBundle.GetFieldNames(bufferIdentifier);
     }
 
-    bool IsArrayField(const std::string& name) const {
-        return m_bufferBundle.IsArrayField(name);
+    bool HasField(const std::string& path) const {
+        return m_bufferBundle.HasField(path);
     }
 
-    size_t GetArraySize(const std::string& name) const {
-        return m_bufferBundle.GetArraySize(name);
+    bool IsArrayField(const std::string& path) const {
+        return m_bufferBundle.IsArrayField(path);
     }
 
-    bool IsStructureField(const std::string& name) const {
-        return m_bufferBundle.IsStructureField(name);
+    bool IsStructureField(const std::string& path) const {
+        return m_bufferBundle.IsStructureField(path);
     }
 
-    std::vector<std::string> GetStructureChildren(const std::string& name) const {
-        return m_bufferBundle.GetStructureChildren(name);
+    std::vector<std::string> GetStructureChildren(const std::string& path) const {
+        return m_bufferBundle.GetStructureChildren(path);
+    }
+
+    std::string GetBufferIdentifierForField(const std::string& path) const {
+        return m_bufferBundle.GetBufferIdentifierForField(path);
     }
 
     // ==========================================================================
-    // ARRAY FIELD OPERATIONS
+    // BULK BUFFER OPERATIONS
+    // GPU buffers are always available, no need for initialization checks
     // ==========================================================================
 
-    template<typename T>
-    void SetArray(const std::string& name, const std::vector<T>& values);
+    void SyncAllToGPU();
+    void SyncAllFromGPU();
 
-    template<typename T>
-    std::vector<T> GetArray(const std::string& name) const;
+    std::vector<ShaderLib::AsyncOperationHandle> SyncAllToGPUAsync();
+    std::vector<ShaderLib::AsyncOperationHandle> SyncAllFromGPUAsync();
+
+    void WaitForAllBuffers();
 
     // ==========================================================================
     // TEXTURE MANAGEMENT
@@ -135,65 +161,13 @@ public:
     bool HasTexture(const std::string& name) const;
 
     // ==========================================================================
-    // GPU SYNCHRONIZATION - SYNCHRONOUS (blocking)
-    // ==========================================================================
-
-    void SyncToGPU();
-    void SyncFromGPU();
-
-    void SyncBufferToGPU(const std::string& bufferIdentifier);
-    void SyncBufferFromGPU(const std::string& bufferIdentifier);
-
-    void SyncFieldsToGPU(const std::vector<std::string>& paths);
-    void SyncFieldsFromGPU(const std::vector<std::string>& paths);
-
-    // ==========================================================================
-    // GPU SYNCHRONIZATION - ASYNCHRONOUS (non-blocking)
-    // ==========================================================================
-
-    std::vector<BufferSyncTaskHandle> SyncToGPUAsync();
-    std::vector<BufferSyncTaskHandle> SyncFromGPUAsync();
-
-    BufferSyncTaskHandle SyncBufferToGPUAsync(const std::string& bufferIdentifier);
-    BufferSyncTaskHandle SyncBufferFromGPUAsync(const std::string& bufferIdentifier);
-
-    std::vector<BufferSyncTaskHandle> SyncFieldsToGPUAsync(const std::vector<std::string>& paths);
-    std::vector<BufferSyncTaskHandle> SyncFieldsFromGPUAsync(const std::vector<std::string>& paths);
-
-    // ==========================================================================
-    // ASYNC TASK MANAGEMENT
-    // ==========================================================================
-
-    bool AreTasksComplete(const std::vector<BufferSyncTaskHandle>& tasks) const;
-    bool IsTaskComplete(BufferSyncTaskHandle task) const;
-    void WaitForTasks(const std::vector<BufferSyncTaskHandle>& tasks);
-    void WaitForTask(BufferSyncTaskHandle task);
-    void WaitForAllTasks();
-    void PollCompletedTasks();
-    size_t GetActiveTaskCount() const;
-
-    // ==========================================================================
     // DESCRIPTOR SET MANAGEMENT
+    // Descriptor sets are created lazily on first access
     // ==========================================================================
 
     SmartHandle<DescriptorSetHandle, VkDescriptorSet> GetDescriptorSet();
     void InvalidateDescriptorSet();
     bool IsDescriptorSetValid() const { return m_descriptorSetValid; }
-
-    // ==========================================================================
-    // BUFFER ACCESS
-    // ==========================================================================
-
-    BufferBundle& GetBufferBundle() { return m_bufferBundle; }
-    const BufferBundle& GetBufferBundle() const { return m_bufferBundle; }
-
-    std::shared_ptr<ShaderLib::BufferObjectInstance> GetInputBuffer() const;
-    std::shared_ptr<ShaderLib::BufferObjectInstance> GetOutputBuffer() const;
-    std::shared_ptr<ShaderLib::BufferObjectInstance> GetInputOutputBuffer() const;
-
-    bool HasInputBuffer() const;
-    bool HasOutputBuffer() const;
-    bool HasInputOutputBuffer() const;
 
 private:
     // Texture binding
@@ -204,15 +178,21 @@ private:
         TextureParam texture;
     };
 
-    // Initialization
+    // Initialization - called from constructor
+    void InitializeBufferBundle(
+        std::shared_ptr<ShaderLib::BufferObjectInstance> inputBuffer,
+        std::shared_ptr<ShaderLib::BufferObjectInstance> outputBuffer,
+        std::shared_ptr<ShaderLib::BufferObjectInstance> inputOutputBuffer
+    );
     void BuildTextureBindings();
     void CollectSamplerHandles();
 
-    // Descriptor set
+    // NEW: Acquire GPU buffers immediately in constructor
+    void AcquireGPUBuffers();
+
+    // Descriptor set (lazy creation)
     SmartHandle<DescriptorSetHandle, VkDescriptorSet> CreateDescriptorSet();
     bool NeedsDescriptorSetRecreation() const;
-    void AcquireBuffersForDescriptorSet();
-    void ReleaseDescriptorSetBuffers();
 
     // Helper methods
     const ShaderLib::DescriptorSet* GetCustomDescriptorSet() const;
@@ -221,10 +201,10 @@ private:
     std::string m_name;
     SmartAssetHandle<ShaderHandle, ShaderAsset> m_shader;
 
-    // Buffer management - delegated to BufferBundle
+    // Buffer management through BufferBundle
     BufferBundle m_bufferBundle;
 
-    // Texture bindings (Material's primary responsibility)
+    // Texture bindings
     std::unordered_map<std::string, TextureBinding> m_textureBindings;
 
     // Dependencies
@@ -235,11 +215,11 @@ private:
     DescriptorAllocator& m_descriptorAllocator;
     DescriptorLayoutManager& m_descriptorLayoutManager;
 
-    // Descriptor set cache
+    // Descriptor set cache (lazy)
     SmartHandle<DescriptorSetHandle, VkDescriptorSet> m_descriptorSet;
     bool m_descriptorSetValid;
 
-    // Buffer handles for descriptor set
+    // GPU buffer handles - created immediately in constructor
     SmartHandle<BufferHandle, Buffer> m_inputBufferHandle;
     SmartHandle<BufferHandle, Buffer> m_outputBufferHandle;
     SmartHandle<BufferHandle, Buffer> m_inputOutputBufferHandle;
@@ -249,51 +229,3 @@ private:
 
     friend class MaterialManager;
 };
-
-// =============================================================================
-// TEMPLATE IMPLEMENTATIONS
-// =============================================================================
-
-template<typename T>
-inline T Material::Get(const std::string& path) const {
-    return m_bufferBundle.Get<T>(path);
-}
-
-template<typename T>
-inline void Material::Set(const std::string& path, const T& value) {
-    m_bufferBundle.Set(path, value);
-}
-
-template<typename T>
-inline void Material::SetArray(const std::string& name, const std::vector<T>& values) {
-    if (!IsArrayField(name)) {
-        throw std::runtime_error("Material " + m_name + ": Field is not an array: " + name);
-    }
-
-    size_t arraySize = GetArraySize(name);
-    if (values.size() > arraySize) {
-        throw std::runtime_error("Material " + m_name + ": Array size mismatch for " + name);
-    }
-
-    for (size_t i = 0; i < values.size(); ++i) {
-        operator[](name)[i] = values[i];
-    }
-}
-
-template<typename T>
-inline std::vector<T> Material::GetArray(const std::string& name) const {
-    if (!IsArrayField(name)) {
-        throw std::runtime_error("Material " + m_name + ": Field is not an array: " + name);
-    }
-
-    size_t arraySize = GetArraySize(name);
-    std::vector<T> result;
-    result.reserve(arraySize);
-
-    for (size_t i = 0; i < arraySize; ++i) {
-        std::string elementPath = name + "[" + std::to_string(i) + "]";
-        result.push_back(m_bufferBundle.Get<T>(elementPath));
-    }
-
-    return result;
-}

@@ -67,6 +67,7 @@ bool MaterialManager::prepareAsset(const AssetHandle& handle, const AssetLib::As
         AssetLib::MaterialDefinition materialDef = AssetLib::ReadMaterial(data);
 
         // Create material using factory
+        // GPU buffers are created immediately in Material constructor
         MaterialHandle materialHandle = loadMaterialFromAsset(handle, materialDef, shader, manager);
         if (!materialHandle.isValid()) {
             SPDLOG_ERROR("MaterialManager: Failed to create material {}", handle.filename);
@@ -76,12 +77,16 @@ bool MaterialManager::prepareAsset(const AssetHandle& handle, const AssetLib::As
         auto& materialData = m_materials[materialHandle];
         materialData.isReady = true;
 
-        // Initialize material : create descriptor set and sync default values to GPU
-        Material * material = materialData.material.get();
-        material->GetDescriptorSet();  // Force descriptor set creation (creates GPU buffers)
-        material->SyncToGPU();      // Sync initial values from asset to GPU
+        // Initialize material: sync initial values from asset to GPU
+        // GPU buffers are already created, so we can sync immediately
+        Material* material = materialData.material.get();
+        material->SyncAllToGPU();
 
-        SPDLOG_DEBUG("MaterialManager: Successfully prepared material {}", handle.filename);
+        // Note: Descriptor set will be created lazily on first GetDescriptorSet() call
+        // This is more efficient as the descriptor set might not be needed immediately
+
+        SPDLOG_DEBUG("MaterialManager: Successfully prepared material {} (GPU buffers created and synced)",
+            handle.filename);
         return true;
 
     }
@@ -476,7 +481,7 @@ void MaterialManager::updateTextureHandles(MaterialHandle materialHandle, AssetM
     }
 }
 
-uint64_t MaterialManager::estimateMaterialSize(const Material* material) const {
+uint64_t MaterialManager::estimateMaterialSize(Material* material) const {
     if (!material) {
         return 0;
     }

@@ -156,18 +156,14 @@ SmartHandle<BufferHandle, Buffer> CameraProcessingStage::createGlobalUniformBuff
 
     globalData.activePointLights = pointLightCount;
 
-    // Single memcpy for entire buffer!
-    uint8_t* rawBuffer = m_cachedInstance->GetRawBuffer();
-    std::memcpy(rawBuffer, &globalData, sizeof(ShaderLib::GlobalUBOData));
-
-    // Synchronize to GPU
+    // Bezpośrednio kopiuj do GPU - jedno kopiowanie!
     try {
-        m_cachedInstance->SyncToBuffer();
+        m_cachedInstance->CopyToGPUDirect(&globalData, 0, sizeof(ShaderLib::GlobalUBOData));
         globalUboHandle->unmap();
-        SPDLOG_DEBUG("Successfully synchronized global UBO data to GPU for camera {} using single memcpy", cameraEntity.id);
+        SPDLOG_DEBUG("Directly copied global UBO data to GPU for camera {}", cameraEntity.id);
     }
     catch (const std::exception& e) {
-        SPDLOG_ERROR("Failed to sync global UBO to buffer: {}", e.what());
+        SPDLOG_ERROR("Failed to copy global UBO to GPU: {}", e.what());
         return SmartHandle<BufferHandle, Buffer>();
     }
 

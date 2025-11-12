@@ -19,12 +19,10 @@ Material::Material(
     ImageSamplerManager& samplerManager,
     TextureManager& textureManager,
     DescriptorAllocator& descriptorAllocator,
-    DescriptorLayoutManager& descriptorLayoutManager,
-    ThreadPool& threadPool
+    DescriptorLayoutManager& descriptorLayoutManager
 )
     : m_name(name)
     , m_shader(shader)
-    , m_bufferBundle(threadPool)
     , m_device(device)
     , m_bufferManager(bufferManager)
     , m_samplerManager(samplerManager)
@@ -37,34 +35,52 @@ Material::Material(
         throw std::runtime_error("Material " + m_name + ": Invalid shader");
     }
 
-    // Register buffers in BufferBundle (BufferBundle builds all caches automatically)
-    if (inputBuffer) {
-        m_bufferBundle.AddBuffer("input", inputBuffer, ShaderLib::INPUT_DATA_BINDING);
-    }
-    if (outputBuffer) {
-        m_bufferBundle.AddBuffer("output", outputBuffer, ShaderLib::OUTPUT_DATA_BINDING);
-    }
-    if (inputOutputBuffer) {
-        m_bufferBundle.AddBuffer("inputOutput", inputOutputBuffer, ShaderLib::INPUT_OUTPUT_DATA_BINDING);
-    }
+    // 1. Initialize buffer instances in bundle
+    InitializeBufferBundle(inputBuffer, outputBuffer, inputOutputBuffer);
 
-    // Build texture-specific caches (Material's responsibility)
+    // 2. Build texture bindings from shader metadata
     BuildTextureBindings();
     CollectSamplerHandles();
 
-    SPDLOG_INFO("Material '{}': Created with {} buffers, {} fields and {} texture bindings",
-        m_name, m_bufferBundle.GetBufferCount(),
-        m_bufferBundle.GetAllFieldPaths().size(), m_textureBindings.size());
+    // 3. IMMEDIATELY acquire GPU buffers and connect them to buffer instances
+    // This ensures buffers are always available for sync operations
+    AcquireGPUBuffers();
+
+    uint32_t bufferCount = m_bufferBundle.GetBufferCount();
+
+    SPDLOG_INFO("Material '{}': Created with {} GPU buffer(s) and {} texture binding(s)",
+        m_name, bufferCount, m_textureBindings.size());
 }
 
 Material::~Material() {
-    // BufferBundle handles waiting for all tasks
-    ReleaseDescriptorSetBuffers();
+    // Release GPU buffers (SmartHandles will automatically decrement ref count)
+    m_inputBufferHandle = SmartHandle<BufferHandle, Buffer>();
+    m_outputBufferHandle = SmartHandle<BufferHandle, Buffer>();
+    m_inputOutputBufferHandle = SmartHandle<BufferHandle, Buffer>();
 }
 
 // =============================================================================
 // INITIALIZATION
 // =============================================================================
+
+void Material::InitializeBufferBundle(
+    std::shared_ptr<ShaderLib::BufferObjectInstance> inputBuffer,
+    std::shared_ptr<ShaderLib::BufferObjectInstance> outputBuffer,
+    std::shared_ptr<ShaderLib::BufferObjectInstance> inputOutputBuffer
+) {
+    // Add buffers to bundle with standard identifiers
+    if (inputBuffer) {
+        m_bufferBundle.AddBuffer("input", inputBuffer, ShaderLib::INPUT_DATA_BINDING);
+    }
+
+    if (outputBuffer) {
+        m_bufferBundle.AddBuffer("output", outputBuffer, ShaderLib::OUTPUT_DATA_BINDING);
+    }
+
+    if (inputOutputBuffer) {
+        m_bufferBundle.AddBuffer("input_output", inputOutputBuffer, ShaderLib::INPUT_OUTPUT_DATA_BINDING);
+    }
+}
 
 void Material::BuildTextureBindings() {
     const ShaderLib::DescriptorSet* customSet = GetCustomDescriptorSet();
@@ -84,7 +100,7 @@ void Material::BuildTextureBindings() {
         }
     }
 
-    SPDLOG_DEBUG("Material '{}': Built {} texture bindings", m_name, m_textureBindings.size());
+    SPDLOG_DEBUG("Material '{}': Built {} texture binding(s)", m_name, m_textureBindings.size());
 }
 
 void Material::CollectSamplerHandles() {
@@ -97,26 +113,58 @@ void Material::CollectSamplerHandles() {
     }
 }
 
-// =============================================================================
-// FIELD ACCESS - WITH CHAINING SUPPORT
-// =============================================================================
+void Material::AcquireGPUBuffers() {
+    // Acquire GPU buffers for all buffer instances
+    // These buffers are acquired immediately and stay valid for the material's lifetime
 
-ShaderLib::FieldProxy Material::operator[](const std::string& name) {
-    // Check if this is a path (contains . or [)
-    if (name.find('.') != std::string::npos || name.find('[') != std::string::npos) {
-        return GetField(name);
+    auto inputBuffer = m_bufferBundle.GetBuffer("input");
+    if (inputBuffer) {
+        m_inputBufferHandle = m_bufferManager.acquireSmartBuffer(
+            inputBuffer->GetDefinition()
+        );
+
+        if (m_inputBufferHandle.isValid()) {
+            // Connect buffer instance to GPU buffer
+            inputBuffer->SetMappedBuffer(m_bufferManager.getResource(m_inputBufferHandle.handle()));
+            SPDLOG_DEBUG("Material '{}': Acquired GPU buffer for input (size: {} bytes)",
+                m_name, inputBuffer->GetDefinition()->GetTotalSize());
+        }
+        else {
+            throw std::runtime_error("Material " + m_name + ": Failed to acquire input GPU buffer");
+        }
     }
 
-    // Top-level field access - delegate to BufferBundle
-    return m_bufferBundle.GetField(name);
-}
+    auto outputBuffer = m_bufferBundle.GetBuffer("output");
+    if (outputBuffer) {
+        m_outputBufferHandle = m_bufferManager.acquireSmartBuffer(
+            outputBuffer->GetDefinition()
+        );
 
-ShaderLib::FieldProxy Material::operator[](const char* name) {
-    return operator[](std::string(name));
-}
+        if (m_outputBufferHandle.isValid()) {
+            outputBuffer->SetMappedBuffer(m_bufferManager.getResource(m_outputBufferHandle.handle()));
+            SPDLOG_DEBUG("Material '{}': Acquired GPU buffer for output (size: {} bytes)",
+                m_name, outputBuffer->GetDefinition()->GetTotalSize());
+        }
+        else {
+            throw std::runtime_error("Material " + m_name + ": Failed to acquire output GPU buffer");
+        }
+    }
 
-ShaderLib::FieldProxy Material::GetField(const std::string& path) {
-    return m_bufferBundle.GetField(path);
+    auto inputOutputBuffer = m_bufferBundle.GetBuffer("input_output");
+    if (inputOutputBuffer) {
+        m_inputOutputBufferHandle = m_bufferManager.acquireSmartBuffer(
+            inputOutputBuffer->GetDefinition()
+        );
+
+        if (m_inputOutputBufferHandle.isValid()) {
+            inputOutputBuffer->SetMappedBuffer(m_bufferManager.getResource(m_inputOutputBufferHandle.handle()));
+            SPDLOG_DEBUG("Material '{}': Acquired GPU buffer for input_output (size: {} bytes)",
+                m_name, inputOutputBuffer->GetDefinition()->GetTotalSize());
+        }
+        else {
+            throw std::runtime_error("Material " + m_name + ": Failed to acquire input_output GPU buffer");
+        }
+    }
 }
 
 // =============================================================================
@@ -165,143 +213,7 @@ bool Material::HasTexture(const std::string& name) const {
 }
 
 // =============================================================================
-// GPU SYNCHRONIZATION - SYNCHRONOUS
-// =============================================================================
-
-void Material::SyncToGPU() {
-    if (!IsDescriptorSetValid()) {
-        GetDescriptorSet();
-    }
-
-    m_bufferBundle.SyncAllToGPU();
-    SPDLOG_TRACE("Material '{}': Synced all buffers to GPU", m_name);
-}
-
-void Material::SyncFromGPU() {
-    if (!IsDescriptorSetValid()) {
-        GetDescriptorSet();
-    }
-
-    m_bufferBundle.SyncAllFromGPU();
-    SPDLOG_TRACE("Material '{}': Synced all buffers from GPU", m_name);
-}
-
-void Material::SyncBufferToGPU(const std::string& bufferIdentifier) {
-    if (!IsDescriptorSetValid()) {
-        GetDescriptorSet();
-    }
-    m_bufferBundle.SyncBufferToGPU(bufferIdentifier);
-}
-
-void Material::SyncBufferFromGPU(const std::string& bufferIdentifier) {
-    if (!IsDescriptorSetValid()) {
-        GetDescriptorSet();
-    }
-    m_bufferBundle.SyncBufferFromGPU(bufferIdentifier);
-}
-
-void Material::SyncFieldsToGPU(const std::vector<std::string>& paths) {
-    if (!IsDescriptorSetValid()) {
-        GetDescriptorSet();
-    }
-    m_bufferBundle.SyncFieldsToGPU(paths);
-}
-
-void Material::SyncFieldsFromGPU(const std::vector<std::string>& paths) {
-    if (!IsDescriptorSetValid()) {
-        GetDescriptorSet();
-    }
-    m_bufferBundle.SyncFieldsFromGPU(paths);
-}
-
-// =============================================================================
-// GPU SYNCHRONIZATION - ASYNCHRONOUS
-// =============================================================================
-
-std::vector<BufferSyncTaskHandle> Material::SyncToGPUAsync() {
-    if (!IsDescriptorSetValid()) {
-        GetDescriptorSet();
-    }
-
-    auto tasks = m_bufferBundle.SyncAllToGPUAsync();
-    SPDLOG_TRACE("Material '{}': Started async sync to GPU ({} tasks)", m_name, tasks.size());
-    return tasks;
-}
-
-std::vector<BufferSyncTaskHandle> Material::SyncFromGPUAsync() {
-    if (!IsDescriptorSetValid()) {
-        GetDescriptorSet();
-    }
-
-    auto tasks = m_bufferBundle.SyncAllFromGPUAsync();
-    SPDLOG_TRACE("Material '{}': Started async sync from GPU ({} tasks)", m_name, tasks.size());
-    return tasks;
-}
-
-BufferSyncTaskHandle Material::SyncBufferToGPUAsync(const std::string& bufferIdentifier) {
-    if (!IsDescriptorSetValid()) {
-        GetDescriptorSet();
-    }
-    return m_bufferBundle.SyncBufferToGPUAsync(bufferIdentifier);
-}
-
-BufferSyncTaskHandle Material::SyncBufferFromGPUAsync(const std::string& bufferIdentifier) {
-    if (!IsDescriptorSetValid()) {
-        GetDescriptorSet();
-    }
-    return m_bufferBundle.SyncBufferFromGPUAsync(bufferIdentifier);
-}
-
-std::vector<BufferSyncTaskHandle> Material::SyncFieldsToGPUAsync(const std::vector<std::string>& paths) {
-    if (!IsDescriptorSetValid()) {
-        GetDescriptorSet();
-    }
-    return m_bufferBundle.SyncFieldsToGPUAsync(paths);
-}
-
-std::vector<BufferSyncTaskHandle> Material::SyncFieldsFromGPUAsync(const std::vector<std::string>& paths) {
-    if (!IsDescriptorSetValid()) {
-        GetDescriptorSet();
-    }
-    return m_bufferBundle.SyncFieldsFromGPUAsync(paths);
-}
-
-// =============================================================================
-// ASYNC TASK MANAGEMENT
-// =============================================================================
-
-bool Material::AreTasksComplete(const std::vector<BufferSyncTaskHandle>& tasks) const {
-    return m_bufferBundle.AreTasksComplete(tasks);
-}
-
-bool Material::IsTaskComplete(BufferSyncTaskHandle task) const {
-    return m_bufferBundle.AreTasksComplete({ task });
-}
-
-void Material::WaitForTasks(const std::vector<BufferSyncTaskHandle>& tasks) {
-    m_bufferBundle.WaitForTasks(tasks);
-    SPDLOG_TRACE("Material '{}': Waited for {} tasks", m_name, tasks.size());
-}
-
-void Material::WaitForTask(BufferSyncTaskHandle task) {
-    m_bufferBundle.WaitForTasks({ task });
-}
-
-void Material::WaitForAllTasks() {
-    m_bufferBundle.WaitForAllTasks();
-    SPDLOG_TRACE("Material '{}': Waited for all tasks", m_name);
-}
-
-void Material::PollCompletedTasks() {
-    m_bufferBundle.PollCompletedTasks();
-}
-
-size_t Material::GetActiveTaskCount() const {
-    return m_bufferBundle.GetActiveTaskCount();
-}
-
-// =============================================================================
-// DESCRIPTOR SET MANAGEMENT
+// DESCRIPTOR SET MANAGEMENT (LAZY CREATION)
 // =============================================================================
 
 SmartHandle<DescriptorSetHandle, VkDescriptorSet> Material::GetDescriptorSet() {
@@ -346,8 +258,7 @@ SmartHandle<DescriptorSetHandle, VkDescriptorSet> Material::CreateDescriptorSet(
         return SmartHandle<DescriptorSetHandle, VkDescriptorSet>();
     }
 
-    AcquireBuffersForDescriptorSet();
-
+    // GPU buffers are already acquired in constructor - just bind them
     DescriptorSetBuilder builder(
         m_device,
         m_bufferManager,
@@ -361,33 +272,21 @@ SmartHandle<DescriptorSetHandle, VkDescriptorSet> Material::CreateDescriptorSet(
 
     uint32_t bufferCount = 0;
 
-    // Bind input buffer
+    // Bind input buffer (already acquired)
     if (m_inputBufferHandle.isValid()) {
         builder.bindBufferToSlot(ShaderLib::INPUT_DATA_BINDING, m_inputBufferHandle);
-        auto inputBuffer = GetInputBuffer();
-        if (inputBuffer) {
-            inputBuffer->SetMappedBuffer(m_bufferManager.getResource(m_inputBufferHandle.handle()));
-        }
         bufferCount++;
     }
 
-    // Bind output buffer
+    // Bind output buffer (already acquired)
     if (m_outputBufferHandle.isValid()) {
         builder.bindBufferToSlot(ShaderLib::OUTPUT_DATA_BINDING, m_outputBufferHandle);
-        auto outputBuffer = GetOutputBuffer();
-        if (outputBuffer) {
-            outputBuffer->SetMappedBuffer(m_bufferManager.getResource(m_outputBufferHandle.handle()));
-        }
         bufferCount++;
     }
 
-    // Bind input/output buffer
+    // Bind input/output buffer (already acquired)
     if (m_inputOutputBufferHandle.isValid()) {
         builder.bindBufferToSlot(ShaderLib::INPUT_OUTPUT_DATA_BINDING, m_inputOutputBufferHandle);
-        auto inputOutputBuffer = GetInputOutputBuffer();
-        if (inputOutputBuffer) {
-            inputOutputBuffer->SetMappedBuffer(m_bufferManager.getResource(m_inputOutputBufferHandle.handle()));
-        }
         bufferCount++;
     }
 
@@ -408,7 +307,6 @@ SmartHandle<DescriptorSetHandle, VkDescriptorSet> Material::CreateDescriptorSet(
 
     if (!descriptorSet.isValid()) {
         SPDLOG_ERROR("Material '{}': Failed to build descriptor set", m_name);
-        ReleaseDescriptorSetBuffers();
     }
     else {
         SPDLOG_INFO("Material '{}': Created descriptor set with {} buffer(s) and {} texture(s)",
@@ -434,65 +332,6 @@ bool Material::NeedsDescriptorSetRecreation() const {
     return false;
 }
 
-void Material::AcquireBuffersForDescriptorSet() {
-    ReleaseDescriptorSetBuffers();
-
-    auto inputBuffer = GetInputBuffer();
-    if (inputBuffer) {
-        m_inputBufferHandle = m_bufferManager.acquireSmartBuffer(
-            inputBuffer->GetDefinition()
-        );
-    }
-
-    auto outputBuffer = GetOutputBuffer();
-    if (outputBuffer) {
-        m_outputBufferHandle = m_bufferManager.acquireSmartBuffer(
-            outputBuffer->GetDefinition()
-        );
-    }
-
-    auto inputOutputBuffer = GetInputOutputBuffer();
-    if (inputOutputBuffer) {
-        m_inputOutputBufferHandle = m_bufferManager.acquireSmartBuffer(
-            inputOutputBuffer->GetDefinition()
-        );
-    }
-}
-
-void Material::ReleaseDescriptorSetBuffers() {
-    m_inputBufferHandle = SmartHandle<BufferHandle, Buffer>();
-    m_outputBufferHandle = SmartHandle<BufferHandle, Buffer>();
-    m_inputOutputBufferHandle = SmartHandle<BufferHandle, Buffer>();
-}
-
-// =============================================================================
-// BUFFER ACCESS
-// =============================================================================
-
-std::shared_ptr<ShaderLib::BufferObjectInstance> Material::GetInputBuffer() const {
-    return m_bufferBundle.GetBuffer("input");
-}
-
-std::shared_ptr<ShaderLib::BufferObjectInstance> Material::GetOutputBuffer() const {
-    return m_bufferBundle.GetBuffer("output");
-}
-
-std::shared_ptr<ShaderLib::BufferObjectInstance> Material::GetInputOutputBuffer() const {
-    return m_bufferBundle.GetBuffer("inputOutput");
-}
-
-bool Material::HasInputBuffer() const {
-    return m_bufferBundle.HasBuffer("input");
-}
-
-bool Material::HasOutputBuffer() const {
-    return m_bufferBundle.HasBuffer("output");
-}
-
-bool Material::HasInputOutputBuffer() const {
-    return m_bufferBundle.HasBuffer("inputOutput");
-}
-
 // =============================================================================
 // HELPER METHODS
 // =============================================================================
@@ -503,4 +342,76 @@ const ShaderLib::DescriptorSet* Material::GetCustomDescriptorSet() const {
     }
 
     return m_shader->metadata.GetCustomSet();
+}
+
+// =============================================================================
+// BULK BUFFER OPERATIONS
+// GPU buffers are always available - no initialization checks needed
+// =============================================================================
+
+void Material::SyncAllToGPU() {
+    for (const auto& identifier : m_bufferBundle.GetBufferIdentifiers()) {
+        auto buffer = m_bufferBundle.GetBuffer(identifier);
+        if (buffer) {
+            buffer->SyncToBuffer();
+        }
+    }
+
+    SPDLOG_TRACE("Material '{}': Synced all buffers to GPU", m_name);
+}
+
+void Material::SyncAllFromGPU() {
+    for (const auto& identifier : m_bufferBundle.GetBufferIdentifiers()) {
+        auto buffer = m_bufferBundle.GetBuffer(identifier);
+        if (buffer) {
+            buffer->SyncFromBuffer();
+        }
+    }
+
+    SPDLOG_TRACE("Material '{}': Synced all buffers from GPU", m_name);
+}
+
+std::vector<ShaderLib::AsyncOperationHandle> Material::SyncAllToGPUAsync() {
+    std::vector<ShaderLib::AsyncOperationHandle> handles;
+
+    for (const auto& identifier : m_bufferBundle.GetBufferIdentifiers()) {
+        auto buffer = m_bufferBundle.GetBuffer(identifier);
+        if (buffer) {
+            auto handle = buffer->SyncToBufferAsync();
+            if (handle.isValid()) {
+                handles.push_back(handle);
+            }
+        }
+    }
+
+    SPDLOG_TRACE("Material '{}': Started async sync to GPU ({} operations)", m_name, handles.size());
+    return handles;
+}
+
+std::vector<ShaderLib::AsyncOperationHandle> Material::SyncAllFromGPUAsync() {
+    std::vector<ShaderLib::AsyncOperationHandle> handles;
+
+    for (const auto& identifier : m_bufferBundle.GetBufferIdentifiers()) {
+        auto buffer = m_bufferBundle.GetBuffer(identifier);
+        if (buffer) {
+            auto handle = buffer->SyncFromBufferAsync();
+            if (handle.isValid()) {
+                handles.push_back(handle);
+            }
+        }
+    }
+
+    SPDLOG_TRACE("Material '{}': Started async sync from GPU ({} operations)", m_name, handles.size());
+    return handles;
+}
+
+void Material::WaitForAllBuffers() {
+    for (const auto& identifier : m_bufferBundle.GetBufferIdentifiers()) {
+        auto buffer = m_bufferBundle.GetBuffer(identifier);
+        if (buffer) {
+            buffer->WaitForAllSyncs();
+        }
+    }
+
+    SPDLOG_TRACE("Material '{}': Waited for all buffer operations", m_name);
 }

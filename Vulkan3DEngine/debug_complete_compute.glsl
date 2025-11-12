@@ -17,7 +17,7 @@ layout(std140, set = 2, binding = 0) uniform InputData {
     float minPopulation;
 } inputData;
 layout(std430, set = 2, binding = 2) buffer InputOutputData {
-    ProvinceData provinces[65536];
+    ProvinceData provinces[1048576];
 } inputOutputData;
 
 layout(local_size_x = 256, local_size_y = 1, local_size_z = 1) in;

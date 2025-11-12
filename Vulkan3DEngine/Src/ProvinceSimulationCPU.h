@@ -61,7 +61,9 @@ private:
     std::atomic<uint32_t> pendingSteps_{ 0 };
     std::atomic<bool> computeInProgress_{ false };
 
-    std::vector<std::future<void>> activeFutures_;
+    // Async operation tracking
+    ShaderLib::AsyncOperationHandle activeOperationHandle_;
+    std::vector<std::future<void>> activeFutures_; // Fallback when no AsyncMemoryOps
     mutable std::mutex dataMutex_;
 
     // Core simulation logic (matches GPU shader)

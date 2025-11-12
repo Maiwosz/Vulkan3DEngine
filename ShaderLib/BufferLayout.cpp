@@ -525,6 +525,90 @@ namespace ShaderLib {
     }
 
     // ============================================================================
+    // FIELD QUERIES
+    // ============================================================================
+
+    std::vector<std::string> BufferLayout::GetTopLevelFieldNames() const {
+        std::vector<std::string> names;
+        names.reserve(m_topLevelIndices.size());
+
+        for (size_t idx : m_topLevelIndices) {
+            const auto& field = m_allFields[idx];
+            names.push_back(field.name);
+        }
+
+        std::sort(names.begin(), names.end());
+        return names;
+    }
+
+    std::vector<std::string> BufferLayout::GetAllFieldPaths() const {
+        std::vector<std::string> paths;
+        paths.reserve(m_allFields.size());
+
+        for (const auto& field : m_allFields) {
+            paths.push_back(field.path);
+        }
+
+        std::sort(paths.begin(), paths.end());
+        return paths;
+    }
+
+    std::vector<std::string> BufferLayout::GetChildPaths(const std::string& parentPath) const {
+        std::vector<std::string> children;
+        std::string prefix = parentPath + ".";
+
+        for (const auto& field : m_allFields) {
+            if (field.path.find(prefix) == 0) {
+                children.push_back(field.path);
+            }
+        }
+
+        std::sort(children.begin(), children.end());
+        return children;
+    }
+
+    bool BufferLayout::IsArrayField(const std::string& path) const {
+        const FieldDescriptor* field = FindField(path);
+        return field && field->isArray;
+    }
+
+    bool BufferLayout::IsStructureField(const std::string& path) const {
+        const FieldDescriptor* field = FindField(path);
+        return field && field->IsStructure();
+    }
+
+    std::vector<std::string> BufferLayout::GetStructureChildren(const std::string& path) const {
+        const FieldDescriptor* field = FindField(path);
+        if (!field || !field->IsStructure()) {
+            return {};
+        }
+
+        std::vector<std::string> children;
+        std::string prefix = path + ".";
+
+        for (const auto& childField : m_allFields) {
+            if (childField.parentPath == path) {
+                // Extract immediate child name (without array indices)
+                std::string childName = childField.name;
+
+                // Remove array index if present
+                size_t bracketPos = childName.find('[');
+                if (bracketPos != std::string::npos) {
+                    childName = childName.substr(0, bracketPos);
+                }
+
+                // Add unique names only
+                if (std::find(children.begin(), children.end(), childName) == children.end()) {
+                    children.push_back(childName);
+                }
+            }
+        }
+
+        std::sort(children.begin(), children.end());
+        return children;
+    }
+
+    // ============================================================================
     // DEBUG UTILITIES
     // ============================================================================
 
@@ -715,6 +799,18 @@ namespace ShaderLib {
         }
 
         return result;
+    }
+
+    std::string BufferLayout::ExtractTopLevelName(const std::string& path) const {
+        size_t dotPos = path.find('.');
+        size_t bracketPos = path.find('[');
+        size_t endPos = std::min(dotPos, bracketPos);
+
+        if (endPos == std::string::npos) {
+            return path;
+        }
+
+        return path.substr(0, endPos);
     }
 
     // ============================================================================

@@ -2,18 +2,16 @@
 #include "IProvinceSimulation.h"
 #include "MaterialManager.h"
 #include "ComputeDispatcher.h"
-#include "AsyncMemoryOps.h"
 #include <vector>
 #include <optional>
 #include <memory>
 
 /**
  * GPU-based province simulation using compute shaders
- * Uses unified structures and AsyncMemoryOps for efficient data transfer
  */
 class ProvinceSimulationGPU : public IProvinceSimulation {
 public:
-    explicit ProvinceSimulationGPU(ComputeDispatcher* dispatcher, AsyncMemoryOps* asyncMemOps = nullptr);
+    explicit ProvinceSimulationGPU(ComputeDispatcher* dispatcher);
     ~ProvinceSimulationGPU() override;
 
     // IProvinceSimulation interface
@@ -46,38 +44,42 @@ public:
 
 private:
     ComputeDispatcher* computeDispatcher_;
-    AsyncMemoryOps* asyncMemOps_;
     MaterialSmartHandle material_;
 
     SimulationParameters simParams_;
     RandomizationParameters randParams_;
 
-    // Unified buffer structure
-    std::unique_ptr<ProvinceDataBuffer> workingBuffer_;
-    std::vector<ProvinceData> cachedStats_;
+    // Cache buffers for UI display (CPU-side only)
+    std::unique_ptr<ProvinceDataBuffer> displayCache_;
     std::vector<ProvinceData> initialStats_;
 
     uint32_t stepCounter_ = 0;
     uint32_t pendingSteps_ = 0;
 
+    // Async operation tracking
     std::optional<ComputeTaskHandle> activeComputeTask_;
-    std::vector<BufferSyncTaskHandle> activeSyncTasks_;
+    std::optional<ShaderLib::AsyncOperationHandle> activeGPUReadOp_;
 
     enum class SimulationState {
         Idle,
         Computing,
-        SyncingFromGPU,
+        ReadingFromGPU,
         ReadyForNextStep
     };
     SimulationState state_ = SimulationState::Idle;
 
+    // State machine
     void updateStateMachine();
     void handleComputingState();
-    void handleSyncingState();
+    void handleReadingState();
     void handleReadyState();
 
+    // Operations
     bool dispatchNextStep();
-    void syncDataFromGPU();
-    void updateCachedData();
-    void syncParametersToMaterial();
+    void startGPURead();
+    void updateDisplayCache();
+
+    // Initialization helpers
+    void initializeGPUData();
+    void syncParametersToGPU();
 };

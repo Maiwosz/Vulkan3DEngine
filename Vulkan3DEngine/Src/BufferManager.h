@@ -19,9 +19,10 @@ struct BufferInfo {
     bool inUse;
     uint32_t referenceCount;
     std::shared_ptr<const ShaderLib::BufferObjectDefinition> bufferObject;
+    bool isPersistentlyMapped; // Track persistent mapping state
 };
 
-// Universal manager for UBO and SSBO
+// Universal manager for UBO and SSBO with persistent mapping
 class BufferManager : public ISmartHandleManager<BufferHandle, Buffer> {
 public:
     explicit BufferManager(VramManager& vramManager);
@@ -71,6 +72,7 @@ private:
 
     BufferHandle createNewBuffer(std::shared_ptr<const ShaderLib::BufferObjectDefinition> bufferInfo);
     BufferHandle findReusableBuffer(std::shared_ptr<const ShaderLib::BufferObjectDefinition> bufferInfo);
+    void ensureBufferMapped(BufferHandle handle); // Ensure buffer is persistently mapped
 
     std::unordered_map<BufferPoolKey, std::deque<BufferHandle>, BufferPoolKeyHash> m_bufferPool;
     std::unordered_map<BufferHandle, BufferInfo> m_buffers;

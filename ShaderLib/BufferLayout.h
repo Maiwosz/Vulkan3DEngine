@@ -68,6 +68,30 @@ namespace ShaderLib {
         const FieldDescriptor* GetFieldByIndex(size_t index) const;
 
         // ========================================================================
+        // FIELD QUERIES
+        // ========================================================================
+
+        // Get top-level field names (O(1) cached)
+        std::vector<std::string> GetTopLevelFieldNames() const;
+
+        // Get all field paths (flat hierarchy)
+        std::vector<std::string> GetAllFieldPaths() const;
+
+        // Get all child paths for a given parent path
+        // e.g. "transform" -> ["transform.position", "transform.rotation", ...]
+        std::vector<std::string> GetChildPaths(const std::string& parentPath) const;
+
+        // Check if field is an array
+        bool IsArrayField(const std::string& path) const;
+
+        // Check if field is a structure
+        bool IsStructureField(const std::string& path) const;
+
+        // Get immediate children of a structure field
+        // e.g. "transform" -> ["position", "rotation", "scale"]
+        std::vector<std::string> GetStructureChildren(const std::string& path) const;
+
+        // ========================================================================
         // DEBUG UTILITIES
         // ========================================================================
 
@@ -188,6 +212,9 @@ namespace ShaderLib {
             bool showPadding,
             uint32_t* lastOffset
         ) const;
+
+        // Helper for GetChildPaths and GetStructureChildren
+        std::string ExtractTopLevelName(const std::string& path) const;
 
         // ========================================================================
         // MEMBER DATA

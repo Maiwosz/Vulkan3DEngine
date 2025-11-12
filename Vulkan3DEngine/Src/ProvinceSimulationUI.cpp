@@ -503,12 +503,12 @@ void ProvinceSimulationUI::renderSettingsWindow() {
             int numProvinces = m_settingsState.simParams.numProvinces;
             if (ImGui::InputInt("Number of Provinces", &numProvinces, 1024, 8192)) {
                 if (numProvinces < 1024) numProvinces = 1024;
-                if (numProvinces > 65536) numProvinces = 65536;
+                if (numProvinces > 1048576) numProvinces = 1048576;
                 m_settingsState.simParams.numProvinces = numProvinces;
                 m_settingsChanged = true;
             }
             if (ImGui::IsItemHovered()) {
-                ImGui::SetTooltip("Range: 1024 - 65536");
+                ImGui::SetTooltip("Range: 1024 - 1048576");
             }
 
             if (ImGui::DragFloat("Food Consumption per Pop",

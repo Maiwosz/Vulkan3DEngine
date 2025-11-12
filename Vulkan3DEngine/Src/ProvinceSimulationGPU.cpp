@@ -3,23 +3,29 @@
 #include <spdlog/spdlog.h>
 #include <random>
 
-ProvinceSimulationGPU::ProvinceSimulationGPU(ComputeDispatcher* dispatcher, AsyncMemoryOps* asyncMemOps)
+ProvinceSimulationGPU::ProvinceSimulationGPU(ComputeDispatcher* dispatcher)
     : computeDispatcher_(dispatcher)
-    , asyncMemOps_(asyncMemOps)
 {
 }
 
 ProvinceSimulationGPU::~ProvinceSimulationGPU() {
+    // Wait for any pending compute operations
     if (computeDispatcher_ && activeComputeTask_) {
         computeDispatcher_->waitForTask(*activeComputeTask_);
     }
-    if (material_ && !activeSyncTasks_.empty()) {
-        material_->WaitForTasks(activeSyncTasks_);
+
+    // Wait for any pending GPU reads
+    if (material_ && activeGPUReadOp_) {
+        auto inputOutputBuffer = material_->GetInputOutputBuffer();
+        if (inputOutputBuffer) {
+            inputOutputBuffer->WaitForSync(*activeGPUReadOp_);
+        }
     }
 }
 
 bool ProvinceSimulationGPU::initialize(const SimulationParameters& simParams,
     const RandomizationParameters& randParams) {
+
     simParams_ = simParams;
     randParams_ = randParams;
     stepCounter_ = 0;
@@ -31,48 +37,23 @@ bool ProvinceSimulationGPU::initialize(const SimulationParameters& simParams,
         return false;
     }
 
-    // Allocate working buffer
-    if (!workingBuffer_) {
-        workingBuffer_ = std::make_unique<ProvinceDataBuffer>();
+    // Allocate display cache (CPU-side only, for UI queries)
+    if (!displayCache_) {
+        displayCache_ = std::make_unique<ProvinceDataBuffer>();
     }
 
     // ====================================================================
-    // STEP 1: Prepare input parameters (uniform buffer)
+    // STEP 1: Sync parameters to GPU (uniform buffer)
     // ====================================================================
-    syncParametersToMaterial();
-
-    // ====================================================================
-    // STEP 2: Initialize province data with random values
-    // ====================================================================
-    std::mt19937 gen;
-    if (randParams_.randomSeed == 0) {
-        std::random_device rd;
-        gen.seed(rd());
-    }
-    else {
-        gen.seed(randParams_.randomSeed);
-    }
-
-    std::uniform_real_distribution<float> popDist(randParams_.minPopulation, randParams_.maxPopulation);
-    std::uniform_real_distribution<float> foodProdDist(randParams_.minFoodProduction, randParams_.maxFoodProduction);
-
-    // Initialize active provinces
-    for (uint32_t i = 0; i < simParams_.numProvinces; ++i) {
-        workingBuffer_->provinces[i] = {
-            popDist(gen),
-            foodProdDist(gen),
-            0.0f,
-            randParams_.initialFoodStorage
-        };
-    }
-
-    // Zero unused provinces
-    for (uint32_t i = simParams_.numProvinces; i < MAX_PROVINCES; ++i) {
-        workingBuffer_->provinces[i] = { 0.0f, 0.0f, 0.0f, 0.0f };
-    }
+    syncParametersToGPU();
 
     // ====================================================================
-    // STEP 3: Copy to GPU buffer using AsyncMemoryOps
+    // STEP 2: Initialize province data DIRECTLY on GPU
+    // ====================================================================
+    initializeGPUData();
+
+    // ====================================================================
+    // STEP 3: Read initial state for display cache
     // ====================================================================
     auto inputOutputBuffer = material_->GetInputOutputBuffer();
     if (!inputOutputBuffer) {
@@ -80,46 +61,21 @@ bool ProvinceSimulationGPU::initialize(const SimulationParameters& simParams,
         return false;
     }
 
-    uint8_t* gpuBuffer = inputOutputBuffer->GetRawBuffer();
-    const size_t bufferSize = sizeof(ProvinceDataBuffer);
+    // Direct GPU -> CPU copy for initial stats
+    inputOutputBuffer->CopyFromGPUDirect(
+        displayCache_.get(),
+        0,
+        sizeof(ProvinceDataBuffer)
+    );
 
-    if (asyncMemOps_) {
-        // Asynchronous, multi-threaded copy
-        auto copyFutures = asyncMemOps_->Memcpy(
-            gpuBuffer,
-            workingBuffer_.get(),
-            bufferSize
-        );
-
-        SPDLOG_DEBUG("Initialized {} provinces using async memcpy ({} bytes, {} chunks)",
-            simParams_.numProvinces, bufferSize, copyFutures.size());
-
-        // Wait for copy completion
-        AsyncMemoryOps::WaitForAll(copyFutures);
-    }
-    else {
-        // Fallback: synchronous copy
-        std::memcpy(gpuBuffer, workingBuffer_.get(), bufferSize);
-
-        SPDLOG_DEBUG("Initialized {} provinces using sync memcpy ({} bytes)",
-            simParams_.numProvinces, bufferSize);
-    }
-
-    // Sync to GPU
-    material_->SyncToGPU();
-
-    // ====================================================================
-    // STEP 4: Cache initial stats for UI display
-    // ====================================================================
+    // Cache initial stats for UI
     initialStats_.resize(simParams_.numProvinces);
-    cachedStats_.resize(simParams_.numProvinces);
-
     for (uint32_t i = 0; i < simParams_.numProvinces; ++i) {
-        initialStats_[i] = workingBuffer_->provinces[i];
-        cachedStats_[i] = initialStats_[i];
+        initialStats_[i] = displayCache_->provinces[i];
     }
 
-    SPDLOG_INFO("GPU Simulation initialized: {} provinces", simParams_.numProvinces);
+    SPDLOG_INFO("GPU Simulation initialized: {} provinces (direct GPU operations)",
+        simParams_.numProvinces);
 
     return true;
 }
@@ -147,16 +103,21 @@ void ProvinceSimulationGPU::runMultipleSteps(uint32_t numSteps) {
 }
 
 void ProvinceSimulationGPU::reset() {
+    // Wait for pending operations
     if (computeDispatcher_ && activeComputeTask_) {
         computeDispatcher_->waitForTask(*activeComputeTask_);
         activeComputeTask_.reset();
     }
 
-    if (material_ && !activeSyncTasks_.empty()) {
-        material_->WaitForTasks(activeSyncTasks_);
-        activeSyncTasks_.clear();
+    if (material_ && activeGPUReadOp_) {
+        auto inputOutputBuffer = material_->GetInputOutputBuffer();
+        if (inputOutputBuffer) {
+            inputOutputBuffer->WaitForSync(*activeGPUReadOp_);
+        }
+        activeGPUReadOp_.reset();
     }
 
+    // Reinitialize
     initialize(simParams_, randParams_);
 }
 
@@ -166,10 +127,10 @@ bool ProvinceSimulationGPU::isComputeInProgress() const {
 }
 
 ProvinceData ProvinceSimulationGPU::getProvinceData(uint32_t index) const {
-    if (index >= cachedStats_.size()) {
+    if (!displayCache_ || index >= simParams_.numProvinces) {
         return { 0.0f, 0.0f, 0.0f, 0.0f };
     }
-    return cachedStats_[index];
+    return displayCache_->provinces[index];
 }
 
 ProvinceData ProvinceSimulationGPU::getInitialStats(uint32_t index) const {
@@ -185,7 +146,7 @@ void ProvinceSimulationGPU::setSimulationParameters(const SimulationParameters& 
         return;
     }
     simParams_ = params;
-    syncParametersToMaterial();
+    syncParametersToGPU();
 }
 
 void ProvinceSimulationGPU::setRandomizationParameters(const RandomizationParameters& params) {
@@ -201,26 +162,34 @@ void ProvinceSimulationGPU::requestDataRefresh() {
         SPDLOG_WARN("GPU: Cannot refresh data, operation in progress");
         return;
     }
-    syncDataFromGPU();
+    startGPURead();
 }
 
 bool ProvinceSimulationGPU::isDataRefreshComplete() const {
-    if (activeSyncTasks_.empty()) return true;
+    if (!activeGPUReadOp_) return true;
     if (!material_) return false;
-    return material_->AreTasksComplete(activeSyncTasks_);
+
+    auto inputOutputBuffer = material_->GetInputOutputBuffer();
+    if (!inputOutputBuffer) return false;
+
+    return inputOutputBuffer->IsSyncComplete(*activeGPUReadOp_);
 }
 
 void ProvinceSimulationGPU::update() {
     updateStateMachine();
 }
 
+// =============================================================================
+// STATE MACHINE
+// =============================================================================
+
 void ProvinceSimulationGPU::updateStateMachine() {
     switch (state_) {
     case SimulationState::Computing:
         handleComputingState();
         break;
-    case SimulationState::SyncingFromGPU:
-        handleSyncingState();
+    case SimulationState::ReadingFromGPU:
+        handleReadingState();
         break;
     case SimulationState::ReadyForNextStep:
         handleReadyState();
@@ -239,21 +208,28 @@ void ProvinceSimulationGPU::handleComputingState() {
     if (computeDispatcher_->isTaskComplete(*activeComputeTask_)) {
         activeComputeTask_.reset();
         stepCounter_++;
-        syncDataFromGPU();
+
+        // Start async GPU read for display cache
+        startGPURead();
     }
 }
 
-void ProvinceSimulationGPU::handleSyncingState() {
-    if (!material_) {
+void ProvinceSimulationGPU::handleReadingState() {
+    if (!material_ || !activeGPUReadOp_) {
         state_ = SimulationState::Idle;
         return;
     }
 
-    material_->PollCompletedTasks();
+    auto inputOutputBuffer = material_->GetInputOutputBuffer();
+    if (!inputOutputBuffer) {
+        state_ = SimulationState::Idle;
+        return;
+    }
 
-    if (material_->AreTasksComplete(activeSyncTasks_)) {
-        updateCachedData();
-        activeSyncTasks_.clear();
+    // Check if GPU read completed
+    if (inputOutputBuffer->IsSyncComplete(*activeGPUReadOp_)) {
+        // GPU read finished, no need to update cache (already done by async op)
+        activeGPUReadOp_.reset();
         state_ = SimulationState::ReadyForNextStep;
     }
 }
@@ -267,6 +243,10 @@ void ProvinceSimulationGPU::handleReadyState() {
         state_ = SimulationState::Idle;
     }
 }
+
+// =============================================================================
+// OPERATIONS
+// =============================================================================
 
 bool ProvinceSimulationGPU::dispatchNextStep() {
     if (!computeDispatcher_ || !material_) return false;
@@ -289,51 +269,96 @@ bool ProvinceSimulationGPU::dispatchNextStep() {
     return true;
 }
 
-void ProvinceSimulationGPU::syncDataFromGPU() {
-    if (!material_) return;
-
-    activeSyncTasks_ = material_->SyncFromGPUAsync();
-
-    if (activeSyncTasks_.empty()) {
-        state_ = SimulationState::Idle;
-        return;
-    }
-
-    state_ = SimulationState::SyncingFromGPU;
-}
-
-void ProvinceSimulationGPU::updateCachedData() {
+void ProvinceSimulationGPU::startGPURead() {
     if (!material_) return;
 
     auto inputOutputBuffer = material_->GetInputOutputBuffer();
     if (!inputOutputBuffer) {
-        SPDLOG_ERROR("GPU: InputOutput buffer not available during cache update");
+        SPDLOG_ERROR("GPU: InputOutput buffer not available");
         return;
     }
 
-    const uint8_t* gpuBuffer = inputOutputBuffer->GetRawBuffer();
-    const size_t bufferSize = sizeof(ProvinceDataBuffer);
-
-    // Asynchronous copy from GPU buffer to working buffer
-    auto copyFutures = asyncMemOps_->Memcpy(
-        workingBuffer_.get(),
-        gpuBuffer,
-        bufferSize
+    // Start async GPU -> CPU copy directly to display cache
+    // This bypasses the BufferObjectInstance's internal CPU buffer entirely
+    activeGPUReadOp_ = inputOutputBuffer->CopyFromGPUDirectAsync(
+        displayCache_.get(),
+        0,
+        sizeof(ProvinceDataBuffer)
     );
 
-    // Wait for copy completion
-    AsyncMemoryOps::WaitForAll(copyFutures);
-
-    SPDLOG_DEBUG("Updated cached data using async memcpy ({} bytes, {} chunks)",
-        bufferSize, copyFutures.size());
-
-    // Update UI cache from working buffer
-    for (uint32_t i = 0; i < simParams_.numProvinces; ++i) {
-        cachedStats_[i] = workingBuffer_->provinces[i];
+    if (!activeGPUReadOp_ || !activeGPUReadOp_->isValid()) {
+        SPDLOG_ERROR("GPU: Failed to start async GPU read");
+        state_ = SimulationState::Idle;
+        return;
     }
+
+    state_ = SimulationState::ReadingFromGPU;
+
+    SPDLOG_TRACE("GPU: Started async read ({} bytes)", sizeof(ProvinceDataBuffer));
 }
 
-void ProvinceSimulationGPU::syncParametersToMaterial() {
+// =============================================================================
+// INITIALIZATION HELPERS
+// =============================================================================
+
+void ProvinceSimulationGPU::initializeGPUData() {
+    if (!material_) return;
+
+    auto inputOutputBuffer = material_->GetInputOutputBuffer();
+    if (!inputOutputBuffer) {
+        SPDLOG_ERROR("GPU: InputOutput buffer not available");
+        return;
+    }
+
+    // Generate random data on CPU
+    std::mt19937 gen;
+    if (randParams_.randomSeed == 0) {
+        std::random_device rd;
+        gen.seed(rd());
+    }
+    else {
+        gen.seed(randParams_.randomSeed);
+    }
+
+    std::uniform_real_distribution<float> popDist(
+        randParams_.minPopulation,
+        randParams_.maxPopulation
+    );
+    std::uniform_real_distribution<float> foodProdDist(
+        randParams_.minFoodProduction,
+        randParams_.maxFoodProduction
+    );
+
+    // Prepare temporary buffer
+    auto tempBuffer = std::make_unique<ProvinceDataBuffer>();
+
+    // Initialize active provinces
+    for (uint32_t i = 0; i < simParams_.numProvinces; ++i) {
+        tempBuffer->provinces[i] = {
+            popDist(gen),
+            foodProdDist(gen),
+            0.0f,
+            randParams_.initialFoodStorage
+        };
+    }
+
+    // Zero unused provinces
+    for (uint32_t i = simParams_.numProvinces; i < MAX_PROVINCES; ++i) {
+        tempBuffer->provinces[i] = { 0.0f, 0.0f, 0.0f, 0.0f };
+    }
+
+    // Direct CPU -> GPU copy (blocking, but only happens during initialization)
+    inputOutputBuffer->CopyToGPUDirect(
+        tempBuffer.get(),
+        0,
+        sizeof(ProvinceDataBuffer)
+    );
+
+    SPDLOG_DEBUG("Initialized {} provinces with direct GPU write ({} bytes)",
+        simParams_.numProvinces, sizeof(ProvinceDataBuffer));
+}
+
+void ProvinceSimulationGPU::syncParametersToGPU() {
     if (!material_) return;
 
     auto inputBuffer = material_->GetInputBuffer();
@@ -342,9 +367,13 @@ void ProvinceSimulationGPU::syncParametersToMaterial() {
         return;
     }
 
-    uint8_t* rawBuffer = inputBuffer->GetRawBuffer();
+    // Direct CPU -> GPU write for parameters (small, uniform buffer)
+    inputBuffer->CopyToGPUDirect(
+        &simParams_,
+        0,
+        sizeof(SimulationParameters)
+    );
 
-    std::memcpy(rawBuffer, &simParams_, sizeof(SimulationParameters));
-
-    SPDLOG_DEBUG("Synced simulation parameters ({} bytes)", sizeof(SimulationParameters));
+    SPDLOG_DEBUG("Synced simulation parameters to GPU ({} bytes)",
+        sizeof(SimulationParameters));
 }

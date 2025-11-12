@@ -3,38 +3,83 @@
 #include <vector>
 #include <unordered_map>
 #include <memory>
+#include <mutex>
 #include "BufferObjectInstance.h"
-#include "AsyncBufferSync.h"
-#include "ThreadPool.h"
 #include "ShaderLib.h"
 
+/**
+ * BufferBundle - Field routing and buffer management
+ *
+ * Purpose:
+ * - Route field paths to appropriate BufferObjectInstance
+ * - Provide convenient access to buffers by identifier
+ * - Delegate metadata queries to BufferLayout
+ *
+ * Design:
+ * - Pure routing layer - NO synchronization logic
+ * - Delegates all operations to BufferObjectInstance
+ * - Delegates metadata queries to BufferLayout
+ * - Thread-safe buffer registration/lookup
+ */
 class BufferBundle {
 public:
+    // ========================================================================
+    // BUFFER ENTRY
+    // ========================================================================
+
     struct BufferEntry {
         std::string identifier;
         std::shared_ptr<ShaderLib::BufferObjectInstance> buffer;
-        std::unique_ptr<AsyncBufferSync> asyncSync;
         uint32_t binding;
     };
 
-    // Field metadata
+    // ========================================================================
+    // FIELD METADATA (simplified - just routing info)
+    // ========================================================================
+
     struct FieldInfo {
-        std::string name;
         std::string path;
-        std::string bufferIdentifier;  // Który bufor zawiera to pole
-        ShaderLib::BaseType baseType;
+        std::string bufferIdentifier;
         uint32_t binding;
-        bool isBaseType;
-        bool isArray;
-        uint32_t arraySize;
-        uint32_t offset;
-        uint32_t size;
+        const ShaderLib::FieldDescriptor* descriptor; // Points to actual descriptor in layout
     };
 
-    explicit BufferBundle(ThreadPool& threadPool);
-    ~BufferBundle();
+    // ========================================================================
+    // BUFFER PROXY - Direct access to BufferObjectInstance
+    // ========================================================================
 
-    // Buffer registration
+    class BufferProxy {
+    public:
+        BufferProxy(std::shared_ptr<ShaderLib::BufferObjectInstance> buffer)
+            : m_buffer(buffer) {
+        }
+
+        ShaderLib::BufferObjectInstance* operator->() { return m_buffer.get(); }
+        const ShaderLib::BufferObjectInstance* operator->() const { return m_buffer.get(); }
+
+        ShaderLib::BufferObjectInstance& operator*() { return *m_buffer; }
+        const ShaderLib::BufferObjectInstance& operator*() const { return *m_buffer; }
+
+        std::shared_ptr<ShaderLib::BufferObjectInstance> Get() { return m_buffer; }
+        std::shared_ptr<const ShaderLib::BufferObjectInstance> Get() const { return m_buffer; }
+
+        explicit operator bool() const { return m_buffer != nullptr; }
+
+    private:
+        std::shared_ptr<ShaderLib::BufferObjectInstance> m_buffer;
+    };
+
+    // ========================================================================
+    // CONSTRUCTION
+    // ========================================================================
+
+    BufferBundle() = default;
+    ~BufferBundle() = default;
+
+    // ========================================================================
+    // BUFFER REGISTRATION
+    // ========================================================================
+
     void AddBuffer(
         const std::string& identifier,
         std::shared_ptr<ShaderLib::BufferObjectInstance> buffer,
@@ -44,19 +89,31 @@ public:
     void RemoveBuffer(const std::string& identifier);
     void Clear();
 
-    // Buffer queries
+    // ========================================================================
+    // BUFFER ACCESS
+    // ========================================================================
+
     bool HasBuffer(const std::string& identifier) const;
-    std::shared_ptr<ShaderLib::BufferObjectInstance> GetBuffer(const std::string& identifier) const;
+    BufferProxy GetBuffer(const std::string& identifier);
+    BufferProxy operator[](const std::string& identifier);
+
     std::vector<std::string> GetBufferIdentifiers() const;
     size_t GetBufferCount() const { return m_buffers.size(); }
 
-    // Field routing
-    std::shared_ptr<ShaderLib::BufferObjectInstance> GetBufferForField(const std::string& path) const;
-    std::string GetBufferIdentifierForField(const std::string& path) const;
+    // ========================================================================
+    // FIELD ROUTING
+    // ========================================================================
 
-    // Field access
-    ShaderLib::FieldProxy GetField(const std::string& path);
+    BufferProxy GetBufferForField(const std::string& path);
+    std::string GetBufferIdentifierForField(const std::string& path) const;
     bool HasField(const std::string& path) const;
+
+    // Get field info with routing + descriptor
+    const FieldInfo* GetFieldInfo(const std::string& path) const;
+
+    // ========================================================================
+    // CONVENIENT FIELD ACCESS (delegates to routed buffer)
+    // ========================================================================
 
     template<typename T>
     T Get(const std::string& path) const;
@@ -64,95 +121,54 @@ public:
     template<typename T>
     void Set(const std::string& path, const T& value);
 
+    ShaderLib::FieldProxy GetField(const std::string& path);
+
     // ========================================================================
-    // FIELD METADATA API
+    // FIELD METADATA API - Delegated to BufferLayout
     // ========================================================================
 
-    // Pobierz informacje o polu (po nazwie lub ścieżce)
-    const FieldInfo* GetFieldInfo(const std::string& nameOrPath) const;
-
-    // Pobierz wszystkie top-level nazwy pól
+    // Get all top-level field names from all buffers
     std::vector<std::string> GetTopLevelFieldNames() const;
 
-    // Pobierz wszystkie ścieżki pól
+    // Get all field paths from all buffers
     std::vector<std::string> GetAllFieldPaths() const;
 
-    // Pobierz ścieżki pól należące do danego top-level pola
-    std::vector<std::string> GetFieldPaths(const std::string& topLevelName) const;
+    // Get field names for a specific buffer
+    std::vector<std::string> GetFieldNames(const std::string& bufferIdentifier) const;
 
-    // Sprawdź czy pole jest tablicą
-    bool IsArrayField(const std::string& name) const;
-
-    // Pobierz rozmiar tablicy
-    size_t GetArraySize(const std::string& name) const;
-
-    // Sprawdź czy pole jest strukturą
-    bool IsStructureField(const std::string& name) const;
-
-    // Pobierz dzieci struktury
-    std::vector<std::string> GetStructureChildren(const std::string& name) const;
-
-    // ========================================================================
-    // SYNCHRONOUS OPERATIONS
-    // ========================================================================
-
-    void SyncAllToGPU();
-    void SyncAllFromGPU();
-    void SyncBufferToGPU(const std::string& identifier);
-    void SyncBufferFromGPU(const std::string& identifier);
-    void SyncFieldsToGPU(const std::vector<std::string>& paths);
-    void SyncFieldsFromGPU(const std::vector<std::string>& paths);
-
-    // ========================================================================
-    // ASYNCHRONOUS OPERATIONS
-    // ========================================================================
-
-    std::vector<BufferSyncTaskHandle> SyncAllToGPUAsync();
-    std::vector<BufferSyncTaskHandle> SyncAllFromGPUAsync();
-    BufferSyncTaskHandle SyncBufferToGPUAsync(const std::string& identifier);
-    BufferSyncTaskHandle SyncBufferFromGPUAsync(const std::string& identifier);
-    std::vector<BufferSyncTaskHandle> SyncFieldsToGPUAsync(const std::vector<std::string>& paths);
-    std::vector<BufferSyncTaskHandle> SyncFieldsFromGPUAsync(const std::vector<std::string>& paths);
-
-    // ========================================================================
-    // TASK MANAGEMENT
-    // ========================================================================
-
-    bool AreTasksComplete(const std::vector<BufferSyncTaskHandle>& tasks) const;
-    void WaitForTasks(const std::vector<BufferSyncTaskHandle>& tasks);
-    void WaitForAllTasks();
-    void PollCompletedTasks();
-    size_t GetActiveTaskCount() const;
+    // Query field properties (checks all buffers)
+    bool IsArrayField(const std::string& path) const;
+    bool IsStructureField(const std::string& path) const;
+    std::vector<std::string> GetStructureChildren(const std::string& path) const;
 
 private:
+    // ========================================================================
+    // INTERNAL STRUCTURES
+    // ========================================================================
+
     struct FieldRouting {
         std::string bufferIdentifier;
         uint32_t binding;
     };
 
-    // Cache building
+    // ========================================================================
+    // CACHE BUILDING
+    // ========================================================================
+
     void BuildFieldRoutingCache();
-    void BuildFieldMetadataCache();
 
-    // Helpers
+    // ========================================================================
+    // HELPERS
+    // ========================================================================
+
     const FieldRouting* FindRouting(const std::string& path) const;
-    std::unordered_map<std::string, std::vector<std::string>> GroupFieldsByBuffer(
-        const std::vector<std::string>& paths
-    ) const;
-    std::string ExtractTopLevelName(const std::string& path) const;
 
-    // Field metadata helpers
-    const FieldInfo* FindFieldInfo(const std::string& nameOrPath) const;
+    // ========================================================================
+    // DATA
+    // ========================================================================
 
-    ThreadPool& m_threadPool;
     std::unordered_map<std::string, BufferEntry> m_buffers;
-
-    // Field routing cache
     std::unordered_map<std::string, FieldRouting> m_fieldRoutingCache;
-
-    // Field metadata cache (przeniesione z Material)
-    std::unordered_map<std::string, FieldInfo> m_fieldInfoCache;
-    std::unordered_map<std::string, std::vector<std::string>> m_topLevelToPaths;
 
     mutable std::mutex m_mutex;
 };
@@ -163,18 +179,18 @@ private:
 
 template<typename T>
 inline T BufferBundle::Get(const std::string& path) const {
-    auto buffer = GetBufferForField(path);
-    if (!buffer) {
+    auto proxy = const_cast<BufferBundle*>(this)->GetBufferForField(path);
+    if (!proxy) {
         throw std::runtime_error("BufferBundle: Field not found: " + path);
     }
-    return buffer->Get<T>(path);
+    return proxy->Get<T>(path);
 }
 
 template<typename T>
 inline void BufferBundle::Set(const std::string& path, const T& value) {
-    auto buffer = GetBufferForField(path);
-    if (!buffer) {
+    auto proxy = GetBufferForField(path);
+    if (!proxy) {
         throw std::runtime_error("BufferBundle: Field not found: " + path);
     }
-    buffer->Set(path, value);
+    proxy->Set(path, value);
 }

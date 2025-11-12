@@ -2,16 +2,6 @@
 #include <spdlog/spdlog.h>
 #include <algorithm>
 
-BufferBundle::BufferBundle(ThreadPool& threadPool)
-    : m_threadPool(threadPool)
-{
-}
-
-BufferBundle::~BufferBundle() {
-    WaitForAllTasks();
-    Clear();
-}
-
 // =============================================================================
 // BUFFER REGISTRATION
 // =============================================================================
@@ -32,7 +22,6 @@ void BufferBundle::AddBuffer(
     entry.identifier = identifier;
     entry.buffer = buffer;
     entry.binding = binding;
-    entry.asyncSync = std::make_unique<AsyncBufferSync>(buffer, m_threadPool);
 
     m_buffers[identifier] = std::move(entry);
 
@@ -47,12 +36,9 @@ void BufferBundle::RemoveBuffer(const std::string& identifier) {
 
     auto it = m_buffers.find(identifier);
     if (it != m_buffers.end()) {
-        // Wait for pending tasks on this buffer
-        if (it->second.asyncSync) {
-            it->second.asyncSync->WaitForAllTasks();
-        }
-
         m_buffers.erase(it);
+
+        // Rebuild routing cache
         BuildFieldRoutingCache();
 
         SPDLOG_DEBUG("BufferBundle: Removed buffer '{}'", identifier);
@@ -62,13 +48,6 @@ void BufferBundle::RemoveBuffer(const std::string& identifier) {
 void BufferBundle::Clear() {
     std::lock_guard<std::mutex> lock(m_mutex);
 
-    // Wait for all tasks
-    for (auto& [id, entry] : m_buffers) {
-        if (entry.asyncSync) {
-            entry.asyncSync->WaitForAllTasks();
-        }
-    }
-
     m_buffers.clear();
     m_fieldRoutingCache.clear();
 
@@ -76,7 +55,7 @@ void BufferBundle::Clear() {
 }
 
 // =============================================================================
-// BUFFER QUERIES
+// BUFFER ACCESS
 // =============================================================================
 
 bool BufferBundle::HasBuffer(const std::string& identifier) const {
@@ -84,15 +63,19 @@ bool BufferBundle::HasBuffer(const std::string& identifier) const {
     return m_buffers.find(identifier) != m_buffers.end();
 }
 
-std::shared_ptr<ShaderLib::BufferObjectInstance> BufferBundle::GetBuffer(const std::string& identifier) const {
+BufferBundle::BufferProxy BufferBundle::GetBuffer(const std::string& identifier) {
     std::lock_guard<std::mutex> lock(m_mutex);
 
     auto it = m_buffers.find(identifier);
     if (it != m_buffers.end()) {
-        return it->second.buffer;
+        return BufferProxy(it->second.buffer);
     }
 
-    return nullptr;
+    return BufferProxy(nullptr);
+}
+
+BufferBundle::BufferProxy BufferBundle::operator[](const std::string& identifier) {
+    return GetBuffer(identifier);
 }
 
 std::vector<std::string> BufferBundle::GetBufferIdentifiers() const {
@@ -113,10 +96,10 @@ std::vector<std::string> BufferBundle::GetBufferIdentifiers() const {
 // FIELD ROUTING
 // =============================================================================
 
-std::shared_ptr<ShaderLib::BufferObjectInstance> BufferBundle::GetBufferForField(const std::string& path) const {
+BufferBundle::BufferProxy BufferBundle::GetBufferForField(const std::string& path) {
     const FieldRouting* routing = FindRouting(path);
     if (!routing) {
-        return nullptr;
+        return BufferProxy(nullptr);
     }
 
     return GetBuffer(routing->bufferIdentifier);
@@ -127,451 +110,153 @@ std::string BufferBundle::GetBufferIdentifierForField(const std::string& path) c
     return routing ? routing->bufferIdentifier : "";
 }
 
-// =============================================================================
-// FIELD ACCESS
-// =============================================================================
-
-ShaderLib::FieldProxy BufferBundle::GetField(const std::string& path) {
-    auto buffer = GetBufferForField(path);
-    if (!buffer) {
-        throw std::runtime_error("BufferBundle: Field not found: " + path);
-    }
-    return buffer->GetField(path);
-}
-
 bool BufferBundle::HasField(const std::string& path) const {
     return FindRouting(path) != nullptr;
 }
 
+const BufferBundle::FieldInfo* BufferBundle::GetFieldInfo(const std::string& path) const {
+    std::lock_guard<std::mutex> lock(m_mutex);
+
+    auto routingIt = m_fieldRoutingCache.find(path);
+    if (routingIt == m_fieldRoutingCache.end()) {
+        return nullptr;
+    }
+
+    auto bufferIt = m_buffers.find(routingIt->second.bufferIdentifier);
+    if (bufferIt == m_buffers.end() || !bufferIt->second.buffer) {
+        return nullptr;
+    }
+
+    const ShaderLib::FieldDescriptor* descriptor =
+        bufferIt->second.buffer->GetLayout()->FindField(path);
+
+    if (!descriptor) {
+        return nullptr;
+    }
+
+    // Create temporary FieldInfo (could be cached if needed)
+    static thread_local FieldInfo tempInfo;
+    tempInfo.path = path;
+    tempInfo.bufferIdentifier = routingIt->second.bufferIdentifier;
+    tempInfo.binding = routingIt->second.binding;
+    tempInfo.descriptor = descriptor;
+
+    return &tempInfo;
+}
+
 // =============================================================================
-// FIELD METADATA API
+// CONVENIENT FIELD ACCESS
 // =============================================================================
 
-const BufferBundle::FieldInfo* BufferBundle::GetFieldInfo(const std::string& nameOrPath) const {
-    return FindFieldInfo(nameOrPath);
+ShaderLib::FieldProxy BufferBundle::GetField(const std::string& path) {
+    auto proxy = GetBufferForField(path);
+    if (!proxy) {
+        throw std::runtime_error("BufferBundle: Field not found: " + path);
+    }
+    return proxy->GetField(path);
 }
+
+// =============================================================================
+// FIELD METADATA API - Delegated to BufferLayout
+// =============================================================================
 
 std::vector<std::string> BufferBundle::GetTopLevelFieldNames() const {
     std::lock_guard<std::mutex> lock(m_mutex);
 
-    std::vector<std::string> names;
-    names.reserve(m_topLevelToPaths.size());
+    std::vector<std::string> allNames;
 
-    for (const auto& [name, _] : m_topLevelToPaths) {
-        names.push_back(name);
+    for (const auto& [identifier, entry] : m_buffers) {
+        if (!entry.buffer) continue;
+
+        auto names = entry.buffer->GetLayout()->GetTopLevelFieldNames();
+        allNames.insert(allNames.end(), names.begin(), names.end());
     }
 
-    std::sort(names.begin(), names.end());
-    return names;
+    // Remove duplicates
+    std::sort(allNames.begin(), allNames.end());
+    allNames.erase(std::unique(allNames.begin(), allNames.end()), allNames.end());
+
+    return allNames;
 }
 
 std::vector<std::string> BufferBundle::GetAllFieldPaths() const {
     std::lock_guard<std::mutex> lock(m_mutex);
 
-    std::vector<std::string> paths;
-    paths.reserve(m_fieldInfoCache.size());
+    std::vector<std::string> allPaths;
 
-    for (const auto& [path, _] : m_fieldInfoCache) {
-        paths.push_back(path);
+    for (const auto& [identifier, entry] : m_buffers) {
+        if (!entry.buffer) continue;
+
+        auto paths = entry.buffer->GetLayout()->GetAllFieldPaths();
+        allPaths.insert(allPaths.end(), paths.begin(), paths.end());
     }
 
-    std::sort(paths.begin(), paths.end());
-    return paths;
+    // Remove duplicates
+    std::sort(allPaths.begin(), allPaths.end());
+    allPaths.erase(std::unique(allPaths.begin(), allPaths.end()), allPaths.end());
+
+    return allPaths;
 }
 
-std::vector<std::string> BufferBundle::GetFieldPaths(const std::string& topLevelName) const {
+std::vector<std::string> BufferBundle::GetFieldNames(const std::string& bufferIdentifier) const {
     std::lock_guard<std::mutex> lock(m_mutex);
 
-    auto it = m_topLevelToPaths.find(topLevelName);
-    if (it != m_topLevelToPaths.end()) {
-        std::vector<std::string> paths = it->second;
-        std::sort(paths.begin(), paths.end());
-        return paths;
+    auto it = m_buffers.find(bufferIdentifier);
+    if (it == m_buffers.end() || !it->second.buffer) {
+        return {};
+    }
+
+    return it->second.buffer->GetLayout()->GetTopLevelFieldNames();
+}
+
+bool BufferBundle::IsArrayField(const std::string& path) const {
+    std::lock_guard<std::mutex> lock(m_mutex);
+
+    // Check each buffer's layout
+    for (const auto& [identifier, entry] : m_buffers) {
+        if (!entry.buffer) continue;
+
+        if (entry.buffer->GetLayout()->IsArrayField(path)) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+bool BufferBundle::IsStructureField(const std::string& path) const {
+    std::lock_guard<std::mutex> lock(m_mutex);
+
+    // Check each buffer's layout
+    for (const auto& [identifier, entry] : m_buffers) {
+        if (!entry.buffer) continue;
+
+        if (entry.buffer->GetLayout()->IsStructureField(path)) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+std::vector<std::string> BufferBundle::GetStructureChildren(const std::string& path) const {
+    std::lock_guard<std::mutex> lock(m_mutex);
+
+    // Try to find in each buffer
+    for (const auto& [identifier, entry] : m_buffers) {
+        if (!entry.buffer) continue;
+
+        auto children = entry.buffer->GetLayout()->GetStructureChildren(path);
+        if (!children.empty()) {
+            return children;
+        }
     }
 
     return {};
 }
 
-bool BufferBundle::IsArrayField(const std::string& name) const {
-    const FieldInfo* info = FindFieldInfo(name);
-    return info && info->isArray;
-}
-
-size_t BufferBundle::GetArraySize(const std::string& name) const {
-    const FieldInfo* info = FindFieldInfo(name);
-    return info ? info->arraySize : 0;
-}
-
-bool BufferBundle::IsStructureField(const std::string& name) const {
-    const FieldInfo* info = FindFieldInfo(name);
-    return info && !info->isBaseType;
-}
-
-std::vector<std::string> BufferBundle::GetStructureChildren(const std::string& name) const {
-    if (!IsStructureField(name)) {
-        return {};
-    }
-
-    std::lock_guard<std::mutex> lock(m_mutex);
-
-    std::vector<std::string> children;
-    std::string prefix = name + ".";
-
-    // Find all paths that start with "name."
-    for (const auto& [path, _] : m_fieldInfoCache) {
-        if (path.find(prefix) == 0) {
-            // Extract immediate child name (without further nesting)
-            std::string remainder = path.substr(prefix.length());
-            size_t dotPos = remainder.find('.');
-            size_t bracketPos = remainder.find('[');
-            size_t endPos = std::min(dotPos, bracketPos);
-
-            std::string childName = (endPos != std::string::npos)
-                ? remainder.substr(0, endPos)
-                : remainder;
-
-            // Add unique child names
-            if (std::find(children.begin(), children.end(), childName) == children.end()) {
-                children.push_back(childName);
-            }
-        }
-    }
-
-    std::sort(children.begin(), children.end());
-    return children;
-}
-
 // =============================================================================
-// INTERNAL HELPERS - FIELD METADATA
-// =============================================================================
-
-void BufferBundle::BuildFieldMetadataCache() {
-    // Caller must hold m_mutex
-    m_fieldInfoCache.clear();
-    m_topLevelToPaths.clear();
-
-    for (const auto& [bufferId, entry] : m_buffers) {
-        if (!entry.buffer) {
-            continue;
-        }
-
-        const auto& allFields = entry.buffer->GetDefinition()->GetAllFields();
-
-        for (const auto& field : allFields) {
-            FieldInfo info;
-            info.name = field.name;
-            info.path = field.path;
-            info.bufferIdentifier = bufferId;
-            info.baseType = field.baseType;
-            info.binding = entry.binding;
-            info.isBaseType = field.isBaseType;
-            info.isArray = field.isArray;
-            info.arraySize = field.arraySize;
-            info.offset = field.offset;
-            info.size = field.size;
-
-            m_fieldInfoCache[field.path] = info;
-
-            std::string topLevelName = ExtractTopLevelName(field.path);
-            m_topLevelToPaths[topLevelName].push_back(field.path);
-        }
-    }
-
-    SPDLOG_DEBUG("BufferBundle: Built metadata cache with {} fields ({} top-level)",
-        m_fieldInfoCache.size(), m_topLevelToPaths.size());
-}
-
-const BufferBundle::FieldInfo* BufferBundle::FindFieldInfo(const std::string& nameOrPath) const {
-    std::lock_guard<std::mutex> lock(m_mutex);
-
-    // Try as path first (full match)
-    auto it = m_fieldInfoCache.find(nameOrPath);
-    if (it != m_fieldInfoCache.end()) {
-        return &it->second;
-    }
-
-    // Try as top-level name
-    auto topIt = m_topLevelToPaths.find(nameOrPath);
-    if (topIt != m_topLevelToPaths.end() && !topIt->second.empty()) {
-        const std::string& firstPath = topIt->second[0];
-        auto infoIt = m_fieldInfoCache.find(firstPath);
-        if (infoIt != m_fieldInfoCache.end()) {
-            return &infoIt->second;
-        }
-    }
-
-    return nullptr;
-}
-
-std::string BufferBundle::ExtractTopLevelName(const std::string& path) const {
-    // Extract name before first '.' or '['
-    size_t dotPos = path.find('.');
-    size_t bracketPos = path.find('[');
-    size_t endPos = std::min(dotPos, bracketPos);
-
-    if (endPos == std::string::npos) {
-        return path;
-    }
-
-    return path.substr(0, endPos);
-}
-
-// =============================================================================
-// SYNCHRONOUS OPERATIONS
-// =============================================================================
-
-void BufferBundle::SyncAllToGPU() {
-    std::lock_guard<std::mutex> lock(m_mutex);
-
-    for (auto& [id, entry] : m_buffers) {
-        if (entry.asyncSync) {
-            entry.asyncSync->SyncToGPU();
-        }
-    }
-
-    SPDLOG_TRACE("BufferBundle: Synced all buffers to GPU");
-}
-
-void BufferBundle::SyncAllFromGPU() {
-    std::lock_guard<std::mutex> lock(m_mutex);
-
-    for (auto& [id, entry] : m_buffers) {
-        if (entry.asyncSync) {
-            entry.asyncSync->SyncFromGPU();
-        }
-    }
-
-    SPDLOG_TRACE("BufferBundle: Synced all buffers from GPU");
-}
-
-void BufferBundle::SyncBufferToGPU(const std::string& identifier) {
-    std::lock_guard<std::mutex> lock(m_mutex);
-
-    auto it = m_buffers.find(identifier);
-    if (it != m_buffers.end() && it->second.asyncSync) {
-        it->second.asyncSync->SyncToGPU();
-        SPDLOG_TRACE("BufferBundle: Synced buffer '{}' to GPU", identifier);
-    }
-}
-
-void BufferBundle::SyncBufferFromGPU(const std::string& identifier) {
-    std::lock_guard<std::mutex> lock(m_mutex);
-
-    auto it = m_buffers.find(identifier);
-    if (it != m_buffers.end() && it->second.asyncSync) {
-        it->second.asyncSync->SyncFromGPU();
-        SPDLOG_TRACE("BufferBundle: Synced buffer '{}' from GPU", identifier);
-    }
-}
-
-void BufferBundle::SyncFieldsToGPU(const std::vector<std::string>& paths) {
-    auto groupedFields = GroupFieldsByBuffer(paths);
-
-    std::lock_guard<std::mutex> lock(m_mutex);
-
-    for (const auto& [bufferId, fieldPaths] : groupedFields) {
-        auto it = m_buffers.find(bufferId);
-        if (it != m_buffers.end() && it->second.asyncSync) {
-            it->second.asyncSync->SyncFieldsToGPU(fieldPaths);
-        }
-    }
-
-    SPDLOG_TRACE("BufferBundle: Synced {} fields to GPU", paths.size());
-}
-
-void BufferBundle::SyncFieldsFromGPU(const std::vector<std::string>& paths) {
-    auto groupedFields = GroupFieldsByBuffer(paths);
-
-    std::lock_guard<std::mutex> lock(m_mutex);
-
-    for (const auto& [bufferId, fieldPaths] : groupedFields) {
-        auto it = m_buffers.find(bufferId);
-        if (it != m_buffers.end() && it->second.asyncSync) {
-            it->second.asyncSync->SyncFieldsFromGPU(fieldPaths);
-        }
-    }
-
-    SPDLOG_TRACE("BufferBundle: Synced {} fields from GPU", paths.size());
-}
-
-// =============================================================================
-// ASYNCHRONOUS OPERATIONS
-// =============================================================================
-
-std::vector<BufferSyncTaskHandle> BufferBundle::SyncAllToGPUAsync() {
-    std::vector<BufferSyncTaskHandle> tasks;
-
-    std::lock_guard<std::mutex> lock(m_mutex);
-
-    for (auto& [id, entry] : m_buffers) {
-        if (entry.asyncSync) {
-            BufferSyncTaskHandle task = entry.asyncSync->SyncToGPUAsync();
-            if (task.isValid()) {
-                tasks.push_back(task);
-            }
-        }
-    }
-
-    SPDLOG_TRACE("BufferBundle: Started async sync all to GPU ({} tasks)", tasks.size());
-    return tasks;
-}
-
-std::vector<BufferSyncTaskHandle> BufferBundle::SyncAllFromGPUAsync() {
-    std::vector<BufferSyncTaskHandle> tasks;
-
-    std::lock_guard<std::mutex> lock(m_mutex);
-
-    for (auto& [id, entry] : m_buffers) {
-        if (entry.asyncSync) {
-            BufferSyncTaskHandle task = entry.asyncSync->SyncFromGPUAsync();
-            if (task.isValid()) {
-                tasks.push_back(task);
-            }
-        }
-    }
-
-    SPDLOG_TRACE("BufferBundle: Started async sync all from GPU ({} tasks)", tasks.size());
-    return tasks;
-}
-
-BufferSyncTaskHandle BufferBundle::SyncBufferToGPUAsync(const std::string& identifier) {
-    std::lock_guard<std::mutex> lock(m_mutex);
-
-    auto it = m_buffers.find(identifier);
-    if (it != m_buffers.end() && it->second.asyncSync) {
-        BufferSyncTaskHandle task = it->second.asyncSync->SyncToGPUAsync();
-        SPDLOG_TRACE("BufferBundle: Started async sync buffer '{}' to GPU", identifier);
-        return task;
-    }
-
-    return BufferSyncTaskHandle();
-}
-
-BufferSyncTaskHandle BufferBundle::SyncBufferFromGPUAsync(const std::string& identifier) {
-    std::lock_guard<std::mutex> lock(m_mutex);
-
-    auto it = m_buffers.find(identifier);
-    if (it != m_buffers.end() && it->second.asyncSync) {
-        BufferSyncTaskHandle task = it->second.asyncSync->SyncFromGPUAsync();
-        SPDLOG_TRACE("BufferBundle: Started async sync buffer '{}' from GPU", identifier);
-        return task;
-    }
-
-    return BufferSyncTaskHandle();
-}
-
-std::vector<BufferSyncTaskHandle> BufferBundle::SyncFieldsToGPUAsync(const std::vector<std::string>& paths) {
-    std::vector<BufferSyncTaskHandle> tasks;
-    auto groupedFields = GroupFieldsByBuffer(paths);
-
-    std::lock_guard<std::mutex> lock(m_mutex);
-
-    for (const auto& [bufferId, fieldPaths] : groupedFields) {
-        auto it = m_buffers.find(bufferId);
-        if (it != m_buffers.end() && it->second.asyncSync) {
-            BufferSyncTaskHandle task = it->second.asyncSync->SyncFieldsToGPUAsync(fieldPaths);
-            if (task.isValid()) {
-                tasks.push_back(task);
-            }
-        }
-    }
-
-    SPDLOG_TRACE("BufferBundle: Started async field sync to GPU ({} fields, {} tasks)",
-        paths.size(), tasks.size());
-    return tasks;
-}
-
-std::vector<BufferSyncTaskHandle> BufferBundle::SyncFieldsFromGPUAsync(const std::vector<std::string>& paths) {
-    std::vector<BufferSyncTaskHandle> tasks;
-    auto groupedFields = GroupFieldsByBuffer(paths);
-
-    std::lock_guard<std::mutex> lock(m_mutex);
-
-    for (const auto& [bufferId, fieldPaths] : groupedFields) {
-        auto it = m_buffers.find(bufferId);
-        if (it != m_buffers.end() && it->second.asyncSync) {
-            BufferSyncTaskHandle task = it->second.asyncSync->SyncFieldsFromGPUAsync(fieldPaths);
-            if (task.isValid()) {
-                tasks.push_back(task);
-            }
-        }
-    }
-
-    SPDLOG_TRACE("BufferBundle: Started async field sync from GPU ({} fields, {} tasks)",
-        paths.size(), tasks.size());
-    return tasks;
-}
-
-// =============================================================================
-// TASK MANAGEMENT
-// =============================================================================
-
-bool BufferBundle::AreTasksComplete(const std::vector<BufferSyncTaskHandle>& tasks) const {
-    std::lock_guard<std::mutex> lock(m_mutex);
-
-    for (const auto& task : tasks) {
-        // Find which buffer owns this task
-        for (const auto& [id, entry] : m_buffers) {
-            if (entry.asyncSync && !entry.asyncSync->IsTaskComplete(task)) {
-                return false;
-            }
-        }
-    }
-
-    return true;
-}
-
-void BufferBundle::WaitForTasks(const std::vector<BufferSyncTaskHandle>& tasks) {
-    std::lock_guard<std::mutex> lock(m_mutex);
-
-    for (const auto& task : tasks) {
-        for (auto& [id, entry] : m_buffers) {
-            if (entry.asyncSync) {
-                entry.asyncSync->WaitForTask(task);
-            }
-        }
-    }
-
-    SPDLOG_TRACE("BufferBundle: Waited for {} tasks", tasks.size());
-}
-
-void BufferBundle::WaitForAllTasks() {
-    std::lock_guard<std::mutex> lock(m_mutex);
-
-    for (auto& [id, entry] : m_buffers) {
-        if (entry.asyncSync) {
-            entry.asyncSync->WaitForAllTasks();
-        }
-    }
-
-    SPDLOG_TRACE("BufferBundle: Waited for all tasks");
-}
-
-void BufferBundle::PollCompletedTasks() {
-    std::lock_guard<std::mutex> lock(m_mutex);
-
-    for (auto& [id, entry] : m_buffers) {
-        if (entry.asyncSync) {
-            entry.asyncSync->PollCompletedTasks();
-        }
-    }
-}
-
-size_t BufferBundle::GetActiveTaskCount() const {
-    std::lock_guard<std::mutex> lock(m_mutex);
-
-    size_t total = 0;
-    for (const auto& [id, entry] : m_buffers) {
-        if (entry.asyncSync) {
-            total += entry.asyncSync->GetActiveTaskCount();
-        }
-    }
-
-    return total;
-}
-
-// =============================================================================
-// INTERNAL HELPERS
+// CACHE BUILDING
 // =============================================================================
 
 void BufferBundle::BuildFieldRoutingCache() {
@@ -583,8 +268,7 @@ void BufferBundle::BuildFieldRoutingCache() {
             continue;
         }
 
-        // Get all fields from this buffer
-        const auto& allFields = entry.buffer->GetDefinition()->GetAllFields();
+        const auto& allFields = entry.buffer->GetLayout()->GetAllFields();
 
         for (const auto& field : allFields) {
             FieldRouting routing;
@@ -599,6 +283,10 @@ void BufferBundle::BuildFieldRoutingCache() {
         m_fieldRoutingCache.size());
 }
 
+// =============================================================================
+// HELPERS
+// =============================================================================
+
 const BufferBundle::FieldRouting* BufferBundle::FindRouting(const std::string& path) const {
     std::lock_guard<std::mutex> lock(m_mutex);
 
@@ -608,19 +296,4 @@ const BufferBundle::FieldRouting* BufferBundle::FindRouting(const std::string& p
     }
 
     return nullptr;
-}
-
-std::unordered_map<std::string, std::vector<std::string>> BufferBundle::GroupFieldsByBuffer(
-    const std::vector<std::string>& paths
-) const {
-    std::unordered_map<std::string, std::vector<std::string>> grouped;
-
-    for (const auto& path : paths) {
-        const FieldRouting* routing = FindRouting(path);
-        if (routing) {
-            grouped[routing->bufferIdentifier].push_back(path);
-        }
-    }
-
-    return grouped;
 }

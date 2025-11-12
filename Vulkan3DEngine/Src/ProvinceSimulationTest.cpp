@@ -39,10 +39,8 @@ void ProvinceSimulationTest::OnUpdate(float deltaTime) {
     }
 
     // Handle asset loading for GPU
-    if (currentMode_ == SimulationMode::GPU) {
-        AssetManager& assetManager = getEngine()->assetSystem().assetManager();
-        assetManager.ensureReady(AssetHandle(AssetLib::AssetType::Shader, "ProvinceSimulation"));
-    }
+    AssetManager& assetManager = getEngine()->assetSystem().assetManager();
+    assetManager.ensureReady(AssetHandle(AssetLib::AssetType::Shader, "ProvinceSimulation"));
 }
 
 void ProvinceSimulationTest::OnDestroy() {
@@ -142,8 +140,7 @@ void ProvinceSimulationTest::createGPUSimulation() {
 
     // Create GPU simulation with AsyncMemoryOps
     auto gpuSim = std::make_unique<ProvinceSimulationGPU>(
-        computeDispatcher_,
-        asyncMemoryOps_.get()
+        computeDispatcher_
     );
 
     // Create material

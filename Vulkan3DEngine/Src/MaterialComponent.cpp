@@ -219,7 +219,7 @@ void MaterialComponent::renderFieldUI(const std::string& fieldName, Material* ma
 
         if (changed) {
             // Sync field to GPU buffer
-            material->SyncToGPU();
+            material->SyncAllToGPU();
             incrementVersion();
         }
     }

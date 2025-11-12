@@ -49,6 +49,9 @@
     <ClInclude Include="FieldDescriptor.h">
       <Filter>Buffers\BufferObjectInstance\BufferObjectDefinition\BufferLayout</Filter>
     </ClInclude>
+    <ClInclude Include="IAsyncMemoryOperations.h">
+      <Filter>Buffers</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="pch.cpp" />

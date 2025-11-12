@@ -43,8 +43,8 @@ struct RandomizationParameters {
     uint32_t randomSeed = 0; // 0 = use random_device
 };
 
-// Large buffer for all provinces (1 MB)
-constexpr size_t MAX_PROVINCES = 65536;
+// Large buffer for all provinces (16 MB)
+constexpr size_t MAX_PROVINCES = 1048576;
 struct ProvinceDataBuffer {
     ProvinceData provinces[MAX_PROVINCES];
 };

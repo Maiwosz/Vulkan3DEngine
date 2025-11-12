@@ -25,7 +25,7 @@ ShaderData {
     };
     
     InputOutputData {
-        ProvinceData provinces[65536];  // Support up to 65536 provinces
+        ProvinceData provinces[1048576];  // Support up to 1048576 provinces
     };
 };
 

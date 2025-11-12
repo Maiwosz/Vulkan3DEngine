@@ -92,20 +92,13 @@ ProcessingResult UniformBufferStage::processMeshOrder(std::shared_ptr<MeshRender
     objectData.model = transformComponent.getWorldMatrix();
     objectData.color = glm::vec4(1.0f, 1.0f, 1.0f, 1.0f);
 
-    // Single memcpy for entire buffer
-    uint8_t* rawBuffer = m_cachedInstance->GetRawBuffer();
-    std::memcpy(rawBuffer, &objectData, sizeof(ShaderLib::ObjectUBOData));
-
-    SPDLOG_DEBUG("Set object UBO data for entity {} using single memcpy", order->entity.id);
-
-    // Synchronize to GPU buffer
+    // Bezpośrednio kopiuj do GPU - jedno kopiowanie zamiast dwóch!
     try {
-        m_cachedInstance->SyncToBuffer();
-        smartObjectUbo->unmap();
-        SPDLOG_DEBUG("Successfully synchronized object UBO data to GPU for entity {}", order->entity.id);
+        m_cachedInstance->CopyToGPUDirect(&objectData, 0, sizeof(ShaderLib::ObjectUBOData));
+        SPDLOG_DEBUG("Directly copied object UBO data to GPU for entity {}", order->entity.id);
     }
     catch (const std::exception& e) {
-        SPDLOG_ERROR("Failed to sync object UBO to buffer: {}", e.what());
+        SPDLOG_ERROR("Failed to copy object UBO to GPU: {}", e.what());
         return ProcessingResult::Failure;
     }
 

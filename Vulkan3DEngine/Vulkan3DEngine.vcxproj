@@ -176,7 +176,6 @@
     <ClCompile Include="Src\ProvinceSimulationGPU.cpp" />
     <ClCompile Include="Src\ProvinceSimulationCPU.cpp" />
     <ClCompile Include="Src\DescriptorSetGuard.cpp" />
-    <ClCompile Include="Src\AsyncBufferSync.cpp" />
     <ClCompile Include="Src\BufferBundle.cpp" />
     <ClCompile Include="Src\CppScriptSystem.cpp" />
     <ClCompile Include="Src\LuaScriptSystem.cpp" />
@@ -311,7 +310,6 @@
     <ClInclude Include="Src\ProvinceSimulationGPU.h" />
     <ClInclude Include="Src\ProvinceSimulationCPU.h" />
     <ClInclude Include="Src\DescriptorSetGuard.h" />
-    <ClInclude Include="Src\AsyncBufferSync.h" />
     <ClInclude Include="Src\BufferBundle.h" />
     <ClInclude Include="Src\ProvinceSimulationUI.h" />
     <ClInclude Include="Src\ComputeShaderTestScript.h" />

@@ -7,12 +7,53 @@ BufferManager::BufferManager(VramManager& vramManager)
 }
 
 BufferManager::~BufferManager() {
+    // Unmap all persistently mapped buffers before destruction
     for (auto& [handle, info] : m_buffers) {
+        if (info.isPersistentlyMapped) {
+            Buffer* buffer = m_vramManager.getResource<Buffer>(info.vramHandle);
+            if (buffer && buffer->isMapped()) {
+                buffer->unmap();
+            }
+        }
         m_vramManager.freeResource(info.vramHandle);
     }
     m_buffers.clear();
     m_bufferPool.clear();
     m_resourceCache.clear();
+}
+
+void BufferManager::ensureBufferMapped(BufferHandle handle) {
+    if (!isValid(handle)) {
+        return;
+    }
+
+    auto& bufferInfo = m_buffers[handle];
+
+    // Skip if already mapped
+    if (bufferInfo.isPersistentlyMapped) {
+        return;
+    }
+
+    Buffer* buffer = m_vramManager.getResource<Buffer>(bufferInfo.vramHandle);
+    if (!buffer) {
+        SPDLOG_ERROR("Failed to get buffer resource for persistent mapping: {}", bufferInfo.name);
+        return;
+    }
+
+    // Map the buffer persistently
+    try {
+        buffer->map();
+        bufferInfo.isPersistentlyMapped = true;
+
+        SPDLOG_DEBUG("Persistently mapped {} buffer '{}' at address {:p}",
+            bufferInfo.bufferType == ShaderLib::BufferType::Uniform ? "uniform" : "storage",
+            bufferInfo.name,
+            buffer->getMappedPointer());
+    }
+    catch (const std::exception& e) {
+        SPDLOG_ERROR("Failed to persistently map buffer '{}': {}", bufferInfo.name, e.what());
+        bufferInfo.isPersistentlyMapped = false;
+    }
 }
 
 BufferHandle BufferManager::createNewBuffer(std::shared_ptr<const ShaderLib::BufferObjectDefinition> bufferInfo) {
@@ -57,14 +98,18 @@ BufferHandle BufferManager::createNewBuffer(std::shared_ptr<const ShaderLib::Buf
     bufInfo.inUse = true;
     bufInfo.referenceCount = 0;
     bufInfo.bufferObject = bufferInfo;
+    bufInfo.isPersistentlyMapped = false;
 
     m_buffers[handle] = std::move(bufInfo);
+
+    // Immediately map the buffer persistently
+    ensureBufferMapped(handle);
 
     return handle;
 }
 
 BufferHandle BufferManager::findReusableBuffer(std::shared_ptr<const ShaderLib::BufferObjectDefinition> bufferInfo) {
-    BufferPoolKey key{ bufferInfo->GetName(), bufferInfo->GetTotalSize(), bufferInfo->GetBufferType()};
+    BufferPoolKey key{ bufferInfo->GetName(), bufferInfo->GetTotalSize(), bufferInfo->GetBufferType() };
     auto it = m_bufferPool.find(key);
 
     if (it != m_bufferPool.end() && !it->second.empty()) {
@@ -74,7 +119,10 @@ BufferHandle BufferManager::findReusableBuffer(std::shared_ptr<const ShaderLib::
         auto& bufInfo = m_buffers[handle];
         bufInfo.inUse = true;
 
-        SPDLOG_DEBUG("Reusing existing {} buffer '{}' from pool",
+        // Ensure the reused buffer is still mapped
+        ensureBufferMapped(handle);
+
+        SPDLOG_DEBUG("Reusing existing {} buffer '{}' from pool (persistently mapped)",
             bufferInfo->IsUniformBuffer() ? "uniform" : "storage", bufferInfo->GetName());
         return handle;
     }
@@ -113,12 +161,15 @@ void BufferManager::releaseBuffer(BufferHandle handle) {
 
     bufferInfo.inUse = false;
 
+    // Keep the buffer persistently mapped even when returned to pool
+    // This avoids map/unmap overhead when buffer is reused
+
     BufferPoolKey key{ bufferInfo.name, bufferInfo.size, bufferInfo.bufferType };
     m_bufferPool[key].push_back(handle);
 
     m_resourceCache.erase(handle);
 
-    SPDLOG_DEBUG("Released {} buffer '{}' back to pool",
+    SPDLOG_DEBUG("Released {} buffer '{}' back to pool (keeping persistent mapping)",
         bufferInfo.bufferType == ShaderLib::BufferType::Uniform ? "uniform" : "storage",
         bufferInfo.name);
 }
@@ -180,12 +231,14 @@ void BufferManager::removeReference(BufferHandle handle) {
         if (bufferInfo.referenceCount == 0 && bufferInfo.inUse) {
             bufferInfo.inUse = false;
 
+            // Keep persistent mapping when returning to pool
             BufferPoolKey key{ bufferInfo.name, bufferInfo.size, bufferInfo.bufferType };
             m_bufferPool[key].push_back(handle);
 
             m_resourceCache.erase(handle);
 
-            SPDLOG_DEBUG("Buffer '{}' returned to pool due to zero references", bufferInfo.name);
+            SPDLOG_DEBUG("Buffer '{}' returned to pool due to zero references (keeping persistent mapping)",
+                bufferInfo.name);
         }
     }
 }
@@ -217,6 +270,15 @@ void BufferManager::cleanupUnusedBuffers(uint64_t timeThreshold) {
             for (size_t i = 0; i < buffersToRemove; ++i) {
                 BufferHandle handle = pool.back();
                 pool.pop_back();
+
+                // Unmap before destroying
+                auto& bufferInfo = m_buffers[handle];
+                if (bufferInfo.isPersistentlyMapped) {
+                    Buffer* buffer = m_vramManager.getResource<Buffer>(bufferInfo.vramHandle);
+                    if (buffer && buffer->isMapped()) {
+                        buffer->unmap();
+                    }
+                }
 
                 m_resourceCache.erase(handle);
                 m_vramManager.freeResource(m_buffers[handle].vramHandle);
