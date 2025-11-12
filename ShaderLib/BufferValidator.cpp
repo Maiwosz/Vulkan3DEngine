@@ -348,7 +348,10 @@ namespace ShaderLib {
                 const uint8_t* srcPtr = sourceInstance->GetRawBuffer() + materialField->offset;
                 uint8_t* dstPtr = targetInstance->GetRawBuffer() + shaderField.offset;
 
-                std::memcpy(dstPtr, srcPtr, shaderField.size);
+                // Dla tablic kopiujemy całą tablicę (używamy totalSize zamiast size)
+                uint32_t copySize = shaderField.isArray ? shaderField.totalSize : shaderField.size;
+
+                std::memcpy(dstPtr, srcPtr, copySize);
 
                 report.copiedFields.push_back(shaderField.path);
             }
@@ -369,17 +372,18 @@ namespace ShaderLib {
             return false;
         }
 
-        // Sprawdź rozmiar
+        // Sprawdź rozmiar elementu
         if (shaderField.size != materialField.size) {
             return false;
         }
 
-        // Sprawdź indeks tablicy (dla elementów tablic)
-        if (shaderField.isArrayElement != materialField.isArrayElement) {
+        // Sprawdź czy oba są/nie są tablicami
+        if (shaderField.isArray != materialField.isArray) {
             return false;
         }
 
-        if (shaderField.isArrayElement && shaderField.arrayIndex != materialField.arrayIndex) {
+        // Jeśli to tablice, sprawdź rozmiar tablicy
+        if (shaderField.isArray && shaderField.arraySize != materialField.arraySize) {
             return false;
         }
 

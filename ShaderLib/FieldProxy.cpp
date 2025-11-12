@@ -11,16 +11,25 @@ namespace ShaderLib {
 
     FieldProxy::FieldProxy(
         BufferObjectInstance* instance,
-        const FieldDescriptor* descriptor
+        const FieldDescriptor* descriptor,
+        uint32_t arrayIndex
     )
         : m_instance(instance)
         , m_descriptor(descriptor)
+        , m_arrayIndex(arrayIndex)
     {
         if (!instance) {
             throw std::runtime_error("Instance cannot be null");
         }
         if (!descriptor) {
             throw std::runtime_error("Descriptor cannot be null");
+        }
+        if (descriptor->isArray && arrayIndex >= descriptor->arraySize) {
+            throw std::runtime_error(
+                "Array index " + std::to_string(arrayIndex) +
+                " out of bounds for array of size " +
+                std::to_string(descriptor->arraySize)
+            );
         }
     }
 
@@ -50,6 +59,7 @@ namespace ShaderLib {
             );
         }
 
+        // Buduj ścieżkę do child (bez indeksu tablicy w path!)
         std::string childPath = m_descriptor->path + "." + childName;
 
         const FieldDescriptor* childDesc = m_instance->GetDefinition()->FindField(childPath);
@@ -57,7 +67,8 @@ namespace ShaderLib {
             throw std::runtime_error("Child field not found: " + childPath);
         }
 
-        return FieldProxy(m_instance, childDesc);
+        // Dla tablicy struktur przekaż ten sam arrayIndex
+        return FieldProxy(m_instance, childDesc, m_arrayIndex);
     }
 
     FieldProxy FieldProxy::operator[](const char* childName) const {
@@ -65,25 +76,31 @@ namespace ShaderLib {
     }
 
     FieldProxy FieldProxy::operator[](size_t index) const {
-        if (!m_descriptor->isArray && !m_descriptor->isArrayElement) {
+        if (!m_descriptor->isArray) {
             throw std::runtime_error("Field is not an array: " + m_descriptor->path);
         }
 
-        std::string basePath = m_descriptor->path;
-        size_t bracketPos = basePath.find('[');
-        if (bracketPos != std::string::npos) {
-            basePath = basePath.substr(0, bracketPos);
+        if (index >= m_descriptor->arraySize) {
+            throw std::runtime_error(
+                "Array index " + std::to_string(index) +
+                " out of bounds for array of size " +
+                std::to_string(m_descriptor->arraySize)
+            );
         }
 
-        std::string elementPath = basePath + "[" + std::to_string(index) + "]";
+        // Zwróć nowy proxy z tym samym deskryptorem ale innym indeksem
+        return FieldProxy(m_instance, m_descriptor, static_cast<uint32_t>(index));
+    }
 
-        const FieldDescriptor* elementDesc =
-            m_instance->GetDefinition()->FindField(elementPath);
-        if (!elementDesc) {
-            throw std::runtime_error("Array element not found: " + elementPath);
+    // ========================================================================
+    // METADATA ACCESS
+    // ========================================================================
+
+    uint32_t FieldProxy::GetOffset() const {
+        if (m_descriptor->isArray) {
+            return m_descriptor->GetElementOffset(m_arrayIndex);
         }
-
-        return FieldProxy(m_instance, elementDesc);
+        return m_descriptor->offset;
     }
 
     // ========================================================================
@@ -91,11 +108,11 @@ namespace ShaderLib {
     // ========================================================================
 
     uint8_t* FieldProxy::GetRawPointer() {
-        return m_instance->GetRawBuffer() + m_descriptor->offset;
+        return m_instance->GetRawBuffer() + GetOffset();
     }
 
     const uint8_t* FieldProxy::GetRawPointer() const {
-        return m_instance->GetRawBuffer() + m_descriptor->offset;
+        return m_instance->GetRawBuffer() + GetOffset();
     }
 
 } // namespace ShaderLib

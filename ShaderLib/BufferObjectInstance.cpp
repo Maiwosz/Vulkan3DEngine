@@ -60,27 +60,62 @@ namespace ShaderLib {
     // ============================================================================
 
     FieldProxy BufferObjectInstance::operator[](const std::string& name) {
-        const auto& fields = m_definition->GetAllFields();
-        for (const auto& field : fields) {
-            if (field.name == name && field.parentPath.empty()) {
-                return FieldProxy(this, &field);
-            }
-        }
-
-        throw std::runtime_error("Field not found: " + name);
+        return GetField(name);
     }
 
     FieldProxy BufferObjectInstance::operator[](const char* name) {
-        return operator[](std::string(name));
+        return GetField(std::string(name));
     }
 
     FieldProxy BufferObjectInstance::GetField(const std::string& path) {
-        const FieldDescriptor* field = m_definition->FindField(path);
+        // Parsuj ścieżkę - może zawierać indeks tablicy
+        std::string cleanPath = path;
+        uint32_t arrayIndex = 0;
+        bool hasIndex = false;
+
+        size_t bracketPos = path.find('[');
+        if (bracketPos != std::string::npos) {
+            cleanPath = path.substr(0, bracketPos);
+
+            size_t endBracket = path.find(']', bracketPos);
+            if (endBracket != std::string::npos) {
+                std::string indexStr = path.substr(bracketPos + 1, endBracket - bracketPos - 1);
+                try {
+                    arrayIndex = static_cast<uint32_t>(std::stoul(indexStr));
+                    hasIndex = true;
+                }
+                catch (...) {
+                    throw std::runtime_error("Invalid array index in path: " + path);
+                }
+            }
+        }
+
+        const FieldDescriptor* field = m_definition->FindField(cleanPath);
         if (!field) {
             throw std::runtime_error("Field not found: " + path);
         }
 
-        return FieldProxy(this, field);
+        // Jeśli to tablica, ale nie podano indeksu, zwróć proxy dla całej tablicy
+        // (użytkownik może później użyć proxy[index])
+        if (field->isArray && !hasIndex) {
+            return FieldProxy(this, field, 0);  // Index 0 jako domyślny
+        }
+
+        // Jeśli podano indeks, waliduj go
+        if (hasIndex) {
+            if (!field->isArray) {
+                throw std::runtime_error("Field is not an array: " + path);
+            }
+            if (arrayIndex >= field->arraySize) {
+                throw std::runtime_error(
+                    "Array index " + std::to_string(arrayIndex) +
+                    " out of bounds for array of size " +
+                    std::to_string(field->arraySize)
+                );
+            }
+        }
+
+        return FieldProxy(this, field, arrayIndex);
     }
 
     // ============================================================================

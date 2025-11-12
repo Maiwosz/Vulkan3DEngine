@@ -10,11 +10,18 @@ namespace ShaderLib {
 
     // ============================================================================
     // FIELD PROXY - Wygodny dostęp do pól przez routing w layoutcie
+    // 
+    // WAŻNE: Obsługuje tablice przez operator[](size_t index)
+    // Proxy dla tablicy automatycznie oblicza offset dla danego elementu
     // ============================================================================
 
     class FieldProxy {
     public:
-        FieldProxy(BufferObjectInstance* instance, const FieldDescriptor* descriptor);
+        FieldProxy(
+            BufferObjectInstance* instance,
+            const FieldDescriptor* descriptor,
+            uint32_t arrayIndex = 0
+        );
 
         // ========================================================================
         // VALUE ACCESS - dla base types
@@ -28,11 +35,16 @@ namespace ShaderLib {
         FieldProxy& operator=(const BaseTypeValue& value);
 
         // ========================================================================
-        // NESTED STRUCTURE/ARRAY ACCESS
+        // NESTED STRUCTURE ACCESS
         // ========================================================================
 
         FieldProxy operator[](const std::string& childName) const;
         FieldProxy operator[](const char* childName) const;
+
+        // ========================================================================
+        // ARRAY ELEMENT ACCESS
+        // ========================================================================
+
         FieldProxy operator[](size_t index) const;
 
         // ========================================================================
@@ -41,15 +53,17 @@ namespace ShaderLib {
 
         const std::string& GetPath() const { return m_descriptor->path; }
         const std::string& GetName() const { return m_descriptor->name; }
-        uint32_t GetOffset() const { return m_descriptor->offset; }
+
+        // Zwraca rzeczywisty offset (dla tablic: offset + arrayIndex * stride)
+        uint32_t GetOffset() const;
+
         uint32_t GetSize() const { return m_descriptor->size; }
         uint32_t GetAlignment() const { return m_descriptor->alignment; }
         BaseType GetBaseType() const { return m_descriptor->baseType; }
         bool IsBaseType() const { return m_descriptor->isBaseType; }
         bool IsArray() const { return m_descriptor->isArray; }
-        bool IsArrayElement() const { return m_descriptor->isArrayElement; }
         uint32_t GetArraySize() const { return m_descriptor->arraySize; }
-        uint32_t GetArrayIndex() const { return m_descriptor->arrayIndex; }
+        uint32_t GetArrayIndex() const { return m_arrayIndex; }
 
         // ========================================================================
         // RAW BUFFER ACCESS
@@ -61,6 +75,7 @@ namespace ShaderLib {
     private:
         BufferObjectInstance* m_instance;
         const FieldDescriptor* m_descriptor;
+        uint32_t m_arrayIndex;  // Dla elementów tablicy
     };
 
     // ============================================================================

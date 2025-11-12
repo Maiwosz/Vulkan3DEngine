@@ -65,6 +65,13 @@ namespace ShaderLib {
         template<typename T>
         void Set(const std::string& path, const T& value);
 
+        // Bezpośredni dostęp do elementu tablicy (bardziej wydajne niż parsowanie path)
+        template<typename T>
+        T GetArrayElement(const std::string& arrayPath, uint32_t index) const;
+
+        template<typename T>
+        void SetArrayElement(const std::string& arrayPath, uint32_t index, const T& value);
+
         template<typename T>
         T GetAtOffset(uint32_t offset) const;
 
@@ -247,7 +254,24 @@ namespace ShaderLib {
     inline T BufferObjectInstance::Get(const std::string& path) const {
         static_assert(IsBaseTypeSupported<T>(), "Type not supported");
 
-        const FieldDescriptor* field = m_definition->FindField(path);
+        // Parsuj ścieżkę - może zawierać indeks tablicy
+        std::string cleanPath = path;
+        uint32_t arrayIndex = 0;
+        bool hasIndex = false;
+
+        size_t bracketPos = path.find('[');
+        if (bracketPos != std::string::npos) {
+            cleanPath = path.substr(0, bracketPos);
+
+            size_t endBracket = path.find(']', bracketPos);
+            if (endBracket != std::string::npos) {
+                std::string indexStr = path.substr(bracketPos + 1, endBracket - bracketPos - 1);
+                arrayIndex = static_cast<uint32_t>(std::stoul(indexStr));
+                hasIndex = true;
+            }
+        }
+
+        const FieldDescriptor* field = m_definition->FindField(cleanPath);
         if (!field) {
             throw std::runtime_error("Field not found: " + path);
         }
@@ -260,14 +284,46 @@ namespace ShaderLib {
             throw std::runtime_error("Type mismatch for field: " + path);
         }
 
-        return GetAtOffset<T>(field->offset);
+        // Oblicz offset
+        uint32_t offset;
+        if (field->isArray) {
+            if (!hasIndex) {
+                throw std::runtime_error("Array field requires index: " + path);
+            }
+            offset = field->GetElementOffset(arrayIndex);
+        }
+        else {
+            if (hasIndex) {
+                throw std::runtime_error("Field is not an array: " + path);
+            }
+            offset = field->offset;
+        }
+
+        return GetAtOffset<T>(offset);
     }
 
     template<typename T>
     inline void BufferObjectInstance::Set(const std::string& path, const T& value) {
         static_assert(IsBaseTypeSupported<T>(), "Type not supported");
 
-        const FieldDescriptor* field = m_definition->FindField(path);
+        // Parsuj ścieżkę - może zawierać indeks tablicy
+        std::string cleanPath = path;
+        uint32_t arrayIndex = 0;
+        bool hasIndex = false;
+
+        size_t bracketPos = path.find('[');
+        if (bracketPos != std::string::npos) {
+            cleanPath = path.substr(0, bracketPos);
+
+            size_t endBracket = path.find(']', bracketPos);
+            if (endBracket != std::string::npos) {
+                std::string indexStr = path.substr(bracketPos + 1, endBracket - bracketPos - 1);
+                arrayIndex = static_cast<uint32_t>(std::stoul(indexStr));
+                hasIndex = true;
+            }
+        }
+
+        const FieldDescriptor* field = m_definition->FindField(cleanPath);
         if (!field) {
             throw std::runtime_error("Field not found: " + path);
         }
@@ -280,7 +336,73 @@ namespace ShaderLib {
             throw std::runtime_error("Type mismatch for field: " + path);
         }
 
-        SetAtOffset(field->offset, value);
+        // Oblicz offset
+        uint32_t offset;
+        if (field->isArray) {
+            if (!hasIndex) {
+                throw std::runtime_error("Array field requires index: " + path);
+            }
+            offset = field->GetElementOffset(arrayIndex);
+        }
+        else {
+            if (hasIndex) {
+                throw std::runtime_error("Field is not an array: " + path);
+            }
+            offset = field->offset;
+        }
+
+        SetAtOffset(offset, value);
+    }
+
+    // Wydajniejsze metody dla bezpośredniego dostępu do tablic
+    template<typename T>
+    inline T BufferObjectInstance::GetArrayElement(const std::string& arrayPath, uint32_t index) const {
+        static_assert(IsBaseTypeSupported<T>(), "Type not supported");
+
+        const FieldDescriptor* field = m_definition->FindField(arrayPath);
+        if (!field) {
+            throw std::runtime_error("Field not found: " + arrayPath);
+        }
+
+        if (!field->isArray) {
+            throw std::runtime_error("Field is not an array: " + arrayPath);
+        }
+
+        if (!field->isBaseType) {
+            throw std::runtime_error("Cannot get structure array element as value: " + arrayPath);
+        }
+
+        if (field->baseType != GetBaseTypeOf<T>()) {
+            throw std::runtime_error("Type mismatch for field: " + arrayPath);
+        }
+
+        uint32_t offset = field->GetElementOffset(index);
+        return GetAtOffset<T>(offset);
+    }
+
+    template<typename T>
+    inline void BufferObjectInstance::SetArrayElement(const std::string& arrayPath, uint32_t index, const T& value) {
+        static_assert(IsBaseTypeSupported<T>(), "Type not supported");
+
+        const FieldDescriptor* field = m_definition->FindField(arrayPath);
+        if (!field) {
+            throw std::runtime_error("Field not found: " + arrayPath);
+        }
+
+        if (!field->isArray) {
+            throw std::runtime_error("Field is not an array: " + arrayPath);
+        }
+
+        if (!field->isBaseType) {
+            throw std::runtime_error("Cannot set structure array element as value: " + arrayPath);
+        }
+
+        if (field->baseType != GetBaseTypeOf<T>()) {
+            throw std::runtime_error("Type mismatch for field: " + arrayPath);
+        }
+
+        uint32_t offset = field->GetElementOffset(index);
+        SetAtOffset(offset, value);
     }
 
     template<typename T>
@@ -311,7 +433,24 @@ namespace ShaderLib {
     inline T BufferObjectInstance::GetFromGPU(const std::string& path) const {
         static_assert(IsBaseTypeSupported<T>(), "Type not supported");
 
-        const FieldDescriptor* field = m_definition->FindField(path);
+        // Parsuj ścieżkę
+        std::string cleanPath = path;
+        uint32_t arrayIndex = 0;
+        bool hasIndex = false;
+
+        size_t bracketPos = path.find('[');
+        if (bracketPos != std::string::npos) {
+            cleanPath = path.substr(0, bracketPos);
+
+            size_t endBracket = path.find(']', bracketPos);
+            if (endBracket != std::string::npos) {
+                std::string indexStr = path.substr(bracketPos + 1, endBracket - bracketPos - 1);
+                arrayIndex = static_cast<uint32_t>(std::stoul(indexStr));
+                hasIndex = true;
+            }
+        }
+
+        const FieldDescriptor* field = m_definition->FindField(cleanPath);
         if (!field) {
             throw std::runtime_error("Field not found: " + path);
         }
@@ -324,14 +463,45 @@ namespace ShaderLib {
             throw std::runtime_error("Type mismatch for field: " + path);
         }
 
-        return GetFromGPUAtOffset<T>(field->offset);
+        uint32_t offset;
+        if (field->isArray) {
+            if (!hasIndex) {
+                throw std::runtime_error("Array field requires index: " + path);
+            }
+            offset = field->GetElementOffset(arrayIndex);
+        }
+        else {
+            if (hasIndex) {
+                throw std::runtime_error("Field is not an array: " + path);
+            }
+            offset = field->offset;
+        }
+
+        return GetFromGPUAtOffset<T>(offset);
     }
 
     template<typename T>
     inline void BufferObjectInstance::SetToGPU(const std::string& path, const T& value) {
         static_assert(IsBaseTypeSupported<T>(), "Type not supported");
 
-        const FieldDescriptor* field = m_definition->FindField(path);
+        // Parsuj ścieżkę
+        std::string cleanPath = path;
+        uint32_t arrayIndex = 0;
+        bool hasIndex = false;
+
+        size_t bracketPos = path.find('[');
+        if (bracketPos != std::string::npos) {
+            cleanPath = path.substr(0, bracketPos);
+
+            size_t endBracket = path.find(']', bracketPos);
+            if (endBracket != std::string::npos) {
+                std::string indexStr = path.substr(bracketPos + 1, endBracket - bracketPos - 1);
+                arrayIndex = static_cast<uint32_t>(std::stoul(indexStr));
+                hasIndex = true;
+            }
+        }
+
+        const FieldDescriptor* field = m_definition->FindField(cleanPath);
         if (!field) {
             throw std::runtime_error("Field not found: " + path);
         }
@@ -344,7 +514,21 @@ namespace ShaderLib {
             throw std::runtime_error("Type mismatch for field: " + path);
         }
 
-        SetToGPUAtOffset(field->offset, value);
+        uint32_t offset;
+        if (field->isArray) {
+            if (!hasIndex) {
+                throw std::runtime_error("Array field requires index: " + path);
+            }
+            offset = field->GetElementOffset(arrayIndex);
+        }
+        else {
+            if (hasIndex) {
+                throw std::runtime_error("Field is not an array: " + path);
+            }
+            offset = field->offset;
+        }
+
+        SetToGPUAtOffset(offset, value);
     }
 
     template<typename T>

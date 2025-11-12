@@ -13,17 +13,14 @@ namespace ShaderLib {
     // ============================================================================
     // BUFFER LAYOUT - Płaski layout pamięci z offsetami i paddingiem
     // 
-    // Przyjmuje StructureDefinition i LayoutStandard, następnie:
-    // - Oblicza offsety, padding, alignment dla wszystkich pól
-    // - Spłaszcza hierarchię (każde pole ma pełną ścieżkę)
-    // - Buduje mapy dla szybkiego dostępu O(1)
-    // - Każde pole zna swojego rodzica (przez indeks w m_allFields)
+    // WAŻNE: Dla tablic tworzymy JEDEN deskryptor zamiast N deskryptorów.
+    // Dostęp do elementów: descriptor.GetElementOffset(index)
     // 
-    // WAŻNE: FieldDescriptor używa structTypeName (string) zamiast structDef (shared_ptr)
-    // bo layout jest już płaski i nie potrzebuje zagnieżdżonych definicji.
-    // Oryginalną StructureDefinition zachowujemy w m_structure dla GLSL generation.
-    // 
-    // Jest IMMUTABLE po konstrukcji - wszystko precomputowane.
+    // Korzyści:
+    // - O(1) zamiast O(N) pamięci dla tablic
+    // - O(1) zamiast O(N) czasu konstrukcji
+    // - O(1) zamiast O(N) serializacji JSON
+    // - Perfektne dla milionowych tablic
     // ============================================================================
 
     class BufferLayout {
@@ -51,7 +48,7 @@ namespace ShaderLib {
         // FIELD ACCESS
         // ========================================================================
 
-        // All fields (flat hierarchy)
+        // All fields (flat hierarchy, ONE descriptor per array)
         const std::vector<FieldDescriptor>& GetAllFields() const {
             return m_allFields;
         }
@@ -62,6 +59,7 @@ namespace ShaderLib {
         }
 
         // Find field by path (O(1) hash map lookup)
+        // Obsługuje zarówno "colors" jak i "colors[5]" - zwraca ten sam deskryptor
         const FieldDescriptor* FindField(const std::string& path) const;
 
         // Get field by index (O(1) direct access)
@@ -117,13 +115,10 @@ namespace ShaderLib {
 
     private:
         // ========================================================================
-        // LAYOUT COMPUTATION - Top level entry point
+        // LAYOUT COMPUTATION
         // ========================================================================
         void ComputeLayout();
 
-        // ========================================================================
-        // UNIFIED FIELD PROCESSING - Handles both top-level and nested fields
-        // ========================================================================
         uint32_t ProcessField(
             const StructureDefinition::FieldDef& fieldDef,
             const std::string& parentPath,
@@ -159,43 +154,16 @@ namespace ShaderLib {
             uint32_t baseOffset
         );
 
-        void AddArrayContainerDescriptor(
-            const StructureDefinition::FieldDef& fieldDef,
-            const std::string& parentPath, int32_t parentIndex,
-            uint32_t arrayStart, uint32_t arrayRelativeOffset,
-            uint32_t arrayAlignment,
-            uint32_t stride,
-            uint32_t elementSize
-        );
-
-        void AddArrayElementDescriptor(
-            const StructureDefinition::FieldDef& fieldDef,
-            const std::string& parentPath,
-            int32_t parentIndex,
-            uint32_t elementOffset,
-            uint32_t elementRelativeOffset,
-            uint32_t arrayAlignment,
-            uint32_t stride,
-            uint32_t arrayIndex
-        );
-
-        void AddStructArrayElementDescriptor(
-            const StructureDefinition::FieldDef& fieldDef,
-            const std::string& parentPath,
-            int32_t parentIndex,
-            uint32_t elementOffset,
-            uint32_t elementRelativeOffset,
-            uint32_t elementSize,
-            uint32_t arrayAlignment,
-            uint32_t stride,
-            uint32_t arrayIndex
+        void AddStructTemplateFields(
+            std::shared_ptr<const StructureDefinition> structDef,
+            const std::string& arrayPath,
+            int32_t arrayParentIndex,
+            uint32_t baseOffset
         );
 
         std::string BuildPath(
             const std::string& parentPath,
-            const std::string& fieldName,
-            bool isArrayElement,
-            uint32_t arrayIndex
+            const std::string& fieldName
         ) const;
 
         // ========================================================================
@@ -213,7 +181,6 @@ namespace ShaderLib {
             uint32_t* lastOffset
         ) const;
 
-        // Helper for GetChildPaths and GetStructureChildren
         std::string ExtractTopLevelName(const std::string& path) const;
 
         // ========================================================================
@@ -224,8 +191,8 @@ namespace ShaderLib {
         std::shared_ptr<const StructureDefinition> m_structure;
         LayoutStandard m_standard;
 
-        // Computed layout
-        std::vector<FieldDescriptor> m_allFields;  // Flat hierarchy
+        // Computed layout (ONE descriptor per array!)
+        std::vector<FieldDescriptor> m_allFields;
         uint32_t m_totalSize;
         uint32_t m_alignment;
 
