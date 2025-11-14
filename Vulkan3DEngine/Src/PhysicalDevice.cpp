@@ -100,30 +100,41 @@ PhysicalDevice::PhysicalDevice(VkInstance instance, VkSurfaceKHR surface, const 
     }
 
     m_device = candidates.rbegin()->second;
-
-    // Cache wszystkich właściwości jednorazowo
     cacheDeviceProperties();
 }
 
 void PhysicalDevice::cacheDeviceProperties() {
-    // Properties i features
     vkGetPhysicalDeviceProperties(m_device, &m_deviceProperties);
     vkGetPhysicalDeviceFeatures(m_device, &m_deviceFeatures);
     vkGetPhysicalDeviceMemoryProperties(m_device, &m_memoryProperties);
 
-    // Queue families
     m_queueFamilyIndices = QueueFamilyIndices(m_device, m_surface);
 
-    // Surface capabilities dla minImageCount
     VkSurfaceCapabilitiesKHR surfaceCapabilities;
     vkGetPhysicalDeviceSurfaceCapabilitiesKHR(m_device, m_surface, &surfaceCapabilities);
     m_minImageCount = surfaceCapabilities.minImageCount;
 
-    // Depth format
     m_depthFormat = findDepthFormat(m_device);
-
-    // Max MSAA samples
     m_maxMsaaSamples = calculateMaxMsaaSamples(m_deviceProperties);
+}
+
+bool PhysicalDevice::checkRequiredFeatures(const VkPhysicalDeviceFeatures& features) {
+    for (const auto& required : REQUIRED_FEATURES) {
+        if (!(features.*required.feature)) {
+            return false;
+        }
+    }
+    return true;
+}
+
+int PhysicalDevice::scoreOptionalFeatures(const VkPhysicalDeviceFeatures& features) {
+    int score = 0;
+    for (const auto& optional : OPTIONAL_FEATURES) {
+        if (features.*optional.feature) {
+            score += optional.score;
+        }
+    }
+    return score;
 }
 
 int PhysicalDevice::rateSuitability(VkPhysicalDevice device,
@@ -136,14 +147,9 @@ int PhysicalDevice::rateSuitability(VkPhysicalDevice device,
 
     int score = 0;
 
-    // Priorytetyzacja dyskretnych GPU
-    if (props.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU) {
-        score += 1000;
-    }
-
-    // Większe tekstury = lepsza wydajność
-    if (props.limits.maxImageDimension2D > 0) {
-        score += static_cast<int>(std::log2(props.limits.maxImageDimension2D));
+    // Sprawdź wymagane funkcje
+    if (!checkRequiredFeatures(features)) {
+        return 0;
     }
 
     // Wymagane cechy kolejki
@@ -162,10 +168,18 @@ int PhysicalDevice::rateSuitability(VkPhysicalDevice device,
         return 0;
     }
 
-    // Wymagane funkcje sprzętowe
-    if (!features.samplerAnisotropy) {
-        return 0;
+    // Priorytetyzacja dyskretnych GPU
+    if (props.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU) {
+        score += 1000;
     }
+
+    // Większe tekstury = lepsza wydajność
+    if (props.limits.maxImageDimension2D > 0) {
+        score += static_cast<int>(std::log2(props.limits.maxImageDimension2D));
+    }
+
+    // Punktacja za opcjonalne funkcje
+    score += scoreOptionalFeatures(features);
 
     return score;
 }
