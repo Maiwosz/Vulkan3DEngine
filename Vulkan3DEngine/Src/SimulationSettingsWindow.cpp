@@ -1,0 +1,235 @@
+#include "SimulationSettingsWindow.h"
+
+SimulationSettingsWindow::State SimulationSettingsWindow::s_state;
+bool SimulationSettingsWindow::s_initialized = false;
+
+void SimulationSettingsWindow::render(ProvinceSimulationTest* simulation, bool* showWindow) {
+    if (!simulation) return;
+
+    if (!s_initialized) {
+        initialize(simulation);
+    }
+
+    ImGui::SetNextWindowSize(ImVec2(600, 650), ImGuiCond_FirstUseEver);
+    if (!ImGui::Begin("Simulation Settings", showWindow)) {
+        ImGui::End();
+        return;
+    }
+
+    bool canEdit = !simulation->hasStepsRequested();
+
+    if (!canEdit) {
+        ImGui::TextColored(ImVec4(1.0f, 1.0f, 0.0f, 1.0f),
+            "Settings locked during computation");
+        ImGui::Separator();
+        ImGui::BeginDisabled();
+    }
+
+    // Parametry symulacji
+    renderSimulationParams();
+    ImGui::Spacing();
+    ImGui::Separator();
+    ImGui::Spacing();
+
+    // Parametry randomizacji
+    renderRandomizationParams();
+
+    if (!canEdit) {
+        ImGui::EndDisabled();
+    }
+
+    ImGui::Spacing();
+    ImGui::Separator();
+    ImGui::Spacing();
+
+    // Przyciski akcji
+    renderActionButtons(simulation);
+
+    if (s_state.modified) {
+        ImGui::Spacing();
+        ImGui::TextColored(ImVec4(1.0f, 1.0f, 0.0f, 1.0f),
+            "* Settings have been modified");
+    }
+
+    ImGui::End();
+}
+
+void SimulationSettingsWindow::initialize(ProvinceSimulationTest* simulation) {
+    s_state.simParams = simulation->getSimulationParameters();
+    s_state.randParams = simulation->getRandomizationParameters();
+    s_state.modified = false;
+    s_initialized = true;
+}
+
+void SimulationSettingsWindow::renderSimulationParams() {
+    if (!ImGui::CollapsingHeader("Simulation Parameters", ImGuiTreeNodeFlags_DefaultOpen)) {
+        return;
+    }
+
+    ImGui::Indent();
+
+    // Liczba prowincji
+    int numProvinces = s_state.simParams.numProvinces;
+    if (ImGui::InputInt("Number of Provinces", &numProvinces, 1024, 65536)) {
+        if (numProvinces < 1024) numProvinces = 1024;
+        if (numProvinces > 1048576) numProvinces = 1048576;
+        s_state.simParams.numProvinces = numProvinces;
+        s_state.modified = true;
+    }
+
+    ImGui::Spacing();
+
+    // Parametry ekonomiczne
+    if (ImGui::DragFloat("Food Consumption per Pop",
+        &s_state.simParams.foodConsumptionPerPop,
+        0.01f, 0.01f, 1.0f, "%.3f")) {
+        s_state.modified = true;
+    }
+
+    if (ImGui::DragFloat("Base Population Growth",
+        &s_state.simParams.basePopulationGrowth,
+        0.001f, 0.0f, 0.1f, "%.4f")) {
+        s_state.modified = true;
+    }
+
+    if (ImGui::DragFloat("Starvation Threshold",
+        &s_state.simParams.starvationThreshold,
+        0.05f, 0.0f, 1.0f, "%.2f")) {
+        s_state.modified = true;
+    }
+    if (ImGui::IsItemHovered()) {
+        ImGui::SetTooltip("Food ratio below which population starts declining");
+    }
+
+    if (ImGui::DragFloat("Wealth per Population",
+        &s_state.simParams.wealthPerPop,
+        0.05f, 0.0f, 10.0f, "%.2f")) {
+        s_state.modified = true;
+    }
+
+    if (ImGui::DragFloat("Max Food Storage",
+        &s_state.simParams.maxFoodStorage,
+        5.0f, 10.0f, 1000.0f, "%.1f")) {
+        s_state.modified = true;
+    }
+
+    if (ImGui::DragFloat("Min Population",
+        &s_state.simParams.minPopulation,
+        0.01f, 0.01f, 1.0f, "%.2f")) {
+        s_state.modified = true;
+    }
+
+    ImGui::Unindent();
+}
+
+void SimulationSettingsWindow::renderRandomizationParams() {
+    if (!ImGui::CollapsingHeader("Initial Randomization", ImGuiTreeNodeFlags_DefaultOpen)) {
+        return;
+    }
+
+    ImGui::Indent();
+
+    // Populacja
+    ImGui::Text("Initial Population Range:");
+    if (ImGui::DragFloat("Min##Pop", &s_state.randParams.minPopulation,
+        0.5f, 0.1f, 100.0f, "%.1f")) {
+        if (s_state.randParams.minPopulation > s_state.randParams.maxPopulation) {
+            s_state.randParams.maxPopulation = s_state.randParams.minPopulation;
+        }
+        s_state.modified = true;
+    }
+
+    if (ImGui::DragFloat("Max##Pop", &s_state.randParams.maxPopulation,
+        0.5f, 0.1f, 100.0f, "%.1f")) {
+        if (s_state.randParams.maxPopulation < s_state.randParams.minPopulation) {
+            s_state.randParams.minPopulation = s_state.randParams.maxPopulation;
+        }
+        s_state.modified = true;
+    }
+
+    ImGui::Spacing();
+
+    // Produkcja żywności
+    ImGui::Text("Food Production Range:");
+    if (ImGui::DragFloat("Min##Food", &s_state.randParams.minFoodProduction,
+        0.1f, 0.1f, 50.0f, "%.2f")) {
+        if (s_state.randParams.minFoodProduction > s_state.randParams.maxFoodProduction) {
+            s_state.randParams.maxFoodProduction = s_state.randParams.minFoodProduction;
+        }
+        s_state.modified = true;
+    }
+
+    if (ImGui::DragFloat("Max##Food", &s_state.randParams.maxFoodProduction,
+        0.1f, 0.1f, 50.0f, "%.2f")) {
+        if (s_state.randParams.maxFoodProduction < s_state.randParams.minFoodProduction) {
+            s_state.randParams.minFoodProduction = s_state.randParams.maxFoodProduction;
+        }
+        s_state.modified = true;
+    }
+
+    ImGui::Spacing();
+
+    // Początkowy zapas żywności
+    if (ImGui::DragFloat("Initial Food Storage",
+        &s_state.randParams.initialFoodStorage,
+        1.0f, 0.0f, 100.0f, "%.1f")) {
+        s_state.modified = true;
+    }
+
+    ImGui::Spacing();
+
+    // Seed
+    int seed = s_state.randParams.randomSeed;
+    if (ImGui::InputInt("Random Seed (0 = random)", &seed, 1, 100)) {
+        if (seed < 0) seed = 0;
+        s_state.randParams.randomSeed = seed;
+        s_state.modified = true;
+    }
+
+    ImGui::Unindent();
+}
+
+void SimulationSettingsWindow::renderActionButtons(ProvinceSimulationTest* simulation) {
+    bool canApply = !simulation->hasStepsRequested();
+
+    if (!canApply) ImGui::BeginDisabled();
+
+    // Zastosuj bez resetu
+    if (ImGui::Button("Apply (Live)", ImVec2(150, 0))) {
+        simulation->setSimulationParameters(s_state.simParams);
+        simulation->setRandomizationParameters(s_state.randParams);
+        s_state.modified = false;
+    }
+    if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled)) {
+        ImGui::SetTooltip("Apply settings without resetting simulation");
+    }
+
+    ImGui::SameLine();
+
+    // Zastosuj z resetem
+    if (ImGui::Button("Apply & Reset", ImVec2(150, 0))) {
+        simulation->resetSimulationWithParameters(s_state.simParams, s_state.randParams);
+        s_state.modified = false;
+    }
+    if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled)) {
+        ImGui::SetTooltip("Apply settings and restart simulation from beginning");
+    }
+
+    if (!canApply) ImGui::EndDisabled();
+
+    ImGui::SameLine();
+
+    // Reset do domyślnych
+    if (ImGui::Button("Reset to Defaults", ImVec2(150, 0))) {
+        s_state.simParams = SimulationParameters();
+        s_state.randParams = RandomizationParameters();
+        s_state.modified = true;
+    }
+
+    ImGui::SameLine();
+
+    // Przeładuj aktualne
+    if (ImGui::Button("Reload Current", ImVec2(150, 0))) {
+        initialize(simulation);
+    }
+}

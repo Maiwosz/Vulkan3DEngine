@@ -14,7 +14,7 @@ VulkanContext::VulkanContext(
     m_physicalDevice(m_instance.get(), m_surface.get(), deviceExtensions),
     m_logicalDevice(m_physicalDevice, deviceExtensions, instanceConfig.enableDebugPrintf)
 {
-    const auto& indices = m_physicalDevice.findQueueFamilies();
+    const auto& indices = m_physicalDevice.getQueueFamilyIndices();
 
     m_graphicsCommandPool = std::make_unique<CommandPool>(
         m_logicalDevice.get(),
@@ -34,17 +34,17 @@ VulkanContext::VulkanContext(
         m_logicalDevice.getQueue(LogicalDevice::QueueType::Compute)
     );
 
-    // Pobierz limity sprzętowe i zaktualizuj Settings
+    // Pobierz limity sprzętowe z cache i zaktualizuj Settings
     VkSampleCountFlagBits vkMaxMsaa = m_physicalDevice.getMaxUsableSampleCount();
     Settings::MsaaSampleCount maxMsaa = static_cast<Settings::MsaaSampleCount>(vkMaxMsaa);
     float maxAnisotropy = m_physicalDevice.getMaxAnisotropy();
     bool anisotropySupported = m_physicalDevice.isAnisotropySupported();
 
-	Settings::HardwareLimits limits = {
-		maxMsaa,
-		maxAnisotropy,
-		anisotropySupported
-	};
+    Settings::HardwareLimits limits = {
+        maxMsaa,
+        maxAnisotropy,
+        anisotropySupported
+    };
 
     m_settings.setHardwareLimits(limits);
 }

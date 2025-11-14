@@ -1,8 +1,8 @@
 #include "ProvinceSimulationUI.h"
-#include "ProvinceSimulationTest.h"
+#include "SimulationSettingsWindow.h"
+#include "BenchmarkWindow.h"
 #include "IImGuiProvider.h"
-#include <algorithm>
-#include <chrono>
+#include "Engine.h"
 
 const char* ProvinceSimulationUI::getScriptName() const {
     return "ProvinceSimulationUI";
@@ -18,1080 +18,547 @@ void ProvinceSimulationUI::OnCreate() {
             imguiProvider->registerCallback([this]() {
                 render();
                 });
-            SPDLOG_INFO("ImGui callback registered for ProvinceSimulationUI");
-        }
-        else {
-            SPDLOG_ERROR("ImGui provider not available");
+            SPDLOG_INFO("ImGui callback registered");
         }
     }
+
+    m_tickTimeHistory.reserve(PERF_HISTORY_SIZE);
 }
 
 void ProvinceSimulationUI::OnUpdate(float deltaTime) {
-    if (!m_simulation) return;
-
-    // Handle benchmark updates
-    if (m_benchmarkRunning) {
-        updateBenchmark();
-    }
-
-    static uint32_t lastCompletedTick = 0;
-    uint32_t currentTick = m_simulation->getCurrentTick();
-
-    if (m_stepTimingActive && currentTick != lastCompletedTick) {
-        if (!m_simulation->isComputeInProgress()) {
-            auto end = std::chrono::high_resolution_clock::now();
-            double elapsed = std::chrono::duration<double, std::milli>(end - m_stepStartTime).count();
-            m_lastStepTime = elapsed;
-
-            recordTickStats(currentTick, elapsed);
-
-            m_stepTimingActive = false;
-            lastCompletedTick = currentTick;
-            invalidateCache();
+    if (m_simulation) {
+        // Aktualizuj historię wydajności
+        auto stats = m_simulation->getPerformanceStats();
+        if (stats.lastStepTimeMs > 0) {
+            addTickTimeToHistory(stats.lastStepTimeMs);
         }
     }
 }
 
 void ProvinceSimulationUI::OnDestroy() {
-    SPDLOG_INFO("ProvinceSimulationUI destroyed for entity {}", entity.id);
+    SPDLOG_INFO("ProvinceSimulationUI destroyed");
     m_simulation = nullptr;
 }
 
 void ProvinceSimulationUI::setSimulation(ProvinceSimulationTest* simulation) {
     m_simulation = simulation;
-    invalidateCache();
-    loadCurrentSettings();
     SPDLOG_INFO("Simulation reference set in UI");
 }
 
 void ProvinceSimulationUI::renderScriptUI() {
-    ImGui::Text("Province Simulation UI Controller");
-    ImGui::Text("Simulation: %s", m_simulation ? "Connected" : "Not Connected");
-    ImGui::Checkbox("Show Window", &m_showWindow);
-    ImGui::Checkbox("Show Settings", &m_showSettingsWindow);
+    ImGui::Text("Province Simulation UI");
+    ImGui::Checkbox("Show Window", &m_showMainWindow);
 }
 
-void ProvinceSimulationUI::invalidateCache() {
-    m_cacheValid = false;
-}
+// =============================================================================
+// GŁÓWNE RENDEROWANIE
+// =============================================================================
 
 void ProvinceSimulationUI::render() {
     if (!m_simulation) return;
 
-    if (m_showWindow) {
-        ImGui::SetNextWindowSize(ImVec2(1200, 800), ImGuiCond_FirstUseEver);
-        if (ImGui::Begin("Province Simulation Control", &m_showWindow)) {
-            renderControlPanel();
-            ImGui::Separator();
-
-            ImGui::BeginChild("MainContent", ImVec2(0, -200), false);
-            {
-                ImGui::BeginChild("ProvinceList", ImVec2(ImGui::GetContentRegionAvail().x * 0.7f, 0), true);
-                renderProvinceTable();
-                ImGui::EndChild();
-
-                ImGui::SameLine();
-
-                ImGui::BeginChild("ProvinceDetails", ImVec2(0, 0), true);
-                renderProvinceDetails();
-                ImGui::EndChild();
-            }
-            ImGui::EndChild();
-
-            ImGui::Separator();
-
-            ImGui::BeginChild("StatsSection", ImVec2(0, 0), false);
-            {
-                ImGui::BeginChild("CurrentStats", ImVec2(ImGui::GetContentRegionAvail().x * 0.4f, 0), true);
-                renderStatsPanel();
-                ImGui::EndChild();
-
-                ImGui::SameLine();
-
-                ImGui::BeginChild("StatsHistory", ImVec2(0, 0), true);
-                renderStatsHistory();
-                ImGui::EndChild();
-            }
-            ImGui::EndChild();
-        }
-        ImGui::End();
+    if (m_showMainWindow) {
+        renderMainWindow();
     }
 
     if (m_showSettingsWindow) {
-        renderSettingsWindow();
+        SimulationSettingsWindow::render(m_simulation, &m_showSettingsWindow);
     }
 
     if (m_showBenchmarkWindow) {
-        renderBenchmarkWindow();
+        BenchmarkWindow::render(m_simulation, &m_showBenchmarkWindow);
     }
 }
 
-
-void ProvinceSimulationUI::renderControlPanel() {
-    ImGui::Text("Simulation Control");
-    ImGui::SameLine(ImGui::GetWindowWidth() - 350);
-
-    // Mode selector
-    SimulationMode currentMode = m_simulation->getMode();
-    const char* modeNames[] = { "GPU", "CPU" };
-    int modeIdx = (int)currentMode;
-    ImGui::SetNextItemWidth(80);
-    if (ImGui::Combo("Mode", &modeIdx, modeNames, 2)) {
-        m_simulation->setMode((SimulationMode)modeIdx);
-        invalidateCache();
+void ProvinceSimulationUI::renderMainWindow() {
+    ImGui::SetNextWindowSize(ImVec2(900, 700), ImGuiCond_FirstUseEver);
+    if (!ImGui::Begin("Province Simulation", &m_showMainWindow)) {
+        ImGui::End();
+        return;
     }
 
-    ImGui::SameLine();
-
-    // CPU thread count (only for CPU mode)
-    if (currentMode == SimulationMode::CPU) {
-        int threads = (int)m_simulation->getCPUThreadCount();
-        ImGui::SetNextItemWidth(80);
-        if (ImGui::InputInt("Threads", &threads, 1, 4)) {
-            if (threads < 1) threads = 1;
-            if (threads > 64) threads = 64;
-            m_simulation->setCPUThreadCount(threads);
-        }
-        ImGui::SameLine();
-    }
-
-    if (ImGui::Button("Settings", ImVec2(80, 0))) {
-        m_showSettingsWindow = !m_showSettingsWindow;
-        if (m_showSettingsWindow) {
-            loadCurrentSettings();
-        }
-    }
-
-    ImGui::SameLine();
-    if (ImGui::Button("Benchmark", ImVec2(90, 0))) {
-        m_showBenchmarkWindow = !m_showBenchmarkWindow;
-    }
-
-    ImGui::SameLine();
-    uint32_t currentTick = m_simulation->getCurrentTick();
-    ImGui::Text("Tick: %u", currentTick);
-
-    bool computeInProgress = m_simulation->isComputeInProgress();
-    if (computeInProgress) {
-        ImGui::SameLine();
-        ImGui::TextColored(ImVec4(1.0f, 1.0f, 0.2f, 1.0f), "[COMPUTING...]");
-    }
+    // Selektor trybu i konfiguracji
+    renderModeSelector();
 
     ImGui::Spacing();
 
-    if (computeInProgress) ImGui::BeginDisabled();
+    // Przyciski sterowania
+    renderControlButtons();
 
-    if (ImGui::Button("Single Step", ImVec2(120, 0))) {
-        m_stepStartTime = std::chrono::high_resolution_clock::now();
-        m_stepTimingActive = true;
-        m_simulation->runSingleStep();
+    ImGui::Separator();
+    ImGui::Spacing();
+
+    // Główna zawartość - 3 sekcje
+    float contentHeight = ImGui::GetContentRegionAvail().y;
+
+    // Panel wydajności - 40% wysokości
+    ImGui::BeginChild("Performance", ImVec2(0, contentHeight * 0.4f), true);
+    renderPerformancePanel();
+    ImGui::EndChild();
+
+    ImGui::Spacing();
+
+    // Dolne sekcje - 55% wysokości
+    ImGui::BeginChild("BottomSection", ImVec2(0, 0), false);
+    {
+        float width = ImGui::GetContentRegionAvail().x;
+
+        // Statystyki po lewej - 55% szerokości
+        ImGui::BeginChild("Statistics", ImVec2(width * 0.55f, 0), true);
+        renderStatisticsPanel();
+        ImGui::EndChild();
+
+        ImGui::SameLine();
+
+        // Inspektor prowincji po prawej - 45% szerokości
+        ImGui::BeginChild("Inspector", ImVec2(0, 0), true);
+        renderProvinceInspector();
+        ImGui::EndChild();
     }
-    if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled)) {
-        ImGui::SetTooltip("Run one simulation tick (async, non-blocking)");
+    ImGui::EndChild();
+
+    ImGui::End();
+}
+
+// =============================================================================
+// SELEKTOR TRYBU
+// =============================================================================
+
+void ProvinceSimulationUI::renderModeSelector() {
+    // FIXED: Nie pozwalaj na zmianę trybu podczas benchmarku!
+    bool isComputing = m_simulation->hasStepsRequested();
+    bool isBenchmarkRunning = m_simulation->isBenchmarkRunning();
+    bool canChangeMode = !isComputing && !isBenchmarkRunning;
+
+    SimulationMode currentMode = m_simulation->getMode();
+
+    // Przycisk przełączania trybu
+    if (!canChangeMode) ImGui::BeginDisabled();
+
+    const char* modeButtonLabel = currentMode == SimulationMode::GPU ? "GPU Mode" : "CPU Mode";
+    ImVec4 modeButtonColor = currentMode == SimulationMode::GPU
+        ? ImVec4(0.2f, 0.8f, 0.2f, 1.0f)
+        : ImVec4(0.2f, 0.6f, 1.0f, 1.0f);
+
+    ImGui::PushStyleColor(ImGuiCol_Button, modeButtonColor);
+    ImGui::PushStyleColor(ImGuiCol_ButtonHovered,
+        ImVec4(modeButtonColor.x * 1.2f, modeButtonColor.y * 1.2f, modeButtonColor.z * 1.2f, 1.0f));
+
+    if (ImGui::Button(modeButtonLabel, ImVec2(120, 30))) {
+        // Ta sekcja będzie disabled podczas benchmarku, więc to się nie wykona
+        SimulationMode newMode = currentMode == SimulationMode::GPU
+            ? SimulationMode::CPU
+            : SimulationMode::GPU;
+        m_simulation->setMode(newMode);
+        SPDLOG_INFO("Mode switched to: {}", newMode == SimulationMode::GPU ? "GPU" : "CPU");
+    }
+
+    ImGui::PopStyleColor(2);
+
+    if (!canChangeMode) {
+        ImGui::EndDisabled();
+        if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled)) {
+            if (isBenchmarkRunning) {
+                ImGui::SetTooltip("Cannot change mode during benchmark");
+            }
+            else {
+                ImGui::SetTooltip("Cannot change mode while simulation is running");
+            }
+        }
+    }
+    else {
+        if (ImGui::IsItemHovered()) {
+            ImGui::SetTooltip("Click to switch between GPU and CPU mode");
+        }
     }
 
     ImGui::SameLine();
 
-    static int ticksToRun = 10;
+    // Konfiguracja specyficzna dla trybu - też disabled podczas benchmarku
+    if (currentMode == SimulationMode::CPU) {
+        // CPU: Liczba wątków
+        ImGui::Text("CPU Threads:");
+        ImGui::SameLine();
+
+        int cpuThreads = (int)m_simulation->getCPUThreadCount();
+        ImGui::SetNextItemWidth(100);
+
+        if (!canChangeMode) ImGui::BeginDisabled();
+
+        if (ImGui::SliderInt("##CPUThreads", &cpuThreads, 1, 64)) {
+            m_simulation->setCPUThreadCount(cpuThreads);
+        }
+
+        if (!canChangeMode) ImGui::EndDisabled();
+
+        if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled)) {
+            ImGui::SetTooltip("Number of CPU threads for parallel processing");
+        }
+    }
+    else {
+        // GPU: Readback interval
+        ImGui::Text("GPU Readback:");
+        ImGui::SameLine();
+
+        int readbackInterval = (int)m_simulation->getGPUReadbackInterval();
+        ImGui::SetNextItemWidth(100);
+
+        if (!canChangeMode) ImGui::BeginDisabled();
+
+        if (ImGui::SliderInt("##GPUReadback", &readbackInterval, 1, 100)) {
+            m_simulation->setGPUReadbackInterval(readbackInterval);
+        }
+
+        if (!canChangeMode) ImGui::EndDisabled();
+
+        if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled)) {
+            ImGui::SetTooltip("How often to read data from GPU (in ticks)\nHigher = less UI updates, better GPU performance");
+        }
+    }
+
+    ImGui::SameLine();
+    ImGui::Dummy(ImVec2(20, 0));
+    ImGui::SameLine();
+
+    // Status i tick
+    ImGui::Text("Tick: %u", m_simulation->getCurrentTick());
+
+    if (isComputing) {
+        ImGui::SameLine();
+        ImGui::TextColored(ImVec4(1.0f, 1.0f, 0.0f, 1.0f), "[COMPUTING]");
+    }
+
+    if (isBenchmarkRunning) {
+        ImGui::SameLine();
+        ImGui::TextColored(ImVec4(1.0f, 0.5f, 0.0f, 1.0f), "[BENCHMARK]");
+    }
+}
+
+// =============================================================================
+// PRZYCISKI STEROWANIA
+// =============================================================================
+
+void ProvinceSimulationUI::renderControlButtons() {
+    // FIXED: Sprawdź czy faktycznie są kroki do wykonania
+    bool isComputing = m_simulation->hasStepsRequested();
+
+    if (isComputing) ImGui::BeginDisabled();
+
+    if (ImGui::Button("Single Step", ImVec2(120, 0))) {
+        m_simulation->runSingleStep();
+    }
+
+    ImGui::SameLine();
+
+    static int tickCount = 100;
     ImGui::SetNextItemWidth(100);
-    ImGui::InputInt("##TickCount", &ticksToRun, 1, 100);
-    if (ticksToRun < 1) ticksToRun = 1;
-    if (ticksToRun > 10000) ticksToRun = 10000;
+    ImGui::InputInt("##Ticks", &tickCount, 10, 100);
+    if (tickCount < 1) tickCount = 1;
+    if (tickCount > 100000) tickCount = 100000;
 
     ImGui::SameLine();
     if (ImGui::Button("Run N Ticks", ImVec2(120, 0))) {
-        m_stepStartTime = std::chrono::high_resolution_clock::now();
-        m_stepTimingActive = true;
-        m_simulation->runMultipleSteps(ticksToRun);
-    }
-    if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled)) {
-        ImGui::SetTooltip("Run multiple ticks (async, queued execution)");
+        m_simulation->runMultipleSteps(tickCount);
     }
 
     ImGui::SameLine();
-    if (ImGui::Button("Reset Simulation", ImVec2(120, 0))) {
+    if (ImGui::Button("Reset", ImVec2(100, 0))) {
         m_simulation->resetSimulation();
-        m_statsHistory.clear();
-        m_selectedProvince = -1;
-        m_lastStepTime = 0;
-        invalidateCache();
-    }
-    if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled)) {
-        ImGui::SetTooltip("Reset simulation to initial state (blocking)");
+        m_tickTimeHistory.clear();
     }
 
-    if (computeInProgress) ImGui::EndDisabled();
+    if (isComputing) ImGui::EndDisabled();
 
     ImGui::SameLine();
-    if (ImGui::Button("Refresh Data", ImVec2(120, 0))) {
-        m_simulation->requestDataRefresh();
-        invalidateCache();
-    }
-    if (ImGui::IsItemHovered()) {
-        ImGui::SetTooltip("Manually refresh cached data from GPU (async)");
+    ImGui::Dummy(ImVec2(20, 0));
+
+    ImGui::SameLine();
+    if (ImGui::Button("Settings", ImVec2(100, 0))) {
+        m_showSettingsWindow = !m_showSettingsWindow;
     }
 
     ImGui::SameLine();
-    ImGui::Checkbox("Auto-scroll", &m_autoScroll);
-
-    if (m_lastStepTime > 0) {
-        ImGui::Text("Last Step Time: %.3f ms", m_lastStepTime);
-    }
-
-    ImGui::Spacing();
-    ImGui::Separator();
-    ImGui::Spacing();
-
-    // Search and sort controls
-    ImGui::Text("Filter & Sort:");
-    ImGui::SameLine();
-    ImGui::SetNextItemWidth(250);
-    if (ImGui::InputText("##Search", m_searchBuffer, sizeof(m_searchBuffer))) {
-        invalidateCache(); // Invalidate when search changes
-    }
-    if (ImGui::IsItemHovered()) {
-        ImGui::SetTooltip("Search by province index");
-    }
-
-    ImGui::SameLine();
-    ImGui::Text("Sort by:");
-    ImGui::SameLine();
-
-    const char* sortOptions[] = { "Index", "Population", "Growth %", "Food Prod", "Food Storage", "Wealth" };
-    int currentSort = (int)m_sortColumn;
-    ImGui::SetNextItemWidth(120);
-    if (ImGui::Combo("##SortColumn", &currentSort, sortOptions, IM_ARRAYSIZE(sortOptions))) {
-        m_sortColumn = (SortColumn)currentSort;
-        invalidateCache(); // Invalidate when sort changes
-    }
-
-    ImGui::SameLine();
-    if (ImGui::Button(m_sortOrder == SortOrder::Ascending ? "↑ Asc" : "↓ Desc")) {
-        m_sortOrder = (m_sortOrder == SortOrder::Ascending) ? SortOrder::Descending : SortOrder::Ascending;
-        invalidateCache(); // Invalidate when order changes
+    if (ImGui::Button("Benchmark", ImVec2(100, 0))) {
+        m_showBenchmarkWindow = !m_showBenchmarkWindow;
     }
 }
 
-void ProvinceSimulationUI::renderStatsPanel() {
-    ImGui::Text("Current Statistics");
-    ImGui::Separator();
+// =============================================================================
+// PANEL WYDAJNOŚCI
+// =============================================================================
 
-    if (m_statsHistory.empty()) {
-        ImGui::TextDisabled("No simulation data yet");
-        return;
-    }
-
-    const auto& latest = m_statsHistory.back();
-
-    ImGui::Text("Tick: %u", latest.tickNumber);
-    ImGui::Text("Last Tick Time: %.3f ms", latest.elapsedMs);
-    ImGui::Spacing();
-
-    ImGui::Text("Total Population: %.1f k", latest.totalPopulation);
-    ImGui::Text("Total Wealth: %.1f", latest.totalWealth);
-    ImGui::Text("Average Growth: %.2f%%", latest.avgGrowth);
-    ImGui::Spacing();
-
-    ImGui::TextColored(ImVec4(0.2f, 1.0f, 0.2f, 1.0f), "Growing: %u", latest.growing);
-    ImGui::TextColored(ImVec4(1.0f, 1.0f, 0.2f, 1.0f), "Stable: %u", latest.stable);
-    ImGui::TextColored(ImVec4(1.0f, 0.2f, 0.2f, 1.0f), "Declining: %u", latest.declining);
-
-    ImGui::Spacing();
-    ImGui::Separator();
-
-    if (m_statsHistory.size() >= 2) {
-        const auto& prev = m_statsHistory[m_statsHistory.size() - 2];
-        float popChange = latest.totalPopulation - prev.totalPopulation;
-        float wealthChange = latest.totalWealth - prev.totalWealth;
-
-        ImGui::Text("Population Change: %+.1f k", popChange);
-        ImGui::Text("Wealth Change: %+.1f", wealthChange);
-    }
-}
-
-void ProvinceSimulationUI::renderProvinceTable() {
-    ImGui::Text("Provinces (%u total)", m_simulation->getNumProvinces());
-    ImGui::Separator();
-
-    // Get cached data (only rebuilds if needed)
-    const auto& provinces = getFilteredAndSortedProvinces();
-
-    ImGui::Text("Showing %zu provinces", provinces.size());
-    ImGui::Separator();
-
-    ImGuiTableFlags flags = ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg |
-        ImGuiTableFlags_ScrollY | ImGuiTableFlags_Sortable |
-        ImGuiTableFlags_Resizable | ImGuiTableFlags_Hideable;
-
-    if (ImGui::BeginTable("ProvinceTable", 7, flags)) {
-        ImGui::TableSetupScrollFreeze(0, 1);
-        ImGui::TableSetupColumn("ID", ImGuiTableColumnFlags_WidthFixed, 50.0f);
-        ImGui::TableSetupColumn("Population", ImGuiTableColumnFlags_WidthFixed, 100.0f);
-        ImGui::TableSetupColumn("Growth %", ImGuiTableColumnFlags_WidthFixed, 80.0f);
-        ImGui::TableSetupColumn("Food Prod", ImGuiTableColumnFlags_WidthFixed, 90.0f);
-        ImGui::TableSetupColumn("Food Storage", ImGuiTableColumnFlags_WidthFixed, 100.0f);
-        ImGui::TableSetupColumn("Wealth", ImGuiTableColumnFlags_WidthFixed, 100.0f);
-        ImGui::TableSetupColumn("Status", ImGuiTableColumnFlags_WidthFixed, 90.0f);
-        ImGui::TableHeadersRow();
-
-        ImGuiListClipper clipper;
-        clipper.Begin(provinces.size());
-        while (clipper.Step()) {
-            for (int row = clipper.DisplayStart; row < clipper.DisplayEnd; row++) {
-                const auto& prov = provinces[row];
-
-                ImGui::TableNextRow();
-
-                ImGui::TableSetColumnIndex(0);
-                if (ImGui::Selectable(std::to_string(prov.index).c_str(),
-                    m_selectedProvince == (int)prov.index,
-                    ImGuiSelectableFlags_SpanAllColumns)) {
-                    m_selectedProvince = prov.index;
-                }
-
-                ImGui::TableSetColumnIndex(1);
-                ImGui::Text("%.1f k", prov.population);
-
-                ImGui::TableSetColumnIndex(2);
-                ImVec4 growthColor = prov.populationGrowth > 0 ?
-                    ImVec4(0.2f, 1.0f, 0.2f, 1.0f) :
-                    ImVec4(1.0f, 0.2f, 0.2f, 1.0f);
-                ImGui::TextColored(growthColor, "%+.1f%%", prov.populationGrowth);
-
-                ImGui::TableSetColumnIndex(3);
-                ImGui::Text("%.2f", prov.foodProduction);
-
-                ImGui::TableSetColumnIndex(4);
-                ImGui::Text("%.1f", prov.foodStorage);
-
-                ImGui::TableSetColumnIndex(5);
-                ImGui::Text("%.1f", prov.wealth);
-
-                ImGui::TableSetColumnIndex(6);
-                ImGui::TextColored(getStatusColor(prov.status), "%s", prov.status);
-            }
-        }
-        clipper.End();
-
-        ImGui::EndTable();
-    }
-}
-
-void ProvinceSimulationUI::renderProvinceDetails() {
-    ImGui::Text("Province Details");
-    ImGui::Separator();
-
-    if (m_selectedProvince < 0) {
-        ImGui::TextDisabled("Select a province from the table");
-        return;
-    }
-
-    auto data = m_simulation->getProvinceData(m_selectedProvince);
-    auto initial = m_simulation->getInitialStats(m_selectedProvince);
-
-    ImGui::Text("Province ID: %d", m_selectedProvince);
-    ImGui::Spacing();
+void ProvinceSimulationUI::renderPerformancePanel() {
+    ImGui::TextColored(ImVec4(0.2f, 0.8f, 1.0f, 1.0f), "Performance Metrics");
     ImGui::Separator();
     ImGui::Spacing();
 
-    ImGui::TextColored(ImVec4(0.2f, 0.8f, 1.0f, 1.0f), "Current State:");
-    ImGui::Text("Population: %.1f k", data.population);
-    ImGui::Text("Food Production: %.2f /tick", data.foodProductionModifier);
-    ImGui::Text("Food Storage: %.1f", data.foodStorage);
-    ImGui::Text("Wealth: %.1f", data.wealth);
+    auto stats = m_simulation->getPerformanceStats();
+    auto simParams = m_simulation->getSimulationParameters();
 
-    ImGui::Spacing();
-    ImGui::Separator();
-    ImGui::Spacing();
+    // Kluczowe metryki w dużej czcionce
+    ImGui::PushFont(ImGui::GetIO().Fonts->Fonts[0]); // Domyślna czcionka
 
-    ImGui::TextColored(ImVec4(0.8f, 0.8f, 0.2f, 1.0f), "Initial State:");
-    ImGui::Text("Population: %.1f k", initial.population);
-    ImGui::Text("Food Production: %.2f /tick", initial.foodProductionModifier);
+    ImGui::Columns(3, "PerfColumns", false);
 
-    ImGui::Spacing();
-    ImGui::Separator();
-    ImGui::Spacing();
+    // Kolumna 1: Czas na tick
+    ImGui::TextColored(ImVec4(0.2f, 1.0f, 0.2f, 1.0f), "%.3f ms", stats.lastStepTimeMs);
+    ImGui::Text("Time/Tick");
 
-    float popChange = data.population - initial.population;
-    float popChangePercent = (popChange / initial.population) * 100.0f;
+    // Kolumna 2: Ticki na sekundę
+    ImGui::NextColumn();
+    float ticksPerSec = stats.lastStepTimeMs > 0 ? 1000.0f / stats.lastStepTimeMs : 0.0f;
+    ImGui::TextColored(ImVec4(1.0f, 0.8f, 0.2f, 1.0f), "%.1f", ticksPerSec);
+    ImGui::Text("Ticks/Second");
 
-    ImGui::TextColored(ImVec4(0.2f, 1.0f, 0.2f, 1.0f), "Changes:");
-    ImGui::Text("Population: %+.1f k (%+.1f%%)", popChange, popChangePercent);
-    ImGui::Text("Wealth Accumulated: %.1f", data.wealth);
-
-    ImGui::Spacing();
-    ImGui::Separator();
-    ImGui::Spacing();
-
-    const char* status = getStatusString(popChangePercent);
-    ImGui::Text("Status: ");
-    ImGui::SameLine();
-    ImGui::TextColored(getStatusColor(status), "%s", status);
-
-    ImGui::Spacing();
-    ImGui::Separator();
-    ImGui::Text("Food Balance:");
-
-    float foodConsumption = data.population * m_simulation->getFoodConsumptionPerPop();
-    float foodBalance = data.foodProductionModifier - foodConsumption;
-
-    ImGui::Text("Production: %.2f", data.foodProductionModifier);
-    ImGui::Text("Consumption: %.2f", foodConsumption);
-    ImGui::Text("Balance: %+.2f", foodBalance);
-
-    if (foodBalance > 0) {
-        ImGui::TextColored(ImVec4(0.2f, 1.0f, 0.2f, 1.0f), "Surplus!");
+    // Kolumna 3: Prowincje na sekundę
+    ImGui::NextColumn();
+    float provPerSec = ticksPerSec * simParams.numProvinces;
+    if (provPerSec >= 1000000.0f) {
+        ImGui::TextColored(ImVec4(1.0f, 0.4f, 1.0f, 1.0f), "%.2f M", provPerSec / 1000000.0f);
     }
     else {
-        ImGui::TextColored(ImVec4(1.0f, 0.2f, 0.2f, 1.0f), "Deficit!");
+        ImGui::TextColored(ImVec4(1.0f, 0.4f, 1.0f, 1.0f), "%.0f k", provPerSec / 1000.0f);
     }
+    ImGui::Text("Provinces/Sec");
+
+    ImGui::Columns(1);
+    ImGui::PopFont();
+
+    ImGui::Spacing();
+    ImGui::Separator();
+    ImGui::Spacing();
+
+    // Wykres czasu wykonania
+    if (!m_tickTimeHistory.empty()) {
+        ImGui::Text("Tick Time History:");
+        ImGui::PlotLines("##TickTime",
+            m_tickTimeHistory.data(),
+            m_tickTimeHistory.size(),
+            0,
+            nullptr,
+            0.0f,
+            FLT_MAX,
+            ImVec2(0, 120));
+
+        // Min/Max/Avg
+        float minTime = *std::min_element(m_tickTimeHistory.begin(), m_tickTimeHistory.end());
+        float maxTime = *std::max_element(m_tickTimeHistory.begin(), m_tickTimeHistory.end());
+        float avgTime = 0.0f;
+        for (float t : m_tickTimeHistory) avgTime += t;
+        avgTime /= m_tickTimeHistory.size();
+
+        ImGui::Text("Min: %.3f ms  |  Max: %.3f ms  |  Avg: %.3f ms",
+            minTime, maxTime, avgTime);
+    }
+
+    ImGui::Spacing();
+    ImGui::Separator();
+    ImGui::Spacing();
+
+    // Dodatkowe info
+    ImGui::Text("Current Configuration:");
+    ImGui::Text("  Total Provinces: %u", simParams.numProvinces);
+    ImGui::Text("  Current Tick: %u", stats.currentTick);
 }
 
-void ProvinceSimulationUI::renderStatsHistory() {
-    ImGui::Text("Statistics History");
-    ImGui::Separator();
+// =============================================================================
+// PANEL STATYSTYK
+// =============================================================================
 
-    if (m_statsHistory.empty()) {
-        ImGui::TextDisabled("No history yet");
+void ProvinceSimulationUI::renderStatisticsPanel() {
+    ImGui::TextColored(ImVec4(0.2f, 0.8f, 1.0f, 1.0f), "Simulation Statistics");
+    ImGui::Separator();
+    ImGui::Spacing();
+
+    const auto* latest = m_simulation->getLatestStatistics();
+
+    if (!latest) {
+        ImGui::TextDisabled("No simulation data yet - run a tick first");
         return;
     }
 
-    if (m_statsHistory.size() > 1) {
-        std::vector<float> popValues;
-        popValues.reserve(m_statsHistory.size());
-        for (const auto& stat : m_statsHistory) {
-            popValues.push_back(stat.totalPopulation);
-        }
+    // Główne statystyki
+    ImGui::Text("Total Population: %.2f million", latest->totalPopulation / 1000.0f);
+    ImGui::Text("Total Wealth: %.1f", latest->totalWealth);
+    ImGui::Text("Average Growth: %.2f%%", latest->avgGrowth);
 
-        ImGui::PlotLines("Total Population", popValues.data(), popValues.size(),
-            0, nullptr, FLT_MAX, FLT_MAX, ImVec2(0, 80));
-
-        std::vector<float> wealthValues;
-        wealthValues.reserve(m_statsHistory.size());
-        for (const auto& stat : m_statsHistory) {
-            wealthValues.push_back(stat.totalWealth);
-        }
-
-        ImGui::PlotLines("Total Wealth", wealthValues.data(), wealthValues.size(),
-            0, nullptr, FLT_MAX, FLT_MAX, ImVec2(0, 80));
-    }
-
+    ImGui::Spacing();
     ImGui::Separator();
-    ImGui::Text("History: %zu entries", m_statsHistory.size());
-    if (ImGui::Button("Clear History")) {
-        m_statsHistory.clear();
+    ImGui::Spacing();
+
+    // Rozkład statusów prowincji
+    ImGui::Text("Province Status Distribution:");
+
+    uint32_t total = latest->growing + latest->stable + latest->declining;
+    if (total > 0) {
+        ImGui::Columns(3, "StatusCols", false);
+
+        ImGui::TextColored(ImVec4(0.2f, 1.0f, 0.2f, 1.0f), "Growing");
+        ImGui::Text("%u (%.1f%%)", latest->growing,
+            (float)latest->growing / total * 100.0f);
+
+        ImGui::NextColumn();
+        ImGui::TextColored(ImVec4(1.0f, 1.0f, 0.2f, 1.0f), "Stable");
+        ImGui::Text("%u (%.1f%%)", latest->stable,
+            (float)latest->stable / total * 100.0f);
+
+        ImGui::NextColumn();
+        ImGui::TextColored(ImVec4(1.0f, 0.2f, 0.2f, 1.0f), "Declining");
+        ImGui::Text("%u (%.1f%%)", latest->declining,
+            (float)latest->declining / total * 100.0f);
+
+        ImGui::Columns(1);
+    }
+
+    ImGui::Spacing();
+    ImGui::Separator();
+    ImGui::Spacing();
+
+    // Historia populacji
+    const auto& history = m_simulation->getStatisticsHistory();
+    if (history.size() > 1) {
+        std::vector<float> popHistory;
+        popHistory.reserve(std::min(history.size(), size_t(200)));
+
+        size_t start = history.size() > 200 ? history.size() - 200 : 0;
+        for (size_t i = start; i < history.size(); ++i) {
+            popHistory.push_back(history[i].totalPopulation / 1000.0f);
+        }
+
+        ImGui::Text("Population History (millions):");
+        ImGui::PlotLines("##PopHistory",
+            popHistory.data(),
+            popHistory.size(),
+            0,
+            nullptr,
+            FLT_MAX,
+            FLT_MAX,
+            ImVec2(0, 100));
+
+        // Zmiana od początku
+        float initialPop = history.front().totalPopulation;
+        float currentPop = latest->totalPopulation;
+        float change = ((currentPop - initialPop) / initialPop) * 100.0f;
+
+        ImGui::Text("Total Change: %+.2f%% from start", change);
     }
 }
 
-void ProvinceSimulationUI::renderSettingsWindow() {
-    ImGui::SetNextWindowSize(ImVec2(600, 700), ImGuiCond_FirstUseEver);
-    if (ImGui::Begin("Simulation Settings", &m_showSettingsWindow)) {
-        bool canEdit = !m_simulation->isComputeInProgress();
+// =============================================================================
+// INSPEKTOR PROWINCJI
+// =============================================================================
 
-        if (!canEdit) {
-            ImGui::TextColored(ImVec4(1.0f, 1.0f, 0.2f, 1.0f),
-                "Settings locked during computation");
-            ImGui::Separator();
+void ProvinceSimulationUI::renderProvinceInspector() {
+    ImGui::TextColored(ImVec4(0.2f, 0.8f, 1.0f, 1.0f), "Province Inspector");
+    ImGui::Separator();
+    ImGui::Spacing();
+
+    uint32_t maxId = m_simulation->getNumProvinces() - 1;
+
+    ImGui::Text("Enter Province ID (0 - %u):", maxId);
+    ImGui::SetNextItemWidth(150);
+    if (ImGui::InputText("##ProvinceID", m_inspectBuffer, sizeof(m_inspectBuffer),
+        ImGuiInputTextFlags_CharsDecimal)) {
+        // Parse input
+        int id = atoi(m_inspectBuffer);
+        if (id >= 0 && id <= (int)maxId) {
+            m_inspectProvinceId = id;
         }
+    }
 
-        if (!canEdit) ImGui::BeginDisabled();
+    ImGui::SameLine();
+    if (ImGui::Button("Random")) {
+        m_inspectProvinceId = rand() % (maxId + 1);
+        snprintf(m_inspectBuffer, sizeof(m_inspectBuffer), "%d", m_inspectProvinceId);
+    }
 
-        // Simulation Parameters Section
-        if (ImGui::CollapsingHeader("Simulation Parameters", ImGuiTreeNodeFlags_DefaultOpen)) {
-            ImGui::Indent();
+    ImGui::Spacing();
+    ImGui::Separator();
+    ImGui::Spacing();
 
-            int numProvinces = m_settingsState.simParams.numProvinces;
-            if (ImGui::InputInt("Number of Provinces", &numProvinces, 1024, 8192)) {
-                if (numProvinces < 1024) numProvinces = 1024;
-                if (numProvinces > 1048576) numProvinces = 1048576;
-                m_settingsState.simParams.numProvinces = numProvinces;
-                m_settingsChanged = true;
-            }
-            if (ImGui::IsItemHovered()) {
-                ImGui::SetTooltip("Range: 1024 - 1048576");
-            }
+    // Wyświetl dane prowincji
+    if (m_inspectProvinceId >= 0 && m_inspectProvinceId <= (int)maxId) {
+        auto current = m_simulation->getProvinceData(m_inspectProvinceId);
+        auto initial = m_simulation->getInitialStats(m_inspectProvinceId);
 
-            if (ImGui::DragFloat("Food Consumption per Pop",
-                &m_settingsState.simParams.foodConsumptionPerPop,
-                0.01f, 0.01f, 1.0f, "%.3f")) {
-                m_settingsChanged = true;
-            }
+        ImGui::Text("Province #%d", m_inspectProvinceId);
+        ImGui::Spacing();
 
-            if (ImGui::DragFloat("Base Population Growth",
-                &m_settingsState.simParams.basePopulationGrowth,
-                0.001f, 0.0f, 0.1f, "%.4f")) {
-                m_settingsChanged = true;
-            }
-
-            if (ImGui::DragFloat("Starvation Threshold",
-                &m_settingsState.simParams.starvationThreshold,
-                0.05f, 0.0f, 1.0f, "%.2f")) {
-                m_settingsChanged = true;
-            }
-
-            if (ImGui::DragFloat("Wealth per Pop",
-                &m_settingsState.simParams.wealthPerPop,
-                0.05f, 0.0f, 10.0f, "%.2f")) {
-                m_settingsChanged = true;
-            }
-
-            if (ImGui::DragFloat("Max Food Storage",
-                &m_settingsState.simParams.maxFoodStorage,
-                5.0f, 10.0f, 1000.0f, "%.1f")) {
-                m_settingsChanged = true;
-            }
-
-            if (ImGui::DragFloat("Min Population",
-                &m_settingsState.simParams.minPopulation,
-                0.01f, 0.01f, 1.0f, "%.2f")) {
-                m_settingsChanged = true;
-            }
-
-            ImGui::Unindent();
-        }
+        // Obecny stan
+        ImGui::TextColored(ImVec4(0.2f, 1.0f, 0.5f, 1.0f), "Current State:");
+        ImGui::Text("  Population: %.2f k", current.population);
+        ImGui::Text("  Food Production: %.2f /tick", current.foodProductionModifier);
+        ImGui::Text("  Food Storage: %.1f", current.foodStorage);
+        ImGui::Text("  Wealth: %.1f", current.wealth);
 
         ImGui::Spacing();
 
-        // Randomization Parameters Section
-        if (ImGui::CollapsingHeader("Randomization Parameters", ImGuiTreeNodeFlags_DefaultOpen)) {
-            ImGui::Indent();
-
-            if (ImGui::DragFloat("Min Initial Population",
-                &m_settingsState.randParams.minPopulation,
-                0.5f, 0.1f, 100.0f, "%.1f")) {
-                if (m_settingsState.randParams.minPopulation > m_settingsState.randParams.maxPopulation) {
-                    m_settingsState.randParams.maxPopulation = m_settingsState.randParams.minPopulation;
-                }
-                m_settingsChanged = true;
-            }
-
-            if (ImGui::DragFloat("Max Initial Population",
-                &m_settingsState.randParams.maxPopulation,
-                0.5f, 0.1f, 100.0f, "%.1f")) {
-                if (m_settingsState.randParams.maxPopulation < m_settingsState.randParams.minPopulation) {
-                    m_settingsState.randParams.minPopulation = m_settingsState.randParams.maxPopulation;
-                }
-                m_settingsChanged = true;
-            }
-
-            ImGui::Spacing();
-
-            if (ImGui::DragFloat("Min Food Production",
-                &m_settingsState.randParams.minFoodProduction,
-                0.1f, 0.1f, 50.0f, "%.2f")) {
-                if (m_settingsState.randParams.minFoodProduction > m_settingsState.randParams.maxFoodProduction) {
-                    m_settingsState.randParams.maxFoodProduction = m_settingsState.randParams.minFoodProduction;
-                }
-                m_settingsChanged = true;
-            }
-
-            if (ImGui::DragFloat("Max Food Production",
-                &m_settingsState.randParams.maxFoodProduction,
-                0.1f, 0.1f, 50.0f, "%.2f")) {
-                if (m_settingsState.randParams.maxFoodProduction < m_settingsState.randParams.minFoodProduction) {
-                    m_settingsState.randParams.minFoodProduction = m_settingsState.randParams.maxFoodProduction;
-                }
-                m_settingsChanged = true;
-            }
-
-            ImGui::Spacing();
-
-            if (ImGui::DragFloat("Initial Food Storage",
-                &m_settingsState.randParams.initialFoodStorage,
-                1.0f, 0.0f, 100.0f, "%.1f")) {
-                m_settingsChanged = true;
-            }
-
-            ImGui::Spacing();
-
-            int seed = m_settingsState.randParams.randomSeed;
-            if (ImGui::InputInt("Random Seed (0 = random)", &seed, 1, 100)) {
-                if (seed < 0) seed = 0;
-                m_settingsState.randParams.randomSeed = seed;
-                m_settingsChanged = true;
-            }
-            if (ImGui::IsItemHovered()) {
-                ImGui::SetTooltip("Set to 0 for non-deterministic random generation");
-            }
-
-            ImGui::Unindent();
-        }
-
-        if (!canEdit) ImGui::EndDisabled();
+        // Stan początkowy
+        ImGui::TextColored(ImVec4(0.8f, 0.8f, 0.2f, 1.0f), "Initial State:");
+        ImGui::Text("  Population: %.2f k", initial.population);
+        ImGui::Text("  Food Production: %.2f /tick", initial.foodProductionModifier);
 
         ImGui::Spacing();
-        ImGui::Separator();
+
+        // Zmiany
+        float popChange = current.population - initial.population;
+        float popChangePercent = (popChange / initial.population) * 100.0f;
+
+        ImGui::TextColored(ImVec4(0.5f, 0.8f, 1.0f, 1.0f), "Changes:");
+        ImGui::Text("  Population: %+.2f k (%+.2f%%)",
+            popChange, popChangePercent);
+        ImGui::Text("  Wealth Gained: %.1f", current.wealth);
+
         ImGui::Spacing();
 
-        // Action buttons
-        if (!canEdit) ImGui::BeginDisabled();
-
-        if (ImGui::Button("Apply Settings", ImVec2(150, 0))) {
-            applySettings();
-        }
-        if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled)) {
-            ImGui::SetTooltip("Apply settings without resetting simulation");
-        }
-
+        // Status
+        const char* status = getStatusText(popChangePercent);
+        ImGui::Text("Status: ");
         ImGui::SameLine();
+        ImGui::TextColored(getStatusColor(popChangePercent), "%s", status);
 
-        if (ImGui::Button("Apply & Reset", ImVec2(150, 0))) {
-            m_simulation->resetSimulationWithParameters(
-                m_settingsState.simParams,
-                m_settingsState.randParams
-            );
-            m_statsHistory.clear();
-            m_selectedProvince = -1;
-            m_lastStepTime = 0;
-            invalidateCache();
-            m_settingsChanged = false;
-        }
-        if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled)) {
-            ImGui::SetTooltip("Apply settings and reset simulation to initial state");
-        }
+        ImGui::Spacing();
+        ImGui::Separator();
+        ImGui::Spacing();
 
+        // Bilans żywności
+        auto params = m_simulation->getSimulationParameters();
+        float consumption = current.population * params.foodConsumptionPerPop;
+        float balance = current.foodProductionModifier - consumption;
+
+        ImGui::Text("Food Balance:");
+        ImGui::Text("  Production: %.2f", current.foodProductionModifier);
+        ImGui::Text("  Consumption: %.2f", consumption);
+        ImGui::Text("  Balance: ");
         ImGui::SameLine();
-
-        if (ImGui::Button("Reset to Defaults", ImVec2(150, 0))) {
-            resetSettingsToDefault();
+        if (balance >= 0) {
+            ImGui::TextColored(ImVec4(0.2f, 1.0f, 0.2f, 1.0f), "+%.2f (Surplus)", balance);
         }
-
-        if (!canEdit) ImGui::EndDisabled();
-
-        ImGui::SameLine();
-
-        if (ImGui::Button("Reload Current", ImVec2(150, 0))) {
-            loadCurrentSettings();
-            m_settingsChanged = false;
-        }
-        if (ImGui::IsItemHovered()) {
-            ImGui::SetTooltip("Reload settings from simulation (discard changes)");
-        }
-
-        if (m_settingsChanged) {
-            ImGui::Spacing();
-            ImGui::TextColored(ImVec4(1.0f, 1.0f, 0.2f, 1.0f),
-                "* Settings have been modified");
+        else {
+            ImGui::TextColored(ImVec4(1.0f, 0.2f, 0.2f, 1.0f), "%.2f (Deficit)", balance);
         }
     }
-    ImGui::End();
 }
 
-void ProvinceSimulationUI::renderBenchmarkWindow() {
-    ImGui::SetNextWindowSize(ImVec2(700, 600), ImGuiCond_FirstUseEver);
-    if (ImGui::Begin("Performance Benchmark", &m_showBenchmarkWindow)) {
-        ImGui::TextColored(ImVec4(0.2f, 0.8f, 1.0f, 1.0f), "GPU vs CPU Performance Comparison");
-        ImGui::Separator();
-        ImGui::Spacing();
+// =============================================================================
+// FUNKCJE POMOCNICZE
+// =============================================================================
 
-        bool canStart = !m_benchmarkRunning && !m_simulation->isComputeInProgress();
-
-        if (!canStart) ImGui::BeginDisabled();
-
-        ImGui::Text("Benchmark Configuration:");
-        ImGui::Spacing();
-
-        ImGui::SetNextItemWidth(200);
-        ImGui::InputInt("Number of Ticks", &m_benchmarkTickCount, 10, 100);
-        if (m_benchmarkTickCount < 10) m_benchmarkTickCount = 10;
-        if (m_benchmarkTickCount > 10000) m_benchmarkTickCount = 10000;
-
-        ImGui::SetNextItemWidth(200);
-        ImGui::InputInt("CPU Threads", &m_benchmarkCPUThreads, 1, 4);
-        if (m_benchmarkCPUThreads < 1) m_benchmarkCPUThreads = 1;
-        if (m_benchmarkCPUThreads > 64) m_benchmarkCPUThreads = 64;
-
-        ImGui::Spacing();
-        ImGui::Checkbox("Benchmark GPU", &m_benchmarkGPU);
-        ImGui::Checkbox("Benchmark CPU", &m_benchmarkCPU);
-
-        ImGui::Spacing();
-        ImGui::Separator();
-        ImGui::Spacing();
-
-        if (ImGui::Button("Run Benchmark", ImVec2(200, 40))) {
-            startBenchmark();
-        }
-
-        if (!canStart) ImGui::EndDisabled();
-
-        ImGui::Spacing();
-        ImGui::Separator();
-        ImGui::Spacing();
-
-        // Show benchmark progress
-        if (m_benchmarkRunning) {
-            ImGui::TextColored(ImVec4(1.0f, 1.0f, 0.2f, 1.0f), "Benchmark running...");
-
-            const char* phaseText = "";
-            switch (m_benchmarkPhase) {
-            case BenchmarkPhase::GPU_Running:
-                phaseText = "Testing GPU performance...";
-                break;
-            case BenchmarkPhase::CPU_Running:
-                phaseText = "Testing CPU performance...";
-                break;
-            default:
-                phaseText = "Preparing...";
-            }
-            ImGui::Text("%s", phaseText);
-
-            uint32_t currentTick = m_simulation->getCurrentTick();
-            uint32_t ticksCompleted = currentTick - m_benchmarkStartTick;
-            float progress = (float)ticksCompleted / m_benchmarkTickCount;
-            ImGui::ProgressBar(progress, ImVec2(-1, 0));
-            ImGui::Text("Tick: %u / %u", ticksCompleted, m_benchmarkTickCount);
-        }
-
-        // Show results
-        if (!m_benchmarkResults.empty()) {
-            ImGui::Spacing();
-            ImGui::TextColored(ImVec4(0.2f, 1.0f, 0.2f, 1.0f), "Benchmark Results:");
-            ImGui::Separator();
-
-            ImGuiTableFlags flags = ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg | ImGuiTableFlags_Resizable;
-
-            if (ImGui::BeginTable("BenchmarkResults", 6, flags)) {
-                ImGui::TableSetupColumn("Mode");
-                ImGui::TableSetupColumn("Threads");
-                ImGui::TableSetupColumn("Ticks");
-                ImGui::TableSetupColumn("Total Time (ms)");
-                ImGui::TableSetupColumn("Avg/Tick (ms)");
-                ImGui::TableSetupColumn("Ticks/sec");
-                ImGui::TableHeadersRow();
-
-                for (const auto& result : m_benchmarkResults) {
-                    ImGui::TableNextRow();
-
-                    ImGui::TableSetColumnIndex(0);
-                    ImGui::Text("%s", result.mode == SimulationMode::GPU ? "GPU" : "CPU");
-
-                    ImGui::TableSetColumnIndex(1);
-                    if (result.mode == SimulationMode::CPU) {
-                        ImGui::Text("%zu", result.cpuThreads);
-                    }
-                    else {
-                        ImGui::Text("-");
-                    }
-
-                    ImGui::TableSetColumnIndex(2);
-                    ImGui::Text("%u", result.numTicks);
-
-                    ImGui::TableSetColumnIndex(3);
-                    ImGui::Text("%.2f", result.totalTimeMs);
-
-                    ImGui::TableSetColumnIndex(4);
-                    ImGui::Text("%.3f", result.avgTimePerTick);
-
-                    ImGui::TableSetColumnIndex(5);
-                    ImGui::Text("%.1f", result.ticksPerSecond);
-                }
-
-                ImGui::EndTable();
-            }
-
-            // Performance comparison
-            if (m_benchmarkResults.size() >= 2) {
-                ImGui::Spacing();
-                ImGui::Separator();
-                ImGui::Spacing();
-                ImGui::Text("Performance Comparison:");
-
-                auto& gpuResult = m_benchmarkResults[0];
-                auto& cpuResult = m_benchmarkResults[1];
-
-                if (gpuResult.mode == SimulationMode::GPU && cpuResult.mode == SimulationMode::CPU) {
-                    double speedup = cpuResult.totalTimeMs / gpuResult.totalTimeMs;
-
-                    ImGui::Text("GPU vs CPU Speedup: %.2fx", speedup);
-
-                    if (speedup > 1.0) {
-                        ImGui::TextColored(ImVec4(0.2f, 1.0f, 0.2f, 1.0f),
-                            "GPU is %.1f%% faster", (speedup - 1.0) * 100.0);
-                    }
-                    else {
-                        ImGui::TextColored(ImVec4(1.0f, 0.2f, 0.2f, 1.0f),
-                            "CPU is %.1f%% faster", (1.0 / speedup - 1.0) * 100.0);
-                    }
-                }
-            }
-
-            ImGui::Spacing();
-            if (ImGui::Button("Clear Results")) {
-                m_benchmarkResults.clear();
-            }
-        }
-    }
-    ImGui::End();
-}
-
-const std::vector<ProvinceDisplayData>& ProvinceSimulationUI::getFilteredAndSortedProvinces() {
-    uint32_t currentTick = m_simulation->getCurrentTick();
-    std::string currentSearch(m_searchBuffer);
-
-    // Check if cache is still valid
-    bool needsRebuild = !m_cacheValid ||
-        m_lastCachedTick != currentTick ||
-        m_lastSortColumn != m_sortColumn ||
-        m_lastSortOrder != m_sortOrder ||
-        m_lastSearchTerm != currentSearch;
-
-    if (needsRebuild) {
-        rebuildDisplayCache();
-        m_lastCachedTick = currentTick;
-        m_lastSortColumn = m_sortColumn;
-        m_lastSortOrder = m_sortOrder;
-        m_lastSearchTerm = currentSearch;
-        m_cacheValid = true;
-    }
-
-    return m_cachedDisplayData;
-}
-
-void ProvinceSimulationUI::rebuildDisplayCache() {
-    m_cachedDisplayData.clear();
-
-    uint32_t numProvinces = m_simulation->getNumProvinces();
-    m_cachedDisplayData.reserve(numProvinces);
-
-    const char* searchTerm = m_searchBuffer[0] != '\0' ? m_searchBuffer : nullptr;
-
-    // Build display data with filtering
-    for (uint32_t i = 0; i < numProvinces; ++i) {
-        auto data = m_simulation->getProvinceData(i);
-        auto initial = m_simulation->getInitialStats(i);
-
-        float growth = ((data.population - initial.population) / initial.population) * 100.0f;
-
-        ProvinceDisplayData display;
-        display.index = i;
-        display.population = data.population;
-        display.populationGrowth = growth;
-        display.foodProduction = data.foodProductionModifier;
-        display.foodStorage = data.foodStorage;
-        display.wealth = data.wealth;
-        display.status = getStatusString(growth);
-
-        if (!searchTerm || matchesSearch(display, searchTerm)) {
-            m_cachedDisplayData.push_back(display);
-        }
-    }
-
-    // Sort once
-    sortProvinces(m_cachedDisplayData);
-}
-
-void ProvinceSimulationUI::sortProvinces(std::vector<ProvinceDisplayData>& provinces) {
-    auto compare = [this](const ProvinceDisplayData& a, const ProvinceDisplayData& b) {
-        bool result;
-        switch (m_sortColumn) {
-        case SortColumn::Index:
-            result = a.index < b.index;
-            break;
-        case SortColumn::Population:
-            result = a.population < b.population;
-            break;
-        case SortColumn::PopulationGrowth:
-            result = a.populationGrowth < b.populationGrowth;
-            break;
-        case SortColumn::FoodProduction:
-            result = a.foodProduction < b.foodProduction;
-            break;
-        case SortColumn::FoodStorage:
-            result = a.foodStorage < b.foodStorage;
-            break;
-        case SortColumn::Wealth:
-            result = a.wealth < b.wealth;
-            break;
-        }
-        return m_sortOrder == SortOrder::Ascending ? result : !result;
-        };
-
-    std::sort(provinces.begin(), provinces.end(), compare);
-}
-
-bool ProvinceSimulationUI::matchesSearch(const ProvinceDisplayData& province, const char* searchTerm) {
-    std::string indexStr = std::to_string(province.index);
-    return indexStr.find(searchTerm) != std::string::npos;
-}
-
-void ProvinceSimulationUI::recordTickStats(uint32_t tickNumber, double elapsedMs) {
-    TickStats stats;
-    stats.tickNumber = tickNumber;
-    stats.elapsedMs = elapsedMs;
-    stats.totalPopulation = 0.0f;
-    stats.totalWealth = 0.0f;
-    stats.avgGrowth = 0.0f;
-    stats.growing = 0;
-    stats.stable = 0;
-    stats.declining = 0;
-
-    uint32_t numProvinces = m_simulation->getNumProvinces();
-
-    for (uint32_t i = 0; i < numProvinces; ++i) {
-        auto data = m_simulation->getProvinceData(i);
-        auto initial = m_simulation->getInitialStats(i);
-
-        stats.totalPopulation += data.population;
-        stats.totalWealth += data.wealth;
-
-        float growth = ((data.population - initial.population) / initial.population) * 100.0f;
-        stats.avgGrowth += growth;
-
-        if (growth > 5.0f) stats.growing++;
-        else if (growth < -5.0f) stats.declining++;
-        else stats.stable++;
-    }
-
-    stats.avgGrowth /= numProvinces;
-
-    m_statsHistory.push_back(stats);
-
-    if (m_statsHistory.size() > MAX_HISTORY) {
-        m_statsHistory.erase(m_statsHistory.begin());
+void ProvinceSimulationUI::addTickTimeToHistory(float timeMs) {
+    m_tickTimeHistory.push_back(timeMs);
+    if (m_tickTimeHistory.size() > PERF_HISTORY_SIZE) {
+        m_tickTimeHistory.erase(m_tickTimeHistory.begin());
     }
 }
 
-const char* ProvinceSimulationUI::getStatusString(float growthPercent) {
-    if (growthPercent > 5.0f) return "GROWING";
-    if (growthPercent < -5.0f) return "DECLINING";
-    return "STABLE";
-}
-
-ImVec4 ProvinceSimulationUI::getStatusColor(const char* status) {
-    if (strcmp(status, "GROWING") == 0) return ImVec4(0.2f, 1.0f, 0.2f, 1.0f);
-    if (strcmp(status, "DECLINING") == 0) return ImVec4(1.0f, 0.2f, 0.2f, 1.0f);
+ImVec4 ProvinceSimulationUI::getStatusColor(float growthPercent) {
+    if (growthPercent > 5.0f) return ImVec4(0.2f, 1.0f, 0.2f, 1.0f);
+    if (growthPercent < -5.0f) return ImVec4(1.0f, 0.2f, 0.2f, 1.0f);
     return ImVec4(1.0f, 1.0f, 0.2f, 1.0f);
 }
 
-void ProvinceSimulationUI::loadCurrentSettings() {
-    if (!m_simulation) return;
-
-    m_settingsState.simParams = m_simulation->getSimulationParameters();
-    m_settingsState.randParams = m_simulation->getRandomizationParameters();
-    m_settingsChanged = false;
-}
-
-void ProvinceSimulationUI::applySettings() {
-    if (!m_simulation) return;
-
-    m_simulation->setSimulationParameters(m_settingsState.simParams);
-    m_simulation->setRandomizationParameters(m_settingsState.randParams);
-    m_settingsChanged = false;
-
-    SPDLOG_INFO("Settings applied to simulation");
-}
-
-void ProvinceSimulationUI::resetSettingsToDefault() {
-    m_settingsState.simParams = SimulationParameters();
-    m_settingsState.randParams = RandomizationParameters();
-    m_settingsChanged = true;
-}
-
-void ProvinceSimulationUI::startBenchmark() {
-    if (!m_benchmarkGPU && !m_benchmarkCPU) {
-        SPDLOG_WARN("No benchmark modes selected");
-        return;
-    }
-
-    SPDLOG_INFO("Starting benchmark: {} ticks", m_benchmarkTickCount);
-
-    m_benchmarkResults.clear();
-    m_benchmarkRunning = true;
-    m_benchmarkOriginalMode = m_simulation->getMode();
-    m_benchmarkOriginalThreads = m_simulation->getCPUThreadCount();
-
-    // Reset simulation to ensure fair comparison
-    m_simulation->resetSimulation();
-
-    // Start with GPU if enabled
-    if (m_benchmarkGPU) {
-        m_simulation->setMode(SimulationMode::GPU);
-        m_benchmarkPhase = BenchmarkPhase::GPU_Running;
-    }
-    else {
-        m_simulation->setMode(SimulationMode::CPU);
-        m_simulation->setCPUThreadCount(m_benchmarkCPUThreads);
-        m_benchmarkPhase = BenchmarkPhase::CPU_Running;
-    }
-
-    m_benchmarkStartTick = m_simulation->getCurrentTick();
-    m_benchmarkStartTime = std::chrono::high_resolution_clock::now();
-
-    m_simulation->runMultipleSteps(m_benchmarkTickCount);
-}
-
-void ProvinceSimulationUI::updateBenchmark() {
-    if (!m_benchmarkRunning) return;
-
-    // Wait for computation to finish
-    if (m_simulation->isComputeInProgress()) return;
-
-    uint32_t currentTick = m_simulation->getCurrentTick();
-    uint32_t ticksCompleted = currentTick - m_benchmarkStartTick;
-
-    // Check if current phase is complete
-    if (ticksCompleted >= m_benchmarkTickCount) {
-        completeBenchmarkPhase();
-    }
-}
-
-void ProvinceSimulationUI::completeBenchmarkPhase() {
-    auto endTime = std::chrono::high_resolution_clock::now();
-    double totalTimeMs = std::chrono::duration<double, std::milli>(endTime - m_benchmarkStartTime).count();
-
-    BenchmarkResult result;
-    result.mode = m_simulation->getMode();
-    result.cpuThreads = m_simulation->getCPUThreadCount();
-    result.numTicks = m_benchmarkTickCount;
-    result.numProvinces = m_simulation->getNumProvinces();
-    result.totalTimeMs = totalTimeMs;
-    result.avgTimePerTick = totalTimeMs / m_benchmarkTickCount;
-    result.ticksPerSecond = (m_benchmarkTickCount * 1000.0) / totalTimeMs;
-
-    m_benchmarkResults.push_back(result);
-
-    SPDLOG_INFO("Benchmark phase complete: {} - {:.2f} ms total, {:.3f} ms/tick, {:.1f} ticks/sec",
-        result.mode == SimulationMode::GPU ? "GPU" : "CPU",
-        result.totalTimeMs, result.avgTimePerTick, result.ticksPerSecond);
-
-    // Move to next phase
-    switch (m_benchmarkPhase) {
-    case BenchmarkPhase::GPU_Running:
-        if (m_benchmarkCPU) {
-            // Switch to CPU
-            m_simulation->resetSimulation();
-            m_simulation->setMode(SimulationMode::CPU);
-            m_simulation->setCPUThreadCount(m_benchmarkCPUThreads);
-            m_benchmarkPhase = BenchmarkPhase::CPU_Running;
-            m_benchmarkStartTick = m_simulation->getCurrentTick();
-            m_benchmarkStartTime = std::chrono::high_resolution_clock::now();
-            m_simulation->runMultipleSteps(m_benchmarkTickCount);
-        }
-        else {
-            finalizeBenchmark();
-        }
-        break;
-
-    case BenchmarkPhase::CPU_Running:
-        finalizeBenchmark();
-        break;
-
-    default:
-        finalizeBenchmark();
-    }
-}
-
-void ProvinceSimulationUI::finalizeBenchmark() {
-    SPDLOG_INFO("Benchmark complete!");
-
-    // Restore original mode
-    m_simulation->setMode(m_benchmarkOriginalMode);
-    if (m_benchmarkOriginalMode == SimulationMode::CPU) {
-        m_simulation->setCPUThreadCount(m_benchmarkOriginalThreads);
-    }
-    m_simulation->resetSimulation();
-
-    m_benchmarkRunning = false;
-    m_benchmarkPhase = BenchmarkPhase::Idle;
+const char* ProvinceSimulationUI::getStatusText(float growthPercent) {
+    if (growthPercent > 5.0f) return "GROWING";
+    if (growthPercent < -5.0f) return "DECLINING";
+    return "STABLE";
 }

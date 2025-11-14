@@ -1,4 +1,89 @@
 #include "ProvinceSimulationTest.h"
+#include "GPUSimulationStrategy.h"
+#include "CPUSimulationStrategy.h"
+#include "Engine.h"
+#include "AssetSystem.h"
+#include <spdlog/spdlog.h>
+
+// =============================================================================
+// MOVE SEMANTICS (unchanged)
+// =============================================================================
+
+ProvinceSimulationTest::ProvinceSimulationTest(ProvinceSimulationTest&& other) noexcept
+    : CppScriptBase(std::move(other))
+    , currentMode_(other.currentMode_)
+    , strategy_(std::move(other.strategy_))
+    , simulationThread_(std::move(other.simulationThread_))
+    , running_(other.running_.load())
+    , stepsRequested_(other.stepsRequested_.load())
+    , sharedBuffer_(std::move(other.sharedBuffer_))
+    , initialStats_(std::move(other.initialStats_))
+    , simParams_(other.simParams_)
+    , randParams_(other.randParams_)
+    , computeDispatcher_(other.computeDispatcher_)
+    , materialManager_(other.materialManager_)
+    , threadPool_(other.threadPool_)
+    , cpuThreadCount_(other.cpuThreadCount_)
+    , gpuReadbackInterval_(other.gpuReadbackInterval_)
+    , statisticsHistory_(std::move(other.statisticsHistory_))
+    , lastProcessedTick_(other.lastProcessedTick_)
+    , benchmarkConfig_(other.benchmarkConfig_)
+    , benchmarkResults_(std::move(other.benchmarkResults_))
+    , tickCallback_(std::move(other.tickCallback_))
+    , benchmarkCallback_(std::move(other.benchmarkCallback_))
+{
+    other.running_ = false;
+    other.stepsRequested_ = 0;
+    other.computeDispatcher_ = nullptr;
+    other.materialManager_ = nullptr;
+    other.threadPool_ = nullptr;
+}
+
+ProvinceSimulationTest& ProvinceSimulationTest::operator=(ProvinceSimulationTest&& other) noexcept
+{
+    if (this != &other)
+    {
+        if (running_)
+        {
+            running_ = false;
+            if (simulationThread_.joinable())
+                simulationThread_.join();
+        }
+
+        CppScriptBase::operator=(std::move(other));
+        currentMode_ = other.currentMode_;
+        strategy_ = std::move(other.strategy_);
+        simulationThread_ = std::move(other.simulationThread_);
+        running_ = other.running_.load();
+        stepsRequested_ = other.stepsRequested_.load();
+        sharedBuffer_ = std::move(other.sharedBuffer_);
+        initialStats_ = std::move(other.initialStats_);
+        simParams_ = other.simParams_;
+        randParams_ = other.randParams_;
+        computeDispatcher_ = other.computeDispatcher_;
+        materialManager_ = other.materialManager_;
+        threadPool_ = other.threadPool_;
+        cpuThreadCount_ = other.cpuThreadCount_;
+        gpuReadbackInterval_ = other.gpuReadbackInterval_;
+        statisticsHistory_ = std::move(other.statisticsHistory_);
+        lastProcessedTick_ = other.lastProcessedTick_;
+        benchmarkConfig_ = other.benchmarkConfig_;
+        benchmarkResults_ = std::move(other.benchmarkResults_);
+        tickCallback_ = std::move(other.tickCallback_);
+        benchmarkCallback_ = std::move(other.benchmarkCallback_);
+
+        other.running_ = false;
+        other.stepsRequested_ = 0;
+        other.computeDispatcher_ = nullptr;
+        other.materialManager_ = nullptr;
+        other.threadPool_ = nullptr;
+    }
+    return *this;
+}
+
+// =============================================================================
+// LIFECYCLE (unchanged)
+// =============================================================================
 
 const char* ProvinceSimulationTest::getScriptName() const {
     return "ProvinceSimulationTest";
@@ -17,157 +102,530 @@ void ProvinceSimulationTest::OnCreate() {
     materialManager_ = &engine->assetSystem().materialManager();
     threadPool_ = &engine->threadPool();
 
-    // Create AsyncMemoryOps with thread pool
-    if (threadPool_) {
-        asyncMemoryOps_ = std::make_unique<AsyncMemoryOps>(*threadPool_);
-        SPDLOG_INFO("AsyncMemoryOps initialized with {} threads", threadPool_->getThreadCount());
-    }
-    else {
-        SPDLOG_WARN("ThreadPool not available, AsyncMemoryOps not initialized");
-    }
-
-    initializeSimulation();
+    sharedBuffer_ = std::make_unique<ProvinceDataBuffer>();
+    createStrategy(currentMode_);
 }
 
 void ProvinceSimulationTest::OnUpdate(float deltaTime) {
-    if (!simulation_) return;
-
-    // GPU needs update call for state machine
-    if (currentMode_ == SimulationMode::GPU) {
-        auto* gpuSim = static_cast<ProvinceSimulationGPU*>(simulation_.get());
-        gpuSim->update();
-    }
-
-    // Handle asset loading for GPU
     AssetManager& assetManager = getEngine()->assetSystem().assetManager();
     assetManager.ensureReady(AssetHandle(AssetLib::AssetType::Shader, "ProvinceSimulation"));
+
+    updateStatistics();
+
+    // Update benchmark if running
+    if (isBenchmarkRunning()) {
+        updateBenchmark();
+    }
 }
 
 void ProvinceSimulationTest::OnDestroy() {
     SPDLOG_INFO("ProvinceSimulationTest destroyed for entity {}", entity.id);
-    simulation_.reset();
-    asyncMemoryOps_.reset();
+
+    if (isBenchmarkRunning()) {
+        cancelBenchmark();
+    }
+
+    destroyStrategy();
+    sharedBuffer_.reset();
 }
+
+// =============================================================================
+// SIMULATION CONTROL (unchanged from before, skipping for brevity)
+// =============================================================================
 
 void ProvinceSimulationTest::setMode(SimulationMode mode) {
     if (mode == currentMode_) return;
-
-    if (simulation_ && simulation_->isComputeInProgress()) {
-        SPDLOG_WARN("Cannot switch mode during computation");
-        return;
-    }
 
     SPDLOG_INFO("Switching simulation mode: {} -> {}",
         currentMode_ == SimulationMode::GPU ? "GPU" : "CPU",
         mode == SimulationMode::GPU ? "GPU" : "CPU");
 
     currentMode_ = mode;
-    initializeSimulation();
+    destroyStrategy();
+    createStrategy(mode);
 }
 
 void ProvinceSimulationTest::setCPUThreadCount(size_t threads) {
-    if (currentMode_ == SimulationMode::CPU) {
-        auto* cpuSim = static_cast<ProvinceSimulationCPU*>(simulation_.get());
-        if (cpuSim) {
-            cpuSim->setThreadCount(threads);
-            SPDLOG_INFO("CPU thread count set to {}", threads);
-        }
+    cpuThreadCount_ = std::max(size_t(1), threads);
+    if (currentMode_ == SimulationMode::CPU && strategy_) {
+        auto* cpuStrategy = dynamic_cast<CPUSimulationStrategy*>(strategy_.get());
+        if (cpuStrategy) cpuStrategy->setThreadCount(cpuThreadCount_);
     }
 }
 
 size_t ProvinceSimulationTest::getCPUThreadCount() const {
-    if (currentMode_ == SimulationMode::CPU && simulation_) {
-        auto* cpuSim = static_cast<ProvinceSimulationCPU*>(simulation_.get());
-        return cpuSim->getThreadCount();
+    if (currentMode_ == SimulationMode::CPU && strategy_) {
+        auto* cpuStrategy = dynamic_cast<CPUSimulationStrategy*>(strategy_.get());
+        if (cpuStrategy) return cpuStrategy->getThreadCount();
     }
-    return 0;
+    return cpuThreadCount_;
+}
+
+void ProvinceSimulationTest::setGPUReadbackInterval(uint32_t interval) {
+    gpuReadbackInterval_ = std::max(1u, interval);
+    if (currentMode_ == SimulationMode::GPU && strategy_) {
+        auto* gpuStrategy = dynamic_cast<GPUSimulationStrategy*>(strategy_.get());
+        if (gpuStrategy) gpuStrategy->setReadbackInterval(gpuReadbackInterval_);
+    }
+}
+
+uint32_t ProvinceSimulationTest::getGPUReadbackInterval() const {
+    if (currentMode_ == SimulationMode::GPU && strategy_) {
+        auto* gpuStrategy = dynamic_cast<GPUSimulationStrategy*>(strategy_.get());
+        if (gpuStrategy) return gpuStrategy->getReadbackInterval();
+    }
+    return gpuReadbackInterval_;
+}
+
+void ProvinceSimulationTest::runSingleStep() {
+    if (!strategy_) return;
+    stepsRequested_.fetch_add(1, std::memory_order_relaxed);
+}
+
+void ProvinceSimulationTest::runMultipleSteps(uint32_t numSteps) {
+    if (!strategy_ || numSteps == 0) return;
+    stepsRequested_.fetch_add(numSteps, std::memory_order_relaxed);
+}
+
+void ProvinceSimulationTest::resetSimulation() {
+    destroyStrategy();
+    createStrategy(currentMode_);
+    lastProcessedTick_ = 0;
+    statisticsHistory_.clear();
+}
+
+void ProvinceSimulationTest::resetSimulationWithParameters(
+    const SimulationParameters& simParams,
+    const RandomizationParameters& randParams)
+{
+    simParams_ = simParams;
+    randParams_ = randParams;
+    resetSimulation();
 }
 
 void ProvinceSimulationTest::setSimulationParameters(const SimulationParameters& params) {
     simParams_ = params;
-    if (simulation_) {
-        simulation_->setSimulationParameters(params);
-    }
 }
 
 void ProvinceSimulationTest::setRandomizationParameters(const RandomizationParameters& params) {
     randParams_ = params;
-    if (simulation_) {
-        simulation_->setRandomizationParameters(params);
-    }
 }
 
-void ProvinceSimulationTest::resetSimulation() {
-    if (simulation_) {
-        simulation_->reset();
-    }
+uint32_t ProvinceSimulationTest::getCurrentTick() const {
+    return strategy_ ? strategy_->getCurrentTick() : 0;
 }
 
-void ProvinceSimulationTest::resetSimulationWithParameters(const SimulationParameters& simParams,
-    const RandomizationParameters& randParams) {
-    simParams_ = simParams;
-    randParams_ = randParams;
-
-    if (simulation_) {
-        simulation_->setSimulationParameters(simParams_);
-        simulation_->setRandomizationParameters(randParams_);
-        simulation_->reset();
+ProvinceData ProvinceSimulationTest::getProvinceData(uint32_t index) const {
+    std::lock_guard<std::mutex> lock(dataMutex_);
+    if (!sharedBuffer_ || index >= simParams_.numProvinces) {
+        return { 0.0f, 0.0f, 0.0f, 0.0f };
     }
+    return sharedBuffer_->provinces[index];
 }
 
-void ProvinceSimulationTest::initializeSimulation() {
-    simulation_.reset();
+ProvinceData ProvinceSimulationTest::getInitialStats(uint32_t index) const {
+    std::lock_guard<std::mutex> lock(dataMutex_);
+    if (index >= initialStats_.size()) {
+        return { 0.0f, 0.0f, 0.0f, 0.0f };
+    }
+    return initialStats_[index];
+}
 
-    switch (currentMode_) {
-    case SimulationMode::GPU:
-        createGPUSimulation();
+ProvinceSimulationTest::PerformanceStats ProvinceSimulationTest::getPerformanceStats() const {
+    PerformanceStats stats;
+    stats.currentTick = getCurrentTick();
+    stats.lastStepTimeMs = strategy_ ? strategy_->getLastStepTimeMs() : 0.0;
+    return stats;
+}
+
+// =============================================================================
+// STRATEGY MANAGEMENT (unchanged, skipping for brevity)
+// =============================================================================
+
+void ProvinceSimulationTest::createStrategy(SimulationMode mode) {
+    if (strategy_) {
+        SPDLOG_WARN("Strategy already exists");
+        return;
+    }
+
+    switch (mode) {
+    case SimulationMode::GPU: {
+        if (!computeDispatcher_ || !materialManager_) {
+            SPDLOG_ERROR("GPU resources not available");
+            return;
+        }
+        auto gpuStrategy = std::make_unique<GPUSimulationStrategy>(
+            computeDispatcher_, materialManager_
+        );
+        gpuStrategy->setReadbackInterval(gpuReadbackInterval_);
+        strategy_ = std::move(gpuStrategy);
         break;
-    case SimulationMode::CPU:
-        createCPUSimulation();
+    }
+    case SimulationMode::CPU: {
+        if (!threadPool_) {
+            SPDLOG_ERROR("ThreadPool not available");
+            return;
+        }
+        auto cpuStrategy = std::make_unique<CPUSimulationStrategy>(threadPool_);
+        cpuStrategy->setThreadCount(cpuThreadCount_);
+        strategy_ = std::move(cpuStrategy);
         break;
     }
+    }
 
-    if (simulation_) {
-        simulation_->initialize(simParams_, randParams_);
+    if (!strategy_->initialize(simParams_, randParams_, sharedBuffer_.get())) {
+        SPDLOG_ERROR("Failed to initialize strategy");
+        strategy_.reset();
+        return;
+    }
+
+    {
+        std::lock_guard<std::mutex> lock(dataMutex_);
+        initialStats_.resize(simParams_.numProvinces);
+        for (uint32_t i = 0; i < simParams_.numProvinces; ++i) {
+            initialStats_[i] = sharedBuffer_->provinces[i];
+        }
+    }
+
+    running_ = true;
+    simulationThread_ = std::thread(&ProvinceSimulationTest::simulationThreadFunc, this);
+
+    SPDLOG_INFO("Strategy created and running: {}", strategy_->getTypeName());
+}
+
+void ProvinceSimulationTest::destroyStrategy() {
+    if (!strategy_) return;
+
+    running_ = false;
+    if (simulationThread_.joinable()) {
+        simulationThread_.join();
+    }
+
+    strategy_->shutdown();
+    strategy_.reset();
+
+    SPDLOG_INFO("Strategy destroyed");
+}
+
+void ProvinceSimulationTest::simulationThreadFunc() {
+    SPDLOG_INFO("Simulation thread started");
+
+    while (running_.load(std::memory_order_relaxed)) {
+        if (!strategy_) {
+            std::this_thread::sleep_for(std::chrono::milliseconds(1));
+            continue;
+        }
+
+        uint32_t requested = stepsRequested_.load(std::memory_order_relaxed);
+        if (requested > 0) {
+            strategy_->executeSingleStep();
+            stepsRequested_.fetch_sub(1, std::memory_order_relaxed);
+        }
+        else {
+            std::this_thread::sleep_for(std::chrono::microseconds(100));
+        }
+    }
+
+    SPDLOG_INFO("Simulation thread stopped");
+}
+
+// =============================================================================
+// STATISTICS (unchanged, skipping for brevity)
+// =============================================================================
+
+void ProvinceSimulationTest::updateStatistics() {
+    if (!strategy_) return;
+
+    uint32_t currentTick = strategy_->getCurrentTick();
+    if (currentTick <= lastProcessedTick_) return;
+
+    lastProcessedTick_ = currentTick;
+
+    SimulationStatistics stats = computeCurrentStatistics();
+    stats.tickNumber = currentTick;
+    stats.tickDurationMs = strategy_->getLastStepTimeMs();
+
+    statisticsHistory_.push_back(stats);
+
+    if (statisticsHistory_.size() > MAX_HISTORY) {
+        statisticsHistory_.erase(statisticsHistory_.begin());
+    }
+
+    if (tickCallback_) {
+        tickCallback_(currentTick, stats);
     }
 }
 
-void ProvinceSimulationTest::createGPUSimulation() {
-    if (!computeDispatcher_ || !materialManager_) {
-        SPDLOG_ERROR("GPU resources not available");
-        return;
+SimulationStatistics ProvinceSimulationTest::computeCurrentStatistics() const {
+    SimulationStatistics stats{};
+    std::lock_guard<std::mutex> lock(dataMutex_);
+
+    for (uint32_t i = 0; i < simParams_.numProvinces; ++i) {
+        auto data = sharedBuffer_->provinces[i];
+        auto initial = i < initialStats_.size() ? initialStats_[i] : ProvinceData{ 0,0,0,0 };
+
+        stats.totalPopulation += data.population;
+        stats.totalWealth += data.wealth;
+
+        if (initial.population > 0.0f) {
+            float growth = ((data.population - initial.population) / initial.population) * 100.0f;
+            stats.avgGrowth += growth;
+
+            if (growth > 5.0f) stats.growing++;
+            else if (growth < -5.0f) stats.declining++;
+            else stats.stable++;
+        }
     }
 
-    // Create GPU simulation with AsyncMemoryOps
-    auto gpuSim = std::make_unique<ProvinceSimulationGPU>(
-        computeDispatcher_
-    );
-
-    // Create material
-    MaterialSmartHandle material = materialManager_->createComputeMaterial("ProvinceSimulation");
-    if (!material) {
-        SPDLOG_ERROR("Failed to create GPU material");
-        return;
+    if (simParams_.numProvinces > 0) {
+        stats.avgGrowth /= simParams_.numProvinces;
     }
 
-    // Set material before moving ownership
-    gpuSim->setMaterial(material);
-    simulation_ = std::move(gpuSim);
-
-    SPDLOG_INFO("GPU simulation created with AsyncMemoryOps");
+    return stats;
 }
 
-void ProvinceSimulationTest::createCPUSimulation() {
-    if (!threadPool_) {
-        SPDLOG_ERROR("ThreadPool not available");
+// =============================================================================
+// BENCHMARK - SIMPLIFIED IMPLEMENTATION
+// =============================================================================
+
+// ... (Move semantics, lifecycle, simulation control, strategy management, statistics - unchanged)
+// Showing only the BENCHMARK section:
+
+// =============================================================================
+// BENCHMARK - SIMPLIFIED IMPLEMENTATION
+// =============================================================================
+
+void ProvinceSimulationTest::startBenchmark(const BenchmarkConfig& config) {
+    if (benchmarkRunning_) {
+        SPDLOG_WARN("Benchmark already running");
         return;
     }
 
-    // Create CPU simulation with AsyncMemoryOps
-    simulation_ = std::make_unique<ProvinceSimulationCPU>(
-        threadPool_,
-        asyncMemoryOps_.get()
-    );
+    if (!config.benchmarkGPU && !config.benchmarkCPU) {
+        SPDLOG_WARN("No benchmark modes selected");
+        return;
+    }
 
-    SPDLOG_INFO("CPU simulation created with AsyncMemoryOps");
+    SPDLOG_INFO("Starting benchmark - GPU: {}, CPU: {}, Ticks: {}",
+        config.benchmarkGPU, config.benchmarkCPU, config.numTicks);
+
+    // Backup current settings
+    originalMode_ = currentMode_;
+    originalThreads_ = cpuThreadCount_;
+    originalReadbackInterval_ = getGPUReadbackInterval();
+
+    // Store config and clear results
+    benchmarkConfig_ = config;
+    benchmarkResults_.clear();
+    currentPhase_ = BenchmarkPhase::None;
+
+    // Mark as running
+    benchmarkRunning_ = true;
+
+    // Start first phase
+    startNextPhase();
+}
+
+void ProvinceSimulationTest::cancelBenchmark() {
+    if (!benchmarkRunning_) return;
+
+    SPDLOG_INFO("Cancelling benchmark");
+
+    benchmarkRunning_ = false;
+    currentPhase_ = BenchmarkPhase::None;
+    stepsRequested_.store(0, std::memory_order_release);
+
+    // Wait for current steps to finish
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+
+    // Restore settings
+    setMode(originalMode_);
+    setCPUThreadCount(originalThreads_);
+    setGPUReadbackInterval(originalReadbackInterval_);
+    resetSimulation();
+
+    if (benchmarkCallback_) {
+        benchmarkCallback_(false, nullptr);
+    }
+}
+
+void ProvinceSimulationTest::startNextPhase() {
+    if (!benchmarkRunning_) return;
+
+    // Determine next phase
+    BenchmarkPhase nextPhase = BenchmarkPhase::None;
+
+    if (currentPhase_ == BenchmarkPhase::None) {
+        if (benchmarkConfig_.benchmarkGPU) {
+            nextPhase = BenchmarkPhase::GPU;
+        }
+        else if (benchmarkConfig_.benchmarkCPU) {
+            nextPhase = BenchmarkPhase::CPU;
+        }
+    }
+    else if (currentPhase_ == BenchmarkPhase::GPU) {
+        if (benchmarkConfig_.benchmarkCPU) {
+            nextPhase = BenchmarkPhase::CPU;
+        }
+    }
+
+    if (nextPhase == BenchmarkPhase::None) {
+        completeBenchmark();
+        return;
+    }
+
+    // Start the next phase
+    currentPhase_ = nextPhase;
+
+    SPDLOG_INFO("Starting benchmark phase: {}",
+        currentPhase_ == BenchmarkPhase::GPU ? "GPU" : "CPU");
+
+    // Clear step queue
+    stepsRequested_.store(0, std::memory_order_release);
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+
+    // Reset simulation
+    resetSimulation();
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+
+    // Configure for this phase
+    if (currentPhase_ == BenchmarkPhase::GPU) {
+        setMode(SimulationMode::GPU);
+        setGPUReadbackInterval(originalReadbackInterval_);
+    }
+    else {
+        setMode(SimulationMode::CPU);
+        setCPUThreadCount(benchmarkConfig_.cpuThreads);
+    }
+
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+
+    // Record start tick (for tracking completion)
+    phaseStartTick_ = getCurrentTick();
+
+    // Clear accumulated times
+    phaseTimeSamples_.clear();
+
+    // Queue the steps
+    runMultipleSteps(benchmarkConfig_.numTicks);
+
+    SPDLOG_INFO("Phase started - {} ticks queued, starting from tick {}",
+        benchmarkConfig_.numTicks, phaseStartTick_);
+}
+
+void ProvinceSimulationTest::updateBenchmark() {
+    if (!benchmarkRunning_ || !strategy_) return;
+    if (currentPhase_ == BenchmarkPhase::None) return;
+
+    uint32_t currentTick = getCurrentTick();
+    uint32_t ticksCompleted = currentTick - phaseStartTick_;
+    uint32_t stepsRemaining = stepsRequested_.load(std::memory_order_acquire);
+
+    // Collect timing samples from strategy
+    // We collect on each update to capture all completed ticks
+    if (ticksCompleted > phaseTimeSamples_.size()) {
+        // New tick(s) completed - collect the time
+        double lastStepTime = strategy_->getLastStepTimeMs();
+        if (lastStepTime > 0.0) {
+            phaseTimeSamples_.push_back(lastStepTime);
+        }
+    }
+
+    // Check if phase is complete
+    if (ticksCompleted >= benchmarkConfig_.numTicks && stepsRemaining == 0) {
+        SPDLOG_INFO("Phase complete: {} ticks done, {} samples collected, mode: {}",
+            ticksCompleted,
+            phaseTimeSamples_.size(),
+            currentPhase_ == BenchmarkPhase::GPU ? "GPU" : "CPU");
+        finishCurrentPhase();
+    }
+}
+
+void ProvinceSimulationTest::finishCurrentPhase() {
+    uint32_t actualTicks = getCurrentTick() - phaseStartTick_;
+
+    // Calculate statistics from collected samples
+    double totalTimeMs = 0.0;
+    double minTime = std::numeric_limits<double>::max();
+    double maxTime = 0.0;
+
+    for (double sample : phaseTimeSamples_) {
+        totalTimeMs += sample;
+        minTime = std::min(minTime, sample);
+        maxTime = std::max(maxTime, sample);
+    }
+
+    // Create result
+    BenchmarkResult result;
+    result.mode = (currentPhase_ == BenchmarkPhase::GPU) ? SimulationMode::GPU : SimulationMode::CPU;
+    result.cpuThreads = cpuThreadCount_;
+    result.numProvinces = simParams_.numProvinces;
+    result.numTicks = actualTicks;
+    result.totalTimeMs = totalTimeMs;
+    result.avgTimePerTick = totalTimeMs / actualTicks;
+    result.minTimePerTick = minTime;
+    result.maxTimePerTick = maxTime;
+    result.ticksPerSecond = (actualTicks * 1000.0) / totalTimeMs;
+
+    benchmarkResults_.push_back(result);
+
+    SPDLOG_INFO("Phase result - Mode: {}, Ticks: {}, Total: {:.2f}ms, "
+        "Avg: {:.4f}ms/tick, Min: {:.4f}ms, Max: {:.4f}ms",
+        result.mode == SimulationMode::GPU ? "GPU" : "CPU",
+        result.numTicks, result.totalTimeMs, result.avgTimePerTick,
+        result.minTimePerTick, result.maxTimePerTick);
+
+    // Notify callback
+    if (benchmarkCallback_) {
+        benchmarkCallback_(false, &result);
+    }
+
+    // Wait before next phase
+    std::this_thread::sleep_for(std::chrono::milliseconds(200));
+
+    // Start next phase
+    startNextPhase();
+}
+
+void ProvinceSimulationTest::completeBenchmark() {
+    SPDLOG_INFO("Benchmark complete - all phases finished");
+
+    benchmarkRunning_ = false;
+    currentPhase_ = BenchmarkPhase::None;
+    stepsRequested_.store(0, std::memory_order_release);
+
+    // Restore original settings
+    setMode(originalMode_);
+    setCPUThreadCount(originalThreads_);
+    setGPUReadbackInterval(originalReadbackInterval_);
+    resetSimulation();
+
+    // Notify completion
+    if (benchmarkCallback_) {
+        benchmarkCallback_(true, nullptr);
+    }
+}
+
+float ProvinceSimulationTest::getBenchmarkProgress() const {
+    if (!benchmarkRunning_) return 0.0f;
+    if (currentPhase_ == BenchmarkPhase::None) return 0.0f;
+
+    uint32_t currentTick = getCurrentTick();
+    uint32_t ticksCompleted = currentTick - phaseStartTick_;
+
+    return std::min(1.0f, static_cast<float>(ticksCompleted) / benchmarkConfig_.numTicks);
+}
+
+const char* ProvinceSimulationTest::getBenchmarkPhaseDescription() const {
+    if (!benchmarkRunning_) return "Not running";
+
+    switch (currentPhase_) {
+    case BenchmarkPhase::GPU:
+        return "GPU Phase";
+    case BenchmarkPhase::CPU:
+        return "CPU Phase";
+    case BenchmarkPhase::None:
+    default:
+        return "Initializing...";
+    }
 }

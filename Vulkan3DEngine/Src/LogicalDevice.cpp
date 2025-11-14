@@ -5,7 +5,7 @@
 LogicalDevice::LogicalDevice(const PhysicalDevice& physicalDevice,
     const std::vector<const char*>& deviceExtensions,
     bool enableDebugPrintf)
-    : m_queueFamilyIndices(physicalDevice.findQueueFamilies())
+    : m_queueFamilyIndices(physicalDevice.getQueueFamilyIndices())
 {
     std::set<uint32_t> uniqueQueueFamilies = {
         m_queueFamilyIndices.graphicsFamily.value(),
@@ -86,7 +86,6 @@ uint32_t LogicalDevice::getQueueFamilyIndex(QueueType type) const {
 }
 
 LogicalDevice::QueueType LogicalDevice::getQueueTypeFromFamilyIndex(uint32_t familyIndex) const {
-    // This is a simplified mapping - you might need to adjust based on your actual queue family setup
     if (familyIndex == getQueueFamilyIndex(LogicalDevice::QueueType::Graphics)) {
         return LogicalDevice::QueueType::Graphics;
     }

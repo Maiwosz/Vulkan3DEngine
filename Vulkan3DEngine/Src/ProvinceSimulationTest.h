@@ -1,54 +1,93 @@
 #pragma once
 #include "CppScriptBase.h"
-#include <spdlog/spdlog.h>
-#include "IProvinceSimulation.h"
-#include "ProvinceSimulationGPU.h"
-#include "ProvinceSimulationCPU.h"
+#include "ISimulationStrategy.h"
 #include "MaterialManager.h"
 #include "ComputeDispatcher.h"
 #include "ThreadPool.h"
-#include "AsyncMemoryOps.h"
-#include "Engine.h"
 #include <memory>
+#include <vector>
+#include <thread>
+#include <atomic>
+#include <mutex>
+#include <functional>
 
-enum class SimulationMode {
-    GPU,
-    CPU
+struct SimulationStatistics {
+    uint32_t tickNumber;
+    float totalPopulation;
+    float totalWealth;
+    float avgGrowth;
+    uint32_t growing;
+    uint32_t stable;
+    uint32_t declining;
+    double tickDurationMs;
 };
 
-/**
- * Manager class that delegates to GPU or CPU implementations
- * Provides unified interface for UI
- */
+struct BenchmarkResult {
+    SimulationMode mode;
+    size_t cpuThreads;
+    uint32_t numProvinces;
+    uint32_t numTicks;
+    double totalTimeMs;        // Sum of all step times
+    double avgTimePerTick;     // Average time per tick
+    double minTimePerTick;     // Fastest tick
+    double maxTimePerTick;     // Slowest tick
+    double ticksPerSecond;
+};
+
+struct BenchmarkConfig {
+    bool benchmarkGPU = true;
+    bool benchmarkCPU = true;
+    uint32_t numTicks = 100;
+    size_t cpuThreads = 8;
+};
+
 class ProvinceSimulationTest : public CppScriptBase {
 public:
+    ProvinceSimulationTest() = default;
+    ~ProvinceSimulationTest() override = default;
+
+    ProvinceSimulationTest(const ProvinceSimulationTest&) = delete;
+    ProvinceSimulationTest& operator=(const ProvinceSimulationTest&) = delete;
+    ProvinceSimulationTest(ProvinceSimulationTest&&) noexcept;
+    ProvinceSimulationTest& operator=(ProvinceSimulationTest&&) noexcept;
+
     const char* getScriptName() const override;
     void OnCreate() override;
     void OnUpdate(float deltaTime) override;
     void OnDestroy() override;
 
-    // Mode switching
+    // =========================================================================
+    // SIMULATION CONTROL
+    // =========================================================================
+
     void setMode(SimulationMode mode);
     SimulationMode getMode() const { return currentMode_; }
 
-    // CPU-specific
     void setCPUThreadCount(size_t threads);
     size_t getCPUThreadCount() const;
 
-    // Delegated interface
-    bool isSimulationRunning() const { return simulation_ != nullptr; }
-    uint32_t getCurrentTick() const { return simulation_ ? simulation_->getCurrentTick() : 0; }
+    void setGPUReadbackInterval(uint32_t interval);
+    uint32_t getGPUReadbackInterval() const;
+
+    void runSingleStep();
+    void runMultipleSteps(uint32_t numSteps);
+    void resetSimulation();
+    void resetSimulationWithParameters(
+        const SimulationParameters& simParams,
+        const RandomizationParameters& randParams
+    );
+
+    // =========================================================================
+    // SIMULATION STATE
+    // =========================================================================
+
+    bool isSimulationRunning() const { return simulationThread_.joinable(); }
+    bool hasStepsRequested() const {
+        return stepsRequested_.load(std::memory_order_relaxed) > 0;
+    }
+
+    uint32_t getCurrentTick() const;
     uint32_t getNumProvinces() const { return simParams_.numProvinces; }
-    float getFoodConsumptionPerPop() const { return simParams_.foodConsumptionPerPop; }
-
-    bool isComputeInProgress() const { return simulation_ ? simulation_->isComputeInProgress() : false; }
-
-    ProvinceData getProvinceData(uint32_t index) const {
-        return simulation_ ? simulation_->getProvinceData(index) : ProvinceData{ 0,0,0,0 };
-    }
-    ProvinceData getInitialStats(uint32_t index) const {
-        return simulation_ ? simulation_->getInitialStats(index) : ProvinceData{ 0,0,0,0 };
-    }
 
     const SimulationParameters& getSimulationParameters() const { return simParams_; }
     const RandomizationParameters& getRandomizationParameters() const { return randParams_; }
@@ -56,29 +95,138 @@ public:
     void setSimulationParameters(const SimulationParameters& params);
     void setRandomizationParameters(const RandomizationParameters& params);
 
-    void runSingleStep() { if (simulation_) simulation_->runSingleStep(); }
-    void runMultipleSteps(uint32_t numSteps) { if (simulation_) simulation_->runMultipleSteps(numSteps); }
-    void resetSimulation();
-    void resetSimulationWithParameters(const SimulationParameters& simParams,
-        const RandomizationParameters& randParams);
+    // =========================================================================
+    // DATA ACCESS (thread-safe)
+    // =========================================================================
 
-    void requestDataRefresh() { if (simulation_) simulation_->requestDataRefresh(); }
-    bool isDataRefreshComplete() const { return simulation_ ? simulation_->isDataRefreshComplete() : true; }
+    ProvinceData getProvinceData(uint32_t index) const;
+    ProvinceData getInitialStats(uint32_t index) const;
+
+    // =========================================================================
+    // STATISTICS
+    // =========================================================================
+
+    const std::vector<SimulationStatistics>& getStatisticsHistory() const {
+        return statisticsHistory_;
+    }
+
+    const SimulationStatistics* getLatestStatistics() const {
+        return statisticsHistory_.empty() ? nullptr : &statisticsHistory_.back();
+    }
+
+    void clearStatisticsHistory() { statisticsHistory_.clear(); }
+
+    struct PerformanceStats {
+        uint32_t currentTick;
+        double lastStepTimeMs;
+    };
+    PerformanceStats getPerformanceStats() const;
+
+    // =========================================================================
+    // BENCHMARK - SIMPLIFIED
+    // =========================================================================
+
+    void startBenchmark(const BenchmarkConfig& config);
+    void cancelBenchmark();
+
+    bool isBenchmarkRunning() const { return benchmarkRunning_; }
+    float getBenchmarkProgress() const;
+    const char* getBenchmarkPhaseDescription() const;
+
+    const std::vector<BenchmarkResult>& getBenchmarkResults() const {
+        return benchmarkResults_;
+    }
+    void clearBenchmarkResults() { benchmarkResults_.clear(); }
+
+    // =========================================================================
+    // CALLBACKS
+    // =========================================================================
+
+    using TickCallback = std::function<void(uint32_t tick, const SimulationStatistics& stats)>;
+    using BenchmarkCallback = std::function<void(bool completed, const BenchmarkResult* result)>;
+
+    void setTickCallback(TickCallback callback) { tickCallback_ = callback; }
+    void setBenchmarkCallback(BenchmarkCallback callback) { benchmarkCallback_ = callback; }
 
 private:
+    // =========================================================================
+    // STRATEGY PATTERN
+    // =========================================================================
+
     SimulationMode currentMode_ = SimulationMode::GPU;
-    std::unique_ptr<IProvinceSimulation> simulation_;
+    std::unique_ptr<ISimulationStrategy> strategy_;
+
+    // Strategy thread
+    std::thread simulationThread_;
+    std::atomic<bool> running_{ false };
+    std::atomic<uint32_t> stepsRequested_{ 0 };
+
+    void simulationThreadFunc();
+    void createStrategy(SimulationMode mode);
+    void destroyStrategy();
+
+    // =========================================================================
+    // SHARED DATA
+    // =========================================================================
+
+    std::unique_ptr<ProvinceDataBuffer> sharedBuffer_;
+    std::vector<ProvinceData> initialStats_;
+    mutable std::mutex dataMutex_;
 
     SimulationParameters simParams_;
     RandomizationParameters randParams_;
 
-    // Resources
-    ComputeDispatcher* computeDispatcher_ = nullptr;
-    ThreadPool* threadPool_ = nullptr;
-    MaterialManager* materialManager_ = nullptr;
-    std::unique_ptr<AsyncMemoryOps> asyncMemoryOps_;
+    // =========================================================================
+    // RESOURCES
+    // =========================================================================
 
-    void initializeSimulation();
-    void createGPUSimulation();
-    void createCPUSimulation();
+    ComputeDispatcher* computeDispatcher_ = nullptr;
+    MaterialManager* materialManager_ = nullptr;
+    ThreadPool* threadPool_ = nullptr;
+
+    size_t cpuThreadCount_ = 8;
+    uint32_t gpuReadbackInterval_ = 1;
+
+    // =========================================================================
+    // STATISTICS
+    // =========================================================================
+
+    std::vector<SimulationStatistics> statisticsHistory_;
+    static constexpr size_t MAX_HISTORY = 1000;
+    uint32_t lastProcessedTick_ = 0;
+
+    void updateStatistics();
+    SimulationStatistics computeCurrentStatistics() const;
+
+    // =========================================================================
+    // BENCHMARK - SIMPLIFIED STATE
+    // =========================================================================
+
+    enum class BenchmarkPhase {
+        None,
+        GPU,
+        CPU
+    };
+
+    std::atomic<bool> benchmarkRunning_{ false };
+    BenchmarkPhase currentPhase_ = BenchmarkPhase::None;
+    BenchmarkConfig benchmarkConfig_;
+    std::vector<BenchmarkResult> benchmarkResults_;
+    std::vector<double> phaseTimeSamples_;
+
+    uint32_t phaseStartTick_ = 0;
+    std::chrono::steady_clock::time_point phaseStartTime_;
+
+    // Backup settings
+    SimulationMode originalMode_;
+    size_t originalThreads_ = 0;
+    uint32_t originalReadbackInterval_ = 1;
+
+    void updateBenchmark();
+    void startNextPhase();
+    void finishCurrentPhase();
+    void completeBenchmark();
+
+    TickCallback tickCallback_;
+    BenchmarkCallback benchmarkCallback_;
 };

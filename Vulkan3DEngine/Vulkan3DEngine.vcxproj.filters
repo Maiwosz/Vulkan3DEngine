@@ -380,14 +380,20 @@
     <ClCompile Include="Src\DescriptorSetGuard.cpp">
       <Filter>Engine\EngineCore\DescriptorSystem\DescriptorSetGuard</Filter>
     </ClCompile>
-    <ClCompile Include="Src\ProvinceSimulationGPU.cpp">
+    <ClCompile Include="Src\GPUSimulationStrategy.cpp">
       <Filter>Engine\Scene\EntityComponentSystem\Registry\SystemManager\Systems\ScriptSystem\CppScriptSystem\CppScripts\ProvinceSimulationTest</Filter>
     </ClCompile>
-    <ClCompile Include="Src\ProvinceSimulationCPU.cpp">
+    <ClCompile Include="Src\CPUSimulationStrategy.cpp">
       <Filter>Engine\Scene\EntityComponentSystem\Registry\SystemManager\Systems\ScriptSystem\CppScriptSystem\CppScripts\ProvinceSimulationTest</Filter>
     </ClCompile>
     <ClCompile Include="Src\AsyncMemoryOps.cpp">
       <Filter>Engine\ThreadPool\AsyncMemoryOps</Filter>
+    </ClCompile>
+    <ClCompile Include="Src\SimulationSettingsWindow.cpp">
+      <Filter>Engine\Scene\EntityComponentSystem\Registry\SystemManager\Systems\ScriptSystem\CppScriptSystem\CppScripts\ProvinceSimulationTest</Filter>
+    </ClCompile>
+    <ClCompile Include="Src\BenchmarkWindow.cpp">
+      <Filter>Engine\Scene\EntityComponentSystem\Registry\SystemManager\Systems\ScriptSystem\CppScriptSystem\CppScripts\ProvinceSimulationTest</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -879,17 +885,23 @@
     <ClInclude Include="Src\DescriptorSetGuard.h">
       <Filter>Engine\EngineCore\DescriptorSystem\DescriptorSetGuard</Filter>
     </ClInclude>
-    <ClInclude Include="Src\IProvinceSimulation.h">
+    <ClInclude Include="Src\ISimulationStrategy.h">
       <Filter>Engine\Scene\EntityComponentSystem\Registry\SystemManager\Systems\ScriptSystem\CppScriptSystem\CppScripts\ProvinceSimulationTest</Filter>
     </ClInclude>
-    <ClInclude Include="Src\ProvinceSimulationGPU.h">
+    <ClInclude Include="Src\GPUSimulationStrategy.h">
       <Filter>Engine\Scene\EntityComponentSystem\Registry\SystemManager\Systems\ScriptSystem\CppScriptSystem\CppScripts\ProvinceSimulationTest</Filter>
     </ClInclude>
-    <ClInclude Include="Src\ProvinceSimulationCPU.h">
+    <ClInclude Include="Src\CPUSimulationStrategy.h">
       <Filter>Engine\Scene\EntityComponentSystem\Registry\SystemManager\Systems\ScriptSystem\CppScriptSystem\CppScripts\ProvinceSimulationTest</Filter>
     </ClInclude>
     <ClInclude Include="Src\AsyncMemoryOps.h">
       <Filter>Engine\ThreadPool\AsyncMemoryOps</Filter>
+    </ClInclude>
+    <ClInclude Include="Src\SimulationSettingsWindow.h">
+      <Filter>Engine\Scene\EntityComponentSystem\Registry\SystemManager\Systems\ScriptSystem\CppScriptSystem\CppScripts\ProvinceSimulationTest</Filter>
+    </ClInclude>
+    <ClInclude Include="Src\BenchmarkWindow.h">
+      <Filter>Engine\Scene\EntityComponentSystem\Registry\SystemManager\Systems\ScriptSystem\CppScriptSystem\CppScripts\ProvinceSimulationTest</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

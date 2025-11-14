@@ -119,8 +119,8 @@ namespace ShaderLib {
     }
 
     // ============================================================================
-    // BULK OPERATIONS (blocking)
-    // ============================================================================
+// BULK OPERATIONS (blocking)
+// ============================================================================
 
     void BufferObjectInstance::CopyFrom(const BufferObjectInstance& other) {
         if (m_definition != other.m_definition) {
@@ -130,7 +130,6 @@ namespace ShaderLib {
         }
 
         if (m_asyncOps) {
-            // Use async chunked copy
             auto handle = m_asyncOps->ExecuteChunked(
                 m_buffer.size(),
                 [this, &other](size_t offset, size_t size) {
@@ -144,7 +143,6 @@ namespace ShaderLib {
             m_asyncOps->WaitForOperation(handle);
         }
         else {
-            // Fallback to synchronous copy
             std::memcpy(m_buffer.data(), other.m_buffer.data(), m_buffer.size());
         }
     }
@@ -163,36 +161,29 @@ namespace ShaderLib {
         }
 
         if (m_asyncOps) {
-            // Use async chunked copy for large regions
-            constexpr size_t MIN_ASYNC_SIZE = 4096;
-
-            if (size >= MIN_ASYNC_SIZE) {
-                auto handle = m_asyncOps->ExecuteChunked(
-                    size,
-                    [this, &other, srcOffset, dstOffset](size_t offset, size_t chunkSize) {
-                        std::memcpy(
-                            m_buffer.data() + dstOffset + offset,
-                            other.m_buffer.data() + srcOffset + offset,
-                            chunkSize
-                        );
-                    }
-                );
-                m_asyncOps->WaitForOperation(handle);
-                return;
-            }
+            auto handle = m_asyncOps->ExecuteChunked(
+                size,
+                [this, &other, srcOffset, dstOffset](size_t offset, size_t chunkSize) {
+                    std::memcpy(
+                        m_buffer.data() + dstOffset + offset,
+                        other.m_buffer.data() + srcOffset + offset,
+                        chunkSize
+                    );
+                }
+            );
+            m_asyncOps->WaitForOperation(handle);
         }
-
-        // Fallback to synchronous copy for small regions
-        std::memcpy(
-            m_buffer.data() + dstOffset,
-            other.m_buffer.data() + srcOffset,
-            size
-        );
+        else {
+            std::memcpy(
+                m_buffer.data() + dstOffset,
+                other.m_buffer.data() + srcOffset,
+                size
+            );
+        }
     }
 
     void BufferObjectInstance::Zero() {
         if (m_asyncOps) {
-            // Use async chunked zero
             auto handle = m_asyncOps->ExecuteChunked(
                 m_buffer.size(),
                 [this](size_t offset, size_t size) {
@@ -202,7 +193,6 @@ namespace ShaderLib {
             m_asyncOps->WaitForOperation(handle);
         }
         else {
-            // Fallback to synchronous zero
             std::memset(m_buffer.data(), 0, m_buffer.size());
         }
     }
@@ -211,27 +201,21 @@ namespace ShaderLib {
         ValidateOffset(offset, size);
 
         if (m_asyncOps) {
-            // Use async chunked zero for large regions
-            constexpr size_t MIN_ASYNC_SIZE = 4096;
-
-            if (size >= MIN_ASYNC_SIZE) {
-                auto handle = m_asyncOps->ExecuteChunked(
-                    size,
-                    [this, offset](size_t chunkOffset, size_t chunkSize) {
-                        std::memset(
-                            m_buffer.data() + offset + chunkOffset,
-                            0,
-                            chunkSize
-                        );
-                    }
-                );
-                m_asyncOps->WaitForOperation(handle);
-                return;
-            }
+            auto handle = m_asyncOps->ExecuteChunked(
+                size,
+                [this, offset](size_t chunkOffset, size_t chunkSize) {
+                    std::memset(
+                        m_buffer.data() + offset + chunkOffset,
+                        0,
+                        chunkSize
+                    );
+                }
+            );
+            m_asyncOps->WaitForOperation(handle);
         }
-
-        // Fallback to synchronous zero
-        std::memset(m_buffer.data() + offset, 0, size);
+        else {
+            std::memset(m_buffer.data() + offset, 0, size);
+        }
     }
 
     // ============================================================================
@@ -249,12 +233,16 @@ namespace ShaderLib {
             );
         }
 
+        // Capture only raw data pointers - caller must ensure 'other' outlives operation
+        const uint8_t* srcData = other.m_buffer.data();
+        const size_t bufferSize = m_buffer.size();
+
         return m_asyncOps->ExecuteChunked(
-            m_buffer.size(),
-            [this, &other](size_t offset, size_t size) {
+            bufferSize,
+            [this, srcData](size_t offset, size_t size) {
                 std::memcpy(
                     m_buffer.data() + offset,
-                    other.m_buffer.data() + offset,
+                    srcData + offset,
                     size
                 );
             }
@@ -276,12 +264,15 @@ namespace ShaderLib {
             throw std::out_of_range("Destination region out of range");
         }
 
+        // Capture only raw data pointers - caller must ensure 'other' outlives operation
+        const uint8_t* srcData = other.m_buffer.data();
+
         return m_asyncOps->ExecuteChunked(
             size,
-            [this, &other, srcOffset, dstOffset](size_t offset, size_t chunkSize) {
+            [this, srcData, srcOffset, dstOffset](size_t offset, size_t chunkSize) {
                 std::memcpy(
                     m_buffer.data() + dstOffset + offset,
-                    other.m_buffer.data() + srcOffset + offset,
+                    srcData + srcOffset + offset,
                     chunkSize
                 );
             }
@@ -376,8 +367,8 @@ namespace ShaderLib {
     }
 
     // ============================================================================
-    // GPU SYNCHRONIZATION (blocking)
-    // ============================================================================
+// GPU SYNCHRONIZATION (blocking)
+// ============================================================================
 
     void BufferObjectInstance::SyncToBuffer() {
         if (!HasMappedBuffer()) {
@@ -422,7 +413,6 @@ namespace ShaderLib {
         const uint8_t* cpuData = m_buffer.data();
 
         if (m_asyncOps) {
-            // Use async chunked copy
             auto handle = m_asyncOps->ExecuteChunked(
                 size,
                 [gpuData, cpuData, offset](size_t chunkOffset, size_t chunkSize) {
@@ -437,7 +427,6 @@ namespace ShaderLib {
             m_asyncOps->WaitForOperation(handle);
         }
         else {
-            // Fallback to synchronous copy
             std::memcpy(
                 static_cast<uint8_t*>(gpuData) + offset,
                 cpuData + offset,
@@ -451,7 +440,6 @@ namespace ShaderLib {
         uint8_t* cpuData = m_buffer.data();
 
         if (m_asyncOps) {
-            // Use async chunked copy
             auto handle = m_asyncOps->ExecuteChunked(
                 size,
                 [gpuData, cpuData, offset](size_t chunkOffset, size_t chunkSize) {
@@ -466,7 +454,6 @@ namespace ShaderLib {
             m_asyncOps->WaitForOperation(handle);
         }
         else {
-            // Fallback to synchronous copy
             std::memcpy(
                 cpuData + offset,
                 static_cast<const uint8_t*>(gpuData) + offset,
@@ -584,8 +571,8 @@ namespace ShaderLib {
     }
 
     // ============================================================================
-    // DIRECT GPU ACCESS (blocking)
-    // ============================================================================
+// DIRECT GPU ACCESS (blocking)
+// ============================================================================
 
     void BufferObjectInstance::CopyToGPUDirect(
         const void* source,
@@ -598,28 +585,22 @@ namespace ShaderLib {
         void* gpuData = GetMappedPointer();
 
         if (m_asyncOps) {
-            // Use async chunked copy for large transfers
-            constexpr size_t MIN_ASYNC_SIZE = 4096;
-
-            if (size >= MIN_ASYNC_SIZE) {
-                auto handle = m_asyncOps->ExecuteChunked(
-                    size,
-                    [gpuData, source, offset](size_t chunkOffset, size_t chunkSize) {
-                        std::memcpy(
-                            static_cast<uint8_t*>(gpuData) + offset + chunkOffset,
-                            static_cast<const uint8_t*>(source) + chunkOffset,
-                            chunkSize
-                        );
-                    }
-                );
-                m_asyncOps->WaitForOperation(handle);
-                m_cpuBufferValid = false;
-                return;
-            }
+            auto handle = m_asyncOps->ExecuteChunked(
+                size,
+                [gpuData, source, offset](size_t chunkOffset, size_t chunkSize) {
+                    std::memcpy(
+                        static_cast<uint8_t*>(gpuData) + offset + chunkOffset,
+                        static_cast<const uint8_t*>(source) + chunkOffset,
+                        chunkSize
+                    );
+                }
+            );
+            m_asyncOps->WaitForOperation(handle);
+        }
+        else {
+            std::memcpy(static_cast<uint8_t*>(gpuData) + offset, source, size);
         }
 
-        // Fallback to synchronous copy
-        std::memcpy(static_cast<uint8_t*>(gpuData) + offset, source, size);
         m_cpuBufferValid = false;
     }
 
@@ -634,27 +615,21 @@ namespace ShaderLib {
         const void* gpuData = GetMappedPointer();
 
         if (m_asyncOps) {
-            // Use async chunked copy for large transfers
-            constexpr size_t MIN_ASYNC_SIZE = 4096;
-
-            if (size >= MIN_ASYNC_SIZE) {
-                auto handle = m_asyncOps->ExecuteChunked(
-                    size,
-                    [gpuData, destination, offset](size_t chunkOffset, size_t chunkSize) {
-                        std::memcpy(
-                            static_cast<uint8_t*>(destination) + chunkOffset,
-                            static_cast<const uint8_t*>(gpuData) + offset + chunkOffset,
-                            chunkSize
-                        );
-                    }
-                );
-                m_asyncOps->WaitForOperation(handle);
-                return;
-            }
+            auto handle = m_asyncOps->ExecuteChunked(
+                size,
+                [gpuData, destination, offset](size_t chunkOffset, size_t chunkSize) {
+                    std::memcpy(
+                        static_cast<uint8_t*>(destination) + chunkOffset,
+                        static_cast<const uint8_t*>(gpuData) + offset + chunkOffset,
+                        chunkSize
+                    );
+                }
+            );
+            m_asyncOps->WaitForOperation(handle);
         }
-
-        // Fallback to synchronous copy
-        std::memcpy(destination, static_cast<const uint8_t*>(gpuData) + offset, size);
+        else {
+            std::memcpy(destination, static_cast<const uint8_t*>(gpuData) + offset, size);
+        }
     }
 
     // ============================================================================

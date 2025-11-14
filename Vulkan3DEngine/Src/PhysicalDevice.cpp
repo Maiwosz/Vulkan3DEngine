@@ -80,6 +80,10 @@ PhysicalDevice::PhysicalDevice(VkInstance instance, VkSurfaceKHR surface, const 
     uint32_t deviceCount = 0;
     vkEnumeratePhysicalDevices(instance, &deviceCount, nullptr);
 
+    if (deviceCount == 0) {
+        throw std::runtime_error("Failed to find GPUs with Vulkan support!");
+    }
+
     std::vector<VkPhysicalDevice> devices(deviceCount);
     vkEnumeratePhysicalDevices(instance, &deviceCount, devices.data());
 
@@ -96,14 +100,30 @@ PhysicalDevice::PhysicalDevice(VkInstance instance, VkSurfaceKHR surface, const 
     }
 
     m_device = candidates.rbegin()->second;
-    m_surface = surface;
+
+    // Cache wszystkich właściwości jednorazowo
+    cacheDeviceProperties();
+}
+
+void PhysicalDevice::cacheDeviceProperties() {
+    // Properties i features
     vkGetPhysicalDeviceProperties(m_device, &m_deviceProperties);
     vkGetPhysicalDeviceFeatures(m_device, &m_deviceFeatures);
+    vkGetPhysicalDeviceMemoryProperties(m_device, &m_memoryProperties);
 
-    // Pobierz minimalna liczbe obrazow z surface capabilities
+    // Queue families
+    m_queueFamilyIndices = QueueFamilyIndices(m_device, m_surface);
+
+    // Surface capabilities dla minImageCount
     VkSurfaceCapabilitiesKHR surfaceCapabilities;
     vkGetPhysicalDeviceSurfaceCapabilitiesKHR(m_device, m_surface, &surfaceCapabilities);
     m_minImageCount = surfaceCapabilities.minImageCount;
+
+    // Depth format
+    m_depthFormat = findDepthFormat(m_device);
+
+    // Max MSAA samples
+    m_maxMsaaSamples = calculateMaxMsaaSamples(m_deviceProperties);
 }
 
 int PhysicalDevice::rateSuitability(VkPhysicalDevice device,
@@ -121,7 +141,7 @@ int PhysicalDevice::rateSuitability(VkPhysicalDevice device,
         score += 1000;
     }
 
-    // Wiêksze tekstury = lepsza wydajnoœæ
+    // Większe tekstury = lepsza wydajność
     if (props.limits.maxImageDimension2D > 0) {
         score += static_cast<int>(std::log2(props.limits.maxImageDimension2D));
     }
@@ -131,7 +151,7 @@ int PhysicalDevice::rateSuitability(VkPhysicalDevice device,
         return 0;
     }
 
-    // Wsparcie dla wymaganych rozszerzeñ
+    // Wsparcie dla wymaganych rozszerzeń
     if (!checkExtensionSupport(device, requiredExtensions)) {
         return 0;
     }
@@ -142,7 +162,7 @@ int PhysicalDevice::rateSuitability(VkPhysicalDevice device,
         return 0;
     }
 
-    // Wymagane funkcje sprzêtowe
+    // Wymagane funkcje sprzętowe
     if (!features.samplerAnisotropy) {
         return 0;
     }
@@ -152,6 +172,10 @@ int PhysicalDevice::rateSuitability(VkPhysicalDevice device,
 
 QueueFamilyIndices PhysicalDevice::findQueueFamilies(VkPhysicalDevice device, VkSurfaceKHR surface) {
     return QueueFamilyIndices(device, surface);
+}
+
+SwapChainSupportDetails PhysicalDevice::querySwapChainSupport() const {
+    return querySwapChainSupport(m_device, m_surface);
 }
 
 SwapChainSupportDetails PhysicalDevice::querySwapChainSupport(VkPhysicalDevice device, VkSurfaceKHR surface) {
@@ -175,34 +199,16 @@ SwapChainSupportDetails PhysicalDevice::querySwapChainSupport(VkPhysicalDevice d
     return details;
 }
 
-VkFormat PhysicalDevice::findDepthFormat() const {
+VkFormat PhysicalDevice::findDepthFormat(VkPhysicalDevice device) {
     return VulkanUtils::findSupportedFormat(
-        m_device,
+        device,
         { VK_FORMAT_D32_SFLOAT, VK_FORMAT_D32_SFLOAT_S8_UINT, VK_FORMAT_D24_UNORM_S8_UINT },
         VK_IMAGE_TILING_OPTIMAL,
         VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT
     );
 }
 
-bool PhysicalDevice::checkExtensionSupport(VkPhysicalDevice device, const std::vector<const char*>& extensions) {
-    uint32_t extensionCount;
-    vkEnumerateDeviceExtensionProperties(device, nullptr, &extensionCount, nullptr);
-
-    std::vector<VkExtensionProperties> availableExtensions(extensionCount);
-    vkEnumerateDeviceExtensionProperties(device, nullptr, &extensionCount, availableExtensions.data());
-
-    std::set<std::string> requiredExtensions(extensions.begin(), extensions.end());
-    for (const auto& extension : availableExtensions) {
-        requiredExtensions.erase(extension.extensionName);
-    }
-
-    return requiredExtensions.empty();
-}
-
-VkSampleCountFlagBits PhysicalDevice::getMaxUsableSampleCount() const {
-    VkPhysicalDeviceProperties props;
-    vkGetPhysicalDeviceProperties(m_device, &props);
-
+VkSampleCountFlagBits PhysicalDevice::calculateMaxMsaaSamples(const VkPhysicalDeviceProperties& props) {
     VkSampleCountFlags counts = props.limits.framebufferColorSampleCounts &
         props.limits.framebufferDepthSampleCounts;
 
@@ -221,14 +227,17 @@ VkSampleCountFlagBits PhysicalDevice::getMaxUsableSampleCount() const {
     return VK_SAMPLE_COUNT_1_BIT;
 }
 
-float PhysicalDevice::getMaxAnisotropy() const {
-    return m_deviceProperties.limits.maxSamplerAnisotropy;
-}
+bool PhysicalDevice::checkExtensionSupport(VkPhysicalDevice device, const std::vector<const char*>& extensions) {
+    uint32_t extensionCount;
+    vkEnumerateDeviceExtensionProperties(device, nullptr, &extensionCount, nullptr);
 
-bool PhysicalDevice::isAnisotropySupported() const {
-    return m_deviceFeatures.samplerAnisotropy == VK_TRUE;
-}
+    std::vector<VkExtensionProperties> availableExtensions(extensionCount);
+    vkEnumerateDeviceExtensionProperties(device, nullptr, &extensionCount, availableExtensions.data());
 
-QueueFamilyIndices PhysicalDevice::findQueueFamilies() const {
-    return QueueFamilyIndices(m_device, m_surface);
+    std::set<std::string> requiredExtensions(extensions.begin(), extensions.end());
+    for (const auto& extension : availableExtensions) {
+        requiredExtensions.erase(extension.extensionName);
+    }
+
+    return requiredExtensions.empty();
 }
