@@ -52,14 +52,41 @@ void BenchmarkWindow::renderConfiguration(ProvinceSimulationTest* simulation) {
     ImGui::TextColored(ImVec4(0.2f, 0.8f, 1.0f, 1.0f), "Simulation Settings:");
     ImGui::Spacing();
 
-    ImGui::SetNextItemWidth(200);
-    ImGui::InputInt("Number of Provinces", &s_config.numProvinces, 1024, 65536);
-    if (s_config.numProvinces < 1024) s_config.numProvinces = 1024;
-    if (s_config.numProvinces > 1048576) s_config.numProvinces = 1048576;
+    ImGui::Text("Number of Provinces:");
+
+    // Oblicz najbliższą potęgę dwójki
+    auto getNearestPowerOf2 = [](int value) -> int {
+        return 1 << (int)std::round(std::log2((double)value));
+        };
+
+    // Slider po potęgach dwójki
+    ImGui::SetNextItemWidth(300);
+    int sliderValue = getNearestPowerOf2(s_config.numProvinces);
+    int minValue = 1024;      // 2^10
+    int maxValue = 1048576;   // 2^20
+
+    if (ImGui::SliderInt("##ProvinceSlider", &sliderValue, minValue, maxValue,
+        "%d", ImGuiSliderFlags_Logarithmic | ImGuiSliderFlags_NoInput)) {
+        s_config.numProvinces = getNearestPowerOf2(sliderValue);
+    }
 
     if (ImGui::IsItemHovered()) {
-        ImGui::SetTooltip("Total number of provinces to simulate");
+        ImGui::SetTooltip("Drag to select (powers of 2 preferred)\nRange: 1,024 to 1,048,576");
     }
+
+    // Ręczny input
+    ImGui::SameLine();
+    ImGui::SetNextItemWidth(120);
+    if (ImGui::InputInt("##ManualInput", &s_config.numProvinces, 0, 0)) {
+        if (s_config.numProvinces < minValue) s_config.numProvinces = minValue;
+        if (s_config.numProvinces > maxValue) s_config.numProvinces = maxValue;
+    }
+
+    if (ImGui::IsItemHovered()) {
+        ImGui::SetTooltip("Manual input (any value between 1,024 and 1,048,576)");
+    }
+
+    ImGui::Spacing();
 
     ImGui::SetNextItemWidth(200);
     ImGui::InputInt("Number of Ticks", &s_config.tickCount, 10, 100);

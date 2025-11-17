@@ -125,7 +125,7 @@ void ProvinceSimulationUI::renderMainWindow() {
 // =============================================================================
 
 void ProvinceSimulationUI::renderModeSelector() {
-    // FIXED: Nie pozwalaj na zmianę trybu podczas benchmarku!
+    // Nie pozwalaj na zmianę trybu podczas benchmarku!
     bool isComputing = m_simulation->hasStepsRequested();
     bool isBenchmarkRunning = m_simulation->isBenchmarkRunning();
     bool canChangeMode = !isComputing && !isBenchmarkRunning;
@@ -480,7 +480,6 @@ void ProvinceSimulationUI::renderProvinceInspector() {
     ImGui::SetNextItemWidth(150);
     if (ImGui::InputText("##ProvinceID", m_inspectBuffer, sizeof(m_inspectBuffer),
         ImGuiInputTextFlags_CharsDecimal)) {
-        // Parse input
         int id = atoi(m_inspectBuffer);
         if (id >= 0 && id <= (int)maxId) {
             m_inspectProvinceId = id;
@@ -505,58 +504,121 @@ void ProvinceSimulationUI::renderProvinceInspector() {
         ImGui::Text("Province #%d", m_inspectProvinceId);
         ImGui::Spacing();
 
-        // Obecny stan
-        ImGui::TextColored(ImVec4(0.2f, 1.0f, 0.5f, 1.0f), "Current State:");
-        ImGui::Text("  Population: %.2f k", current.population);
-        ImGui::Text("  Food Production: %.2f /tick", current.foodProductionModifier);
-        ImGui::Text("  Food Storage: %.1f", current.foodStorage);
-        ImGui::Text("  Wealth: %.1f", current.wealth);
+        // Toggle Edit Mode
+        bool wasEditMode = m_editMode;
+        ImGui::Checkbox("Edit Mode", &m_editMode);
+
+        if (m_editMode && !wasEditMode) {
+            // Entering edit mode - populate buffers
+            snprintf(m_editPopulation, sizeof(m_editPopulation), "%.2f", current.population);
+            snprintf(m_editFoodProduction, sizeof(m_editFoodProduction), "%.2f", current.foodProductionModifier);
+            snprintf(m_editWealth, sizeof(m_editWealth), "%.2f", current.wealth);
+            snprintf(m_editFoodStorage, sizeof(m_editFoodStorage), "%.2f", current.foodStorage);
+        }
 
         ImGui::Spacing();
 
-        // Stan początkowy
-        ImGui::TextColored(ImVec4(0.8f, 0.8f, 0.2f, 1.0f), "Initial State:");
-        ImGui::Text("  Population: %.2f k", initial.population);
-        ImGui::Text("  Food Production: %.2f /tick", initial.foodProductionModifier);
+        if (m_editMode) {
+            // EDIT MODE - Editable fields
+            ImGui::TextColored(ImVec4(1.0f, 0.5f, 0.2f, 1.0f), "Editing Province:");
+            ImGui::Spacing();
 
-        ImGui::Spacing();
+            ImGui::Text("Population (k):");
+            ImGui::SameLine(180);
+            ImGui::SetNextItemWidth(150);
+            ImGui::InputText("##EditPop", m_editPopulation, sizeof(m_editPopulation),
+                ImGuiInputTextFlags_CharsDecimal | ImGuiInputTextFlags_AllowTabInput);
 
-        // Zmiany
-        float popChange = current.population - initial.population;
-        float popChangePercent = (popChange / initial.population) * 100.0f;
+            ImGui::Text("Food Production:");
+            ImGui::SameLine(180);
+            ImGui::SetNextItemWidth(150);
+            ImGui::InputText("##EditFood", m_editFoodProduction, sizeof(m_editFoodProduction),
+                ImGuiInputTextFlags_CharsDecimal | ImGuiInputTextFlags_AllowTabInput);
 
-        ImGui::TextColored(ImVec4(0.5f, 0.8f, 1.0f, 1.0f), "Changes:");
-        ImGui::Text("  Population: %+.2f k (%+.2f%%)",
-            popChange, popChangePercent);
-        ImGui::Text("  Wealth Gained: %.1f", current.wealth);
+            ImGui::Text("Wealth:");
+            ImGui::SameLine(180);
+            ImGui::SetNextItemWidth(150);
+            ImGui::InputText("##EditWealth", m_editWealth, sizeof(m_editWealth),
+                ImGuiInputTextFlags_CharsDecimal | ImGuiInputTextFlags_AllowTabInput);
 
-        ImGui::Spacing();
+            ImGui::Text("Food Storage:");
+            ImGui::SameLine(180);
+            ImGui::SetNextItemWidth(150);
+            ImGui::InputText("##EditStorage", m_editFoodStorage, sizeof(m_editFoodStorage),
+                ImGuiInputTextFlags_CharsDecimal | ImGuiInputTextFlags_AllowTabInput);
 
-        // Status
-        const char* status = getStatusText(popChangePercent);
-        ImGui::Text("Status: ");
-        ImGui::SameLine();
-        ImGui::TextColored(getStatusColor(popChangePercent), "%s", status);
+            ImGui::Spacing();
 
-        ImGui::Spacing();
-        ImGui::Separator();
-        ImGui::Spacing();
+            if (ImGui::Button("Apply Changes", ImVec2(120, 0))) {
+                ProvinceData newData;
+                newData.population = std::max(0.1f, (float)atof(m_editPopulation));
+                newData.foodProductionModifier = std::max(0.0f, (float)atof(m_editFoodProduction));
+                newData.wealth = std::max(0.0f, (float)atof(m_editWealth));
+                newData.foodStorage = std::max(0.0f, (float)atof(m_editFoodStorage));
 
-        // Bilans żywności
-        auto params = m_simulation->getSimulationParameters();
-        float consumption = current.population * params.foodConsumptionPerPop;
-        float balance = current.foodProductionModifier - consumption;
+                m_simulation->setProvinceData(m_inspectProvinceId, newData);
+                SPDLOG_INFO("Province {} data updated", m_inspectProvinceId);
+            }
 
-        ImGui::Text("Food Balance:");
-        ImGui::Text("  Production: %.2f", current.foodProductionModifier);
-        ImGui::Text("  Consumption: %.2f", consumption);
-        ImGui::Text("  Balance: ");
-        ImGui::SameLine();
-        if (balance >= 0) {
-            ImGui::TextColored(ImVec4(0.2f, 1.0f, 0.2f, 1.0f), "+%.2f (Surplus)", balance);
+            ImGui::SameLine();
+            if (ImGui::Button("Cancel", ImVec2(120, 0))) {
+                m_editMode = false;
+            }
         }
         else {
-            ImGui::TextColored(ImVec4(1.0f, 0.2f, 0.2f, 1.0f), "%.2f (Deficit)", balance);
+            // VIEW MODE - Display current state
+            ImGui::TextColored(ImVec4(0.2f, 1.0f, 0.5f, 1.0f), "Current State:");
+            ImGui::Text("  Population: %.2f k", current.population);
+            ImGui::Text("  Food Production: %.2f /tick", current.foodProductionModifier);
+            ImGui::Text("  Food Storage: %.1f", current.foodStorage);
+            ImGui::Text("  Wealth: %.1f", current.wealth);
+
+            ImGui::Spacing();
+
+            // Stan początkowy
+            ImGui::TextColored(ImVec4(0.8f, 0.8f, 0.2f, 1.0f), "Initial State:");
+            ImGui::Text("  Population: %.2f k", initial.population);
+            ImGui::Text("  Food Production: %.2f /tick", initial.foodProductionModifier);
+
+            ImGui::Spacing();
+
+            // Zmiany
+            float popChange = current.population - initial.population;
+            float popChangePercent = (popChange / initial.population) * 100.0f;
+
+            ImGui::TextColored(ImVec4(0.5f, 0.8f, 1.0f, 1.0f), "Changes:");
+            ImGui::Text("  Population: %+.2f k (%+.2f%%)",
+                popChange, popChangePercent);
+            ImGui::Text("  Wealth Gained: %.1f", current.wealth);
+
+            ImGui::Spacing();
+
+            // Status
+            const char* status = getStatusText(popChangePercent);
+            ImGui::Text("Status: ");
+            ImGui::SameLine();
+            ImGui::TextColored(getStatusColor(popChangePercent), "%s", status);
+
+            ImGui::Spacing();
+            ImGui::Separator();
+            ImGui::Spacing();
+
+            // Bilans żywności
+            auto params = m_simulation->getSimulationParameters();
+            float consumption = current.population * params.foodConsumptionPerPop;
+            float balance = current.foodProductionModifier - consumption;
+
+            ImGui::Text("Food Balance:");
+            ImGui::Text("  Production: %.2f", current.foodProductionModifier);
+            ImGui::Text("  Consumption: %.2f", consumption);
+            ImGui::Text("  Balance: ");
+            ImGui::SameLine();
+            if (balance >= 0) {
+                ImGui::TextColored(ImVec4(0.2f, 1.0f, 0.2f, 1.0f), "+%.2f (Surplus)", balance);
+            }
+            else {
+                ImGui::TextColored(ImVec4(1.0f, 0.2f, 0.2f, 1.0f), "%.2f (Deficit)", balance);
+            }
         }
     }
 }

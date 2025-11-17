@@ -65,6 +65,7 @@ public:
     }
 
     void manualReadback() override;
+    void uploadSingleProvince(uint32_t index, const ProvinceData& data);
 
 private:
     void initializeGPUData(const RandomizationParameters& randParams);

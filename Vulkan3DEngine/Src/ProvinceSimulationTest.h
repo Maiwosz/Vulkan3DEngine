@@ -119,6 +119,7 @@ public:
 
     ProvinceData getProvinceData(uint32_t index) const;
     ProvinceData getInitialStats(uint32_t index) const;
+    void setProvinceData(uint32_t index, const ProvinceData& data);
 
     // =========================================================================
     // STATISTICS

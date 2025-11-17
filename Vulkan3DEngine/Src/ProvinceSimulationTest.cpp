@@ -247,6 +247,24 @@ ProvinceData ProvinceSimulationTest::getInitialStats(uint32_t index) const {
     return initialStats_[index];
 }
 
+void ProvinceSimulationTest::setProvinceData(uint32_t index, const ProvinceData& data) {
+    std::lock_guard<std::mutex> lock(dataMutex_);
+    if (!sharedBuffer_ || index >= simParams_.numProvinces) {
+        SPDLOG_WARN("Cannot set province data: invalid index {}", index);
+        return;
+    }
+
+    sharedBuffer_->provinces[index] = data;
+
+    // If GPU mode, need to sync to GPU
+    if (strategy_ && currentMode_ == SimulationMode::GPU) {
+        auto* gpuStrategy = dynamic_cast<GPUSimulationStrategy*>(strategy_.get());
+        if (gpuStrategy) {
+            gpuStrategy->uploadSingleProvince(index, data);
+        }
+    }
+}
+
 ProvinceSimulationTest::PerformanceStats ProvinceSimulationTest::getPerformanceStats() const {
     PerformanceStats stats;
     stats.currentTick = getCurrentTick();

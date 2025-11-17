@@ -30,6 +30,13 @@ private:
     // Inspekcja prowincji
     int m_inspectProvinceId = 0;
     char m_inspectBuffer[32] = "0";
+    bool m_editMode = false;
+
+    // Bufory edycji
+    char m_editPopulation[32] = "0";
+    char m_editFoodProduction[32] = "0";
+    char m_editWealth[32] = "0";
+    char m_editFoodStorage[32] = "0";
 
     // Wykresy - historia wydajności
     static constexpr size_t PERF_HISTORY_SIZE = 200;

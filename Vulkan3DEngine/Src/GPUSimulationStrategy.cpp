@@ -143,6 +143,23 @@ void GPUSimulationStrategy::manualReadback() {
     ticksSinceReadback_ = 0;
 }
 
+void GPUSimulationStrategy::uploadSingleProvince(uint32_t index, const ProvinceData& data) {
+    auto inputOutputBuffer = material_->GetInputOutputBuffer();
+    if (!inputOutputBuffer || index >= simParams_.numProvinces) {
+        SPDLOG_ERROR("GPU: Cannot upload province data");
+        return;
+    }
+
+    const uint32_t offset = index * sizeof(ProvinceData);
+    inputOutputBuffer->CopyToGPUDirect(
+        &data,
+        offset,
+        sizeof(ProvinceData)
+    );
+
+    SPDLOG_DEBUG("GPU: Uploaded data for province {}", index);
+}
+
 void GPUSimulationStrategy::initializeGPUData(
     const RandomizationParameters& randParams
 ) {
