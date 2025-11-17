@@ -1,15 +1,13 @@
 #pragma once
 #include <vulkan/vulkan.h>
 #include "PhysicalDevice.h"
+#include "QueueManager.h"
+#include <memory>
 
 class LogicalDevice {
 public:
-    enum class QueueType {
-        Graphics,
-        Present,
-        Transfer,
-        Compute
-    };
+    // Alias dla kompatybilności wstecznej
+    using QueueType = ::QueueType;
 
     LogicalDevice(const PhysicalDevice& physicalDevice,
         const std::vector<const char*>& deviceExtensions,
@@ -17,14 +15,33 @@ public:
     ~LogicalDevice();
 
     VkDevice get() const { return m_device; }
-    VkQueue getQueue(QueueType type) const;
-    uint32_t getQueueFamilyIndex(QueueType type) const;
-    LogicalDevice::QueueType getQueueTypeFromFamilyIndex(uint32_t familyIndex) const;
+
+    // Bezpieczny dostęp przez QueueManager
+    std::shared_ptr<QueueWrapper> getQueueWrapper(QueueType type) const {
+        return m_queueManager->getQueue(type);
+    }
+
+    // Legacy compatibility - teraz zwraca raw queue (użyj z ostrożnością!)
+    VkQueue getQueue(QueueType type) const {
+        return m_queueManager->getRawQueue(type);
+    }
+
+    uint32_t getQueueFamilyIndex(QueueType type) const {
+        return m_queueManager->getQueueFamilyIndex(type);
+    }
+
+    QueueType getQueueTypeFromFamilyIndex(uint32_t familyIndex) const;
+
+    // Dostęp do QueueManager dla zaawansowanych przypadków
+    QueueManager& getQueueManager() const { return *m_queueManager; }
+
+    // Sprawdza czy kolejka jest współdzielona
+    bool isQueueShared(QueueType type) const {
+        return m_queueManager->isQueueShared(type);
+    }
+
 private:
     VkDevice m_device;
-    VkQueue m_graphicsQueue;
-    VkQueue m_presentQueue;
-    VkQueue m_transferQueue;
-    VkQueue m_computeQueue;
     QueueFamilyIndices m_queueFamilyIndices;
+    std::unique_ptr<QueueManager> m_queueManager;
 };

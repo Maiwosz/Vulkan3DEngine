@@ -59,14 +59,13 @@ void GPUSimulationStrategy::executeSingleStep() {
         return;
     }
 
-    // =========================================================================
-    // START TIMING
-    // =========================================================================
-    auto startTime = std::chrono::high_resolution_clock::now();
+    StepTimings timings;
 
     // =========================================================================
-    // 1. DISPATCH COMPUTE WORK
+    // 1. COMPUTE PHASE
     // =========================================================================
+    auto computeStart = std::chrono::high_resolution_clock::now();
+
     ComputeTaskHandle task = dispatcher_->dispatchForDataSize(
         material_,
         simParams_.numProvinces,
@@ -78,41 +77,71 @@ void GPUSimulationStrategy::executeSingleStep() {
         return;
     }
 
-    // =========================================================================
-    // 2. WAIT FOR COMPLETION (BLOCKING)
-    // =========================================================================
     if (!dispatcher_->waitForTask(task)) {
         SPDLOG_ERROR("GPU: Failed to wait for task");
         return;
     }
 
+    auto computeEnd = std::chrono::high_resolution_clock::now();
+    timings.computeMs = std::chrono::duration<double, std::milli>(
+        computeEnd - computeStart
+    ).count();
+
     // =========================================================================
-    // 3. READBACK TO CPU (if interval reached)
+    // 2. READBACK PHASE (if auto-readback enabled)
     // =========================================================================
-    ticksSinceReadback_++;
-    if (ticksSinceReadback_ >= readbackInterval_) {
-        readbackFromGPU();
-        ticksSinceReadback_ = 0;
+    timings.readbackMs = 0.0;
+
+    if (autoReadback_) {
+        ticksSinceReadback_++;
+        if (ticksSinceReadback_ >= readbackInterval_) {
+            auto readbackStart = std::chrono::high_resolution_clock::now();
+
+            readbackFromGPU();
+
+            auto readbackEnd = std::chrono::high_resolution_clock::now();
+            timings.readbackMs = std::chrono::duration<double, std::milli>(
+                readbackEnd - readbackStart
+            ).count();
+
+            ticksSinceReadback_ = 0;
+        }
     }
 
     // =========================================================================
-    // STOP TIMING
+    // 3. TOTAL TIME
     // =========================================================================
-    auto endTime = std::chrono::high_resolution_clock::now();
-    double elapsedMs = std::chrono::duration<double, std::milli>(
-        endTime - startTime
-    ).count();
+    timings.totalMs = timings.computeMs + timings.readbackMs;
 
-    lastStepTimeMs_.store(elapsedMs, std::memory_order_relaxed);
+    {
+        std::lock_guard<std::mutex> lock(timingsMutex_);
+        lastStepTimings_ = timings;
+    }
+
     tickCounter_.fetch_add(1, std::memory_order_relaxed);
 
-    SPDLOG_TRACE("GPU: Step {} completed in {:.4f}ms",
-        tickCounter_.load(), elapsedMs);
+    SPDLOG_TRACE("GPU: Step {} - Compute: {:.4f}ms, Readback: {:.4f}ms, Total: {:.4f}ms",
+        tickCounter_.load(), timings.computeMs, timings.readbackMs, timings.totalMs);
 }
 
 // =============================================================================
 // PRIVATE HELPERS
 // =============================================================================
+
+void GPUSimulationStrategy::manualReadback() {
+    auto readbackStart = std::chrono::high_resolution_clock::now();
+
+    readbackFromGPU();
+
+    auto readbackEnd = std::chrono::high_resolution_clock::now();
+    double readbackMs = std::chrono::duration<double, std::milli>(
+        readbackEnd - readbackStart
+    ).count();
+
+    SPDLOG_DEBUG("GPU: Manual readback completed in {:.4f}ms", readbackMs);
+
+    ticksSinceReadback_ = 0;
+}
 
 void GPUSimulationStrategy::initializeGPUData(
     const RandomizationParameters& randParams

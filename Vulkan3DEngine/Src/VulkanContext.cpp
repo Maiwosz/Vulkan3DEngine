@@ -16,22 +16,26 @@ VulkanContext::VulkanContext(
 {
     const auto& indices = m_physicalDevice.getQueueFamilyIndices();
 
+    // Utwórz command poole z bezpiecznymi wrapperami kolejek i typem kolejki
     m_graphicsCommandPool = std::make_unique<CommandPool>(
         m_logicalDevice.get(),
         indices.graphicsFamily.value(),
-        m_logicalDevice.getQueue(LogicalDevice::QueueType::Graphics)
+        m_logicalDevice.getQueueWrapper(QueueType::Graphics),
+        QueueType::Graphics
     );
 
     m_transferCommandPool = std::make_unique<CommandPool>(
         m_logicalDevice.get(),
         indices.transferFamily.value(),
-        m_logicalDevice.getQueue(LogicalDevice::QueueType::Transfer)
+        m_logicalDevice.getQueueWrapper(QueueType::Transfer),
+        QueueType::Transfer
     );
 
     m_computeCommandPool = std::make_unique<CommandPool>(
         m_logicalDevice.get(),
         indices.computeFamily.value(),
-        m_logicalDevice.getQueue(LogicalDevice::QueueType::Compute)
+        m_logicalDevice.getQueueWrapper(QueueType::Compute),
+        QueueType::Compute
     );
 
     // Pobierz limity sprzętowe z cache i zaktualizuj Settings

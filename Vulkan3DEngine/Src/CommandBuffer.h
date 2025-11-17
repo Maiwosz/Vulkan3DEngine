@@ -8,6 +8,7 @@ class CommandPool;
 class CommandBuffer {
 public:
     explicit CommandBuffer(std::shared_ptr<CommandPool> pool,
+        QueueType queueType,
         VkCommandBufferLevel level = VK_COMMAND_BUFFER_LEVEL_PRIMARY);
     ~CommandBuffer();
 
@@ -23,14 +24,15 @@ public:
     [[nodiscard]] VkCommandBufferLevel level() const noexcept { return m_level; }
     [[nodiscard]] uint32_t queueFamilyIndex() const noexcept;
     [[nodiscard]] bool isValid() const noexcept { return m_commandBuffer != VK_NULL_HANDLE; }
+    [[nodiscard]] QueueType getQueueType() const noexcept { return m_queueType; }
 
     // Recording control
     void begin(VkCommandBufferUsageFlags flags = 0);
     void end();
     void reset(VkCommandBufferResetFlags flags = 0);
 
-    // Submission
-    void submit(VkQueue queue,
+    // Submission - zawsze bezpieczna (automatycznie używa wrappera kolejki)
+    void submit(
         std::span<const VkSemaphore> waitSemaphores = {},
         std::span<const VkPipelineStageFlags> waitStages = {},
         std::span<const VkSemaphore> signalSemaphores = {},
@@ -45,6 +47,7 @@ private:
 
     VkCommandBuffer m_commandBuffer = VK_NULL_HANDLE;
     std::shared_ptr<CommandPool> m_pool;
+    QueueType m_queueType;
     VkCommandBufferLevel m_level;
     bool m_isRecording = false;
 };

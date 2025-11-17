@@ -135,24 +135,29 @@ std::unique_ptr<CommandBuffer> CommandBufferManager::createBuffer(const Configur
         }
     }
 
-    // Create new buffer
-    std::shared_ptr<CommandPool> pool;
+    // Create new buffer - pobierz odpowiedni pool który już wie jaki typ kolejki obsługuje
+    CommandPool* pool = nullptr;
 
     switch (config.queueType) {
-    case LogicalDevice::QueueType::Graphics:
-        pool = std::shared_ptr<CommandPool>(&m_context.graphicsCommandPool(), [](CommandPool*) {});
+    case QueueType::Graphics:
+        pool = &m_context.graphicsCommandPool();
         break;
-    case LogicalDevice::QueueType::Transfer:
-        pool = std::shared_ptr<CommandPool>(&m_context.transferCommandPool(), [](CommandPool*) {});
+    case QueueType::Transfer:
+        pool = &m_context.transferCommandPool();
         break;
-    case LogicalDevice::QueueType::Compute:
-        pool = std::shared_ptr<CommandPool>(&m_context.computeCommandPool(), [](CommandPool*) {});
+    case QueueType::Compute:
+        pool = &m_context.computeCommandPool();
         break;
     default:
         throw std::invalid_argument("Invalid queue type for command buffer");
     }
 
-    return std::make_unique<CommandBuffer>(pool, config.level);
+    // CommandPool już wie jaki typ kolejki obsługuje, przekaż go do CommandBuffer
+    return std::make_unique<CommandBuffer>(
+        std::shared_ptr<CommandPool>(pool, [](CommandPool*) {}),
+        pool->getQueueType(),
+        config.level
+    );
 }
 
 CommandBufferHandle CommandBufferManager::generateHandle() {

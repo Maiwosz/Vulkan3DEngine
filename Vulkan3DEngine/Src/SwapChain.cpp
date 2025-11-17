@@ -176,7 +176,15 @@ VkResult SwapChain::presentImage(uint32_t imageIndex, VkSemaphore renderFinished
     presentInfo.pImageIndices = &imageIndex;
     presentInfo.pResults = nullptr;
 
-    VkResult result = vkQueuePresentKHR(m_logicalDevice.getQueue(LogicalDevice::QueueType::Present), &presentInfo);
+    VkResult result;
+
+    // Bezpieczne użycie kolejki - automatycznie blokuje jeśli jest współdzielona
+    {
+        auto presentQueue = m_logicalDevice.getQueueWrapper(LogicalDevice::QueueType::Present);
+        auto queueLock = presentQueue->lock();
+
+        result = vkQueuePresentKHR(queueLock.getQueue(), &presentInfo);
+    } // Lock jest automatycznie zwalniany tutaj
 
     if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR) {
         recreateSwapChain();

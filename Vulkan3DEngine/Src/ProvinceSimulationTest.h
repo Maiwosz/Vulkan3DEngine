@@ -27,10 +27,24 @@ struct BenchmarkResult {
     size_t cpuThreads;
     uint32_t numProvinces;
     uint32_t numTicks;
-    double totalTimeMs;        // Sum of all step times
-    double avgTimePerTick;     // Average time per tick
-    double minTimePerTick;     // Fastest tick
-    double maxTimePerTick;     // Slowest tick
+
+    // Detailed timings
+    double totalComputeMs;
+    double totalReadbackMs;
+    double totalTimeMs;
+
+    double avgComputePerTick;
+    double avgReadbackPerTick;
+    double avgTimePerTick;
+
+    double minComputePerTick;
+    double maxComputePerTick;
+    double minReadbackPerTick;
+    double maxReadbackPerTick;
+
+    double minTimePerTick;
+    double maxTimePerTick;
+
     double ticksPerSecond;
 };
 
@@ -68,6 +82,10 @@ public:
 
     void setGPUReadbackInterval(uint32_t interval);
     uint32_t getGPUReadbackInterval() const;
+
+    void setAutoReadback(bool enabled);
+    bool isAutoReadback() const;
+    void triggerManualReadback();
 
     void runSingleStep();
     void runMultipleSteps(uint32_t numSteps);
@@ -118,7 +136,7 @@ public:
 
     struct PerformanceStats {
         uint32_t currentTick;
-        double lastStepTimeMs;
+        StepTimings lastTimings;
     };
     PerformanceStats getPerformanceStats() const;
 
@@ -212,7 +230,13 @@ private:
     BenchmarkPhase currentPhase_ = BenchmarkPhase::None;
     BenchmarkConfig benchmarkConfig_;
     std::vector<BenchmarkResult> benchmarkResults_;
-    std::vector<double> phaseTimeSamples_;
+
+    struct PhaseSample {
+        double computeMs;
+        double readbackMs;
+        double totalMs;
+    };
+    std::vector<PhaseSample> phaseSamples_;
 
     uint32_t phaseStartTick_ = 0;
     std::chrono::steady_clock::time_point phaseStartTime_;

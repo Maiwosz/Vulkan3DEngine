@@ -46,56 +46,26 @@ LogicalDevice::LogicalDevice(const PhysicalDevice& physicalDevice,
         throw std::runtime_error("Failed to create logical device!");
     }
 
-    vkGetDeviceQueue(m_device, m_queueFamilyIndices.graphicsFamily.value(), 0, &m_graphicsQueue);
-    vkGetDeviceQueue(m_device, m_queueFamilyIndices.presentFamily.value(), 0, &m_presentQueue);
-    if (m_queueFamilyIndices.transferFamily.has_value()) {
-        vkGetDeviceQueue(m_device, m_queueFamilyIndices.transferFamily.value(), 0, &m_transferQueue);
-    }
-    if (m_queueFamilyIndices.computeFamily.has_value()) {
-        vkGetDeviceQueue(m_device, m_queueFamilyIndices.computeFamily.value(), 0, &m_computeQueue);
-    }
+    // Utwórz QueueManager który automatycznie wykryje współdzielone kolejki
+    m_queueManager = std::make_unique<QueueManager>(m_device, m_queueFamilyIndices);
 }
 
 LogicalDevice::~LogicalDevice() {
+    // QueueManager musi zostać zniszczony przed device
+    m_queueManager.reset();
     vkDestroyDevice(m_device, nullptr);
 }
 
-VkQueue LogicalDevice::getQueue(QueueType type) const {
-    switch (type) {
-    case QueueType::Graphics: return m_graphicsQueue;
-    case QueueType::Present: return m_presentQueue;
-    case QueueType::Transfer: return m_transferQueue;
-    case QueueType::Compute: return m_computeQueue;
-    default: throw std::invalid_argument("Unknown queue type");
-    }
-}
-
-uint32_t LogicalDevice::getQueueFamilyIndex(QueueType type) const {
-    switch (type) {
-    case QueueType::Graphics:
-        return m_queueFamilyIndices.graphicsFamily.value();
-    case QueueType::Present:
-        return m_queueFamilyIndices.presentFamily.value();
-    case QueueType::Transfer:
-        return m_queueFamilyIndices.transferFamily.value();
-    case QueueType::Compute:
-        return m_queueFamilyIndices.computeFamily.value();
-    default:
-        throw std::invalid_argument("Invalid QueueType");
-    }
-}
-
 LogicalDevice::QueueType LogicalDevice::getQueueTypeFromFamilyIndex(uint32_t familyIndex) const {
-    if (familyIndex == getQueueFamilyIndex(LogicalDevice::QueueType::Graphics)) {
-        return LogicalDevice::QueueType::Graphics;
+    if (familyIndex == getQueueFamilyIndex(QueueType::Graphics)) {
+        return QueueType::Graphics;
     }
-    else if (familyIndex == getQueueFamilyIndex(LogicalDevice::QueueType::Transfer)) {
-        return LogicalDevice::QueueType::Transfer;
+    else if (familyIndex == getQueueFamilyIndex(QueueType::Transfer)) {
+        return QueueType::Transfer;
     }
-    else if (familyIndex == getQueueFamilyIndex(LogicalDevice::QueueType::Compute)) {
-        return LogicalDevice::QueueType::Compute;
+    else if (familyIndex == getQueueFamilyIndex(QueueType::Compute)) {
+        return QueueType::Compute;
     }
 
-    // Default to Graphics if we can't determine
-    return LogicalDevice::QueueType::Graphics;
+    return QueueType::Graphics;
 }

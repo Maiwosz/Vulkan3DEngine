@@ -39,10 +39,6 @@ public:
         return tickCounter_.load(std::memory_order_relaxed);
     }
 
-    double getLastStepTimeMs() const override {
-        return lastStepTimeMs_.load(std::memory_order_relaxed);
-    }
-
     const char* getTypeName() const override {
         return "GPU";
     }
@@ -55,6 +51,20 @@ public:
     uint32_t getReadbackInterval() const {
         return readbackInterval_;
     }
+
+    StepTimings getLastStepTimings() const override {
+        return lastStepTimings_;
+    }
+
+    void setAutoReadback(bool enabled) override {
+        autoReadback_ = enabled;
+    }
+
+    bool isAutoReadback() const override {
+        return autoReadback_;
+    }
+
+    void manualReadback() override;
 
 private:
     void initializeGPUData(const RandomizationParameters& randParams);
@@ -69,7 +79,10 @@ private:
     ProvinceDataBuffer* sharedBuffer_;
 
     std::atomic<uint32_t> tickCounter_{ 0 };
-    std::atomic<double> lastStepTimeMs_{ 0.0 };
+    StepTimings lastStepTimings_;
+    mutable std::mutex timingsMutex_;
+
+    bool autoReadback_{ true };
 
     uint32_t readbackInterval_{ 1 };
     uint32_t ticksSinceReadback_{ 0 };

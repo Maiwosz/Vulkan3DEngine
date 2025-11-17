@@ -227,7 +227,6 @@ void TransferManager::executeCompleteTransferPass() {
 
         VkSemaphore signalSemaphore = currentFrame.transferFinished;
         currentFrame.transferCommandBuffer->submit(
-            m_context.logical().getQueue(LogicalDevice::QueueType::Transfer),
             {}, {},
             std::span<const VkSemaphore>(&signalSemaphore, 1),
             VK_NULL_HANDLE

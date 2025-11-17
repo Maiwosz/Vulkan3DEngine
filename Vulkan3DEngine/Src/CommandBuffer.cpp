@@ -2,8 +2,9 @@
 #include <stdexcept>
 #include <format>
 
-CommandBuffer::CommandBuffer(std::shared_ptr<CommandPool> pool, VkCommandBufferLevel level)
-    : m_pool(std::move(pool)), m_level(level) {
+CommandBuffer::CommandBuffer(std::shared_ptr<CommandPool> pool, QueueType queueType,
+    VkCommandBufferLevel level)
+    : m_pool(std::move(pool)), m_queueType(queueType), m_level(level) {
 
     if (!m_pool) {
         throw std::invalid_argument("CommandPool cannot be null");
@@ -29,6 +30,7 @@ CommandBuffer::~CommandBuffer() {
 CommandBuffer::CommandBuffer(CommandBuffer&& other) noexcept
     : m_commandBuffer(std::exchange(other.m_commandBuffer, VK_NULL_HANDLE)),
     m_pool(std::move(other.m_pool)),
+    m_queueType(other.m_queueType),
     m_level(other.m_level),
     m_isRecording(std::exchange(other.m_isRecording, false)) {
 }
@@ -39,6 +41,7 @@ CommandBuffer& CommandBuffer::operator=(CommandBuffer&& other) noexcept {
 
         m_commandBuffer = std::exchange(other.m_commandBuffer, VK_NULL_HANDLE);
         m_pool = std::move(other.m_pool);
+        m_queueType = other.m_queueType;
         m_level = other.m_level;
         m_isRecording = std::exchange(other.m_isRecording, false);
     }
@@ -92,17 +95,27 @@ void CommandBuffer::reset(VkCommandBufferResetFlags flags) {
     }
 }
 
-void CommandBuffer::submit(VkQueue queue,
+void CommandBuffer::submit(
     std::span<const VkSemaphore> waitSemaphores,
     std::span<const VkPipelineStageFlags> waitStages,
     std::span<const VkSemaphore> signalSemaphores,
     VkFence fence) {
+
     if (m_isRecording) {
         end();
     }
+
     if (waitSemaphores.size() != waitStages.size()) {
         throw std::invalid_argument("Wait semaphores and wait stages must have the same size");
     }
+
+    if (!m_pool) {
+        throw std::runtime_error("Cannot submit: CommandPool is null");
+    }
+
+    // Zawsze używaj bezpiecznego wrappera kolejki
+    auto queueLock = m_pool->getQueueWrapper()->lock();
+
     const VkSubmitInfo submitInfo{
         .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
         .waitSemaphoreCount = static_cast<uint32_t>(waitSemaphores.size()),
@@ -113,7 +126,8 @@ void CommandBuffer::submit(VkQueue queue,
         .signalSemaphoreCount = static_cast<uint32_t>(signalSemaphores.size()),
         .pSignalSemaphores = signalSemaphores.data()
     };
-    if (const auto result = vkQueueSubmit(queue, 1, &submitInfo, fence);
+
+    if (const auto result = vkQueueSubmit(queueLock.getQueue(), 1, &submitInfo, fence);
         result != VK_SUCCESS) {
         throw std::runtime_error(std::format("Failed to submit command buffer: {} ({})",
             string_VkResult(result), static_cast<int>(result)));

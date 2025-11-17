@@ -31,6 +31,12 @@ struct RandomizationParameters {
     uint32_t randomSeed = 0;
 };
 
+struct StepTimings {
+    double computeMs = 0.0;
+    double readbackMs = 0.0;
+    double totalMs = 0.0;
+};
+
 constexpr size_t MAX_PROVINCES = 1048576;
 struct ProvinceDataBuffer {
     ProvinceData provinces[MAX_PROVINCES];
@@ -42,7 +48,7 @@ enum class SimulationMode {
 };
 
 /**
- * Simplified Strategy Interface
+ * Strategy Interface
  *
  * Each strategy runs on dedicated thread and uses BLOCKING operations.
  * This allows for accurate timing and simple control flow:
@@ -72,7 +78,11 @@ public:
 
     // State queries (thread-safe)
     virtual uint32_t getCurrentTick() const = 0;
-    virtual double getLastStepTimeMs() const = 0;
+    virtual StepTimings getLastStepTimings() const = 0;
+
+    virtual void setAutoReadback(bool enabled) = 0;
+    virtual bool isAutoReadback() const = 0;
+    virtual void manualReadback() = 0;  // For manual readback trigger
 
     // Type info
     virtual const char* getTypeName() const = 0;

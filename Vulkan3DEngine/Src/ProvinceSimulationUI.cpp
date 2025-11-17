@@ -29,8 +29,8 @@ void ProvinceSimulationUI::OnUpdate(float deltaTime) {
     if (m_simulation) {
         // Aktualizuj historię wydajności
         auto stats = m_simulation->getPerformanceStats();
-        if (stats.lastStepTimeMs > 0) {
-            addTickTimeToHistory(stats.lastStepTimeMs);
+        if (stats.lastTimings.totalMs > 0) {
+            addTickTimeToHistory(stats.lastTimings.totalMs);
         }
     }
 }
@@ -220,6 +220,32 @@ void ProvinceSimulationUI::renderModeSelector() {
     ImGui::Dummy(ImVec2(20, 0));
     ImGui::SameLine();
 
+    if (currentMode == SimulationMode::GPU) {
+        bool autoReadback = m_simulation->isAutoReadback();
+
+        if (!canChangeMode) ImGui::BeginDisabled();
+
+        if (ImGui::Checkbox("Auto Readback", &autoReadback)) {
+            m_simulation->setAutoReadback(autoReadback);
+        }
+
+        if (!canChangeMode) ImGui::EndDisabled();
+
+        if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled)) {
+            ImGui::SetTooltip("Automatically readback data from GPU\nDisable for manual control");
+        }
+
+        if (!autoReadback) {
+            ImGui::SameLine();
+            if (ImGui::Button("Manual Readback")) {
+                m_simulation->triggerManualReadback();
+            }
+            if (ImGui::IsItemHovered()) {
+                ImGui::SetTooltip("Trigger manual GPU->CPU readback");
+            }
+        }
+    }
+
     // Status i tick
     ImGui::Text("Tick: %u", m_simulation->getCurrentTick());
 
@@ -298,28 +324,32 @@ void ProvinceSimulationUI::renderPerformancePanel() {
     // Kluczowe metryki w dużej czcionce
     ImGui::PushFont(ImGui::GetIO().Fonts->Fonts[0]); // Domyślna czcionka
 
-    ImGui::Columns(3, "PerfColumns", false);
+    ImGui::Columns(4, "PerfColumns", false);
 
-    // Kolumna 1: Czas na tick
-    ImGui::TextColored(ImVec4(0.2f, 1.0f, 0.2f, 1.0f), "%.3f ms", stats.lastStepTimeMs);
-    ImGui::Text("Time/Tick");
+    // Kolumna 1: Compute time
+    ImGui::TextColored(ImVec4(0.2f, 1.0f, 0.2f, 1.0f), "%.3f ms", stats.lastTimings.computeMs);
+    ImGui::Text("Compute/Tick");
 
-    // Kolumna 2: Ticki na sekundę
+    // Kolumna 2: Readback time
     ImGui::NextColumn();
-    float ticksPerSec = stats.lastStepTimeMs > 0 ? 1000.0f / stats.lastStepTimeMs : 0.0f;
-    ImGui::TextColored(ImVec4(1.0f, 0.8f, 0.2f, 1.0f), "%.1f", ticksPerSec);
-    ImGui::Text("Ticks/Second");
-
-    // Kolumna 3: Prowincje na sekundę
-    ImGui::NextColumn();
-    float provPerSec = ticksPerSec * simParams.numProvinces;
-    if (provPerSec >= 1000000.0f) {
-        ImGui::TextColored(ImVec4(1.0f, 0.4f, 1.0f, 1.0f), "%.2f M", provPerSec / 1000000.0f);
+    if (stats.lastTimings.readbackMs > 0.0) {
+        ImGui::TextColored(ImVec4(1.0f, 0.5f, 0.2f, 1.0f), "%.3f ms", stats.lastTimings.readbackMs);
     }
     else {
-        ImGui::TextColored(ImVec4(1.0f, 0.4f, 1.0f, 1.0f), "%.0f k", provPerSec / 1000.0f);
+        ImGui::TextDisabled("-");
     }
-    ImGui::Text("Provinces/Sec");
+    ImGui::Text("Readback/Tick");
+
+    // Kolumna 3: Total time
+    ImGui::NextColumn();
+    ImGui::TextColored(ImVec4(0.2f, 0.8f, 1.0f, 1.0f), "%.3f ms", stats.lastTimings.totalMs);
+    ImGui::Text("Total/Tick");
+
+    // Kolumna 4: Ticks/sec (existing)
+    ImGui::NextColumn();
+    float ticksPerSec = stats.lastTimings.totalMs > 0 ? 1000.0f / stats.lastTimings.totalMs : 0.0f;
+    ImGui::TextColored(ImVec4(1.0f, 0.8f, 0.2f, 1.0f), "%.1f", ticksPerSec);
+    ImGui::Text("Ticks/Second");
 
     ImGui::Columns(1);
     ImGui::PopFont();
@@ -350,15 +380,6 @@ void ProvinceSimulationUI::renderPerformancePanel() {
         ImGui::Text("Min: %.3f ms  |  Max: %.3f ms  |  Avg: %.3f ms",
             minTime, maxTime, avgTime);
     }
-
-    ImGui::Spacing();
-    ImGui::Separator();
-    ImGui::Spacing();
-
-    // Dodatkowe info
-    ImGui::Text("Current Configuration:");
-    ImGui::Text("  Total Provinces: %u", simParams.numProvinces);
-    ImGui::Text("  Current Tick: %u", stats.currentTick);
 }
 
 // =============================================================================

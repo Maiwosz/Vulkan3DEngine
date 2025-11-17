@@ -92,6 +92,7 @@ DEFINE_HANDLE_TYPE(ComputeTaskHandle, uint32_t)
             SmartAssetHandle<MaterialHandle, Material> material;  // For debugging/logging
             uint32_t groupCountX, groupCountY, groupCountZ;       // For debugging
             std::unique_ptr<DescriptorSetGuard> descriptorGuard;  // Guards descriptor set lifetime
+            CommandBufferManager::SmartBuffer commandBuffer;      // Keep command buffer alive for proper queue sync
         };
 
         bool calculateWorkGroups(
@@ -105,15 +106,15 @@ DEFINE_HANDLE_TYPE(ComputeTaskHandle, uint32_t)
         ) const;
 
         bool dispatchInternal(
-            VkCommandBuffer cmdBuffer,
+            CommandBuffer* cmdBuffer,
             const SmartAssetHandle<MaterialHandle, Material>& material,
             uint32_t groupCountX,
             uint32_t groupCountY,
             uint32_t groupCountZ
         );
 
-        VkCommandBuffer beginComputeCommands();
-        void submitAsyncCommands(VkCommandBuffer cmdBuffer, VkFence fence);
+        CommandBufferManager::SmartBuffer beginComputeCommands();
+        void submitAsyncCommands(CommandBufferManager::SmartBuffer& cmdBufferSmart, VkFence fence);
         void insertComputeBarrier(VkCommandBuffer cmdBuffer);
 
         VulkanContext& m_vulkanContext;

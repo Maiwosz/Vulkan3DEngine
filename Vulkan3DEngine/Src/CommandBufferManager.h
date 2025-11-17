@@ -14,8 +14,11 @@ using SmartCommandBufferHandle = SmartHandle<CommandBufferHandle, CommandBuffer>
 
 class CommandBufferManager : public ISmartHandleManager<CommandBufferHandle, CommandBuffer> {
 public:
+    // Public alias for external use
+    using SmartBuffer = SmartCommandBufferHandle;
+
     struct Configuration {
-        LogicalDevice::QueueType queueType = LogicalDevice::QueueType::Graphics;
+        QueueType queueType = QueueType::Graphics;
         VkCommandBufferLevel level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
         VkCommandBufferUsageFlags usageFlags = 0;
 

@@ -433,10 +433,7 @@ uint32_t Renderer::acquireSwapchainImage() {
             cmdBuffer->begin(VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
         }
         cmdBuffer->end();
-        cmdBuffer->submit(
-            m_vulkanContext.logical().getQueue(LogicalDevice::QueueType::Graphics),
-            {}, {}, {}, m_frameManager.getInFlightFence()
-        );
+        cmdBuffer->submit({}, {}, {}, m_frameManager.getInFlightFence());
 
         throw std::runtime_error("Failed to acquire swapchain image");
     }
@@ -462,7 +459,6 @@ void Renderer::submitAndPresent() {
     std::vector<VkSemaphore> signalSemaphores = { m_frameManager.getRenderFinishedSemaphore() };
 
     currentFrame.graphicsCommandBuffer->submit(
-        m_vulkanContext.logical().getQueue(LogicalDevice::QueueType::Graphics),
         waitSemaphores, waitStages, signalSemaphores,
         m_frameManager.getInFlightFence()
     );

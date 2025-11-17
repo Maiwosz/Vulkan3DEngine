@@ -38,10 +38,6 @@ public:
         return tickCounter_.load(std::memory_order_relaxed);
     }
 
-    double getLastStepTimeMs() const override {
-        return lastStepTimeMs_.load(std::memory_order_relaxed);
-    }
-
     const char* getTypeName() const override {
         return "CPU";
     }
@@ -49,6 +45,23 @@ public:
     // Configuration
     void setThreadCount(size_t threads);
     size_t getThreadCount() const { return threadCount_; }
+
+    StepTimings getLastStepTimings() const override {
+        std::lock_guard<std::mutex> lock(timingsMutex_);
+        return lastStepTimings_;
+    }
+
+    void setAutoReadback(bool enabled) override {
+        // CPU doesn't need readback, but implement for interface consistency
+    }
+
+    bool isAutoReadback() const override {
+        return true;  // Always "auto" for CPU
+    }
+
+    void manualReadback() override {
+        // No-op for CPU
+    }
 
 private:
     void simulateProvince(uint32_t idx);
@@ -60,5 +73,6 @@ private:
     ProvinceDataBuffer* sharedBuffer_;
 
     std::atomic<uint32_t> tickCounter_{ 0 };
-    std::atomic<double> lastStepTimeMs_{ 0.0 };
+    StepTimings lastStepTimings_;
+    mutable std::mutex timingsMutex_;
 };

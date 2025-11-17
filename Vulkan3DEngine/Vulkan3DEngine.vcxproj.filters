@@ -395,6 +395,9 @@
     <ClCompile Include="Src\BenchmarkWindow.cpp">
       <Filter>Engine\Scene\EntityComponentSystem\Registry\SystemManager\Systems\ScriptSystem\CppScriptSystem\CppScripts\ProvinceSimulationTest</Filter>
     </ClCompile>
+    <ClCompile Include="Src\QueueManager.cpp">
+      <Filter>Engine\EngineCore\VulkanContext\LogicalDevice\QueueManager</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Src\Prerequisites.h" />
@@ -903,6 +906,9 @@
     <ClInclude Include="Src\BenchmarkWindow.h">
       <Filter>Engine\Scene\EntityComponentSystem\Registry\SystemManager\Systems\ScriptSystem\CppScriptSystem\CppScripts\ProvinceSimulationTest</Filter>
     </ClInclude>
+    <ClInclude Include="Src\QueueManager.h">
+      <Filter>Engine\EngineCore\VulkanContext\LogicalDevice\QueueManager</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <None Include="..\Libs\imgui\.gitattributes">
@@ -1314,6 +1320,9 @@
     </Filter>
     <Filter Include="Engine\ThreadPool\AsyncMemoryOps">
       <UniqueIdentifier>{4e1dd6d0-efda-47db-a940-5ccbec7ba9ff}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Engine\EngineCore\VulkanContext\LogicalDevice\QueueManager">
+      <UniqueIdentifier>{29385646-3b95-41ac-9c01-44ffe36857f1}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
 </Project>

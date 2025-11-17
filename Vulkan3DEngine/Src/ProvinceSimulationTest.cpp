@@ -177,6 +177,22 @@ uint32_t ProvinceSimulationTest::getGPUReadbackInterval() const {
     return gpuReadbackInterval_;
 }
 
+void ProvinceSimulationTest::setAutoReadback(bool enabled) {
+    if (strategy_) {
+        strategy_->setAutoReadback(enabled);
+    }
+}
+
+bool ProvinceSimulationTest::isAutoReadback() const {
+    return strategy_ ? strategy_->isAutoReadback() : true;
+}
+
+void ProvinceSimulationTest::triggerManualReadback() {
+    if (strategy_) {
+        strategy_->manualReadback();
+    }
+}
+
 void ProvinceSimulationTest::runSingleStep() {
     if (!strategy_) return;
     stepsRequested_.fetch_add(1, std::memory_order_relaxed);
@@ -234,7 +250,7 @@ ProvinceData ProvinceSimulationTest::getInitialStats(uint32_t index) const {
 ProvinceSimulationTest::PerformanceStats ProvinceSimulationTest::getPerformanceStats() const {
     PerformanceStats stats;
     stats.currentTick = getCurrentTick();
-    stats.lastStepTimeMs = strategy_ ? strategy_->getLastStepTimeMs() : 0.0;
+    stats.lastTimings = strategy_ ? strategy_->getLastStepTimings() : StepTimings{};
     return stats;
 }
 
@@ -330,7 +346,7 @@ void ProvinceSimulationTest::simulationThreadFunc() {
 }
 
 // =============================================================================
-// STATISTICS (unchanged, skipping for brevity)
+// STATISTICS
 // =============================================================================
 
 void ProvinceSimulationTest::updateStatistics() {
@@ -343,7 +359,7 @@ void ProvinceSimulationTest::updateStatistics() {
 
     SimulationStatistics stats = computeCurrentStatistics();
     stats.tickNumber = currentTick;
-    stats.tickDurationMs = strategy_->getLastStepTimeMs();
+    stats.tickDurationMs = strategy_->getLastStepTimings().totalMs;
 
     statisticsHistory_.push_back(stats);
 
@@ -504,7 +520,12 @@ void ProvinceSimulationTest::startNextPhase() {
     phaseStartTick_ = getCurrentTick();
 
     // Clear accumulated times
-    phaseTimeSamples_.clear();
+    phaseSamples_.clear();
+
+    // Force auto-readback during benchmark
+    if (strategy_) {
+        strategy_->setAutoReadback(true);
+    }
 
     // Queue the steps
     runMultipleSteps(benchmarkConfig_.numTicks);
@@ -521,22 +542,22 @@ void ProvinceSimulationTest::updateBenchmark() {
     uint32_t ticksCompleted = currentTick - phaseStartTick_;
     uint32_t stepsRemaining = stepsRequested_.load(std::memory_order_acquire);
 
-    // Collect timing samples from strategy
-    // We collect on each update to capture all completed ticks
-    if (ticksCompleted > phaseTimeSamples_.size()) {
-        // New tick(s) completed - collect the time
-        double lastStepTime = strategy_->getLastStepTimeMs();
-        if (lastStepTime > 0.0) {
-            phaseTimeSamples_.push_back(lastStepTime);
+    // Collect timing samples
+    if (ticksCompleted > phaseSamples_.size()) {
+        StepTimings timings = strategy_->getLastStepTimings();
+        if (timings.totalMs > 0.0) {
+            phaseSamples_.push_back({
+                timings.computeMs,
+                timings.readbackMs,
+                timings.totalMs
+                });
         }
     }
 
     // Check if phase is complete
     if (ticksCompleted >= benchmarkConfig_.numTicks && stepsRemaining == 0) {
-        SPDLOG_INFO("Phase complete: {} ticks done, {} samples collected, mode: {}",
-            ticksCompleted,
-            phaseTimeSamples_.size(),
-            currentPhase_ == BenchmarkPhase::GPU ? "GPU" : "CPU");
+        SPDLOG_INFO("Phase complete: {} ticks done, {} samples collected",
+            ticksCompleted, phaseSamples_.size());
         finishCurrentPhase();
     }
 }
@@ -545,14 +566,28 @@ void ProvinceSimulationTest::finishCurrentPhase() {
     uint32_t actualTicks = getCurrentTick() - phaseStartTick_;
 
     // Calculate statistics from collected samples
+    double totalComputeMs = 0.0;
+    double totalReadbackMs = 0.0;
     double totalTimeMs = 0.0;
-    double minTime = std::numeric_limits<double>::max();
-    double maxTime = 0.0;
 
-    for (double sample : phaseTimeSamples_) {
-        totalTimeMs += sample;
-        minTime = std::min(minTime, sample);
-        maxTime = std::max(maxTime, sample);
+    double minCompute = std::numeric_limits<double>::max();
+    double maxCompute = 0.0;
+    double minReadback = std::numeric_limits<double>::max();
+    double maxReadback = 0.0;
+    double minTotal = std::numeric_limits<double>::max();
+    double maxTotal = 0.0;
+
+    for (const auto& sample : phaseSamples_) {
+        totalComputeMs += sample.computeMs;
+        totalReadbackMs += sample.readbackMs;
+        totalTimeMs += sample.totalMs;
+
+        minCompute = std::min(minCompute, sample.computeMs);
+        maxCompute = std::max(maxCompute, sample.computeMs);
+        minReadback = std::min(minReadback, sample.readbackMs);
+        maxReadback = std::max(maxReadback, sample.readbackMs);
+        minTotal = std::min(minTotal, sample.totalMs);
+        maxTotal = std::max(maxTotal, sample.totalMs);
     }
 
     // Create result
@@ -561,29 +596,35 @@ void ProvinceSimulationTest::finishCurrentPhase() {
     result.cpuThreads = cpuThreadCount_;
     result.numProvinces = simParams_.numProvinces;
     result.numTicks = actualTicks;
+
+    result.totalComputeMs = totalComputeMs;
+    result.totalReadbackMs = totalReadbackMs;
     result.totalTimeMs = totalTimeMs;
+
+    result.avgComputePerTick = totalComputeMs / actualTicks;
+    result.avgReadbackPerTick = totalReadbackMs / actualTicks;
     result.avgTimePerTick = totalTimeMs / actualTicks;
-    result.minTimePerTick = minTime;
-    result.maxTimePerTick = maxTime;
+
+    result.minComputePerTick = minCompute;
+    result.maxComputePerTick = maxCompute;
+    result.minReadbackPerTick = minReadback;
+    result.maxReadbackPerTick = maxReadback;
+    result.minTimePerTick = minTotal;
+    result.maxTimePerTick = maxTotal;
+
     result.ticksPerSecond = (actualTicks * 1000.0) / totalTimeMs;
 
     benchmarkResults_.push_back(result);
 
-    SPDLOG_INFO("Phase result - Mode: {}, Ticks: {}, Total: {:.2f}ms, "
-        "Avg: {:.4f}ms/tick, Min: {:.4f}ms, Max: {:.4f}ms",
+    SPDLOG_INFO("Phase result - Mode: {}, Compute: {:.2f}ms, Readback: {:.2f}ms, Total: {:.2f}ms",
         result.mode == SimulationMode::GPU ? "GPU" : "CPU",
-        result.numTicks, result.totalTimeMs, result.avgTimePerTick,
-        result.minTimePerTick, result.maxTimePerTick);
+        result.totalComputeMs, result.totalReadbackMs, result.totalTimeMs);
 
-    // Notify callback
     if (benchmarkCallback_) {
         benchmarkCallback_(false, &result);
     }
 
-    // Wait before next phase
     std::this_thread::sleep_for(std::chrono::milliseconds(200));
-
-    // Start next phase
     startNextPhase();
 }
 

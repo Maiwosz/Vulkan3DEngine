@@ -172,6 +172,7 @@
     <ClCompile Include="..\Libs\imgui\imgui_impl_vulkan.cpp" />
     <ClCompile Include="..\Libs\imgui\imgui_tables.cpp" />
     <ClCompile Include="..\Libs\imgui\imgui_widgets.cpp" />
+    <ClCompile Include="Src\QueueManager.cpp" />
     <ClCompile Include="Src\BenchmarkWindow.cpp" />
     <ClCompile Include="Src\SimulationSettingsWindow.cpp" />
     <ClCompile Include="Src\AsyncMemoryOps.cpp" />
@@ -307,6 +308,7 @@
     <ClInclude Include="..\Libs\imgui\imstb_rectpack.h" />
     <ClInclude Include="..\Libs\imgui\imstb_textedit.h" />
     <ClInclude Include="..\Libs\imgui\imstb_truetype.h" />
+    <ClInclude Include="Src\QueueManager.h" />
     <ClInclude Include="Src\BenchmarkWindow.h" />
     <ClInclude Include="Src\SimulationSettingsWindow.h" />
     <ClInclude Include="Src\AsyncMemoryOps.h" />

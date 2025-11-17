@@ -123,7 +123,16 @@ void CPUSimulationStrategy::executeSingleStep() {
         endTime - startTime
     ).count();
 
-    lastStepTimeMs_.store(elapsedMs, std::memory_order_relaxed);
+    StepTimings timings;
+    timings.computeMs = elapsedMs;
+    timings.readbackMs = 0.0;  // CPU has no readback
+    timings.totalMs = elapsedMs;
+
+    {
+        std::lock_guard<std::mutex> lock(timingsMutex_);
+        lastStepTimings_ = timings;
+    }
+
     tickCounter_.fetch_add(1, std::memory_order_relaxed);
 
     SPDLOG_TRACE("CPU: Step {} completed in {:.4f}ms",

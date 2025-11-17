@@ -14,7 +14,7 @@ ComputeDispatcher::ComputeDispatcher(
     m_pipelineManager(pipelineManager),
     m_cmdBufferManager(cmdBufferManager),
     m_syncManager(syncManager),
-    m_nextTaskId(1)  // Start from 1, 0 is reserved for errors
+    m_nextTaskId(1)
 {
     SPDLOG_DEBUG("ComputeDispatcher initialized (async, multi-task support with descriptor guards)");
 }
@@ -66,8 +66,16 @@ ComputeTaskHandle ComputeDispatcher::dispatch(
         taskHandle.id, mat->GetName(), groupCountX, groupCountY, groupCountZ);
 
     try {
-        // Acquire resources
-        VkCommandBuffer cmdBuffer = beginComputeCommands();
+        // Acquire SmartBuffer - keeps CommandBuffer alive throughout task lifetime
+        auto cmdBufferSmart = beginComputeCommands();
+        CommandBuffer* cmdBuffer = cmdBufferSmart.get();
+
+        if (!cmdBuffer || !cmdBuffer->isValid()) {
+            SPDLOG_ERROR("ComputeDispatcher: Failed to acquire command buffer for task {}", taskHandle.id);
+            return ComputeTaskHandle{};
+        }
+
+        // Acquire fence for completion tracking
         VkFence fence = m_syncManager.acquireFence(false);
 
         // Declare descriptor guard
@@ -93,17 +101,18 @@ ComputeTaskHandle ComputeDispatcher::dispatch(
             SPDLOG_TRACE("ComputeDispatcher: Created descriptor guard for task {}", taskHandle.id);
         }
 
-        // Submit
-        submitAsyncCommands(cmdBuffer, fence);
+        // Submit - uses CommandBuffer::submit() which is thread-safe
+        submitAsyncCommands(cmdBufferSmart, fence);
 
-        // Track task with its descriptor guard
+        // Track task with all resources
         m_activeTasks[taskHandle] = ComputeTask{
             fence,
             material,
             groupCountX,
             groupCountY,
             groupCountZ,
-            std::move(descriptorGuard)  // Transfer ownership to task
+            std::move(descriptorGuard),
+            std::move(cmdBufferSmart)  // Transfer ownership to task
         };
 
         SPDLOG_DEBUG("ComputeDispatcher: Task {} submitted successfully", taskHandle.id);
@@ -159,7 +168,6 @@ bool ComputeDispatcher::isTaskComplete(ComputeTaskHandle task) const {
 
     auto it = m_activeTasks.find(task);
     if (it == m_activeTasks.end()) {
-        // Task not found - either invalid or already completed
         return false;
     }
 
@@ -200,6 +208,7 @@ bool ComputeDispatcher::waitForTask(ComputeTaskHandle task) {
     }
 
     // Return fence to pool and remove task
+    // SmartBuffer is automatically released when task is erased
     m_syncManager.releaseFence(it->second.fence);
     m_activeTasks.erase(it);
 
@@ -241,6 +250,8 @@ void ComputeDispatcher::waitForAll() {
         }
         m_syncManager.releaseFence(task.fence);
     }
+
+    // Clear all tasks - SmartBuffers automatically released
     m_activeTasks.clear();
 
     SPDLOG_DEBUG("ComputeDispatcher: All tasks completed");
@@ -265,14 +276,14 @@ void ComputeDispatcher::pollCompletedTasks() {
 
             // Return fence to pool
             m_syncManager.releaseFence(it->second.fence);
+
+            // Erase task - SmartBuffer automatically released
             it = m_activeTasks.erase(it);
         }
         else if (result == VK_NOT_READY) {
-            // Still running, continue to next
             ++it;
         }
         else {
-            // Error
             SPDLOG_ERROR("ComputeDispatcher: Error checking task {} status", it->first.id);
 
             // Clean up on error
@@ -326,7 +337,7 @@ bool ComputeDispatcher::calculateWorkGroups(
 }
 
 bool ComputeDispatcher::dispatchInternal(
-    VkCommandBuffer cmdBuffer,
+    CommandBuffer* cmdBuffer,
     const SmartAssetHandle<MaterialHandle, Material>& material,
     uint32_t groupCountX,
     uint32_t groupCountY,
@@ -384,7 +395,10 @@ bool ComputeDispatcher::dispatchInternal(
     VkPipeline vkPipeline = pipeline.get();
     VkPipelineLayout layout = pipeline.getLayout();
 
-    vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, vkPipeline);
+    // Use raw handle for Vulkan commands
+    VkCommandBuffer vkCmdBuffer = cmdBuffer->handle();
+
+    vkCmdBindPipeline(vkCmdBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, vkPipeline);
 
     // Bind descriptor sets if available
     MaterialManager* materialManager = dynamic_cast<MaterialManager*>(material.getHandler());
@@ -394,7 +408,7 @@ bool ComputeDispatcher::dispatchInternal(
             VkDescriptorSet vkDescriptorSet = *descriptorSetSmartHandle.get();
 
             vkCmdBindDescriptorSets(
-                cmdBuffer,
+                vkCmdBuffer,
                 VK_PIPELINE_BIND_POINT_COMPUTE,
                 layout,
                 ShaderLib::CUSTOM_DESCRIPTOR_SET,
@@ -403,18 +417,15 @@ bool ComputeDispatcher::dispatchInternal(
                 0,
                 nullptr
             );
-
-            // Note: Guard will be created after this function returns,
-            // once we have the fence available
         }
     }
 
-    vkCmdDispatch(cmdBuffer, groupCountX, groupCountY, groupCountZ);
+    vkCmdDispatch(vkCmdBuffer, groupCountX, groupCountY, groupCountZ);
 
     return true;
 }
 
-VkCommandBuffer ComputeDispatcher::beginComputeCommands() {
+CommandBufferManager::SmartBuffer ComputeDispatcher::beginComputeCommands() {
     CommandBufferManager::Configuration config{};
     config.queueType = LogicalDevice::QueueType::Compute;
     config.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
@@ -428,26 +439,33 @@ VkCommandBuffer ComputeDispatcher::beginComputeCommands() {
     }
 
     buffer->begin(VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
-    return buffer->handle();
+
+    return smartBuffer;
 }
 
-void ComputeDispatcher::submitAsyncCommands(VkCommandBuffer cmdBuffer, VkFence fence) {
-    VkResult result = vkEndCommandBuffer(cmdBuffer);
-    if (result != VK_SUCCESS) {
-        throw std::runtime_error("Failed to end compute command buffer");
+void ComputeDispatcher::submitAsyncCommands(
+    CommandBufferManager::SmartBuffer& cmdBufferSmart,
+    VkFence fence)
+{
+    CommandBuffer* cmdBuffer = cmdBufferSmart.get();
+
+    if (!cmdBuffer || !cmdBuffer->isValid()) {
+        throw std::runtime_error("Invalid command buffer");
     }
 
-    VkSubmitInfo submitInfo{};
-    submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-    submitInfo.commandBufferCount = 1;
-    submitInfo.pCommandBuffers = &cmdBuffer;
-
-    VkQueue computeQueue = m_vulkanContext.logical().getQueue(LogicalDevice::QueueType::Compute);
-
-    result = vkQueueSubmit(computeQueue, 1, &submitInfo, fence);
-    if (result != VK_SUCCESS) {
-        throw std::runtime_error("Failed to submit compute command buffer");
+    // End recording if still recording
+    if (cmdBuffer->isRecording()) {
+        cmdBuffer->end();
     }
+
+    // Use CommandBuffer::submit() which automatically handles queue locking
+    // This is thread-safe because CommandBuffer has access to its CommandPool's QueueWrapper
+    cmdBuffer->submit(
+        {},     // waitSemaphores
+        {},     // waitStages
+        {},     // signalSemaphores
+        fence   // fence
+    );
 
     SPDLOG_DEBUG("ComputeDispatcher: Commands submitted (non-blocking)");
 }

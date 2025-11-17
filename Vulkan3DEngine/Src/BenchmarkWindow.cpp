@@ -189,11 +189,13 @@ void BenchmarkWindow::renderResults(ProvinceSimulationTest* simulation) {
         ImGuiTableFlags_RowBg |
         ImGuiTableFlags_Resizable;
 
-    if (ImGui::BeginTable("Results", 7, flags)) {
+    if (ImGui::BeginTable("Results", 10, flags)) {
         ImGui::TableSetupColumn("Mode");
         ImGui::TableSetupColumn("Provinces");
         ImGui::TableSetupColumn("Threads");
         ImGui::TableSetupColumn("Ticks");
+        ImGui::TableSetupColumn("Compute (ms)");
+        ImGui::TableSetupColumn("Readback (ms)");
         ImGui::TableSetupColumn("Total Time (ms)");
         ImGui::TableSetupColumn("Time/Tick (ms)");
         ImGui::TableSetupColumn("Ticks/sec");
@@ -228,16 +230,29 @@ void BenchmarkWindow::renderResults(ProvinceSimulationTest* simulation) {
             ImGui::TableSetColumnIndex(3);
             ImGui::Text("%u", result.numTicks);
 
-            // Total time
+            // Compute time
             ImGui::TableSetColumnIndex(4);
+            ImGui::Text("%.2f", result.totalComputeMs);
+
+            // Readback time
+            ImGui::TableSetColumnIndex(5);
+            if (result.totalReadbackMs > 0.0) {
+                ImGui::Text("%.2f", result.totalReadbackMs);
+            }
+            else {
+                ImGui::TextDisabled("-");
+            }
+
+            // Total time
+            ImGui::TableSetColumnIndex(6);
             ImGui::Text("%.2f", result.totalTimeMs);
 
             // Time per tick
-            ImGui::TableSetColumnIndex(5);
+            ImGui::TableSetColumnIndex(7);
             ImGui::Text("%.3f", result.avgTimePerTick);
 
             // Ticks per second
-            ImGui::TableSetColumnIndex(6);
+            ImGui::TableSetColumnIndex(8);
             ImGui::Text("%.1f", result.ticksPerSecond);
         }
 
