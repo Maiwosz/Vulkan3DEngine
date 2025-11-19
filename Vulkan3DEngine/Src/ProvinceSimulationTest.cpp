@@ -232,9 +232,20 @@ uint32_t ProvinceSimulationTest::getCurrentTick() const {
 }
 
 ProvinceData ProvinceSimulationTest::getProvinceData(uint32_t index) const {
+    if (index >= simParams_.numProvinces) {
+        return { 0, 0.0f, 0, 0 };  // Updated default values
+    }
+
+    if (currentMode_ == SimulationMode::GPU && strategy_) {
+        auto* gpuStrategy = dynamic_cast<GPUSimulationStrategy*>(strategy_.get());
+        if (gpuStrategy) {
+            return gpuStrategy->getProvinceData(index);
+        }
+    }
+
     std::lock_guard<std::mutex> lock(dataMutex_);
-    if (!sharedBuffer_ || index >= simParams_.numProvinces) {
-        return { 0.0f, 0.0f, 0.0f, 0.0f };
+    if (!sharedBuffer_) {
+        return { 0, 0.0f, 0, 0 };
     }
     return sharedBuffer_->provinces[index];
 }
@@ -242,7 +253,7 @@ ProvinceData ProvinceSimulationTest::getProvinceData(uint32_t index) const {
 ProvinceData ProvinceSimulationTest::getInitialStats(uint32_t index) const {
     std::lock_guard<std::mutex> lock(dataMutex_);
     if (index >= initialStats_.size()) {
-        return { 0.0f, 0.0f, 0.0f, 0.0f };
+        return { 0, 0.0f, 0, 0 };
     }
     return initialStats_[index];
 }
@@ -273,7 +284,7 @@ ProvinceSimulationTest::PerformanceStats ProvinceSimulationTest::getPerformanceS
 }
 
 // =============================================================================
-// STRATEGY MANAGEMENT (unchanged, skipping for brevity)
+// STRATEGY MANAGEMENT
 // =============================================================================
 
 void ProvinceSimulationTest::createStrategy(SimulationMode mode) {
@@ -392,17 +403,37 @@ void ProvinceSimulationTest::updateStatistics() {
 
 SimulationStatistics ProvinceSimulationTest::computeCurrentStatistics() const {
     SimulationStatistics stats{};
+
+    if (currentMode_ == SimulationMode::GPU && strategy_) {
+        auto* gpuStrategy = dynamic_cast<GPUSimulationStrategy*>(strategy_.get());
+        if (gpuStrategy) {
+            AggregateData aggregates = gpuStrategy->getAggregateStats();
+
+            stats.totalPopulation = static_cast<float>(aggregates.totalPopulation);
+            stats.totalWealth = static_cast<float>(aggregates.totalWealth);
+            stats.avgGrowth = aggregates.avgGrowth;
+            stats.growing = aggregates.growing;
+            stats.stable = aggregates.stable;
+            stats.declining = aggregates.declining;
+
+            return stats;
+        }
+    }
+
+    // Fallback: CPU mode
     std::lock_guard<std::mutex> lock(dataMutex_);
 
     for (uint32_t i = 0; i < simParams_.numProvinces; ++i) {
         auto data = sharedBuffer_->provinces[i];
-        auto initial = i < initialStats_.size() ? initialStats_[i] : ProvinceData{ 0,0,0,0 };
+        auto initial = i < initialStats_.size() ? initialStats_[i] : ProvinceData{ 0, 0.0f, 0, 0 };
 
-        stats.totalPopulation += data.population;
-        stats.totalWealth += data.wealth;
+        stats.totalPopulation += static_cast<float>(data.population);
+        stats.totalWealth += static_cast<float>(data.wealth);
 
-        if (initial.population > 0.0f) {
-            float growth = ((data.population - initial.population) / initial.population) * 100.0f;
+        if (initial.population > 0) {
+            float growth = ((static_cast<float>(data.population) -
+                static_cast<float>(initial.population)) /
+                static_cast<float>(initial.population)) * 100.0f;
             stats.avgGrowth += growth;
 
             if (growth > 5.0f) stats.growing++;
@@ -417,13 +448,6 @@ SimulationStatistics ProvinceSimulationTest::computeCurrentStatistics() const {
 
     return stats;
 }
-
-// =============================================================================
-// BENCHMARK - SIMPLIFIED IMPLEMENTATION
-// =============================================================================
-
-// ... (Move semantics, lifecycle, simulation control, strategy management, statistics - unchanged)
-// Showing only the BENCHMARK section:
 
 // =============================================================================
 // BENCHMARK - SIMPLIFIED IMPLEMENTATION

@@ -107,16 +107,25 @@ void SimulationSettingsWindow::renderSimulationParams() {
         s_state.modified = true;
     }
 
-    if (ImGui::DragFloat("Max Food Storage",
-        &s_state.simParams.maxFoodStorage,
-        5.0f, 10.0f, 1000.0f, "%.1f")) {
+    // POPRAWKA: Max Food Storage - teraz uint32_t
+    int maxFoodStorage = static_cast<int>(s_state.simParams.maxFoodStorage);
+    if (ImGui::DragInt("Max Food Storage",
+        &maxFoodStorage,
+        1, 10, 10000)) {
+        s_state.simParams.maxFoodStorage = static_cast<uint32_t>(maxFoodStorage);
         s_state.modified = true;
     }
 
-    if (ImGui::DragFloat("Min Population",
-        &s_state.simParams.minPopulation,
-        0.01f, 0.01f, 1.0f, "%.2f")) {
+    // POPRAWKA: Min Population - teraz uint32_t (w tysiącach)
+    int minPopulation = static_cast<int>(s_state.simParams.minPopulation);
+    if (ImGui::DragInt("Min Population (thousands)",
+        &minPopulation,
+        1, 1, 100)) {
+        s_state.simParams.minPopulation = static_cast<uint32_t>(minPopulation);
         s_state.modified = true;
+    }
+    if (ImGui::IsItemHovered()) {
+        ImGui::SetTooltip("Minimum viable population in thousands");
     }
 
     ImGui::Unindent();
@@ -129,18 +138,22 @@ void SimulationSettingsWindow::renderRandomizationParams() {
 
     ImGui::Indent();
 
-    // Populacja
-    ImGui::Text("Initial Population Range:");
-    if (ImGui::DragFloat("Min##Pop", &s_state.randParams.minPopulation,
-        0.5f, 0.1f, 100.0f, "%.1f")) {
+    // POPRAWKA: Populacja - teraz uint32_t
+    ImGui::Text("Initial Population Range (thousands):");
+    int minPop = static_cast<int>(s_state.randParams.minPopulation);
+    if (ImGui::DragInt("Min##Pop", &minPop,
+        1, 1, 1000)) {
+        s_state.randParams.minPopulation = static_cast<uint32_t>(minPop);
         if (s_state.randParams.minPopulation > s_state.randParams.maxPopulation) {
             s_state.randParams.maxPopulation = s_state.randParams.minPopulation;
         }
         s_state.modified = true;
     }
 
-    if (ImGui::DragFloat("Max##Pop", &s_state.randParams.maxPopulation,
-        0.5f, 0.1f, 100.0f, "%.1f")) {
+    int maxPop = static_cast<int>(s_state.randParams.maxPopulation);
+    if (ImGui::DragInt("Max##Pop", &maxPop,
+        1, 1, 1000)) {
+        s_state.randParams.maxPopulation = static_cast<uint32_t>(maxPop);
         if (s_state.randParams.maxPopulation < s_state.randParams.minPopulation) {
             s_state.randParams.minPopulation = s_state.randParams.maxPopulation;
         }
@@ -149,7 +162,7 @@ void SimulationSettingsWindow::renderRandomizationParams() {
 
     ImGui::Spacing();
 
-    // Produkcja żywności
+    // Produkcja żywności - to pozostaje float
     ImGui::Text("Food Production Range:");
     if (ImGui::DragFloat("Min##Food", &s_state.randParams.minFoodProduction,
         0.1f, 0.1f, 50.0f, "%.2f")) {
@@ -169,16 +182,18 @@ void SimulationSettingsWindow::renderRandomizationParams() {
 
     ImGui::Spacing();
 
-    // Początkowy zapas żywności
-    if (ImGui::DragFloat("Initial Food Storage",
-        &s_state.randParams.initialFoodStorage,
-        1.0f, 0.0f, 100.0f, "%.1f")) {
+    // POPRAWKA: Początkowy zapas żywności - teraz uint32_t
+    int initialFood = static_cast<int>(s_state.randParams.initialFoodStorage);
+    if (ImGui::DragInt("Initial Food Storage",
+        &initialFood,
+        1, 0, 1000)) {
+        s_state.randParams.initialFoodStorage = static_cast<uint32_t>(initialFood);
         s_state.modified = true;
     }
 
     ImGui::Spacing();
 
-    // Seed
+    // Seed - to już było int
     int seed = s_state.randParams.randomSeed;
     if (ImGui::InputInt("Random Seed (0 = random)", &seed, 1, 100)) {
         if (seed < 0) seed = 0;

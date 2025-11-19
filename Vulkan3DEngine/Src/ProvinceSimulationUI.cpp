@@ -504,22 +504,21 @@ void ProvinceSimulationUI::renderProvinceInspector() {
         ImGui::Text("Province #%d", m_inspectProvinceId);
         ImGui::Spacing();
 
-        // Toggle Edit Mode
         bool wasEditMode = m_editMode;
         ImGui::Checkbox("Edit Mode", &m_editMode);
 
         if (m_editMode && !wasEditMode) {
-            // Entering edit mode - populate buffers
-            snprintf(m_editPopulation, sizeof(m_editPopulation), "%.2f", current.population);
+            // Population and storage are now integers
+            snprintf(m_editPopulation, sizeof(m_editPopulation), "%u", current.population);
             snprintf(m_editFoodProduction, sizeof(m_editFoodProduction), "%.2f", current.foodProductionModifier);
-            snprintf(m_editWealth, sizeof(m_editWealth), "%.2f", current.wealth);
-            snprintf(m_editFoodStorage, sizeof(m_editFoodStorage), "%.2f", current.foodStorage);
+            snprintf(m_editWealth, sizeof(m_editWealth), "%u", current.wealth);
+            snprintf(m_editFoodStorage, sizeof(m_editFoodStorage), "%u", current.foodStorage);
         }
 
         ImGui::Spacing();
 
         if (m_editMode) {
-            // EDIT MODE - Editable fields
+            // EDIT MODE
             ImGui::TextColored(ImVec4(1.0f, 0.5f, 0.2f, 1.0f), "Editing Province:");
             ImGui::Spacing();
 
@@ -551,10 +550,10 @@ void ProvinceSimulationUI::renderProvinceInspector() {
 
             if (ImGui::Button("Apply Changes", ImVec2(120, 0))) {
                 ProvinceData newData;
-                newData.population = std::max(0.1f, (float)atof(m_editPopulation));
+                newData.population = std::max(1u, (uint32_t)atoi(m_editPopulation));
                 newData.foodProductionModifier = std::max(0.0f, (float)atof(m_editFoodProduction));
-                newData.wealth = std::max(0.0f, (float)atof(m_editWealth));
-                newData.foodStorage = std::max(0.0f, (float)atof(m_editFoodStorage));
+                newData.wealth = std::max(0u, (uint32_t)atoi(m_editWealth));
+                newData.foodStorage = std::max(0u, (uint32_t)atoi(m_editFoodStorage));
 
                 m_simulation->setProvinceData(m_inspectProvinceId, newData);
                 SPDLOG_INFO("Province {} data updated", m_inspectProvinceId);
@@ -566,34 +565,33 @@ void ProvinceSimulationUI::renderProvinceInspector() {
             }
         }
         else {
-            // VIEW MODE - Display current state
+            // VIEW MODE
             ImGui::TextColored(ImVec4(0.2f, 1.0f, 0.5f, 1.0f), "Current State:");
-            ImGui::Text("  Population: %.2f k", current.population);
+            ImGui::Text("  Population: %u k", current.population);  // %u for uint32_t
             ImGui::Text("  Food Production: %.2f /tick", current.foodProductionModifier);
-            ImGui::Text("  Food Storage: %.1f", current.foodStorage);
-            ImGui::Text("  Wealth: %.1f", current.wealth);
+            ImGui::Text("  Food Storage: %u", current.foodStorage);  // %u for uint32_t
+            ImGui::Text("  Wealth: %u", current.wealth);  // %u for uint32_t
 
             ImGui::Spacing();
 
-            // Stan początkowy
             ImGui::TextColored(ImVec4(0.8f, 0.8f, 0.2f, 1.0f), "Initial State:");
-            ImGui::Text("  Population: %.2f k", initial.population);
+            ImGui::Text("  Population: %u k", initial.population);  // %u for uint32_t
             ImGui::Text("  Food Production: %.2f /tick", initial.foodProductionModifier);
 
             ImGui::Spacing();
 
-            // Zmiany
-            float popChange = current.population - initial.population;
-            float popChangePercent = (popChange / initial.population) * 100.0f;
+            // Calculate changes with proper integer arithmetic
+            int32_t popChange = static_cast<int32_t>(current.population) -
+                static_cast<int32_t>(initial.population);
+            float popChangePercent = (static_cast<float>(popChange) /
+                static_cast<float>(initial.population)) * 100.0f;
 
             ImGui::TextColored(ImVec4(0.5f, 0.8f, 1.0f, 1.0f), "Changes:");
-            ImGui::Text("  Population: %+.2f k (%+.2f%%)",
-                popChange, popChangePercent);
-            ImGui::Text("  Wealth Gained: %.1f", current.wealth);
+            ImGui::Text("  Population: %+d k (%+.2f%%)", popChange, popChangePercent);
+            ImGui::Text("  Wealth Gained: %u", current.wealth);
 
             ImGui::Spacing();
 
-            // Status
             const char* status = getStatusText(popChangePercent);
             ImGui::Text("Status: ");
             ImGui::SameLine();
@@ -603,9 +601,9 @@ void ProvinceSimulationUI::renderProvinceInspector() {
             ImGui::Separator();
             ImGui::Spacing();
 
-            // Bilans żywności
+            // Food balance
             auto params = m_simulation->getSimulationParameters();
-            float consumption = current.population * params.foodConsumptionPerPop;
+            float consumption = static_cast<float>(current.population) * params.foodConsumptionPerPop;
             float balance = current.foodProductionModifier - consumption;
 
             ImGui::Text("Food Balance:");

@@ -909,6 +909,9 @@
     <ClInclude Include="Src\QueueManager.h">
       <Filter>Engine\EngineCore\VulkanContext\LogicalDevice\QueueManager</Filter>
     </ClInclude>
+    <ClInclude Include="Src\VulkanRequirements.h">
+      <Filter>Engine\EngineCore\VulkanContext\VulkanRequirements</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <None Include="..\Libs\imgui\.gitattributes">
@@ -1323,6 +1326,9 @@
     </Filter>
     <Filter Include="Engine\EngineCore\VulkanContext\LogicalDevice\QueueManager">
       <UniqueIdentifier>{29385646-3b95-41ac-9c01-44ffe36857f1}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Engine\EngineCore\VulkanContext\VulkanRequirements">
+      <UniqueIdentifier>{c2f464f8-3fe0-45ba-aec2-e7249f4edda7}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
 </Project>

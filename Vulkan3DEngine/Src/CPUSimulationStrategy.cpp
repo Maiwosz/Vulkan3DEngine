@@ -29,7 +29,6 @@ bool CPUSimulationStrategy::initialize(
     sharedBuffer_ = sharedBuffer;
     tickCounter_ = 0;
 
-    // Generate random initial data
     std::mt19937 gen;
     if (randParams.randomSeed == 0) {
         std::random_device rd;
@@ -39,7 +38,8 @@ bool CPUSimulationStrategy::initialize(
         gen.seed(randParams.randomSeed);
     }
 
-    std::uniform_real_distribution<float> popDist(
+    // Use integer distributions
+    std::uniform_int_distribution<uint32_t> popDist(
         randParams.minPopulation,
         randParams.maxPopulation
     );
@@ -48,19 +48,17 @@ bool CPUSimulationStrategy::initialize(
         randParams.maxFoodProduction
     );
 
-    // Initialize active provinces
     for (uint32_t i = 0; i < simParams_.numProvinces; ++i) {
         sharedBuffer_->provinces[i] = {
-            popDist(gen),
-            foodProdDist(gen),
-            0.0f,  // wealth starts at 0
-            randParams.initialFoodStorage
+            popDist(gen),                      // uint32_t population
+            foodProdDist(gen),                 // float foodProductionModifier
+            0,                                 // uint32_t wealth
+            randParams.initialFoodStorage      // uint32_t foodStorage
         };
     }
 
-    // Zero unused provinces
     for (uint32_t i = simParams_.numProvinces; i < MAX_PROVINCES; ++i) {
-        sharedBuffer_->provinces[i] = { 0.0f, 0.0f, 0.0f, 0.0f };
+        sharedBuffer_->provinces[i] = { 0, 0.0f, 0, 0 };
     }
 
     SPDLOG_INFO("CPU strategy initialized: {} provinces, {} threads",
@@ -153,61 +151,55 @@ void CPUSimulationStrategy::simulateProvince(uint32_t idx) {
 
     ProvinceData& province = sharedBuffer_->provinces[idx];
 
-    // Check for extinction
     if (province.population < simParams_.minPopulation) {
         province.population = simParams_.minPopulation;
-        province.foodStorage = 0.0f;
-        province.wealth = 0.0f;
+        province.foodStorage = 0;
+        province.wealth = 0;
         return;
     }
 
-    // =========================================================================
-    // FOOD PRODUCTION
-    // =========================================================================
+    // === FOOD PRODUCTION ===
     float foodProduced = province.foodProductionModifier;
-    province.foodStorage += foodProduced;
-    province.foodStorage = std::min(province.foodStorage, simParams_.maxFoodStorage);
+    uint32_t foodToAdd = static_cast<uint32_t>(std::floor(foodProduced));
+    province.foodStorage = std::min(province.foodStorage + foodToAdd, simParams_.maxFoodStorage);
 
-    // =========================================================================
-    // FOOD CONSUMPTION
-    // =========================================================================
-    float foodNeeded = province.population * simParams_.foodConsumptionPerPop;
-    float foodConsumed = std::min(province.foodStorage, foodNeeded);
-    province.foodStorage -= foodConsumed;
+    // === FOOD CONSUMPTION ===
+    float foodNeeded = static_cast<float>(province.population) * simParams_.foodConsumptionPerPop;
+    float foodConsumed = std::min(static_cast<float>(province.foodStorage), foodNeeded);
+    province.foodStorage -= static_cast<uint32_t>(std::floor(foodConsumed));
 
     float foodRatio = foodConsumed / std::max(foodNeeded, 0.001f);
 
-    // =========================================================================
-    // POPULATION DYNAMICS
-    // =========================================================================
-    float populationChange = 0.0f;
+    // === POPULATION DYNAMICS ===
+    float populationChangeFloat = 0.0f;
 
     if (foodRatio >= 1.0f) {
-        // Surplus food - population grows with bonus
         float excessFood = foodConsumed - foodNeeded;
         float growthBonus = std::min(excessFood * 0.01f, 0.01f);
-        populationChange = province.population * (simParams_.basePopulationGrowth + growthBonus);
+        populationChangeFloat = static_cast<float>(province.population) *
+            (simParams_.basePopulationGrowth + growthBonus);
     }
     else if (foodRatio >= simParams_.starvationThreshold) {
-        // Partial food - reduced growth
         float partialGrowth = (foodRatio - simParams_.starvationThreshold) /
             (1.0f - simParams_.starvationThreshold);
-        populationChange = province.population * simParams_.basePopulationGrowth * partialGrowth;
+        populationChangeFloat = static_cast<float>(province.population) *
+            simParams_.basePopulationGrowth * partialGrowth;
     }
     else {
-        // Starvation - population decline
         float starvationSeverity = 1.0f - (foodRatio / simParams_.starvationThreshold);
-        populationChange = -province.population * 0.05f * starvationSeverity;
+        populationChangeFloat = -static_cast<float>(province.population) * 0.05f * starvationSeverity;
     }
 
-    province.population += populationChange;
-    province.population = std::max(province.population, simParams_.minPopulation);
+    // Apply population change (careful integer conversion)
+    int32_t populationChange = static_cast<int32_t>(std::round(populationChangeFloat));
+    int32_t newPopulation = static_cast<int32_t>(province.population) + populationChange;
+    province.population = static_cast<uint32_t>(std::max(newPopulation,
+        static_cast<int32_t>(simParams_.minPopulation)));
 
-    // =========================================================================
-    // WEALTH GENERATION
-    // =========================================================================
+    // === WEALTH GENERATION ===
     if (foodRatio >= simParams_.starvationThreshold) {
-        float wealthGenerated = province.population * simParams_.wealthPerPop * foodRatio;
-        province.wealth += wealthGenerated;
+        float wealthGenerated = static_cast<float>(province.population) *
+            simParams_.wealthPerPop * foodRatio;
+        province.wealth += static_cast<uint32_t>(std::floor(wealthGenerated));
     }
 }

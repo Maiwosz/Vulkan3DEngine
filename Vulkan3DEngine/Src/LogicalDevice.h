@@ -2,16 +2,15 @@
 #include <vulkan/vulkan.h>
 #include "PhysicalDevice.h"
 #include "QueueManager.h"
+#include "VulkanRequirements.h"
 #include <memory>
 
 class LogicalDevice {
 public:
-    // Alias dla kompatybilności wstecznej
     using QueueType = ::QueueType;
 
     LogicalDevice(const PhysicalDevice& physicalDevice,
-        const std::vector<const char*>& deviceExtensions,
-        bool enableDebugPrintf);
+        const VulkanRequirements& requirements);
     ~LogicalDevice();
 
     VkDevice get() const { return m_device; }
@@ -21,7 +20,7 @@ public:
         return m_queueManager->getQueue(type);
     }
 
-    // Legacy compatibility - teraz zwraca raw queue (użyj z ostrożnością!)
+    // Legacy compatibility
     VkQueue getQueue(QueueType type) const {
         return m_queueManager->getRawQueue(type);
     }
@@ -32,10 +31,8 @@ public:
 
     QueueType getQueueTypeFromFamilyIndex(uint32_t familyIndex) const;
 
-    // Dostęp do QueueManager dla zaawansowanych przypadków
     QueueManager& getQueueManager() const { return *m_queueManager; }
 
-    // Sprawdza czy kolejka jest współdzielona
     bool isQueueShared(QueueType type) const {
         return m_queueManager->isQueueShared(type);
     }

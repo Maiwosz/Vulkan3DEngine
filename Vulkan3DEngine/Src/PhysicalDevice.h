@@ -2,6 +2,9 @@
 #include <vulkan/vulkan.h>
 #include <optional>
 #include <vector>
+#include <map>
+#include <memory>
+#include "VulkanRequirements.h"
 
 struct QueueFamilyIndices {
     QueueFamilyIndices() = default;
@@ -23,22 +26,59 @@ struct SwapChainSupportDetails {
     std::vector<VkPresentModeKHR> presentModes;
 };
 
+// Rezultat walidacji wymagań
+struct ValidationResult {
+    bool success = true;
+    std::vector<std::string> errors;
+    std::vector<std::string> warnings;
+    std::vector<std::string> info;
+    int score = 0;
+
+    void addError(const std::string& msg) {
+        errors.push_back(msg);
+        success = false;
+    }
+
+    void addWarning(const std::string& msg) {
+        warnings.push_back(msg);
+    }
+
+    void addInfo(const std::string& msg) {
+        info.push_back(msg);
+    }
+};
+
+// Helper do przechowywania extension feature structures
+struct ExtensionFeatureStorage {
+    std::map<VkStructureType, std::shared_ptr<void>> structures;
+
+    template<typename T>
+    T* get(VkStructureType sType) {
+        auto it = structures.find(sType);
+        if (it != structures.end()) {
+            return static_cast<T*>(it->second.get());
+        }
+        return nullptr;
+    }
+
+    template<typename T>
+    void add(VkStructureType sType) {
+        if (structures.find(sType) == structures.end()) {
+            auto ptr = std::make_shared<T>();
+            std::memset(ptr.get(), 0, sizeof(T));
+            ptr->sType = sType;
+            structures[sType] = std::static_pointer_cast<void>(ptr);
+        }
+    }
+
+    void* buildChain(void* pNext = nullptr);
+};
+
 class PhysicalDevice {
 public:
-    // Struktura opisująca wymaganą funkcję sprzętową
-    struct RequiredFeature {
-        const char* name;
-        VkBool32 VkPhysicalDeviceFeatures::* feature;
-    };
-
-    // Struktura opisująca opcjonalną funkcję z punktacją
-    struct OptionalFeature {
-        const char* name;
-        VkBool32 VkPhysicalDeviceFeatures::* feature;
-        int score;
-    };
-
-    PhysicalDevice(VkInstance instance, VkSurfaceKHR surface, const std::vector<const char*>& requiredExtensions = { VK_KHR_SWAPCHAIN_EXTENSION_NAME });
+    PhysicalDevice(VkInstance instance,
+        VkSurfaceKHR surface,
+        const VulkanRequirements& requirements);
 
     VkPhysicalDevice get() const { return m_device; }
 
@@ -53,8 +93,18 @@ public:
     bool isAnisotropySupported() const { return m_deviceFeatures.samplerAnisotropy == VK_TRUE; }
     uint32_t getMinImageCount() const { return m_minImageCount; }
 
-    // Backward compatibility
-    QueueFamilyIndices findQueueFamilies() const { return m_queueFamilyIndices; }
+    // Validation result
+    const ValidationResult& getValidationResult() const { return m_validationResult; }
+
+    // Query enabled features dla device creation
+    const VkPhysicalDeviceFeatures& getEnabledFeatures10() const { return m_enabledFeatures10; }
+    const VkPhysicalDeviceVulkan11Features& getEnabledFeatures11() const { return m_enabledFeatures11; }
+    const VkPhysicalDeviceVulkan12Features& getEnabledFeatures12() const { return m_enabledFeatures12; }
+    const VkPhysicalDeviceVulkan13Features& getEnabledFeatures13() const { return m_enabledFeatures13; }
+    const ExtensionFeatureStorage& getExtensionFeatures() const { return m_extensionFeatures; }
+
+    // Get extensions to enable
+    std::vector<const char*> getDeviceExtensionsToEnable() const;
 
     // Dynamic query
     SwapChainSupportDetails querySwapChainSupport() const;
@@ -63,8 +113,10 @@ public:
 private:
     VkPhysicalDevice m_device = VK_NULL_HANDLE;
     VkSurfaceKHR m_surface;
+    const VulkanRequirements& m_requirements;
+    ValidationResult m_validationResult;
 
-    // Cached static properties
+    // Cached static properties (queried once)
     VkPhysicalDeviceProperties m_deviceProperties;
     VkPhysicalDeviceFeatures m_deviceFeatures;
     VkPhysicalDeviceMemoryProperties m_memoryProperties;
@@ -73,31 +125,38 @@ private:
     VkSampleCountFlagBits m_maxMsaaSamples;
     uint32_t m_minImageCount;
 
-    // Definicje wymaganych i opcjonalnych funkcji
-    static constexpr RequiredFeature REQUIRED_FEATURES[] = {
-        {"samplerAnisotropy", &VkPhysicalDeviceFeatures::samplerAnisotropy}
-    };
+    // Available features (queried once)
+    VkPhysicalDeviceFeatures m_availableFeatures10;
+    VkPhysicalDeviceVulkan11Features m_availableFeatures11;
+    VkPhysicalDeviceVulkan12Features m_availableFeatures12;
+    VkPhysicalDeviceVulkan13Features m_availableFeatures13;
+    ExtensionFeatureStorage m_availableExtensionFeatures;
 
-    static constexpr OptionalFeature OPTIONAL_FEATURES[] = {
-        {"sampleRateShading", &VkPhysicalDeviceFeatures::sampleRateShading, 50},
-        {"geometryShader", &VkPhysicalDeviceFeatures::geometryShader, 100},
-        {"tessellationShader", &VkPhysicalDeviceFeatures::tessellationShader, 100},
-        {"multiDrawIndirect", &VkPhysicalDeviceFeatures::multiDrawIndirect, 75},
-        {"fillModeNonSolid", &VkPhysicalDeviceFeatures::fillModeNonSolid, 25},
-        {"wideLines", &VkPhysicalDeviceFeatures::wideLines, 10},
-        {"largePoints", &VkPhysicalDeviceFeatures::largePoints, 10},
-        {"textureCompressionBC", &VkPhysicalDeviceFeatures::textureCompressionBC, 30}
-    };
+    // Enabled features (determined by requirements)
+    VkPhysicalDeviceFeatures m_enabledFeatures10{};
+    VkPhysicalDeviceVulkan11Features m_enabledFeatures11{};
+    VkPhysicalDeviceVulkan12Features m_enabledFeatures12{};
+    VkPhysicalDeviceVulkan13Features m_enabledFeatures13{};
+    ExtensionFeatureStorage m_extensionFeatures;
+
+    // Enabled extensions
+    std::vector<std::string> m_enabledExtensions;
 
     // Helper methods
+    void selectBestDevice(VkInstance instance);
     void cacheDeviceProperties();
-    int rateSuitability(VkPhysicalDevice device, VkSurfaceKHR surface, const std::vector<const char*>& requiredExtensions);
-    static QueueFamilyIndices findQueueFamilies(VkPhysicalDevice device, VkSurfaceKHR surface);
-    static bool checkExtensionSupport(VkPhysicalDevice device, const std::vector<const char*>& extensions);
+    void queryAvailableFeatures();
+    void determineEnabledFeatures();
+
+    ValidationResult validateDevice(VkPhysicalDevice device);
+    int rateDevice(VkPhysicalDevice device);
+
     static VkFormat findDepthFormat(VkPhysicalDevice device);
     static VkSampleCountFlagBits calculateMaxMsaaSamples(const VkPhysicalDeviceProperties& props);
 
-    // Nowe pomocnicze metody dla feature'ów
-    static bool checkRequiredFeatures(const VkPhysicalDeviceFeatures& features);
-    static int scoreOptionalFeatures(const VkPhysicalDeviceFeatures& features);
+    // Validation helpers
+    bool checkDeviceExtensionSupport(const std::string& extension) const;
+    void validateExtensions(ValidationResult& result);
+    void validateFeatures(ValidationResult& result);
+    void validateQueues(ValidationResult& result);
 };

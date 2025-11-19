@@ -471,6 +471,7 @@
     <ClInclude Include="Src\TransferManager.h" />
     <ClInclude Include="Src\SystemsRegistry.h" />
     <ClInclude Include="Src\SynchronizationStages.h" />
+    <ClInclude Include="Src\VulkanRequirements.h" />
   </ItemGroup>
   <ItemGroup>
     <None Include="..\Libs\imgui\.gitattributes" />

@@ -3,12 +3,11 @@
 #include <atomic>
 #include <memory>
 
-// Shared data structures
 struct ProvinceData {
-    float population;
-    float foodProductionModifier;
-    float wealth;
-    float foodStorage;
+    uint32_t population;              // Population in thousands (discrete)
+    float foodProductionModifier;     // Production multiplier (can be fractional)
+    uint32_t wealth;                  // Wealth in units (discrete)
+    uint32_t foodStorage;             // Food units stored (discrete)
 };
 static_assert(sizeof(ProvinceData) == 16, "ProvinceData must be 16 bytes");
 
@@ -18,16 +17,16 @@ struct SimulationParameters {
     float basePopulationGrowth = 0.02f;
     float starvationThreshold = 0.5f;
     float wealthPerPop = 0.5f;
-    float maxFoodStorage = 100.0f;
-    float minPopulation = 0.1f;
+    uint32_t maxFoodStorage = 100;      // Changed to uint32_t
+    uint32_t minPopulation = 1;         // Changed to uint32_t (1k people minimum)
 };
 
 struct RandomizationParameters {
-    float minPopulation = 5.0f;
-    float maxPopulation = 50.0f;
+    uint32_t minPopulation = 5;         // Changed to uint32_t
+    uint32_t maxPopulation = 50;        // Changed to uint32_t
     float minFoodProduction = 1.0f;
     float maxFoodProduction = 10.0f;
-    float initialFoodStorage = 10.0f;
+    uint32_t initialFoodStorage = 10;   // Changed to uint32_t
     uint32_t randomSeed = 0;
 };
 

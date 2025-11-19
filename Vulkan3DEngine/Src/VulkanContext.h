@@ -4,18 +4,13 @@
 #include "LogicalDevice.h"
 #include "CommandPool.h"
 #include "Surface.h"
-#include <functional>
+#include "VulkanRequirements.h"
 
 class VulkanContext {
 public:
-    using SurfaceCreator = std::function<VkSurfaceKHR(VkInstance)>;
-
-    VulkanContext(
-        const Instance::Config& instanceConfig,
+    VulkanContext(const VulkanRequirements& requirements,
         const Window& window,
-        Settings& settings,
-        const std::vector<const char*>& deviceExtensions = { VK_KHR_SWAPCHAIN_EXTENSION_NAME }
-    );
+        Settings& settings);
 
     const Instance& instance() const { return m_instance; }
     const Surface& surface() const { return m_surface; }
@@ -24,9 +19,11 @@ public:
     CommandPool& graphicsCommandPool() { return *m_graphicsCommandPool; }
     CommandPool& transferCommandPool() { return *m_transferCommandPool; }
     CommandPool& computeCommandPool() { return *m_computeCommandPool; }
-    bool debugPrintfEnabled() const { return m_instance.debugPrintfEnabled(); }
+    bool debugPrintfEnabled() const { return m_requirements.enableDebugPrintf; }
 
 private:
+    // const reference - requirements są immutable po konstrukcji
+    const VulkanRequirements& m_requirements;
     Settings& m_settings;
     Instance m_instance;
     Surface m_surface;

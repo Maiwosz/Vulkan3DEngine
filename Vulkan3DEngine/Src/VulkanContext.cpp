@@ -3,20 +3,19 @@
 #include "Engine.h"
 #include "VulkanUtilities.h"
 
-VulkanContext::VulkanContext(
-    const Instance::Config& instanceConfig,
+VulkanContext::VulkanContext(const VulkanRequirements& requirements,
     const Window& window,
-    Settings& settings,
-    const std::vector<const char*>& deviceExtensions)
-    : m_settings(settings),
-    m_instance(instanceConfig),
+    Settings& settings)
+    : m_requirements(requirements),
+    m_settings(settings),
+    m_instance(requirements),
     m_surface(m_instance.get(), window),
-    m_physicalDevice(m_instance.get(), m_surface.get(), deviceExtensions),
-    m_logicalDevice(m_physicalDevice, deviceExtensions, instanceConfig.enableDebugPrintf)
+    m_physicalDevice(m_instance.get(), m_surface.get(), requirements),
+    m_logicalDevice(m_physicalDevice, requirements)
 {
     const auto& indices = m_physicalDevice.getQueueFamilyIndices();
 
-    // Utwórz command poole z bezpiecznymi wrapperami kolejek i typem kolejki
+    // Utwórz command poole
     m_graphicsCommandPool = std::make_unique<CommandPool>(
         m_logicalDevice.get(),
         indices.graphicsFamily.value(),
@@ -38,7 +37,7 @@ VulkanContext::VulkanContext(
         QueueType::Compute
     );
 
-    // Pobierz limity sprzętowe z cache i zaktualizuj Settings
+    // Zaktualizuj limity sprzętowe w Settings
     VkSampleCountFlagBits vkMaxMsaa = m_physicalDevice.getMaxUsableSampleCount();
     Settings::MsaaSampleCount maxMsaa = static_cast<Settings::MsaaSampleCount>(vkMaxMsaa);
     float maxAnisotropy = m_physicalDevice.getMaxAnisotropy();

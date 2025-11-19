@@ -9,25 +9,6 @@
 
 namespace VulkanUtils {
 
-    bool hasStencilComponent(VkFormat format) {
-        return format == VK_FORMAT_D32_SFLOAT_S8_UINT ||
-            format == VK_FORMAT_D24_UNORM_S8_UINT;
-    }
-
-    uint32_t findMemoryType(VkPhysicalDevice physicalDevice, uint32_t typeFilter, VkMemoryPropertyFlags properties) {
-        VkPhysicalDeviceMemoryProperties memProperties;
-        vkGetPhysicalDeviceMemoryProperties(physicalDevice, &memProperties);
-
-        for (uint32_t i = 0; i < memProperties.memoryTypeCount; i++) {
-            if ((typeFilter & (1 << i)) &&
-                (memProperties.memoryTypes[i].propertyFlags & properties) == properties) {
-                return i;
-            }
-        }
-
-        throw std::runtime_error("Failed to find suitable memory type!");
-    }
-
     VkFormat findSupportedFormat(VkPhysicalDevice physicalDevice, const std::vector<VkFormat>& candidates,
         VkImageTiling tiling, VkFormatFeatureFlags features) {
         for (VkFormat format : candidates) {
@@ -95,18 +76,6 @@ namespace VulkanUtils {
             if (!layerFound) return false;
         }
         return true;
-    }
-
-    void listAvailableExtensions() {
-        uint32_t extensionCount = 0;
-        vkEnumerateInstanceExtensionProperties(nullptr, &extensionCount, nullptr);
-        std::vector<VkExtensionProperties> extensions(extensionCount);
-        vkEnumerateInstanceExtensionProperties(nullptr, &extensionCount, extensions.data());
-
-        std::cout << "Available Vulkan extensions:\n";
-        for (const auto& extension : extensions) {
-            std::cout << "\t" << extension.extensionName << "\n";
-        }
     }
 
     VkSurfaceFormatKHR chooseSwapSurfaceFormat(const std::vector<VkSurfaceFormatKHR>& availableFormats)

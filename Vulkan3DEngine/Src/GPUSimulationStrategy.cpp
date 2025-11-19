@@ -62,7 +62,12 @@ void GPUSimulationStrategy::executeSingleStep() {
     StepTimings timings;
 
     // =========================================================================
-    // 1. COMPUTE PHASE
+    // 1. CLEAR OUTPUT BUFFER (Aggregates)
+    // =========================================================================
+    material_->GetOutputBuffer()->Zero();
+
+    // =========================================================================
+    // 2. COMPUTE PHASE
     // =========================================================================
     auto computeStart = std::chrono::high_resolution_clock::now();
 
@@ -88,7 +93,7 @@ void GPUSimulationStrategy::executeSingleStep() {
     ).count();
 
     // =========================================================================
-    // 2. READBACK PHASE (if auto-readback enabled)
+    // 3. READBACK PHASE
     // =========================================================================
     timings.readbackMs = 0.0;
 
@@ -97,7 +102,13 @@ void GPUSimulationStrategy::executeSingleStep() {
         if (ticksSinceReadback_ >= readbackInterval_) {
             auto readbackStart = std::chrono::high_resolution_clock::now();
 
-            readbackFromGPU();
+            // Always read aggregates (small, fast)
+            readbackAggregates();
+
+            // Optionally read full province data (larger, slower)
+            if (readbackFullData_) {
+                readbackFromGPU();
+            }
 
             auto readbackEnd = std::chrono::high_resolution_clock::now();
             timings.readbackMs = std::chrono::duration<double, std::milli>(
@@ -109,7 +120,7 @@ void GPUSimulationStrategy::executeSingleStep() {
     }
 
     // =========================================================================
-    // 3. TOTAL TIME
+    // 4. TOTAL TIME
     // =========================================================================
     timings.totalMs = timings.computeMs + timings.readbackMs;
 
@@ -125,13 +136,80 @@ void GPUSimulationStrategy::executeSingleStep() {
 }
 
 // =============================================================================
+// AGGREGATE STATISTICS
+// =============================================================================
+
+AggregateData GPUSimulationStrategy::getAggregateStats() const {
+    std::lock_guard<std::mutex> lock(aggregateMutex_);
+
+    // Calculate average growth from sum
+    AggregateData result = lastAggregateStats_;
+    if (simParams_.numProvinces > 0) {
+        result.avgGrowth /= simParams_.numProvinces;
+    }
+
+    return result;
+}
+
+void GPUSimulationStrategy::readbackAggregates() {
+    auto outputBuffer = material_->GetOutputBuffer();
+    if (!outputBuffer) {
+        SPDLOG_ERROR("GPU: Cannot readback aggregates");
+        return;
+    }
+
+    AggregateData aggregates;
+    outputBuffer->CopyFromGPUDirect(
+        &aggregates,
+        0,
+        sizeof(AggregateData)
+    );
+
+    std::lock_guard<std::mutex> lock(aggregateMutex_);
+    lastAggregateStats_ = aggregates;
+
+    SPDLOG_TRACE("GPU: Aggregates - Pop: {}, Wealth: {}, AvgGrowth: {:.2f}%, Growing: {}, Stable: {}, Declining: {}",
+        aggregates.totalPopulation,
+        aggregates.totalWealth,
+        aggregates.avgGrowth,
+        aggregates.growing,
+        aggregates.stable,
+        aggregates.declining);
+}
+
+// =============================================================================
+// PROVINCE DATA ACCESS
+// =============================================================================
+
+ProvinceData GPUSimulationStrategy::getProvinceData(uint32_t index) {
+    auto inputOutputBuffer = material_->GetInputOutputBuffer();
+    if (!inputOutputBuffer || index >= simParams_.numProvinces) {
+        SPDLOG_ERROR("GPU: Cannot read province data");
+        return { 0, 0.0f, 0, 0 };  // Updated default values
+    }
+
+    ProvinceData data;
+    const uint32_t offset = index * sizeof(ProvinceData);
+    inputOutputBuffer->CopyFromGPUDirect(
+        &data,
+        offset,
+        sizeof(ProvinceData)
+    );
+
+    return data;
+}
+
+// =============================================================================
 // PRIVATE HELPERS
 // =============================================================================
 
 void GPUSimulationStrategy::manualReadback() {
     auto readbackStart = std::chrono::high_resolution_clock::now();
 
-    readbackFromGPU();
+    readbackAggregates();
+    if (readbackFullData_) {
+        readbackFromGPU();
+    }
 
     auto readbackEnd = std::chrono::high_resolution_clock::now();
     double readbackMs = std::chrono::duration<double, std::milli>(
@@ -169,7 +247,6 @@ void GPUSimulationStrategy::initializeGPUData(
         return;
     }
 
-    // Generate random initial data
     std::mt19937 gen;
     if (randParams.randomSeed == 0) {
         std::random_device rd;
@@ -179,7 +256,8 @@ void GPUSimulationStrategy::initializeGPUData(
         gen.seed(randParams.randomSeed);
     }
 
-    std::uniform_real_distribution<float> popDist(
+    // Use integer distributions
+    std::uniform_int_distribution<uint32_t> popDist(
         randParams.minPopulation,
         randParams.maxPopulation
     );
@@ -190,22 +268,19 @@ void GPUSimulationStrategy::initializeGPUData(
 
     auto tempBuffer = std::make_unique<ProvinceDataBuffer>();
 
-    // Initialize active provinces
     for (uint32_t i = 0; i < simParams_.numProvinces; ++i) {
         tempBuffer->provinces[i] = {
-            popDist(gen),
-            foodProdDist(gen),
-            0.0f,  // wealth starts at 0
-            randParams.initialFoodStorage
+            popDist(gen),                      // uint32_t population
+            foodProdDist(gen),                 // float foodProductionModifier
+            0,                                 // uint32_t wealth starts at 0
+            randParams.initialFoodStorage      // uint32_t foodStorage
         };
     }
 
-    // Zero unused provinces (optional, for safety)
     for (uint32_t i = simParams_.numProvinces; i < MAX_PROVINCES; ++i) {
-        tempBuffer->provinces[i] = { 0.0f, 0.0f, 0.0f, 0.0f };
+        tempBuffer->provinces[i] = { 0, 0.0f, 0, 0 };
     }
 
-    // Upload only active data to GPU (BLOCKING)
     const uint32_t uploadSize = simParams_.numProvinces * sizeof(ProvinceData);
     inputOutputBuffer->CopyToGPUDirect(
         tempBuffer.get(),
@@ -224,7 +299,6 @@ void GPUSimulationStrategy::syncParametersToGPU() {
         return;
     }
 
-    // Upload parameters (BLOCKING)
     inputBuffer->CopyToGPUDirect(
         &simParams_,
         0,
@@ -241,16 +315,13 @@ void GPUSimulationStrategy::readbackFromGPU() {
         return;
     }
 
-    // Calculate actual data size (only active provinces)
     const uint32_t activeDataSize = simParams_.numProvinces * sizeof(ProvinceData);
-
-    // Readback only active data from GPU (BLOCKING)
     inputOutputBuffer->CopyFromGPUDirect(
         sharedBuffer_,
         0,
         activeDataSize
     );
 
-    SPDLOG_TRACE("GPU: Readback completed ({} provinces, {} bytes)",
+    SPDLOG_TRACE("GPU: Full readback completed ({} provinces, {} bytes)",
         simParams_.numProvinces, activeDataSize);
 }

@@ -1,10 +1,19 @@
 #version 450
 
+struct AggregateData {
+    uint totalPopulation;
+    uint totalWealth;
+    float avgGrowth;
+    uint growing;
+    uint stable;
+    uint declining;
+};
+
 struct ProvinceData {
-    float population;
+    uint population;
     float foodProductionModifier;
-    float wealth;
-    float foodStorage;
+    uint wealth;
+    uint foodStorage;
 };
 
 layout(std140, set = 2, binding = 0) uniform InputData {
@@ -13,84 +22,153 @@ layout(std140, set = 2, binding = 0) uniform InputData {
     float basePopulationGrowth;
     float starvationThreshold;
     float wealthPerPop;
-    float maxFoodStorage;
-    float minPopulation;
+    uint maxFoodStorage;
+    uint minPopulation;
 } inputData;
+layout(std430, set = 2, binding = 1) buffer OutputData {
+    AggregateData aggregate;
+} outputData;
 layout(std430, set = 2, binding = 2) buffer InputOutputData {
     ProvinceData provinces[1048576];
 } inputOutputData;
 
+#ifdef GL_EXT_shader_atomic_float
+#extension GL_EXT_shader_atomic_float : require
+#endif
+
 layout(local_size_x = 256, local_size_y = 1, local_size_z = 1) in;
+
+shared uint sharedPopulation[256];      // Changed to uint
+shared uint sharedWealth[256];          // Changed to uint
+shared float sharedGrowth[256];
+shared uint sharedGrowing[256];
+shared uint sharedStable[256];
+shared uint sharedDeclining[256];
 
 void main() {
     uint idx = gl_GlobalInvocationID.x;
+    uint localIdx = gl_LocalInvocationID.x;
     
-    // Early exit if beyond active provinces
-    if (idx >= inputData.numProvinces) return;
-    
-    // Load simulation parameters from uniform buffer
     float FOOD_CONSUMPTION_PER_POP = inputData.foodConsumptionPerPop;
     float BASE_POPULATION_GROWTH = inputData.basePopulationGrowth;
     float STARVATION_THRESHOLD = inputData.starvationThreshold;
     float WEALTH_PER_POP = inputData.wealthPerPop;
-    float MAX_FOOD_STORAGE = inputData.maxFoodStorage;
-    float MIN_POPULATION = inputData.minPopulation;
+    uint MAX_FOOD_STORAGE = inputData.maxFoodStorage;
+    uint MIN_POPULATION = inputData.minPopulation;
     
-    // Load province data
-    ProvinceData province = inputOutputData.provinces[idx];
+    uint localPopulation = 0;
+    uint localWealth = 0;
+    float localGrowth = 0.0;
+    uint localGrowing = 0;
+    uint localStable = 0;
+    uint localDeclining = 0;
     
-    // Skip if population is negligible
-    if (province.population < MIN_POPULATION) {
-        province.population = MIN_POPULATION;
-        province.foodStorage = 0.0;
-        province.wealth = 0.0;
-        inputOutputData.provinces[idx] = province;
-        return;
+    if (idx < inputData.numProvinces) {
+        ProvinceData province = inputOutputData.provinces[idx];
+        uint initialPopulation = province.population;
+        
+        if (province.population < MIN_POPULATION) {
+            province.population = MIN_POPULATION;
+            province.foodStorage = 0;
+            province.wealth = 0;
+            inputOutputData.provinces[idx] = province;
+            
+            localPopulation = MIN_POPULATION;
+            localWealth = 0;
+            localGrowth = 0.0;
+            localStable = 1;
+        } else {
+            // === FOOD PRODUCTION ===
+            float foodProduced = province.foodProductionModifier;
+            
+            // Add to storage - convert float to uint carefully
+            uint foodToAdd = uint(floor(foodProduced));
+            province.foodStorage = min(province.foodStorage + foodToAdd, MAX_FOOD_STORAGE);
+            
+            // === FOOD CONSUMPTION ===
+            float foodNeeded = float(province.population) * FOOD_CONSUMPTION_PER_POP;
+            float foodConsumed = min(float(province.foodStorage), foodNeeded);
+            province.foodStorage -= uint(floor(foodConsumed));
+            
+            float foodRatio = foodConsumed / max(foodNeeded, 0.001);
+            
+            // === POPULATION DYNAMICS ===
+            float populationChangeFloat = 0.0;
+            
+            if (foodRatio >= 1.0) {
+                float excessFood = foodConsumed - foodNeeded;
+                float growthBonus = min(excessFood * 0.01, 0.01);
+                populationChangeFloat = float(province.population) * (BASE_POPULATION_GROWTH + growthBonus);
+            } else if (foodRatio >= STARVATION_THRESHOLD) {
+                float partialGrowth = (foodRatio - STARVATION_THRESHOLD) / (1.0 - STARVATION_THRESHOLD);
+                populationChangeFloat = float(province.population) * BASE_POPULATION_GROWTH * partialGrowth;
+            } else {
+                float starvationSeverity = 1.0 - (foodRatio / STARVATION_THRESHOLD);
+                populationChangeFloat = -float(province.population) * 0.05 * starvationSeverity;
+            }
+            
+            // Apply population change (convert to int)
+            int populationChange = int(round(populationChangeFloat));
+            int newPopulation = int(province.population) + populationChange;
+            province.population = uint(max(newPopulation, int(MIN_POPULATION)));
+            
+            // === WEALTH GENERATION ===
+            if (foodRatio >= STARVATION_THRESHOLD) {
+                float wealthGenerated = float(province.population) * WEALTH_PER_POP * foodRatio;
+                province.wealth += uint(floor(wealthGenerated));
+            }
+            
+            inputOutputData.provinces[idx] = province;
+            
+            // === AGGREGATE STATISTICS ===
+            localPopulation = province.population;
+            localWealth = province.wealth;
+            
+            if (initialPopulation > 0) {
+                float growthPercent = ((float(province.population) - float(initialPopulation)) / float(initialPopulation)) * 100.0;
+                localGrowth = growthPercent;
+                
+                if (growthPercent > 5.0) {
+                    localGrowing = 1;
+                } else if (growthPercent < -5.0) {
+                    localDeclining = 1;
+                } else {
+                    localStable = 1;
+                }
+            } else {
+                localStable = 1;
+            }
+        }
     }
     
-    // === FOOD PRODUCTION ===
-    float foodProduced = province.foodProductionModifier;
+    // === WORKGROUP-LEVEL REDUCTION ===
+    sharedPopulation[localIdx] = localPopulation;
+    sharedWealth[localIdx] = localWealth;
+    sharedGrowth[localIdx] = localGrowth;
+    sharedGrowing[localIdx] = localGrowing;
+    sharedStable[localIdx] = localStable;
+    sharedDeclining[localIdx] = localDeclining;
     
-    // Add to food storage (capped)
-    province.foodStorage += foodProduced;
-    province.foodStorage = min(province.foodStorage, MAX_FOOD_STORAGE);
+    barrier();
     
-    // === FOOD CONSUMPTION ===
-    float foodNeeded = province.population * FOOD_CONSUMPTION_PER_POP;
-    float foodConsumed = min(province.foodStorage, foodNeeded);
-    province.foodStorage -= foodConsumed;
-    
-    // Calculate food availability ratio
-    float foodRatio = foodConsumed / max(foodNeeded, 0.001);
-    
-    // === POPULATION DYNAMICS ===
-    float populationChange = 0.0;
-    
-    if (foodRatio >= 1.0) {
-        // Well-fed: population grows
-        float excessFood = foodConsumed - foodNeeded;
-        float growthBonus = min(excessFood * 0.01, 0.01); // Bonus growth from excess food
-        populationChange = province.population * (BASE_POPULATION_GROWTH + growthBonus);
-    } else if (foodRatio >= STARVATION_THRESHOLD) {
-        // Moderate food: slow growth or stability
-        float partialGrowth = (foodRatio - STARVATION_THRESHOLD) / (1.0 - STARVATION_THRESHOLD);
-        populationChange = province.population * BASE_POPULATION_GROWTH * partialGrowth;
-    } else {
-        // Starvation: population declines
-        float starvationSeverity = 1.0 - (foodRatio / STARVATION_THRESHOLD);
-        populationChange = -province.population * 0.05 * starvationSeverity;
+    for (uint stride = 128; stride > 0; stride >>= 1) {
+        if (localIdx < stride) {
+            sharedPopulation[localIdx] += sharedPopulation[localIdx + stride];
+            sharedWealth[localIdx] += sharedWealth[localIdx + stride];
+            sharedGrowth[localIdx] += sharedGrowth[localIdx + stride];
+            sharedGrowing[localIdx] += sharedGrowing[localIdx + stride];
+            sharedStable[localIdx] += sharedStable[localIdx + stride];
+            sharedDeclining[localIdx] += sharedDeclining[localIdx + stride];
+        }
+        barrier();
     }
     
-    province.population += populationChange;
-    province.population = max(province.population, MIN_POPULATION);
-    
-    // === WEALTH GENERATION ===
-    // Only generate wealth if population is stable/growing and has food
-    if (foodRatio >= STARVATION_THRESHOLD) {
-        float wealthGenerated = province.population * WEALTH_PER_POP * foodRatio;
-        province.wealth += wealthGenerated;
+    if (localIdx == 0) {
+        atomicAdd(outputData.aggregate.totalPopulation, sharedPopulation[0]);
+        atomicAdd(outputData.aggregate.totalWealth, sharedWealth[0]);
+        atomicAdd(outputData.aggregate.avgGrowth, sharedGrowth[0]);
+        atomicAdd(outputData.aggregate.growing, sharedGrowing[0]);
+        atomicAdd(outputData.aggregate.stable, sharedStable[0]);
+        atomicAdd(outputData.aggregate.declining, sharedDeclining[0]);
     }
-    
-    // Write back
-    inputOutputData.provinces[idx] = province;
 }
