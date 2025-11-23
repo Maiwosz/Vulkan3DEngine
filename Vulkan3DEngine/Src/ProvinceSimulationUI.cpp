@@ -244,6 +244,27 @@ void ProvinceSimulationUI::renderModeSelector() {
                 ImGui::SetTooltip("Trigger manual GPU->CPU readback");
             }
         }
+
+        // NOWA SEKCJA - Full Data Readback
+        ImGui::SameLine();
+        ImGui::Dummy(ImVec2(20, 0));
+        ImGui::SameLine();
+
+        bool fullReadback = m_simulation->isGPUFullDataReadback();
+
+        if (!canChangeMode) ImGui::BeginDisabled();
+
+        if (ImGui::Checkbox("Full Data", &fullReadback)) {
+            m_simulation->setGPUFullDataReadback(fullReadback);
+        }
+
+        if (!canChangeMode) ImGui::EndDisabled();
+
+        if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled)) {
+            ImGui::SetTooltip("Read all province data from GPU\n"
+                "Slower but uses CPU aggregation\n"
+                "Disable for GPU-only (faster)");
+        }
     }
 
     // Status i tick

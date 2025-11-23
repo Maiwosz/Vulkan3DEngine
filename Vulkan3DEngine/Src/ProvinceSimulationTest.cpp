@@ -4,6 +4,7 @@
 #include "Engine.h"
 #include "AssetSystem.h"
 #include <spdlog/spdlog.h>
+#include <random>
 
 // =============================================================================
 // MOVE SEMANTICS (unchanged)
@@ -193,6 +194,25 @@ void ProvinceSimulationTest::triggerManualReadback() {
     }
 }
 
+void ProvinceSimulationTest::setGPUFullDataReadback(bool enabled) {
+    if (currentMode_ == SimulationMode::GPU && strategy_) {
+        auto* gpuStrategy = dynamic_cast<GPUSimulationStrategy*>(strategy_.get());
+        if (gpuStrategy) {
+            gpuStrategy->setReadbackFullData(enabled);
+        }
+    }
+}
+
+bool ProvinceSimulationTest::isGPUFullDataReadback() const {
+    if (currentMode_ == SimulationMode::GPU && strategy_) {
+        auto* gpuStrategy = dynamic_cast<GPUSimulationStrategy*>(strategy_.get());
+        if (gpuStrategy) {
+            return gpuStrategy->isReadbackFullData();
+        }
+    }
+    return false;
+}
+
 void ProvinceSimulationTest::runSingleStep() {
     if (!strategy_) return;
     stepsRequested_.fetch_add(1, std::memory_order_relaxed);
@@ -233,7 +253,7 @@ uint32_t ProvinceSimulationTest::getCurrentTick() const {
 
 ProvinceData ProvinceSimulationTest::getProvinceData(uint32_t index) const {
     if (index >= simParams_.numProvinces) {
-        return { 0, 0.0f, 0, 0 };  // Updated default values
+        return { 0, 0.0f, 0, 0 };
     }
 
     if (currentMode_ == SimulationMode::GPU && strategy_) {
@@ -243,6 +263,7 @@ ProvinceData ProvinceSimulationTest::getProvinceData(uint32_t index) const {
         }
     }
 
+    // CPU mode: direct access to shared buffer
     std::lock_guard<std::mutex> lock(dataMutex_);
     if (!sharedBuffer_) {
         return { 0, 0.0f, 0, 0 };
@@ -251,6 +272,12 @@ ProvinceData ProvinceSimulationTest::getProvinceData(uint32_t index) const {
 }
 
 ProvinceData ProvinceSimulationTest::getInitialStats(uint32_t index) const {
+    if (!strategy_) {
+        return { 0, 0.0f, 0, 0 };
+    }
+
+    // Both GPU and CPU strategies now store initial stats internally
+    // For now, we can still use the local copy
     std::lock_guard<std::mutex> lock(dataMutex_);
     if (index >= initialStats_.size()) {
         return { 0, 0.0f, 0, 0 };
@@ -363,8 +390,39 @@ void ProvinceSimulationTest::simulationThreadFunc() {
 
         uint32_t requested = stepsRequested_.load(std::memory_order_relaxed);
         if (requested > 0) {
+            // Execute step (BLOCKING - czeka aż się skończy)
             strategy_->executeSingleStep();
             stepsRequested_.fetch_sub(1, std::memory_order_relaxed);
+
+            // Jeśli benchmark działa, sprawdź czy trzeba zrobić snapshot
+            if (benchmarkRunning_ && benchmarkConfig_.testConvergence) {
+                uint32_t currentTick = strategy_->getCurrentTick();
+                uint32_t ticksCompleted = currentTick - phaseStartTick_;
+                SimulationMode mode = currentMode_;
+
+                // Pierwszy tick?
+                if (ticksCompleted == 1) {
+                    if (mode == SimulationMode::CPU && !cpuFirstTick_) {
+                        captureConvergenceSnapshot(mode, currentTick);
+                        SPDLOG_INFO("✓ Captured CPU FIRST tick (tick={})", currentTick);
+                    }
+                    else if (mode == SimulationMode::GPU && !gpuFirstTick_) {
+                        captureConvergenceSnapshot(mode, currentTick);
+                        SPDLOG_INFO("✓ Captured GPU FIRST tick (tick={})", currentTick);
+                    }
+                }
+                // Ostatni tick?
+                else if (ticksCompleted == benchmarkConfig_.numTicks) {
+                    if (mode == SimulationMode::CPU && !cpuLastTick_) {
+                        captureConvergenceSnapshot(mode, currentTick);
+                        SPDLOG_INFO("✓ Captured CPU LAST tick (tick={})", currentTick);
+                    }
+                    else if (mode == SimulationMode::GPU && !gpuLastTick_) {
+                        captureConvergenceSnapshot(mode, currentTick);
+                        SPDLOG_INFO("✓ Captured GPU LAST tick (tick={})", currentTick);
+                    }
+                }
+            }
         }
         else {
             std::this_thread::sleep_for(std::chrono::microseconds(100));
@@ -386,8 +444,18 @@ void ProvinceSimulationTest::updateStatistics() {
 
     lastProcessedTick_ = currentTick;
 
-    SimulationStatistics stats = computeCurrentStatistics();
+    // Get aggregates directly from strategy (unified interface)
+    AggregateStatistics aggregates = strategy_->getAggregateStatistics();
+
+    // Convert to SimulationStatistics format
+    SimulationStatistics stats{};
     stats.tickNumber = currentTick;
+    stats.totalPopulation = static_cast<float>(aggregates.totalPopulation);
+    stats.totalWealth = static_cast<float>(aggregates.totalWealth);
+    stats.avgGrowth = aggregates.avgGrowth;
+    stats.growing = aggregates.growing;
+    stats.stable = aggregates.stable;
+    stats.declining = aggregates.declining;
     stats.tickDurationMs = strategy_->getLastStepTimings().totalMs;
 
     statisticsHistory_.push_back(stats);
@@ -402,49 +470,21 @@ void ProvinceSimulationTest::updateStatistics() {
 }
 
 SimulationStatistics ProvinceSimulationTest::computeCurrentStatistics() const {
+    if (!strategy_) {
+        return SimulationStatistics{};
+    }
+
+    // Get aggregates directly from strategy
+    AggregateStatistics aggregates = strategy_->getAggregateStatistics();
+
+    // Convert to SimulationStatistics format
     SimulationStatistics stats{};
-
-    if (currentMode_ == SimulationMode::GPU && strategy_) {
-        auto* gpuStrategy = dynamic_cast<GPUSimulationStrategy*>(strategy_.get());
-        if (gpuStrategy) {
-            AggregateData aggregates = gpuStrategy->getAggregateStats();
-
-            stats.totalPopulation = static_cast<float>(aggregates.totalPopulation);
-            stats.totalWealth = static_cast<float>(aggregates.totalWealth);
-            stats.avgGrowth = aggregates.avgGrowth;
-            stats.growing = aggregates.growing;
-            stats.stable = aggregates.stable;
-            stats.declining = aggregates.declining;
-
-            return stats;
-        }
-    }
-
-    // Fallback: CPU mode
-    std::lock_guard<std::mutex> lock(dataMutex_);
-
-    for (uint32_t i = 0; i < simParams_.numProvinces; ++i) {
-        auto data = sharedBuffer_->provinces[i];
-        auto initial = i < initialStats_.size() ? initialStats_[i] : ProvinceData{ 0, 0.0f, 0, 0 };
-
-        stats.totalPopulation += static_cast<float>(data.population);
-        stats.totalWealth += static_cast<float>(data.wealth);
-
-        if (initial.population > 0) {
-            float growth = ((static_cast<float>(data.population) -
-                static_cast<float>(initial.population)) /
-                static_cast<float>(initial.population)) * 100.0f;
-            stats.avgGrowth += growth;
-
-            if (growth > 5.0f) stats.growing++;
-            else if (growth < -5.0f) stats.declining++;
-            else stats.stable++;
-        }
-    }
-
-    if (simParams_.numProvinces > 0) {
-        stats.avgGrowth /= simParams_.numProvinces;
-    }
+    stats.totalPopulation = static_cast<float>(aggregates.totalPopulation);
+    stats.totalWealth = static_cast<float>(aggregates.totalWealth);
+    stats.avgGrowth = aggregates.avgGrowth;
+    stats.growing = aggregates.growing;
+    stats.stable = aggregates.stable;
+    stats.declining = aggregates.declining;
 
     return stats;
 }
@@ -464,23 +504,44 @@ void ProvinceSimulationTest::startBenchmark(const BenchmarkConfig& config) {
         return;
     }
 
-    SPDLOG_INFO("Starting benchmark - GPU: {}, CPU: {}, Ticks: {}",
-        config.benchmarkGPU, config.benchmarkCPU, config.numTicks);
+    // ✨ NOWE: Wygeneruj deterministyczny seed jeśli nie podano
+    benchmarkConfig_ = config;
+    if (benchmarkConfig_.deterministicSeed == 0) {
+        std::random_device rd;
+        benchmarkConfig_.deterministicSeed = rd();
+        SPDLOG_INFO("Generated deterministic seed for benchmark: {}",
+            benchmarkConfig_.deterministicSeed);
+    }
+    else {
+        SPDLOG_INFO("Using provided deterministic seed: {}",
+            benchmarkConfig_.deterministicSeed);
+    }
+
+    SPDLOG_INFO("Starting benchmark - GPU: {}, CPU: {}, Ticks: {}, Convergence: {}, Seed: {}",
+        config.benchmarkGPU, config.benchmarkCPU, config.numTicks,
+        config.testConvergence, benchmarkConfig_.deterministicSeed);
 
     // Backup current settings
     originalMode_ = currentMode_;
     originalThreads_ = cpuThreadCount_;
     originalReadbackInterval_ = getGPUReadbackInterval();
+    originalReadbackFullData_ = isGPUFullDataReadback();
+
+    // ✨ NOWE: Backup aktualnych parametrów randomizacji
+    originalRandParams_ = randParams_;
 
     // Store config and clear results
-    benchmarkConfig_ = config;
     benchmarkResults_.clear();
     currentPhase_ = BenchmarkPhase::None;
 
-    // Mark as running
-    benchmarkRunning_ = true;
+    // Clear snapshots
+    cpuFirstTick_.reset();
+    cpuLastTick_.reset();
+    gpuFirstTick_.reset();
+    gpuLastTick_.reset();
+    convergenceComparison_.reset();
 
-    // Start first phase
+    benchmarkRunning_ = true;
     startNextPhase();
 }
 
@@ -493,6 +554,12 @@ void ProvinceSimulationTest::cancelBenchmark() {
     currentPhase_ = BenchmarkPhase::None;
     stepsRequested_.store(0, std::memory_order_release);
 
+    // NOWE: Wyczyść snapshoty
+    cpuFirstTick_.reset();
+    cpuLastTick_.reset();
+    gpuFirstTick_.reset();
+    gpuLastTick_.reset();
+
     // Wait for current steps to finish
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
 
@@ -500,7 +567,8 @@ void ProvinceSimulationTest::cancelBenchmark() {
     setMode(originalMode_);
     setCPUThreadCount(originalThreads_);
     setGPUReadbackInterval(originalReadbackInterval_);
-    resetSimulation();
+    setGPUFullDataReadback(originalReadbackFullData_);
+    resetSimulationWithParameters(simParams_, originalRandParams_);
 
     if (benchmarkCallback_) {
         benchmarkCallback_(false, nullptr);
@@ -510,7 +578,6 @@ void ProvinceSimulationTest::cancelBenchmark() {
 void ProvinceSimulationTest::startNextPhase() {
     if (!benchmarkRunning_) return;
 
-    // Determine next phase
     BenchmarkPhase nextPhase = BenchmarkPhase::None;
 
     if (currentPhase_ == BenchmarkPhase::None) {
@@ -532,24 +599,33 @@ void ProvinceSimulationTest::startNextPhase() {
         return;
     }
 
-    // Start the next phase
     currentPhase_ = nextPhase;
 
+    SPDLOG_INFO("========================================");
     SPDLOG_INFO("Starting benchmark phase: {}",
         currentPhase_ == BenchmarkPhase::GPU ? "GPU" : "CPU");
+    SPDLOG_INFO("========================================");
 
-    // Clear step queue
+    // Clear queue and wait
     stepsRequested_.store(0, std::memory_order_release);
     std::this_thread::sleep_for(std::chrono::milliseconds(50));
 
-    // Reset simulation
-    resetSimulation();
+    // ✨ NOWE: Wymuś deterministyczny seed
+    RandomizationParameters benchRandParams = originalRandParams_;
+    benchRandParams.randomSeed = benchmarkConfig_.deterministicSeed;
+
+    SPDLOG_INFO("Resetting simulation with deterministic seed: {}",
+        benchRandParams.randomSeed);
+
+    // Reset z wymuszonym seedem
+    resetSimulationWithParameters(simParams_, benchRandParams);
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
 
-    // Configure for this phase
+    // Configure mode
     if (currentPhase_ == BenchmarkPhase::GPU) {
         setMode(SimulationMode::GPU);
-        setGPUReadbackInterval(originalReadbackInterval_);
+        setGPUReadbackInterval(1);
+        setGPUFullDataReadback(originalReadbackFullData_);
     }
     else {
         setMode(SimulationMode::CPU);
@@ -558,22 +634,20 @@ void ProvinceSimulationTest::startNextPhase() {
 
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
 
-    // Record start tick (for tracking completion)
+    // Record starting tick
     phaseStartTick_ = getCurrentTick();
-
-    // Clear accumulated times
     phaseSamples_.clear();
 
-    // Force auto-readback during benchmark
+    // Enable auto-readback
     if (strategy_) {
         strategy_->setAutoReadback(true);
     }
 
-    // Queue the steps
+    // Queue work
     runMultipleSteps(benchmarkConfig_.numTicks);
 
-    SPDLOG_INFO("Phase started - {} ticks queued, starting from tick {}",
-        benchmarkConfig_.numTicks, phaseStartTick_);
+    SPDLOG_INFO("Phase started - {} ticks queued from tick {} with seed {}",
+        benchmarkConfig_.numTicks, phaseStartTick_, benchRandParams.randomSeed);
 }
 
 void ProvinceSimulationTest::updateBenchmark() {
@@ -584,8 +658,8 @@ void ProvinceSimulationTest::updateBenchmark() {
     uint32_t ticksCompleted = currentTick - phaseStartTick_;
     uint32_t stepsRemaining = stepsRequested_.load(std::memory_order_acquire);
 
-    // Collect timing samples
-    if (ticksCompleted > phaseSamples_.size()) {
+    // Zbieraj timings (snapshoty są robione w wątku symulacji)
+    if (ticksCompleted > phaseSamples_.size() && ticksCompleted > 0) {
         StepTimings timings = strategy_->getLastStepTimings();
         if (timings.totalMs > 0.0) {
             phaseSamples_.push_back({
@@ -596,7 +670,7 @@ void ProvinceSimulationTest::updateBenchmark() {
         }
     }
 
-    // Check if phase is complete
+    // Sprawdź czy faza się skończyła
     if (ticksCompleted >= benchmarkConfig_.numTicks && stepsRemaining == 0) {
         SPDLOG_INFO("Phase complete: {} ticks done, {} samples collected",
             ticksCompleted, phaseSamples_.size());
@@ -607,7 +681,7 @@ void ProvinceSimulationTest::updateBenchmark() {
 void ProvinceSimulationTest::finishCurrentPhase() {
     uint32_t actualTicks = getCurrentTick() - phaseStartTick_;
 
-    // Calculate statistics from collected samples
+    // Oblicz statystyki z zebranych sampli
     double totalComputeMs = 0.0;
     double totalReadbackMs = 0.0;
     double totalTimeMs = 0.0;
@@ -632,7 +706,7 @@ void ProvinceSimulationTest::finishCurrentPhase() {
         maxTotal = std::max(maxTotal, sample.totalMs);
     }
 
-    // Create result
+    // Utwórz wynik
     BenchmarkResult result;
     result.mode = (currentPhase_ == BenchmarkPhase::GPU) ? SimulationMode::GPU : SimulationMode::CPU;
     result.cpuThreads = cpuThreadCount_;
@@ -673,6 +747,11 @@ void ProvinceSimulationTest::finishCurrentPhase() {
 void ProvinceSimulationTest::completeBenchmark() {
     SPDLOG_INFO("Benchmark complete - all phases finished");
 
+    // NOWE: Oblicz porównanie zbieżności jeśli dostępne
+    if (benchmarkConfig_.testConvergence) {
+        computeConvergenceComparison();
+    }
+
     benchmarkRunning_ = false;
     currentPhase_ = BenchmarkPhase::None;
     stepsRequested_.store(0, std::memory_order_release);
@@ -681,12 +760,206 @@ void ProvinceSimulationTest::completeBenchmark() {
     setMode(originalMode_);
     setCPUThreadCount(originalThreads_);
     setGPUReadbackInterval(originalReadbackInterval_);
-    resetSimulation();
+    setGPUFullDataReadback(originalReadbackFullData_);
+    resetSimulationWithParameters(simParams_, originalRandParams_);
 
     // Notify completion
     if (benchmarkCallback_) {
         benchmarkCallback_(true, nullptr);
     }
+}
+
+// =============================================================================
+// CONVERGENCE TESTING IMPLEMENTATION
+// =============================================================================
+
+void ProvinceSimulationTest::captureConvergenceSnapshot(SimulationMode mode, uint32_t tick) {
+    if (!strategy_) {
+        SPDLOG_ERROR("Cannot capture snapshot - no strategy");
+        return;
+    }
+
+    uint32_t provinceIdx = benchmarkConfig_.convergenceProvinceIndex;
+    if (provinceIdx == 0) {
+        provinceIdx = simParams_.numProvinces / 2;
+    }
+
+    // Dla GPU - dane są już dostępne po executeSingleStep (które jest blocking)
+    // Dla CPU - dane są zawsze dostępne w sharedBuffer_
+
+    ProvinceData provinceData = getProvinceData(provinceIdx);
+    AggregateStatistics aggregates = strategy_->getAggregateStatistics();
+
+    ConvergenceSnapshot snapshot;
+    snapshot.province = ProvinceSnapshot{
+        tick,
+        provinceIdx,
+        provinceData
+    };
+    snapshot.aggregate = AggregateSnapshot{
+        tick,
+        aggregates.totalPopulation,
+        aggregates.totalWealth,
+        aggregates.avgGrowth,
+        aggregates.growing,
+        aggregates.stable,
+        aggregates.declining
+    };
+
+    // Zapisz snapshot
+    if (mode == SimulationMode::CPU) {
+        if (!cpuFirstTick_) {
+            cpuFirstTick_ = snapshot;
+        }
+        else {
+            cpuLastTick_ = snapshot;
+        }
+    }
+    else {
+        if (!gpuFirstTick_) {
+            gpuFirstTick_ = snapshot;
+        }
+        else {
+            gpuLastTick_ = snapshot;
+        }
+    }
+
+    SPDLOG_DEBUG("Snapshot: mode={}, tick={}, province={}, pop={}, wealth={}",
+        mode == SimulationMode::GPU ? "GPU" : "CPU",
+        tick, provinceIdx, provinceData.population, provinceData.wealth);
+}
+
+ConvergenceComparison::TickComparison::ProvinceErrors
+ProvinceSimulationTest::computeProvinceErrors(
+    const ProvinceSnapshot& cpu,
+    const ProvinceSnapshot& gpu)
+{
+    ConvergenceComparison::TickComparison::ProvinceErrors errors;
+
+    // Population errors
+    errors.populationAbsError = std::abs(
+        static_cast<int64_t>(cpu.data.population) -
+        static_cast<int64_t>(gpu.data.population)
+    );
+
+    float avgPop = (static_cast<float>(cpu.data.population) + static_cast<float>(gpu.data.population)) / 2.0f;
+    errors.populationRelError = avgPop > 0 ?
+        (errors.populationAbsError / avgPop) : 0.0f;
+
+    // Wealth errors
+    errors.wealthAbsError = std::abs(
+        static_cast<int64_t>(cpu.data.wealth) -
+        static_cast<int64_t>(gpu.data.wealth)
+    );
+    float avgWealth = (static_cast<float>(cpu.data.wealth) + static_cast<float>(gpu.data.wealth)) / 2.0f;
+    errors.wealthRelError = avgWealth > 0 ?
+        (errors.wealthAbsError / avgWealth) : 0.0f;
+
+    // Growth errors - USUNĄĆ, bo ProvinceData nie ma pola growth
+    errors.growthAbsError = 0.0f;
+    errors.growthRelError = 0.0f;
+
+    return errors;
+}
+
+ConvergenceComparison::TickComparison::AggregateErrors
+ProvinceSimulationTest::computeAggregateErrors(
+    const AggregateSnapshot& cpu,
+    const AggregateSnapshot& gpu)
+{
+    ConvergenceComparison::TickComparison::AggregateErrors errors;
+
+    // Population errors
+    errors.populationAbsError = std::abs(
+        static_cast<int64_t>(cpu.totalPopulation) -
+        static_cast<int64_t>(gpu.totalPopulation)
+    );
+    double avgPop = (static_cast<double>(cpu.totalPopulation) + static_cast<double>(gpu.totalPopulation)) / 2.0;
+    errors.populationRelError = avgPop > 0 ?
+        (errors.populationAbsError / avgPop) : 0.0;
+
+    // Wealth errors
+    errors.wealthAbsError = std::abs(
+        static_cast<int64_t>(cpu.totalWealth) -
+        static_cast<int64_t>(gpu.totalWealth)
+    );
+    double avgWealth = (static_cast<double>(cpu.totalWealth) + static_cast<double>(gpu.totalWealth)) / 2.0;
+    errors.wealthRelError = avgWealth > 0 ?
+        (errors.wealthAbsError / avgWealth) : 0.0;
+
+    // Growth errors
+    errors.growthAbsError = std::fabs(cpu.avgGrowth - gpu.avgGrowth);
+    float avgGrowth = std::fabs((cpu.avgGrowth + gpu.avgGrowth) / 2.0f);
+    errors.growthRelError = avgGrowth > 0.0001f ?
+        (errors.growthAbsError / avgGrowth) : 0.0f;
+
+    return errors;
+}
+
+void ProvinceSimulationTest::computeConvergenceComparison() {
+    if (!cpuFirstTick_ || !cpuLastTick_ || !gpuFirstTick_ || !gpuLastTick_) {
+        SPDLOG_WARN("Cannot compute convergence - missing snapshots");
+        return;
+    }
+
+    ConvergenceComparison comparison;
+    comparison.comparedProvinceIndex = cpuFirstTick_->province.provinceIndex;
+
+    // First tick comparison
+    comparison.firstTick.cpuProvince = cpuFirstTick_->province;
+    comparison.firstTick.gpuProvince = gpuFirstTick_->province;
+    comparison.firstTick.cpuAggregate = cpuFirstTick_->aggregate;
+    comparison.firstTick.gpuAggregate = gpuFirstTick_->aggregate;
+    comparison.firstTick.provinceErrors = computeProvinceErrors(
+        cpuFirstTick_->province, gpuFirstTick_->province
+    );
+    comparison.firstTick.aggregateErrors = computeAggregateErrors(
+        cpuFirstTick_->aggregate, gpuFirstTick_->aggregate
+    );
+
+    // Last tick comparison
+    comparison.lastTick.cpuProvince = cpuLastTick_->province;
+    comparison.lastTick.gpuProvince = gpuLastTick_->province;
+    comparison.lastTick.cpuAggregate = cpuLastTick_->aggregate;
+    comparison.lastTick.gpuAggregate = gpuLastTick_->aggregate;
+    comparison.lastTick.provinceErrors = computeProvinceErrors(
+        cpuLastTick_->province, gpuLastTick_->province
+    );
+    comparison.lastTick.aggregateErrors = computeAggregateErrors(
+        cpuLastTick_->aggregate, gpuLastTick_->aggregate
+    );
+
+    // Overall assessment - znajdź największy względny błąd
+    double maxError = 0.0;
+
+    auto checkError = [&maxError](double err) {
+        maxError = std::max(maxError, err);
+        };
+
+    // First tick errors
+    checkError(comparison.firstTick.provinceErrors.populationRelError);
+    checkError(comparison.firstTick.provinceErrors.wealthRelError);
+    checkError(comparison.firstTick.aggregateErrors.populationRelError);
+    checkError(comparison.firstTick.aggregateErrors.wealthRelError);
+    checkError(comparison.firstTick.aggregateErrors.growthRelError);
+
+    // Last tick errors
+    checkError(comparison.lastTick.provinceErrors.populationRelError);
+    checkError(comparison.lastTick.provinceErrors.wealthRelError);
+    checkError(comparison.lastTick.aggregateErrors.populationRelError);
+    checkError(comparison.lastTick.aggregateErrors.wealthRelError);
+    checkError(comparison.lastTick.aggregateErrors.growthRelError);
+
+    comparison.maxRelativeError = maxError;
+
+    // Uznajemy za znaczącą rozbieżność jeśli błąd > 0.1% (0.001)
+    comparison.hasSignificantDivergence = maxError > 0.001;
+
+    convergenceComparison_ = comparison;
+
+    SPDLOG_INFO("Convergence comparison complete - Max relative error: {:.6f}% ({})",
+        maxError * 100.0,
+        comparison.hasSignificantDivergence ? "SIGNIFICANT" : "OK");
 }
 
 float ProvinceSimulationTest::getBenchmarkProgress() const {

@@ -10,6 +10,7 @@
 #include <atomic>
 #include <mutex>
 #include <functional>
+#include <optional>
 
 struct SimulationStatistics {
     uint32_t tickNumber;
@@ -20,6 +21,66 @@ struct SimulationStatistics {
     uint32_t stable;
     uint32_t declining;
     double tickDurationMs;
+};
+
+// =========================================================================
+// CONVERGENCE COMPARISON STRUCTURES
+// =========================================================================
+
+struct ProvinceSnapshot {
+    uint32_t tickNumber;
+    uint32_t provinceIndex;
+    ProvinceData data;
+};
+
+struct AggregateSnapshot {
+    uint32_t tickNumber;
+    uint32_t  totalPopulation;
+    uint32_t  totalWealth;
+    float avgGrowth;
+    uint32_t growing;
+    uint32_t stable;
+    uint32_t declining;
+};
+
+struct ConvergenceComparison {
+    // Configuration
+    uint32_t comparedProvinceIndex;
+
+    // First tick comparison
+    struct TickComparison {
+        ProvinceSnapshot cpuProvince;
+        ProvinceSnapshot gpuProvince;
+        AggregateSnapshot cpuAggregate;
+        AggregateSnapshot gpuAggregate;
+
+        // Province errors
+        struct ProvinceErrors {
+            float populationAbsError;
+            float populationRelError;
+            float wealthAbsError;
+            float wealthRelError;
+            float growthAbsError;
+            float growthRelError;
+        } provinceErrors;
+
+        // Aggregate errors
+        struct AggregateErrors {
+            double populationAbsError;
+            double populationRelError;
+            double wealthAbsError;
+            double wealthRelError;
+            float growthAbsError;
+            float growthRelError;
+        } aggregateErrors;
+    };
+
+    TickComparison firstTick;
+    TickComparison lastTick;
+
+    // Overall assessment
+    bool hasSignificantDivergence;
+    double maxRelativeError; // Największy względny błąd ze wszystkich metryk
 };
 
 struct BenchmarkResult {
@@ -53,6 +114,12 @@ struct BenchmarkConfig {
     bool benchmarkCPU = true;
     uint32_t numTicks = 100;
     size_t cpuThreads = 8;
+
+    // Convergence testing
+    bool testConvergence = true;
+    uint32_t convergenceProvinceIndex = 0;
+    // Deterministyczny seed dla benchmarku
+    uint32_t deterministicSeed = 0; // 0 = auto-generate once// Która prowincja do porównania (0 = auto-wybór)
 };
 
 class ProvinceSimulationTest : public CppScriptBase {
@@ -86,6 +153,9 @@ public:
     void setAutoReadback(bool enabled);
     bool isAutoReadback() const;
     void triggerManualReadback();
+
+    void setGPUFullDataReadback(bool enabled);
+    bool isGPUFullDataReadback() const;
 
     void runSingleStep();
     void runMultipleSteps(uint32_t numSteps);
@@ -156,6 +226,18 @@ public:
         return benchmarkResults_;
     }
     void clearBenchmarkResults() { benchmarkResults_.clear(); }
+
+    // =========================================================================
+    // CONVERGENCE TESTING
+    // =========================================================================
+
+    const std::optional<ConvergenceComparison>& getConvergenceComparison() const {
+        return convergenceComparison_;
+    }
+
+    void clearConvergenceComparison() {
+        convergenceComparison_.reset();
+    }
 
     // =========================================================================
     // CALLBACKS
@@ -246,11 +328,39 @@ private:
     SimulationMode originalMode_;
     size_t originalThreads_ = 0;
     uint32_t originalReadbackInterval_ = 1;
+    bool originalReadbackFullData_ = 0;
+    RandomizationParameters originalRandParams_;
 
     void updateBenchmark();
     void startNextPhase();
     void finishCurrentPhase();
     void completeBenchmark();
+
+    // =========================================================================
+    // CONVERGENCE TESTING
+    // =========================================================================
+
+    std::optional<ConvergenceComparison> convergenceComparison_;
+
+    struct ConvergenceSnapshot {
+        ProvinceSnapshot province;
+        AggregateSnapshot aggregate;
+    };
+
+    // Snapshoty z każdej fazy
+    std::optional<ConvergenceSnapshot> cpuFirstTick_;
+    std::optional<ConvergenceSnapshot> cpuLastTick_;
+    std::optional<ConvergenceSnapshot> gpuFirstTick_;
+    std::optional<ConvergenceSnapshot> gpuLastTick_;
+
+    void captureConvergenceSnapshot(SimulationMode mode, uint32_t tick);
+    void computeConvergenceComparison();
+
+    static ConvergenceComparison::TickComparison::ProvinceErrors
+        computeProvinceErrors(const ProvinceSnapshot& cpu, const ProvinceSnapshot& gpu);
+
+    static ConvergenceComparison::TickComparison::AggregateErrors
+        computeAggregateErrors(const AggregateSnapshot& cpu, const AggregateSnapshot& gpu);
 
     TickCallback tickCallback_;
     BenchmarkCallback benchmarkCallback_;

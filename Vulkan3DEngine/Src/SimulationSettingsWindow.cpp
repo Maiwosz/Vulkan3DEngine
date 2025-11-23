@@ -69,12 +69,34 @@ void SimulationSettingsWindow::renderSimulationParams() {
     ImGui::Indent();
 
     // Liczba prowincji
-    int numProvinces = s_state.simParams.numProvinces;
-    if (ImGui::InputInt("Number of Provinces", &numProvinces, 1024, 65536)) {
-        if (numProvinces < 1024) numProvinces = 1024;
-        if (numProvinces > 1048576) numProvinces = 1048576;
-        s_state.simParams.numProvinces = numProvinces;
+    // Liczba prowincji - slider po potęgach dwójki
+    ImGui::Text("Number of Provinces:");
+
+    // Konwersja wartości na indeks potęgi dwójki
+    auto valueToLog2 = [](int value) -> int {
+        return (int)std::round(std::log2((double)value));
+        };
+
+    auto log2ToValue = [](int log2) -> int {
+        return 1 << log2;
+        };
+
+    int minLog2 = 10;  // 2^10 = 1024
+    int maxLog2 = 20;  // 2^20 = 1048576
+    int currentLog2 = valueToLog2(s_state.simParams.numProvinces);
+
+    ImGui::SetNextItemWidth(350);
+    if (ImGui::SliderInt("##ProvinceSlider", &currentLog2, minLog2, maxLog2)) {
+        s_state.simParams.numProvinces = log2ToValue(currentLog2);
         s_state.modified = true;
+    }
+
+    // Custom format - wyświetl wartość i potęgę
+    ImGui::SameLine();
+    ImGui::Text("%u (2^%d)", s_state.simParams.numProvinces, currentLog2);
+
+    if (ImGui::IsItemHovered()) {
+        ImGui::SetTooltip("Drag to select power of 2\nRange: 1,024 (2^10) to 1,048,576 (2^20)");
     }
 
     ImGui::Spacing();

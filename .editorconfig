@@ -103,6 +103,6 @@ cpp_naming_rule.constants_rule.capitalization = pascal_case
 
 # Możesz ustawić, by Visual Studio pokazywało ostrzeżenia lub błędy.
 # W C++ nie wszystkie są egzekwowane, ale zostaną odczytane przez analizatory.
-dotnet_naming_rule.member_fields_rule.severity = warning
-dotnet_naming_rule.functions_rule.severity = suggestion
-dotnet_naming_rule.constants_rule.severity = warning
+cpp_naming_rule.member_fields_rule.severity = warning
+cpp_naming_rule.functions_rule.severity = suggestion
+cpp_naming_rule.constants_rule.severity = warning

@@ -4,19 +4,13 @@
 #include <atomic>
 #include <vector>
 #include <future>
+#include <mutex>
 
 /**
- * CPU Strategy - Synchronous multi-threaded execution
+ * CPU Strategy - With Built-in Aggregation
  *
- * Flow per step:
- * 1. Start timer
- * 2. Divide work into batches
- * 3. Submit batches to thread pool
- * 4. Wait for all futures (BLOCKING)
- * 5. Stop timer
- * 6. Increment tick
- *
- * Simple, direct, accurate timing.
+ * Computes aggregate statistics during simulation by maintaining
+ * per-thread accumulators and combining them after each step.
  */
 class CPUSimulationStrategy : public ISimulationStrategy {
 public:
@@ -30,8 +24,6 @@ public:
     ) override;
 
     void shutdown() override;
-
-    // BLOCKING - returns when step completes
     void executeSingleStep() override;
 
     uint32_t getCurrentTick() const override {
@@ -41,6 +33,9 @@ public:
     const char* getTypeName() const override {
         return "CPU";
     }
+
+    // Aggregate statistics
+    AggregateStatistics getAggregateStatistics() const override;
 
     // Configuration
     void setThreadCount(size_t threads);
@@ -64,15 +59,30 @@ public:
     }
 
 private:
-    void simulateProvince(uint32_t idx);
+    struct ThreadLocalAggregates {
+        uint32_t totalPopulation = 0;
+        uint32_t totalWealth = 0;
+        int64_t sumGrowthScaled = 0;
+        uint32_t growing = 0;
+        uint32_t stable = 0;
+        uint32_t declining = 0;
+    };
+
+    void simulateProvince(uint32_t idx, ThreadLocalAggregates& aggregates);
+    void computeAggregates();
 
     ThreadPool* threadPool_;
     size_t threadCount_;
 
     SimulationParameters simParams_;
     ProvinceDataBuffer* sharedBuffer_;
+    std::vector<ProvinceData> initialStats_;
 
     std::atomic<uint32_t> tickCounter_{ 0 };
     StepTimings lastStepTimings_;
     mutable std::mutex timingsMutex_;
+
+    // Aggregate statistics
+    AggregateStatistics lastAggregates_;
+    mutable std::mutex aggregatesMutex_;
 };

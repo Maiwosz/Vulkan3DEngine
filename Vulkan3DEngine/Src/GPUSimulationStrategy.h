@@ -5,31 +5,28 @@
 #include <atomic>
 #include <vector>
 
-// GPU aggregated statistics structure (matches shader OutputData)
-struct AggregateData {
-    uint32_t totalPopulation;   // Changed to uint32_t
-    uint32_t totalWealth;       // Changed to uint32_t
-    float avgGrowth;
+// GPU-specific aggregate data structure (matches shader OutputData)
+struct GPUAggregateData {
+    uint32_t totalPopulation;
+    uint32_t totalWealth;
+    int32_t avgGrowthScaled;
     uint32_t growing;
     uint32_t stable;
     uint32_t declining;
 };
 
-struct InitialProvinceStats {
-    uint32_t population;        // Changed to uint32_t
-};
-
 /**
- * GPU Strategy with Aggregation
+ * GPU Strategy with Dual Aggregation Modes
+ *
+ * - GPU Mode: Aggregates computed in shader, always fast
+ * - CPU Fallback Mode: When readbackFullData_ is enabled, reads all provinces
+ *   and computes aggregates on CPU (identical to CPU strategy)
  *
  * Flow per step:
  * 1. Clear output buffer (aggregates)
- * 2. Dispatch compute (calculates simulation + aggregates)
- * 3. Readback aggregates (always, small ~24 bytes)
- * 4. Readback full data (optional, large, only when needed)
- *
- * This allows UI to always have fresh statistics without reading
- * all province data every tick.
+ * 2. Dispatch compute (calculates simulation + GPU aggregates)
+ * 3. Readback GPU aggregates (always, small ~24 bytes)
+ * 4. If readbackFullData_: Read all provinces + compute CPU aggregates
  */
 class GPUSimulationStrategy : public ISimulationStrategy {
 public:
@@ -56,6 +53,9 @@ public:
         return "GPU";
     }
 
+    // Unified aggregate statistics interface
+    AggregateStatistics getAggregateStatistics() const override;
+
     // Configuration
     void setReadbackInterval(uint32_t interval) {
         readbackInterval_ = std::max(1u, interval);
@@ -65,9 +65,7 @@ public:
         return readbackInterval_;
     }
 
-    void setReadbackFullData(bool enabled) {
-        readbackFullData_ = enabled;
-    }
+    void setReadbackFullData(bool enabled);
 
     bool isReadbackFullData() const {
         return readbackFullData_;
@@ -89,18 +87,15 @@ public:
     void manualReadback() override;
     void uploadSingleProvince(uint32_t index, const ProvinceData& data);
 
-    // Aggregate statistics access (fast, always current)
-    AggregateData getAggregateStats() const;
-
     // Individual province access (slow, reads from GPU)
     ProvinceData getProvinceData(uint32_t index);
-    InitialProvinceStats getInitialStats(uint32_t index) const;
 
 private:
     void initializeGPUData(const RandomizationParameters& randParams);
     void syncParametersToGPU();
     void readbackFromGPU();
-    void readbackAggregates();
+    void readbackGPUAggregates();
+    void computeCPUAggregates();
 
     ComputeDispatcher* dispatcher_;
     MaterialManager* materialManager_;
@@ -108,18 +103,19 @@ private:
 
     SimulationParameters simParams_;
     ProvinceDataBuffer* sharedBuffer_;
+    std::vector<ProvinceData> initialStats_;
 
     std::atomic<uint32_t> tickCounter_{ 0 };
     StepTimings lastStepTimings_;
     mutable std::mutex timingsMutex_;
 
     bool autoReadback_{ true };
-    bool readbackFullData_{ false };  // Only read full data when explicitly needed
+    bool readbackFullData_{ false };
 
     uint32_t readbackInterval_{ 1 };
     uint32_t ticksSinceReadback_{ 0 };
 
-    // Aggregated statistics (small, fast to read)
-    AggregateData lastAggregateStats_;
-    mutable std::mutex aggregateMutex_;
+    // Aggregated statistics
+    AggregateStatistics lastAggregates_;
+    mutable std::mutex aggregatesMutex_;
 };

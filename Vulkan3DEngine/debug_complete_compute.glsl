@@ -3,7 +3,7 @@
 struct AggregateData {
     uint totalPopulation;
     uint totalWealth;
-    float avgGrowth;
+    int avgGrowthScaled;
     uint growing;
     uint stable;
     uint declining;
@@ -24,6 +24,7 @@ layout(std140, set = 2, binding = 0) uniform InputData {
     float wealthPerPop;
     uint maxFoodStorage;
     uint minPopulation;
+    uint enableGPUAggregation;
 } inputData;
 layout(std430, set = 2, binding = 1) buffer OutputData {
     AggregateData aggregate;
@@ -32,15 +33,11 @@ layout(std430, set = 2, binding = 2) buffer InputOutputData {
     ProvinceData provinces[1048576];
 } inputOutputData;
 
-#ifdef GL_EXT_shader_atomic_float
-#extension GL_EXT_shader_atomic_float : require
-#endif
-
 layout(local_size_x = 256, local_size_y = 1, local_size_z = 1) in;
 
-shared uint sharedPopulation[256];      // Changed to uint
-shared uint sharedWealth[256];          // Changed to uint
-shared float sharedGrowth[256];
+shared uint sharedPopulation[256];
+shared uint sharedWealth[256];
+shared int sharedGrowth[256];
 shared uint sharedGrowing[256];
 shared uint sharedStable[256];
 shared uint sharedDeclining[256];
@@ -58,7 +55,7 @@ void main() {
     
     uint localPopulation = 0;
     uint localWealth = 0;
-    float localGrowth = 0.0;
+    int localGrowth = 0;
     uint localGrowing = 0;
     uint localStable = 0;
     uint localDeclining = 0;
@@ -75,7 +72,7 @@ void main() {
             
             localPopulation = MIN_POPULATION;
             localWealth = 0;
-            localGrowth = 0.0;
+            localGrowth = 0;
             localStable = 1;
         } else {
             // === FOOD PRODUCTION ===
@@ -126,11 +123,11 @@ void main() {
             
             if (initialPopulation > 0) {
                 float growthPercent = ((float(province.population) - float(initialPopulation)) / float(initialPopulation)) * 100.0;
-                localGrowth = growthPercent;
+                localGrowth = int(round(growthPercent * 100.0));  // Fixed: explicit int cast
                 
-                if (growthPercent > 5.0) {
+                if (growthPercent > 0.1) {
                     localGrowing = 1;
-                } else if (growthPercent < -5.0) {
+                } else if (growthPercent < -0.1) {
                     localDeclining = 1;
                 } else {
                     localStable = 1;
@@ -141,34 +138,36 @@ void main() {
         }
     }
     
-    // === WORKGROUP-LEVEL REDUCTION ===
-    sharedPopulation[localIdx] = localPopulation;
-    sharedWealth[localIdx] = localWealth;
-    sharedGrowth[localIdx] = localGrowth;
-    sharedGrowing[localIdx] = localGrowing;
-    sharedStable[localIdx] = localStable;
-    sharedDeclining[localIdx] = localDeclining;
-    
-    barrier();
-    
-    for (uint stride = 128; stride > 0; stride >>= 1) {
-        if (localIdx < stride) {
-            sharedPopulation[localIdx] += sharedPopulation[localIdx + stride];
-            sharedWealth[localIdx] += sharedWealth[localIdx + stride];
-            sharedGrowth[localIdx] += sharedGrowth[localIdx + stride];
-            sharedGrowing[localIdx] += sharedGrowing[localIdx + stride];
-            sharedStable[localIdx] += sharedStable[localIdx + stride];
-            sharedDeclining[localIdx] += sharedDeclining[localIdx + stride];
-        }
+    // === WORKGROUP-LEVEL REDUCTION (tylko jeśli włączone) ===
+    if (inputData.enableGPUAggregation != 0) {
+        sharedPopulation[localIdx] = localPopulation;
+        sharedWealth[localIdx] = localWealth;
+        sharedGrowth[localIdx] = localGrowth;
+        sharedGrowing[localIdx] = localGrowing;
+        sharedStable[localIdx] = localStable;
+        sharedDeclining[localIdx] = localDeclining;
+        
         barrier();
-    }
-    
-    if (localIdx == 0) {
-        atomicAdd(outputData.aggregate.totalPopulation, sharedPopulation[0]);
-        atomicAdd(outputData.aggregate.totalWealth, sharedWealth[0]);
-        atomicAdd(outputData.aggregate.avgGrowth, sharedGrowth[0]);
-        atomicAdd(outputData.aggregate.growing, sharedGrowing[0]);
-        atomicAdd(outputData.aggregate.stable, sharedStable[0]);
-        atomicAdd(outputData.aggregate.declining, sharedDeclining[0]);
+        
+        for (uint stride = 128; stride > 0; stride >>= 1) {
+            if (localIdx < stride) {
+                sharedPopulation[localIdx] += sharedPopulation[localIdx + stride];
+                sharedWealth[localIdx] += sharedWealth[localIdx + stride];
+                sharedGrowth[localIdx] += sharedGrowth[localIdx + stride];
+                sharedGrowing[localIdx] += sharedGrowing[localIdx + stride];
+                sharedStable[localIdx] += sharedStable[localIdx + stride];
+                sharedDeclining[localIdx] += sharedDeclining[localIdx + stride];
+            }
+            barrier();
+        }
+        
+        if (localIdx == 0) {
+            atomicAdd(outputData.aggregate.totalPopulation, sharedPopulation[0]);
+            atomicAdd(outputData.aggregate.totalWealth, sharedWealth[0]);
+            atomicAdd(outputData.aggregate.avgGrowthScaled, sharedGrowth[0]);
+            atomicAdd(outputData.aggregate.growing, sharedGrowing[0]);
+            atomicAdd(outputData.aggregate.stable, sharedStable[0]);
+            atomicAdd(outputData.aggregate.declining, sharedDeclining[0]);
+        }
     }
 }

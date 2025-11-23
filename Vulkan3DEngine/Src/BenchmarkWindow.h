@@ -4,7 +4,7 @@
 
 /**
  * Okno testów wydajnościowych GPU vs CPU
- * Z dodatkową konfiguracją readback interval i liczby prowincji
+ * Z dodatkowymi testami zbieżności numerycznej
  */
 class BenchmarkWindow {
 public:
@@ -18,6 +18,9 @@ private:
         int numProvinces = 65536;
         bool benchmarkGPU = true;
         bool benchmarkCPU = true;
+        bool gpuFullDataReadback = false;
+        bool testConvergence = true;
+        int convergenceProvinceIndex = 0;  // 0 = auto
     };
 
     static Config s_config;
@@ -26,4 +29,14 @@ private:
     static void renderProgress(ProvinceSimulationTest* simulation);
     static void renderResults(ProvinceSimulationTest* simulation);
     static void renderComparison(const std::vector<BenchmarkResult>& results);
+
+    // Convergence rendering
+    static void renderConvergenceComparison(const ConvergenceComparison& conv);
+    static void renderTickComparison(const char* label,
+        const ConvergenceComparison::TickComparison& comp);
+    static void renderConvergenceSummary(const ConvergenceComparison& conv);
+
+    // Helper for colored error display
+    static void renderErrorCell(float error);
+    static void renderErrorCell(double error);
 };
