@@ -34,9 +34,22 @@ void BufferManager::ensureBufferMapped(BufferHandle handle) {
         return;
     }
 
+    // Check if buffer should be mapped based on access patterns
+    if (bufferInfo.bufferObject) {
+        const auto& accessPatterns = bufferInfo.bufferObject->GetAccessPatterns();
+
+        // Only map if CPU has visible access
+        if (!accessPatterns.IsCPUVisible()) {
+            SPDLOG_DEBUG("Skipping mapping for '{}' - not CPU visible",
+                bufferInfo.name);
+            return;
+        }
+    }
+
     Buffer* buffer = m_vramManager.getResource<Buffer>(bufferInfo.vramHandle);
     if (!buffer) {
-        SPDLOG_ERROR("Failed to get buffer resource for persistent mapping: {}", bufferInfo.name);
+        SPDLOG_ERROR("Failed to get buffer resource for mapping: {}",
+            bufferInfo.name);
         return;
     }
 
@@ -46,48 +59,131 @@ void BufferManager::ensureBufferMapped(BufferHandle handle) {
         bufferInfo.isPersistentlyMapped = true;
 
         SPDLOG_DEBUG("Persistently mapped {} buffer '{}' at address {:p}",
-            bufferInfo.bufferType == ShaderLib::BufferType::Uniform ? "uniform" : "storage",
+            bufferInfo.bufferType == ShaderLib::BufferType::Uniform
+            ? "uniform" : "storage",
             bufferInfo.name,
             buffer->getMappedPointer());
     }
     catch (const std::exception& e) {
-        SPDLOG_ERROR("Failed to persistently map buffer '{}': {}", bufferInfo.name, e.what());
+        SPDLOG_ERROR("Failed to persistently map buffer '{}': {}",
+            bufferInfo.name, e.what());
         bufferInfo.isPersistentlyMapped = false;
     }
 }
 
-BufferHandle BufferManager::createNewBuffer(std::shared_ptr<const ShaderLib::BufferObjectDefinition> bufferInfo) {
+BufferManager::VulkanBufferConfig BufferManager::determineBufferConfig(
+    std::shared_ptr<const ShaderLib::BufferObjectDefinition> bufferInfo
+) const {
+    VulkanBufferConfig config{};
+
+    const auto& accessPatterns = bufferInfo->GetAccessPatterns();
+    const bool isUniform = bufferInfo->IsUniformBuffer();
+
+    // ========================================================================
+    // USAGE FLAGS - Based on buffer type and GPU access
+    // ========================================================================
+
+    if (isUniform) {
+        config.usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT;
+    }
+    else {
+        config.usage = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT;
+    }
+
+    // Add transfer flags if CPU writes to buffer
+    if (accessPatterns.IsCPUWritable()) {
+        config.usage |= VK_BUFFER_USAGE_TRANSFER_DST_BIT;
+    }
+
+    // ========================================================================
+    // MEMORY PROPERTIES - Based on CPU/GPU access patterns
+    // ========================================================================
+
+    const bool cpuVisible = accessPatterns.IsCPUVisible();
+    const bool cpuFrequent = bufferInfo->GetCPUAccessFrequency() >=
+        ShaderLib::AccessFrequency::OncePerFrame;
+
+    if (cpuVisible) {
+        // CPU-accessible memory
+        config.memoryProperties = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT;
+
+        // Add coherent flag for frequent CPU access to avoid manual flushing
+        if (cpuFrequent) {
+            config.memoryProperties |= VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
+        }
+
+        // Prefer device-local memory if GPU accesses frequently
+        const bool gpuFrequent = bufferInfo->GetGPUAccessFrequency() >=
+            ShaderLib::AccessFrequency::OncePerFrame;
+        if (gpuFrequent) {
+            config.memoryProperties |= VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
+        }
+
+        config.vmaUsage = VMA_MEMORY_USAGE_CPU_TO_GPU;
+    }
+    else {
+        // GPU-only memory
+        config.memoryProperties = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
+        config.vmaUsage = VMA_MEMORY_USAGE_GPU_ONLY;
+    }
+
+    // ========================================================================
+    // PERSISTENT MAPPING STRATEGY
+    // ========================================================================
+
+    // Persistently map if:
+    // 1. CPU has access AND
+    // 2. (Frequent CPU access OR small buffer size for low overhead)
+    const bool isSmallBuffer = bufferInfo->GetTotalSize() <= 4096; // 4KB threshold
+
+    config.shouldPersistentlyMap = cpuVisible && (cpuFrequent || isSmallBuffer);
+
+    SPDLOG_DEBUG("Buffer config for '{}': usage=0x{:x}, memProps=0x{:x}, "
+        "vmaUsage={}, persistentMap={}, cpuFreq={}, gpuFreq={}, size={}",
+        bufferInfo->GetName(),
+        config.usage,
+        config.memoryProperties,
+        static_cast<int>(config.vmaUsage),
+        config.shouldPersistentlyMap,
+        static_cast<int>(bufferInfo->GetCPUAccessFrequency()),
+        static_cast<int>(bufferInfo->GetGPUAccessFrequency()),
+        bufferInfo->GetTotalSize());
+
+    return config;
+}
+
+BufferHandle BufferManager::createNewBuffer(
+    std::shared_ptr<const ShaderLib::BufferObjectDefinition> bufferInfo
+) {
     BufferHandle handle(m_nextHandleId++);
 
-    VkBufferUsageFlags usage;
-    VkMemoryPropertyFlags memoryProperties;
-
-    if (bufferInfo->IsUniformBuffer()) {
-        usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT;
-        memoryProperties = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
-    }
-    else { // Storage Buffer
-        usage = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT;
-        memoryProperties = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
-    }
+    // Determine optimal Vulkan configuration based on access patterns
+    VulkanBufferConfig config = determineBufferConfig(bufferInfo);
 
     VramHandle vramHandle = m_vramManager.createBuffer(
         bufferInfo->GetTotalSize(),
-        usage,
-        memoryProperties
+        config.usage,
+        config.memoryProperties
     );
 
     if (!vramHandle) {
         SPDLOG_ERROR("Failed to create VRAM buffer for {} '{}'",
-            bufferInfo->IsUniformBuffer() ? "UBO" : "SSBO", bufferInfo->GetName());
+            bufferInfo->IsUniformBuffer() ? "UBO" : "SSBO",
+            bufferInfo->GetName());
         return BufferHandle(0);
     }
 
-    SPDLOG_DEBUG("Created new {} buffer '{}' with size {} (layout: {})",
+    SPDLOG_DEBUG("Created new {} buffer '{}' with size {} (layout: {}, "
+        "cpuAccess: {}, gpuAccess: {})",
         bufferInfo->IsUniformBuffer() ? "uniform" : "storage",
         bufferInfo->GetName(),
         bufferInfo->GetTotalSize(),
-        bufferInfo->GetLayoutStandard() == ShaderLib::LayoutStandard::Std140 ? "std140" : "std430");
+        bufferInfo->GetLayoutStandard() == ShaderLib::LayoutStandard::Std140
+        ? "std140" : "std430",
+        ShaderLib::AccessOperationToString(
+            bufferInfo->GetCPUAccessProfile().operation),
+        ShaderLib::AccessOperationToString(
+            bufferInfo->GetGPUAccessProfile().operation));
 
     BufferInfo bufInfo;
     bufInfo.vramHandle = vramHandle;
@@ -102,14 +198,27 @@ BufferHandle BufferManager::createNewBuffer(std::shared_ptr<const ShaderLib::Buf
 
     m_buffers[handle] = std::move(bufInfo);
 
-    // Immediately map the buffer persistently
-    ensureBufferMapped(handle);
+    // Map only if access patterns suggest persistent mapping is beneficial
+    if (config.shouldPersistentlyMap) {
+        ensureBufferMapped(handle);
+    }
+    else {
+        SPDLOG_DEBUG("Buffer '{}' not persistently mapped based on access patterns",
+            bufferInfo->GetName());
+    }
 
     return handle;
 }
 
-BufferHandle BufferManager::findReusableBuffer(std::shared_ptr<const ShaderLib::BufferObjectDefinition> bufferInfo) {
-    BufferPoolKey key{ bufferInfo->GetName(), bufferInfo->GetTotalSize(), bufferInfo->GetBufferType() };
+BufferHandle BufferManager::findReusableBuffer(
+    std::shared_ptr<const ShaderLib::BufferObjectDefinition> bufferInfo
+) {
+    BufferPoolKey key{
+        bufferInfo->GetName(),
+        bufferInfo->GetTotalSize(),
+        bufferInfo->GetBufferType()
+    };
+
     auto it = m_bufferPool.find(key);
 
     if (it != m_bufferPool.end() && !it->second.empty()) {
@@ -119,11 +228,27 @@ BufferHandle BufferManager::findReusableBuffer(std::shared_ptr<const ShaderLib::
         auto& bufInfo = m_buffers[handle];
         bufInfo.inUse = true;
 
-        // Ensure the reused buffer is still mapped
-        ensureBufferMapped(handle);
+        // Ensure proper mapping state based on access patterns
+        VulkanBufferConfig config = determineBufferConfig(bufferInfo);
 
-        SPDLOG_DEBUG("Reusing existing {} buffer '{}' from pool (persistently mapped)",
-            bufferInfo->IsUniformBuffer() ? "uniform" : "storage", bufferInfo->GetName());
+        if (config.shouldPersistentlyMap && !bufInfo.isPersistentlyMapped) {
+            ensureBufferMapped(handle);
+        }
+        else if (!config.shouldPersistentlyMap && bufInfo.isPersistentlyMapped) {
+            // Unmap if access patterns changed and persistent mapping not needed
+            Buffer* buffer = m_vramManager.getResource<Buffer>(bufInfo.vramHandle);
+            if (buffer && buffer->isMapped()) {
+                buffer->unmap();
+                bufInfo.isPersistentlyMapped = false;
+                SPDLOG_DEBUG("Unmapped reused buffer '{}' - not needed per access patterns",
+                    bufferInfo->GetName());
+            }
+        }
+
+        SPDLOG_DEBUG("Reusing existing {} buffer '{}' from pool (mapped: {})",
+            bufferInfo->IsUniformBuffer() ? "uniform" : "storage",
+            bufferInfo->GetName(),
+            bufInfo.isPersistentlyMapped);
         return handle;
     }
 
@@ -161,17 +286,32 @@ void BufferManager::releaseBuffer(BufferHandle handle) {
 
     bufferInfo.inUse = false;
 
-    // Keep the buffer persistently mapped even when returned to pool
-    // This avoids map/unmap overhead when buffer is reused
+    // Keep mapped state based on access patterns
+    // Frequently accessed buffers stay mapped even in pool for fast reuse
+    const bool shouldKeepMapped = bufferInfo.bufferObject &&
+        bufferInfo.bufferObject->GetCPUAccessFrequency() >=
+        ShaderLib::AccessFrequency::OncePerFrame;
+
+    if (!shouldKeepMapped && bufferInfo.isPersistentlyMapped) {
+        Buffer* buffer = m_vramManager.getResource<Buffer>(bufferInfo.vramHandle);
+        if (buffer && buffer->isMapped()) {
+            buffer->unmap();
+            bufferInfo.isPersistentlyMapped = false;
+            SPDLOG_DEBUG("Unmapped infrequently used buffer '{}' when returning to pool",
+                bufferInfo.name);
+        }
+    }
 
     BufferPoolKey key{ bufferInfo.name, bufferInfo.size, bufferInfo.bufferType };
     m_bufferPool[key].push_back(handle);
 
     m_resourceCache.erase(handle);
 
-    SPDLOG_DEBUG("Released {} buffer '{}' back to pool (keeping persistent mapping)",
-        bufferInfo.bufferType == ShaderLib::BufferType::Uniform ? "uniform" : "storage",
-        bufferInfo.name);
+    SPDLOG_DEBUG("Released {} buffer '{}' back to pool (mapped: {})",
+        bufferInfo.bufferType == ShaderLib::BufferType::Uniform
+        ? "uniform" : "storage",
+        bufferInfo.name,
+        bufferInfo.isPersistentlyMapped);
 }
 
 SmartHandle<BufferHandle, Buffer> BufferManager::acquireSmartBuffer(std::shared_ptr<const ShaderLib::BufferObjectDefinition> bufferInfo) {

@@ -70,6 +70,17 @@ private:
         }
     };
 
+    struct VulkanBufferConfig {
+        VkBufferUsageFlags usage;
+        VkMemoryPropertyFlags memoryProperties;
+        VmaMemoryUsage vmaUsage;
+        bool shouldPersistentlyMap;
+    };
+
+    VulkanBufferConfig determineBufferConfig(
+        std::shared_ptr<const ShaderLib::BufferObjectDefinition> bufferInfo
+    ) const;
+
     BufferHandle createNewBuffer(std::shared_ptr<const ShaderLib::BufferObjectDefinition> bufferInfo);
     BufferHandle findReusableBuffer(std::shared_ptr<const ShaderLib::BufferObjectDefinition> bufferInfo);
     void ensureBufferMapped(BufferHandle handle); // Ensure buffer is persistently mapped
