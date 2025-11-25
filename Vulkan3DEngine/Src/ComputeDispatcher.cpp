@@ -112,7 +112,7 @@ ComputeTaskHandle ComputeDispatcher::dispatch(
             groupCountY,
             groupCountZ,
             std::move(descriptorGuard),
-            std::move(cmdBufferSmart)  // Transfer ownership to task
+            cmdBufferSmart  // Transfer ownership to task
         };
 
         SPDLOG_DEBUG("ComputeDispatcher: Task {} submitted successfully", taskHandle.id);

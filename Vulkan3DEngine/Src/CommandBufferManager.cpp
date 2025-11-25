@@ -37,7 +37,6 @@ SmartCommandBufferHandle CommandBufferManager::acquireSmartBuffer(const Configur
     {
         std::unique_lock lock(m_mutex);
         auto entry = std::make_unique<BufferEntry>(std::move(buffer), config);
-        entry->refCount = 1; // Initial reference for the smart handle
         m_activeBuffers[handle] = std::move(entry);
     }
 
