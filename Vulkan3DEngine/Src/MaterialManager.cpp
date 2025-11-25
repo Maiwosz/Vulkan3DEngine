@@ -330,7 +330,8 @@ SmartAssetHandle<MaterialHandle, Material> MaterialManager::createMaterialInstan
         // Get source material
         auto* source = getMaterial(sourceMaterial);
         if (!source) {
-            SPDLOG_ERROR("MaterialManager: Source material handle {} is invalid", sourceMaterial.id);
+            SPDLOG_ERROR("MaterialManager: Source material handle {} is invalid",
+                sourceMaterial.id);
             return SmartAssetHandle<MaterialHandle, Material>();
         }
 
@@ -339,7 +340,8 @@ SmartAssetHandle<MaterialHandle, Material> MaterialManager::createMaterialInstan
         if (existingIt != m_filenameToHandle.end()) {
             MaterialHandle existingHandle = existingIt->second;
             if (isAssetReady(existingHandle)) {
-                SPDLOG_DEBUG("MaterialManager: Reusing existing material instance '{}'", instanceName);
+                SPDLOG_DEBUG("MaterialManager: Reusing existing material instance '{}'",
+                    instanceName);
                 auto smartHandle = createSmartHandle(existingHandle);
                 if (smartHandle.isValid()) {
                     return smartHandle;
@@ -347,8 +349,8 @@ SmartAssetHandle<MaterialHandle, Material> MaterialManager::createMaterialInstan
             }
         }
 
-        // Clone buffer instances from source material
-        auto bufferSet = m_factory.cloneBufferInstances(source);
+        // Clone all buffers from source material
+        auto clonedBuffers = m_factory.cloneBuffers(source);
 
         // Get shader handle from source material
         const auto& shaderHandle = source->GetShader();
@@ -361,13 +363,12 @@ SmartAssetHandle<MaterialHandle, Material> MaterialManager::createMaterialInstan
         auto instance = m_factory.createMaterial(
             instanceName,
             shaderHandle.handle(),
-            bufferSet.inputBuffer,
-            bufferSet.outputBuffer,
-            bufferSet.inputOutputBuffer
+            clonedBuffers
         );
 
         if (!instance) {
-            SPDLOG_ERROR("MaterialManager: Failed to create material instance '{}'", instanceName);
+            SPDLOG_ERROR("MaterialManager: Failed to create material instance '{}'",
+                instanceName);
             return SmartAssetHandle<MaterialHandle, Material>();
         }
 
@@ -382,7 +383,8 @@ SmartAssetHandle<MaterialHandle, Material> MaterialManager::createMaterialInstan
         // Register instance
         MaterialHandle handle = registerMaterial(std::move(instance), instanceName);
         if (!handle.isValid()) {
-            SPDLOG_ERROR("MaterialManager: Failed to register material instance '{}'", instanceName);
+            SPDLOG_ERROR("MaterialManager: Failed to register material instance '{}'",
+                instanceName);
             return SmartAssetHandle<MaterialHandle, Material>();
         }
 
@@ -393,7 +395,8 @@ SmartAssetHandle<MaterialHandle, Material> MaterialManager::createMaterialInstan
         // Create and return smart handle
         auto smartHandle = createSmartHandle(handle);
         if (!smartHandle.isValid()) {
-            SPDLOG_ERROR("MaterialManager: Failed to create smart handle for instance '{}'", instanceName);
+            SPDLOG_ERROR("MaterialManager: Failed to create smart handle for instance '{}'",
+                instanceName);
             return SmartAssetHandle<MaterialHandle, Material>();
         }
 
@@ -408,6 +411,7 @@ SmartAssetHandle<MaterialHandle, Material> MaterialManager::createMaterialInstan
         return SmartAssetHandle<MaterialHandle, Material>();
     }
 }
+
 
 MaterialHandle MaterialManager::loadMaterialFromAsset(
     const AssetHandle& assetHandle,
@@ -481,7 +485,7 @@ void MaterialManager::updateTextureHandles(MaterialHandle materialHandle, AssetM
     }
 }
 
-uint64_t MaterialManager::estimateMaterialSize(Material* material) const {
+uint64_t MaterialManager::estimateMaterialSize(const Material* material) const {
     if (!material) {
         return 0;
     }
@@ -489,14 +493,11 @@ uint64_t MaterialManager::estimateMaterialSize(Material* material) const {
     uint64_t size = sizeof(Material);
 
     // Estimate buffer sizes
-    if (material->HasInputBuffer()) {
-        size += material->GetInputBuffer()->GetDefinition()->GetTotalSize();
-    }
-    if (material->HasOutputBuffer()) {
-        size += material->GetOutputBuffer()->GetDefinition()->GetTotalSize();
-    }
-    if (material->HasInputOutputBuffer()) {
-        size += material->GetInputOutputBuffer()->GetDefinition()->GetTotalSize();
+    for (const auto& bufferName : material->GetBufferNames()) {
+        auto buffer = material->GetBuffer(bufferName);
+        if (buffer) {
+            size += buffer->GetDefinition()->GetTotalSize();
+        }
     }
 
     // Add overhead for texture bindings

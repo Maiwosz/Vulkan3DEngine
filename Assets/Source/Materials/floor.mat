@@ -10,7 +10,6 @@
     {
       "name": "albedo",
       "descriptorType": "sampler2D",
-      "binding": 3,
       "texturePath": "grey_cartago_02_diff_2k",
       "colorSpace": "sRGB",
       "magFilter": "Linear",

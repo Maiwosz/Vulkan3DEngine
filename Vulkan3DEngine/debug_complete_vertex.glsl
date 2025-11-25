@@ -42,7 +42,7 @@ layout(std140, set = 2, binding = 0) uniform InputData {
     float kd;
     float ks;
 } inputData;
-layout(set = 2, binding = 3) uniform sampler2D albedo;
+layout(set = 2, binding = 1) uniform sampler2D albedo;
 
 layout(location = 0) in vec3 inPosition;
 layout(location = 1) in vec3 inNormal;

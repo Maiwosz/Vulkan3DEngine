@@ -10,7 +10,6 @@
     {
       "name": "albedo",
       "descriptorType": "sampler2D",
-      "binding": 3,
       "texturePath": "Omphale_C_Omphale_O_Material_u1_v1",
       "colorSpace": "sRGB",
       "magFilter": "Linear",

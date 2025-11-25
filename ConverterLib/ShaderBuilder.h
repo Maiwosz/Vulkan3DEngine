@@ -13,10 +13,10 @@ namespace Shader {
     /**
      * Builds shader buffers and descriptor sets from parsed shader data
      *
-     * Refactored to use new ShaderLib API:
-     * - BufferObjectDefinition wraps StructureDefinition
-     * - Fluent API for building structures
-     * - Automatic finalization handling
+     * Simplified approach:
+     * - No hardcoded bindings for custom descriptor set
+     * - All resources added dynamically
+     * - Find resources by name, not by predefined constants
      */
     class ShaderBuilder {
     public:
@@ -27,42 +27,32 @@ namespace Shader {
         // ====================================================================
 
         /**
-         * Build uniform buffer (UBO) for input data
-         * - Uses std140 layout
-         * - ReadOnly access
+         * Build uniform buffer (UBO) with given name and layout
          */
-        std::shared_ptr<BufferObjectDefinition> BuildInputBuffer(
+        std::shared_ptr<BufferObjectDefinition> BuildUniformBuffer(
+            const std::string& name,
             const std::vector<InputVariable>& variables);
 
         /**
-         * Build storage buffer (SSBO) for output data
-         * - Uses std430 layout
-         * - WriteOnly access
+         * Build storage buffer (SSBO) with given name and layout
          */
-        std::shared_ptr<BufferObjectDefinition> BuildOutputBuffer(
-            const std::vector<InputVariable>& variables);
-
-        /**
-         * Build storage buffer (SSBO) for input/output data
-         * - Uses std430 layout
-         * - ReadWrite access
-         */
-        std::shared_ptr<BufferObjectDefinition> BuildInputOutputBuffer(
-            const std::vector<InputVariable>& variables);
+        std::shared_ptr<BufferObjectDefinition> BuildStorageBuffer(
+            const std::string& name,
+            const std::vector<InputVariable>& variables,
+            LayoutStandard standard = LayoutStandard::Std430);
 
         // ====================================================================
         // DESCRIPTOR SET BUILDING
         // ====================================================================
 
         /**
-         * Build complete descriptor set for custom data
-         * Includes input/output buffers and samplers
+         * Build complete custom descriptor set from parsed data
+         * - Dynamically assigns bindings starting from 0
+         * - Adds all buffers and samplers in order
+         * - No hardcoded binding positions
          */
         DescriptorSet BuildCustomDescriptorSet(
-            const ParsedShaderData& data,
-            std::shared_ptr<const BufferObjectDefinition> inputBuffer,
-            std::shared_ptr<const BufferObjectDefinition> outputBuffer,
-            std::shared_ptr<const BufferObjectDefinition> inputOutputBuffer);
+            const ParsedShaderData& data);
 
         // ====================================================================
         // SHADER SOURCE GENERATION
@@ -102,12 +92,11 @@ namespace Shader {
             LayoutStandard standard);
 
         /**
-         * Validate variables (check for sampler placement, etc.)
+         * Validate variables (check for type compatibility, etc.)
          */
         void ValidateVariables(
             const std::vector<InputVariable>& vars,
-            const std::string& structName,
-            bool allowSamplers);
+            const std::string& structName);
 
         /**
          * Convert sampler type string to DescriptorType

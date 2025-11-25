@@ -5,8 +5,8 @@
 namespace ShaderLib {
 
     // ============================================================================
-// DescriptorSet Implementation
-// ============================================================================
+    // DescriptorSet Implementation
+    // ============================================================================
 
     const DescriptorSlot* DescriptorSet::FindSlot(uint32_t binding) const {
         auto it = std::find_if(slots.begin(), slots.end(),
@@ -300,62 +300,6 @@ namespace ShaderLib {
             return nullptr;
         }
         return objectSet->GetBufferByBinding(OBJECT_UBO_BINDING);
-    }
-
-    std::shared_ptr<const BufferObjectDefinition> ShaderMetadata::GetInputDataBuffer() const {
-        const auto* customSet = GetCustomSet();
-        if (!customSet) {
-            return nullptr;
-        }
-        return customSet->GetBufferByBinding(INPUT_DATA_BINDING);
-    }
-
-    std::shared_ptr<BufferObjectDefinition> ShaderMetadata::GetInputDataBuffer() {
-        auto* customSet = GetSet(CUSTOM_DESCRIPTOR_SET);
-        if (!customSet) {
-            return nullptr;
-        }
-        return customSet->GetBufferByBinding(INPUT_DATA_BINDING);
-    }
-
-    std::shared_ptr<const BufferObjectDefinition> ShaderMetadata::GetOutputDataBuffer() const {
-        const auto* customSet = GetCustomSet();
-        if (!customSet) {
-            return nullptr;
-        }
-        return customSet->GetBufferByBinding(OUTPUT_DATA_BINDING);
-    }
-
-    std::shared_ptr<BufferObjectDefinition> ShaderMetadata::GetOutputDataBuffer() {
-        auto* customSet = GetSet(CUSTOM_DESCRIPTOR_SET);
-        if (!customSet) {
-            return nullptr;
-        }
-        return customSet->GetBufferByBinding(OUTPUT_DATA_BINDING);
-    }
-
-    std::shared_ptr<const BufferObjectDefinition> ShaderMetadata::GetInputOutputDataBuffer() const {
-        const auto* customSet = GetCustomSet();
-        if (!customSet) {
-            return nullptr;
-        }
-        return customSet->GetBufferByBinding(INPUT_OUTPUT_DATA_BINDING);
-    }
-
-    std::shared_ptr<BufferObjectDefinition> ShaderMetadata::GetInputOutputDataBuffer() {
-        auto* customSet = GetSet(CUSTOM_DESCRIPTOR_SET);
-        if (!customSet) {
-            return nullptr;
-        }
-        return customSet->GetBufferByBinding(INPUT_OUTPUT_DATA_BINDING);
-    }
-
-    std::vector<const DescriptorSlot*> ShaderMetadata::GetCustomSamplers() const {
-        const auto* customSet = GetCustomSet();
-        if (!customSet) {
-            return {};
-        }
-        return customSet->GetAllSamplers();
     }
 
 } // namespace ShaderLib

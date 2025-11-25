@@ -11,7 +11,6 @@
 #include "DescriptorAllocator.h"
 #include "DescriptorLayoutManager.h"
 #include "BufferObjectInstance.h"
-#include "BufferBundle.h"
 #include "ShaderLib.h"
 #include "Handle.h"
 
@@ -24,8 +23,8 @@ class MaterialManager;
  * Design principles:
  * - GPU buffers are created immediately in constructor (always available)
  * - Descriptor sets are created lazily on first GetDescriptorSet() call
- * - BufferBundle manages all buffer instances and field routing
- * - Material is fully functional immediately after construction
+ * - Direct buffer access by name (no routing layer)
+ * - All buffer metadata comes from shader descriptor set definition
  */
 class Material {
 public:
@@ -41,9 +40,7 @@ public:
     Material(
         const std::string& name,
         SmartAssetHandle<ShaderHandle, ShaderAsset> shader,
-        std::shared_ptr<ShaderLib::BufferObjectInstance> inputBuffer,
-        std::shared_ptr<ShaderLib::BufferObjectInstance> outputBuffer,
-        std::shared_ptr<ShaderLib::BufferObjectInstance> inputOutputBuffer,
+        const std::unordered_map<std::string, std::shared_ptr<ShaderLib::BufferObjectInstance>>& buffers,
         const LogicalDevice& device,
         BufferManager& bufferManager,
         ImageSamplerManager& samplerManager,
@@ -59,88 +56,24 @@ public:
     const SmartAssetHandle<ShaderHandle, ShaderAsset>& GetShader() const { return m_shader; }
 
     // ==========================================================================
-    // BUFFER BUNDLE ACCESS
+    // BUFFER ACCESS BY NAME
     // ==========================================================================
 
-    BufferBundle& GetBufferBundle() { return m_bufferBundle; }
-    const BufferBundle& GetBufferBundle() const { return m_bufferBundle; }
+    // Check if buffer exists
+    bool HasBuffer(const std::string& name) const;
 
-    // Direct buffer access (convenience wrappers)
-    BufferBundle::BufferProxy GetInputBuffer() {
-        return m_bufferBundle.GetBuffer("input");
-    }
-    BufferBundle::BufferProxy GetOutputBuffer() {
-        return m_bufferBundle.GetBuffer("output");
-    }
-    BufferBundle::BufferProxy GetInputOutputBuffer() {
-        return m_bufferBundle.GetBuffer("input_output");
-    }
+    // Get buffer instance (returns nullptr if not found)
+    std::shared_ptr<ShaderLib::BufferObjectInstance> GetBuffer(const std::string& name);
+    std::shared_ptr<const ShaderLib::BufferObjectInstance> GetBuffer(const std::string& name) const;
 
-    bool HasInputBuffer() const { return m_bufferBundle.HasBuffer("input"); }
-    bool HasOutputBuffer() const { return m_bufferBundle.HasBuffer("output"); }
-    bool HasInputOutputBuffer() const { return m_bufferBundle.HasBuffer("input_output"); }
+    // Get all buffer names
+    std::vector<std::string> GetBufferNames() const;
 
-    // ==========================================================================
-    // FIELD ACCESS - Delegates to BufferBundle
-    // ==========================================================================
-
-    ShaderLib::FieldProxy operator[](const std::string& name) {
-        return m_bufferBundle.GetField(name);
-    }
-
-    ShaderLib::FieldProxy operator[](const char* name) {
-        return m_bufferBundle.GetField(std::string(name));
-    }
-
-    template<typename T>
-    T Get(const std::string& path) const {
-        return m_bufferBundle.Get<T>(path);
-    }
-
-    template<typename T>
-    void Set(const std::string& path, const T& value) {
-        m_bufferBundle.Set(path, value);
-    }
-
-    // ==========================================================================
-    // FIELD QUERIES - Delegates to BufferBundle
-    // ==========================================================================
-
-    std::vector<std::string> GetFieldNames() const {
-        return m_bufferBundle.GetTopLevelFieldNames();
-    }
-
-    std::vector<std::string> GetAllFieldPaths() const {
-        return m_bufferBundle.GetAllFieldPaths();
-    }
-
-    std::vector<std::string> GetFieldNames(const std::string& bufferIdentifier) const {
-        return m_bufferBundle.GetFieldNames(bufferIdentifier);
-    }
-
-    bool HasField(const std::string& path) const {
-        return m_bufferBundle.HasField(path);
-    }
-
-    bool IsArrayField(const std::string& path) const {
-        return m_bufferBundle.IsArrayField(path);
-    }
-
-    bool IsStructureField(const std::string& path) const {
-        return m_bufferBundle.IsStructureField(path);
-    }
-
-    std::vector<std::string> GetStructureChildren(const std::string& path) const {
-        return m_bufferBundle.GetStructureChildren(path);
-    }
-
-    std::string GetBufferIdentifierForField(const std::string& path) const {
-        return m_bufferBundle.GetBufferIdentifierForField(path);
-    }
+    // Get buffer count
+    size_t GetBufferCount() const { return m_buffers.size(); }
 
     // ==========================================================================
     // BULK BUFFER OPERATIONS
-    // GPU buffers are always available, no need for initialization checks
     // ==========================================================================
 
     void SyncAllToGPU();
@@ -162,7 +95,6 @@ public:
 
     // ==========================================================================
     // DESCRIPTOR SET MANAGEMENT
-    // Descriptor sets are created lazily on first access
     // ==========================================================================
 
     SmartHandle<DescriptorSetHandle, VkDescriptorSet> GetDescriptorSet();
@@ -170,6 +102,14 @@ public:
     bool IsDescriptorSetValid() const { return m_descriptorSetValid; }
 
 private:
+    // Buffer entry with GPU handle
+    struct BufferEntry {
+        std::string name;
+        uint32_t binding;
+        std::shared_ptr<ShaderLib::BufferObjectInstance> instance;
+        SmartHandle<BufferHandle, Buffer> gpuHandle;
+    };
+
     // Texture binding
     struct TextureBinding {
         std::string name;
@@ -178,16 +118,12 @@ private:
         TextureParam texture;
     };
 
-    // Initialization - called from constructor
-    void InitializeBufferBundle(
-        std::shared_ptr<ShaderLib::BufferObjectInstance> inputBuffer,
-        std::shared_ptr<ShaderLib::BufferObjectInstance> outputBuffer,
-        std::shared_ptr<ShaderLib::BufferObjectInstance> inputOutputBuffer
+    // Initialization
+    void BuildBufferEntries(
+        const std::unordered_map<std::string, std::shared_ptr<ShaderLib::BufferObjectInstance>>& buffers
     );
     void BuildTextureBindings();
     void CollectSamplerHandles();
-
-    // NEW: Acquire GPU buffers immediately in constructor
     void AcquireGPUBuffers();
 
     // Descriptor set (lazy creation)
@@ -201,8 +137,8 @@ private:
     std::string m_name;
     SmartAssetHandle<ShaderHandle, ShaderAsset> m_shader;
 
-    // Buffer management through BufferBundle
-    BufferBundle m_bufferBundle;
+    // Buffer storage (name -> buffer entry)
+    std::unordered_map<std::string, BufferEntry> m_buffers;
 
     // Texture bindings
     std::unordered_map<std::string, TextureBinding> m_textureBindings;
@@ -218,11 +154,6 @@ private:
     // Descriptor set cache (lazy)
     SmartHandle<DescriptorSetHandle, VkDescriptorSet> m_descriptorSet;
     bool m_descriptorSetValid;
-
-    // GPU buffer handles - created immediately in constructor
-    SmartHandle<BufferHandle, Buffer> m_inputBufferHandle;
-    SmartHandle<BufferHandle, Buffer> m_outputBufferHandle;
-    SmartHandle<BufferHandle, Buffer> m_inputOutputBufferHandle;
 
     // Sampler handles for dirty checking
     std::vector<SamplerHandle> m_samplerHandles;

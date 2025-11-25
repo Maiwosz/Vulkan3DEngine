@@ -15,17 +15,14 @@
 #include "BufferObjectDefinition.h"
 
 namespace ShaderLib {
+    // Tylko standardowe sety - bez predefiniowanych bindingów
     constexpr uint32_t GLOBAL_DESCRIPTOR_SET = 0;
     constexpr uint32_t OBJECT_DESCRIPTOR_SET = 1;
     constexpr uint32_t CUSTOM_DESCRIPTOR_SET = 2;
 
+    // Tylko standardowe bindingi dla global/object
     constexpr uint32_t GLOBAL_UBO_BINDING = 0;
     constexpr uint32_t OBJECT_UBO_BINDING = 0;
-
-    constexpr uint32_t INPUT_DATA_BINDING = 0;
-    constexpr uint32_t OUTPUT_DATA_BINDING = 1;
-    constexpr uint32_t INPUT_OUTPUT_DATA_BINDING = 2;
-    constexpr uint32_t SAMPLERS_START_BINDING = 3;
 
     // ============================================================================
     // SHADER STAGES
@@ -89,7 +86,7 @@ namespace ShaderLib {
         std::vector<DescriptorSlot> slots;
         std::unordered_map<std::string, std::shared_ptr<BufferObjectDefinition>> buffers;
 
-        // Search/lookup methods
+        // Search/lookup methods - tylko podstawowe wyszukiwanie
         const DescriptorSlot* FindSlot(uint32_t binding) const;
         DescriptorSlot* FindSlot(uint32_t binding);
         const DescriptorSlot* FindSlot(const std::string& name) const;
@@ -145,14 +142,14 @@ namespace ShaderLib {
         std::vector<DescriptorSet> descriptorSets;
         std::optional<ComputeShaderInfo> computeInfo;
 
-        // Search/lookup methods
+        // Search/lookup methods - tylko podstawowe
         const DescriptorSet* GetSet(uint32_t setNumber) const;
         DescriptorSet* GetSet(uint32_t setNumber);
         const DescriptorSlot* FindDescriptor(const std::string& name) const;
         std::shared_ptr<const BufferObjectDefinition> FindBuffer(const std::string& name) const;
         std::shared_ptr<BufferObjectDefinition> FindBuffer(const std::string& name);
 
-        // Inline convenience methods
+        // Convenience methods dla standardowych setów
         const DescriptorSet* GetGlobalSet() const {
             return GetSet(GLOBAL_DESCRIPTOR_SET);
         }
@@ -174,18 +171,11 @@ namespace ShaderLib {
         std::vector<const DescriptorSlot*> GetAllSamplers() const;
         bool ValidateDescriptorSets() const;
 
+        // Tylko dla Global i Object UBO - te są specjalne
         std::shared_ptr<const BufferObjectDefinition> GetGlobalUBO() const;
         std::shared_ptr<BufferObjectDefinition> GetGlobalUBO();
         std::shared_ptr<const BufferObjectDefinition> GetObjectUBO() const;
         std::shared_ptr<BufferObjectDefinition> GetObjectUBO();
-
-        std::shared_ptr<const BufferObjectDefinition> GetInputDataBuffer() const;
-        std::shared_ptr<BufferObjectDefinition> GetInputDataBuffer();
-        std::shared_ptr<const BufferObjectDefinition> GetOutputDataBuffer() const;
-        std::shared_ptr<BufferObjectDefinition> GetOutputDataBuffer();
-        std::shared_ptr<const BufferObjectDefinition> GetInputOutputDataBuffer() const;
-        std::shared_ptr<BufferObjectDefinition> GetInputOutputDataBuffer();
-        std::vector<const DescriptorSlot*> GetCustomSamplers() const;
     };
 
     // ============================================================================

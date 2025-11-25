@@ -11,10 +11,10 @@ class Material;
 /**
  * MaterialComponent - Assigns material to an entity
  *
- * Simplified component that:
- * - Stores material asset handle
- * - Provides UI for material selection
- * - Provides UI for material parameter editing via FieldProxy
+ * Refactored to work with named buffers:
+ * - Displays each buffer separately in UI
+ * - Shows buffer fields in hierarchical structure
+ * - Handles array fields properly
  */
 struct MaterialComponent : public Component {
 public:
@@ -39,11 +39,52 @@ private:
     void renderMaterialSelectionUI();
     void renderMaterialParametersUI();
 
-    // Field UI rendering
-    void renderFieldUI(const std::string& fieldName, Material* material);
-    bool renderBaseTypeUI(const std::string& label, ShaderLib::BaseType type,
-        ShaderLib::FieldProxy& proxy);
+    // Buffer UI rendering
+    void renderBufferUI(const std::string& bufferName, Material* material);
+    void renderBufferFieldsUI(const std::string& bufferName, Material* material);
+
+    // Field UI rendering (recursive for nested structures)
+    void renderFieldUI(
+        const std::string& fieldPath,
+        ShaderLib::FieldProxy& fieldProxy,
+        Material* material,
+        int depth = 0
+    );
+
+    void renderStructureFieldUI(
+        const std::string& fieldPath,
+        ShaderLib::FieldProxy& fieldProxy,
+        Material* material,
+        int depth
+    );
+
+    void renderArrayFieldUI(
+        const std::string& fieldPath,
+        ShaderLib::FieldProxy& fieldProxy,
+        Material* material,
+        int depth
+    );
+
+    void renderBaseTypeFieldUI(
+        const std::string& fieldPath,
+        ShaderLib::FieldProxy& fieldProxy,
+        Material* material
+    );
+
+    // Base type value UI
+    bool renderBaseTypeValueUI(
+        const std::string& label,
+        ShaderLib::BaseType type,
+        ShaderLib::FieldProxy& proxy
+    );
 
     // Texture UI rendering
+    void renderTexturesUI(Material* material);
     void renderTextureUI(const std::string& name, Material* material);
+
+    // UI state for collapsible headers
+    struct UIState {
+        std::unordered_map<std::string, bool> expandedPaths;
+    };
+    mutable UIState m_uiState;
 };

@@ -115,7 +115,7 @@ private:
     void updateTextureHandles(MaterialHandle materialHandle, AssetManager& manager);
 
     // Helper to estimate material memory size
-    uint64_t estimateMaterialSize(Material* material) const;
+    uint64_t estimateMaterialSize(const Material* material) const;
 
     // Material factory
     MaterialFactory m_factory;

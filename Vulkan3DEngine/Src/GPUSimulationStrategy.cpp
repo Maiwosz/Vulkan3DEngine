@@ -72,8 +72,9 @@ void GPUSimulationStrategy::executeSingleStep() {
     // =========================================================================
     // 1. CLEAR OUTPUT BUFFER (GPU Aggregates)
     // =========================================================================
-    material_->GetOutputBuffer()->Zero();
-    material_->GetOutputBuffer()->SyncToBuffer();
+    auto outputBuffer = material_->GetBuffer("OutputData");
+    outputBuffer->Zero();
+    outputBuffer->SyncToBuffer();
 
     // =========================================================================
     // 2. COMPUTE PHASE
@@ -170,7 +171,7 @@ void GPUSimulationStrategy::setReadbackFullData(bool enabled) {
 }
 
 void GPUSimulationStrategy::readbackGPUAggregates() {
-    auto outputBuffer = material_->GetOutputBuffer();
+    auto outputBuffer = material_->GetBuffer("OutputData");
     if (!outputBuffer) {
         SPDLOG_ERROR("GPU: Cannot readback aggregates");
         return;
@@ -274,7 +275,7 @@ void GPUSimulationStrategy::computeCPUAggregates() {
 // =============================================================================
 
 ProvinceData GPUSimulationStrategy::getProvinceData(uint32_t index) {
-    auto inputOutputBuffer = material_->GetInputOutputBuffer();
+    auto inputOutputBuffer = material_->GetBuffer("InputOutputData");
     if (!inputOutputBuffer || index >= simParams_.numProvinces) {
         SPDLOG_ERROR("GPU: Cannot read province data");
         return { 0, 0.0f, 0, 0 };
@@ -317,7 +318,7 @@ void GPUSimulationStrategy::manualReadback() {
 }
 
 void GPUSimulationStrategy::uploadSingleProvince(uint32_t index, const ProvinceData& data) {
-    auto inputOutputBuffer = material_->GetInputOutputBuffer();
+    auto inputOutputBuffer = material_->GetBuffer("InputOutputData");
     if (!inputOutputBuffer || index >= simParams_.numProvinces) {
         SPDLOG_ERROR("GPU: Cannot upload province data");
         return;
@@ -336,7 +337,7 @@ void GPUSimulationStrategy::uploadSingleProvince(uint32_t index, const ProvinceD
 void GPUSimulationStrategy::initializeGPUData(
     const RandomizationParameters& randParams
 ) {
-    auto inputOutputBuffer = material_->GetInputOutputBuffer();
+    auto inputOutputBuffer = material_->GetBuffer("InputOutputData");
     if (!inputOutputBuffer) {
         SPDLOG_ERROR("GPU: InputOutput buffer not available");
         return;
@@ -390,7 +391,7 @@ void GPUSimulationStrategy::initializeGPUData(
 }
 
 void GPUSimulationStrategy::syncParametersToGPU() {
-    auto inputBuffer = material_->GetInputBuffer();
+    auto inputBuffer = material_->GetBuffer("InputData");
     if (!inputBuffer) {
         SPDLOG_ERROR("GPU: Input buffer not available");
         return;
@@ -406,7 +407,7 @@ void GPUSimulationStrategy::syncParametersToGPU() {
 }
 
 void GPUSimulationStrategy::readbackFromGPU() {
-    auto inputOutputBuffer = material_->GetInputOutputBuffer();
+    auto inputOutputBuffer = material_->GetBuffer("InputOutputData");
     if (!inputOutputBuffer || !sharedBuffer_) {
         SPDLOG_ERROR("GPU: Cannot perform readback");
         return;

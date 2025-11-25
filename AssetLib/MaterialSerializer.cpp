@@ -178,7 +178,6 @@ namespace AssetLib {
             BinarySamplerConfig binSampler{};
             CopyToArray(binSampler.name, sampler.name);
             binSampler.descriptorType = sampler.descriptorType;
-            binSampler.binding = sampler.binding;
             CopyToArray(binSampler.texturePath, sampler.texturePath);
             binSampler.colorSpace = sampler.colorSpace;
             binSampler.magFilter = sampler.magFilter;
@@ -287,7 +286,6 @@ namespace AssetLib {
             SamplerDescription sampler;
             sampler.name = ExtractFromArray(binSampler->name);
             sampler.descriptorType = binSampler->descriptorType;
-            sampler.binding = binSampler->binding;
             sampler.texturePath = ExtractFromArray(binSampler->texturePath);
             sampler.colorSpace = binSampler->colorSpace;
             sampler.magFilter = binSampler->magFilter;
@@ -373,7 +371,6 @@ namespace AssetLib {
         SamplerDescription config;
         config.name = j.at("name").get<std::string>();
         config.descriptorType = ShaderLib::StringToDescriptorType(j.at("descriptorType").get<std::string>());
-        config.binding = j.at("binding").get<uint32_t>();
         config.texturePath = j.at("texturePath").get<std::string>();
         config.colorSpace = StringToColorSpace(j.at("colorSpace").get<std::string>());
         config.magFilter = StringToFilter(j.at("magFilter").get<std::string>());
@@ -422,8 +419,6 @@ namespace AssetLib {
                 material.samplers.push_back(SamplerConfigFromJson(samplerJson));
             }
         }
-
-        material.NormalizeSamplerBindings();
 
         if (!material.Validate()) {
             throw std::runtime_error("Invalid material structure");

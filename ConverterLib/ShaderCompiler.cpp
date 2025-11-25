@@ -66,7 +66,7 @@ namespace Shader {
             throw std::runtime_error("No shader stages found in source");
         }
 
-        // Validate stage requirements
+        // Validate stage requirements for output/inputOutput data
         if (data.HasOutputData() || data.HasInputOutputData()) {
             bool hasComputeOrFragment = false;
             for (const auto& stage : data.stages) {
@@ -84,23 +84,6 @@ namespace Shader {
 
         ShaderBuilder builder;
         ShaderReflector reflector;
-
-        // Build buffer definitions
-        std::shared_ptr<const BufferObjectDefinition> inputBuffer;
-        std::shared_ptr<const BufferObjectDefinition> outputBuffer;
-        std::shared_ptr<const BufferObjectDefinition> inputOutputBuffer;
-
-        if (data.HasInputData()) {
-            inputBuffer = builder.BuildInputBuffer(data.inputVariables);
-        }
-
-        if (data.HasOutputData()) {
-            outputBuffer = builder.BuildOutputBuffer(data.outputVariables);
-        }
-
-        if (data.HasInputOutputData()) {
-            inputOutputBuffer = builder.BuildInputOutputBuffer(data.inputOutputVariables);
-        }
 
         // Setup metadata
         ShaderMetadata metadata;
@@ -135,16 +118,12 @@ namespace Shader {
             objectSet = objectBuilder.Build();
         }
 
-        // Build Custom descriptor set (set 2)
+        // Build Custom descriptor set (set 2) - now fully dynamic
+        // No predefined bindings, no special treatment for input/output buffers
         if (data.HasInputData() || data.HasOutputData() ||
             data.HasInputOutputData() || data.HasSamplers()) {
 
-            customSet = builder.BuildCustomDescriptorSet(
-                data,
-                inputBuffer,
-                outputBuffer,
-                inputOutputBuffer
-            );
+            customSet = builder.BuildCustomDescriptorSet(data);
         }
 
         // Add descriptor sets to metadata

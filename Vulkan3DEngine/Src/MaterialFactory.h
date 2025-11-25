@@ -11,6 +11,7 @@
 #include "BufferObjectInstance.h"
 #include <memory>
 #include <string>
+#include <unordered_map>
 #include "ThreadPool.h"
 #include "AsyncMemoryOps.h"
 
@@ -28,12 +29,13 @@ public:
     );
 
     // =========================================================================
-    //  SIMPLIFIED API - No validation needed
+    //  MATERIAL CREATION API
     // =========================================================================
 
     /**
      * Create material with default buffer instances from shader
      * - Buffers initialized with default values from shader definition
+     * - Creates instances for all buffers defined in custom descriptor set
      */
     std::unique_ptr<Material> createMaterial(
         const std::string& name,
@@ -42,15 +44,13 @@ public:
 
     /**
      * Create material with custom buffer instances
-     * - Instances must be created from shader definitions (no validation)
-     * - Direct pass-through to Material constructor
+     * - Buffers identified by name (from shader metadata)
+     * - Missing buffers will be created with defaults
      */
     std::unique_ptr<Material> createMaterial(
         const std::string& name,
         ShaderHandle shaderHandle,
-        std::shared_ptr<ShaderLib::BufferObjectInstance> inputBuffer,
-        std::shared_ptr<ShaderLib::BufferObjectInstance> outputBuffer,
-        std::shared_ptr<ShaderLib::BufferObjectInstance> inputOutputBuffer
+        const std::unordered_map<std::string, std::shared_ptr<ShaderLib::BufferObjectInstance>>& buffers
     );
 
     /**
@@ -67,45 +67,40 @@ public:
     );
 
     /**
-     * Clone buffer instances from material (for creating variants)
+     * Clone all buffers from material (for creating variants)
      */
-    struct BufferInstanceSet {
-        std::shared_ptr<ShaderLib::BufferObjectInstance> inputBuffer;
-        std::shared_ptr<ShaderLib::BufferObjectInstance> outputBuffer;
-        std::shared_ptr<ShaderLib::BufferObjectInstance> inputOutputBuffer;
-    };
-
-    BufferInstanceSet cloneBufferInstances(Material* sourceMaterial) const;
+    std::unordered_map<std::string, std::shared_ptr<ShaderLib::BufferObjectInstance>>
+        cloneBuffers(const Material* sourceMaterial) const;
 
 private:
     // =========================================================================
-    // INTERNAL HELPERS
+    // BUFFER CREATION HELPERS
     // =========================================================================
 
-    /**
-     * Create buffer instances from shader definitions + JSON values
-     * Simple creation, no validation
-     */
-    struct BufferSet {
-        std::shared_ptr<ShaderLib::BufferObjectInstance> inputBuffer;
-        std::shared_ptr<ShaderLib::BufferObjectInstance> outputBuffer;
-        std::shared_ptr<ShaderLib::BufferObjectInstance> inputOutputBuffer;
-    };
-
-    // Create default buffers (all fields have default values)
-    BufferSet createDefaultBuffers(ShaderHandle shaderHandle);
+    // Create default buffers from shader metadata
+    std::unordered_map<std::string, std::shared_ptr<ShaderLib::BufferObjectInstance>>
+        createDefaultBuffers(ShaderHandle shaderHandle);
 
     // Create buffers from shader + JSON values from asset
-    BufferSet createBuffersFromAsset(
-        ShaderHandle shaderHandle,
-        const std::unordered_map<std::string, nlohmann::json>& bufferValues
+    std::unordered_map<std::string, std::shared_ptr<ShaderLib::BufferObjectInstance>>
+        createBuffersFromAsset(
+            ShaderHandle shaderHandle,
+            const std::unordered_map<std::string, nlohmann::json>& bufferValues
+        );
+
+    // Fill missing buffers with defaults
+    void fillMissingBuffers(
+        std::unordered_map<std::string, std::shared_ptr<ShaderLib::BufferObjectInstance>>& buffers,
+        ShaderHandle shaderHandle
     );
 
     // Helper: Create smart shader handle
     SmartAssetHandle<ShaderHandle, ShaderAsset> createSmartShaderHandle(ShaderHandle shaderHandle);
 
     // Helper: Setup async operations for buffer instances
-    void setupAsyncOperations(BufferSet& buffers);
+    void setupAsyncOperations(
+        std::unordered_map<std::string, std::shared_ptr<ShaderLib::BufferObjectInstance>>& buffers
+    );
 
     // Dependencies
     const LogicalDevice& m_device;

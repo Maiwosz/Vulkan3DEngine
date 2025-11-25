@@ -11,19 +11,13 @@ namespace Shader {
 
     void ShaderBuilder::ValidateVariables(
         const std::vector<InputVariable>& vars,
-        const std::string& structName,
-        bool allowSamplers) {
+        const std::string& structName) {
 
+        // Podstawowa walidacja - możesz dodać więcej sprawdzeń
         for (const auto& var : vars) {
-            if (var.isSampler && !allowSamplers) {
+            if (var.name.empty()) {
                 throw std::runtime_error(
-                    "Sampler '" + var.name + "' cannot be in " + structName +
-                    ". Use Samplers structure instead."
-                );
-            }
-            if (!var.isSampler && allowSamplers && structName == "Samplers") {
-                throw std::runtime_error(
-                    "Non-sampler variable '" + var.name + "' in Samplers structure"
+                    "Variable in " + structName + " has empty name"
                 );
             }
         }
@@ -97,13 +91,14 @@ namespace Shader {
         structDef->AddField(var.name, baseType, var.typeInfo.arraySize);
     }
 
-    std::shared_ptr<BufferObjectDefinition> ShaderBuilder::BuildInputBuffer(
+    std::shared_ptr<BufferObjectDefinition> ShaderBuilder::BuildUniformBuffer(
+        const std::string& name,
         const std::vector<InputVariable>& variables) {
 
-        ValidateVariables(variables, "InputData", false);
+        ValidateVariables(variables, name);
 
         // Create structure definition
-        auto structure = MakeStruct("InputData");
+        auto structure = MakeStruct(name);
 
         // Add all variables to the structure
         for (const auto& var : variables) {
@@ -117,41 +112,23 @@ namespace Shader {
         return bufferDef;
     }
 
-    std::shared_ptr<BufferObjectDefinition> ShaderBuilder::BuildOutputBuffer(
-        const std::vector<InputVariable>& variables) {
+    std::shared_ptr<BufferObjectDefinition> ShaderBuilder::BuildStorageBuffer(
+        const std::string& name,
+        const std::vector<InputVariable>& variables,
+        LayoutStandard standard) {
 
-        ValidateVariables(variables, "OutputData", false);
+        ValidateVariables(variables, name);
 
         // Create structure definition
-        auto structure = MakeStruct("OutputData");
+        auto structure = MakeStruct(name);
 
         // Add all variables to the structure
         for (const auto& var : variables) {
-            AddVariableToStructure(structure, var, LayoutStandard::Std430);
+            AddVariableToStructure(structure, var, standard);
         }
 
         // Create storage buffer with the structure
-        // MakeStorageBuffer automatically creates BufferLayout with std430
-        auto bufferDef = MakeStorageBuffer(structure, LayoutStandard::Std430);
-
-        return bufferDef;
-    }
-
-    std::shared_ptr<BufferObjectDefinition> ShaderBuilder::BuildInputOutputBuffer(
-        const std::vector<InputVariable>& variables) {
-
-        ValidateVariables(variables, "InputOutputData", false);
-
-        // Create structure definition
-        auto structure = MakeStruct("InputOutputData");
-
-        // Add all variables to the structure
-        for (const auto& var : variables) {
-            AddVariableToStructure(structure, var, LayoutStandard::Std430);
-        }
-
-        // Create storage buffer with the structure
-        auto bufferDef = MakeStorageBuffer(structure, LayoutStandard::Std430);
+        auto bufferDef = MakeStorageBuffer(structure, standard);
 
         return bufferDef;
     }
@@ -165,22 +142,17 @@ namespace Shader {
     }
 
     DescriptorSet ShaderBuilder::BuildCustomDescriptorSet(
-        const ParsedShaderData& data,
-        std::shared_ptr<const BufferObjectDefinition> inputBuffer,
-        std::shared_ptr<const BufferObjectDefinition> outputBuffer,
-        std::shared_ptr<const BufferObjectDefinition> inputOutputBuffer) {
-
-        ValidateVariables(data.samplerVariables, "Samplers", true);
+        const ParsedShaderData& data) {
 
         DescriptorSetBuilder builder(CUSTOM_DESCRIPTOR_SET);
 
         // Determine stage flags based on shader stages
-        StageFlags bufferStages = 0;
+        StageFlags allStages = 0;
         StageFlags samplerStages = 0;
 
         for (const auto& stage : data.stages) {
             StageFlags stageFlag = static_cast<StageFlags>(stage.stage);
-            bufferStages |= stageFlag;
+            allStages |= stageFlag;
 
             // Samplers typically used in vertex and fragment stages
             if (stage.stage == Stage::Vertex || stage.stage == Stage::Fragment) {
@@ -188,32 +160,62 @@ namespace Shader {
             }
         }
 
-        // Add input buffer (uniform)
-        if (inputBuffer) {
-            builder.AddBuffer(INPUT_DATA_BINDING, inputBuffer, bufferStages);
+        // Dynamic binding assignment - starts from 0
+        uint32_t nextBinding = 0;
+
+        // Filter out samplers from input variables
+        std::vector<InputVariable> nonSamplerInputs;
+        for (const auto& var : data.inputVariables) {
+            if (!var.isSampler) {
+                nonSamplerInputs.push_back(var);
+            }
         }
 
-        // Add output buffer (storage, usually fragment/compute)
-        if (outputBuffer) {
+        // Add single input buffer with ALL input variables (non-samplers)
+        if (!nonSamplerInputs.empty()) {
+            auto buffer = BuildUniformBuffer("InputData", nonSamplerInputs);
+            builder.AddBuffer(nextBinding++, buffer, allStages);
+        }
+
+        // Filter out samplers from output variables
+        std::vector<InputVariable> nonSamplerOutputs;
+        for (const auto& var : data.outputVariables) {
+            if (!var.isSampler) {
+                nonSamplerOutputs.push_back(var);
+            }
+        }
+
+        // Add single output buffer with ALL output variables (non-samplers)
+        if (!nonSamplerOutputs.empty()) {
             StageFlags outputStages = 0;
             for (const auto& stage : data.stages) {
                 if (stage.stage == Stage::Fragment || stage.stage == Stage::Compute) {
                     outputStages |= static_cast<StageFlags>(stage.stage);
                 }
             }
-            builder.AddBuffer(OUTPUT_DATA_BINDING, outputBuffer, outputStages);
+
+            auto buffer = BuildStorageBuffer("OutputData", nonSamplerOutputs, LayoutStandard::Std430);
+            builder.AddBuffer(nextBinding++, buffer, outputStages);
         }
 
-        // Add input/output buffer (storage, all stages)
-        if (inputOutputBuffer) {
-            builder.AddBuffer(INPUT_OUTPUT_DATA_BINDING, inputOutputBuffer, bufferStages);
+        // Filter out samplers from input/output variables
+        std::vector<InputVariable> nonSamplerInputOutputs;
+        for (const auto& var : data.inputOutputVariables) {
+            if (!var.isSampler) {
+                nonSamplerInputOutputs.push_back(var);
+            }
         }
 
-        // Add samplers starting from SAMPLERS_START_BINDING
-        uint32_t samplerBinding = SAMPLERS_START_BINDING;
+        // Add single input/output buffer with ALL input/output variables (non-samplers)
+        if (!nonSamplerInputOutputs.empty()) {
+            auto buffer = BuildStorageBuffer("InputOutputData", nonSamplerInputOutputs, LayoutStandard::Std430);
+            builder.AddBuffer(nextBinding++, buffer, allStages);
+        }
+
+        // Add samplers
         for (const auto& sampler : data.samplerVariables) {
             DescriptorType samplerType = GetSamplerDescriptorType(sampler.type);
-            builder.AddSampler(samplerBinding++, sampler.name, samplerType, samplerStages);
+            builder.AddSampler(nextBinding++, sampler.name, samplerType, samplerStages);
         }
 
         return builder.Build();

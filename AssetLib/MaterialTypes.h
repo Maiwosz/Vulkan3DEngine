@@ -30,7 +30,6 @@ namespace AssetLib {
 
         std::string name;                           // Sampler name in shader
         ShaderLib::DescriptorType descriptorType;   // Texture type
-        uint32_t binding;                           // Binding number
 
         std::string texturePath;                    // Path to texture asset
         ColorSpace colorSpace = ColorSpace::Linear;
@@ -125,9 +124,6 @@ namespace AssetLib {
             }
             return names;
         }
-
-        // Ensure samplers have correct bindings
-        void NormalizeSamplerBindings();
     };
 
     // ============================================================================
@@ -151,7 +147,6 @@ namespace AssetLib {
     struct BinarySamplerConfig {
         std::array<char, 64> name;
         ShaderLib::DescriptorType descriptorType;
-        uint32_t binding;
         std::array<char, 256> texturePath;
         ColorSpace colorSpace;
         SamplerDescription::Filter magFilter;

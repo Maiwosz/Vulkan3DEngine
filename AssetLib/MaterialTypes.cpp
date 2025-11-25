@@ -47,11 +47,4 @@ namespace AssetLib {
         return deps;
     }
 
-    void MaterialDefinition::NormalizeSamplerBindings() {
-        uint32_t binding = ShaderLib::SAMPLERS_START_BINDING;
-        for (auto& sampler : samplers) {
-            sampler.binding = binding++;
-        }
-    }
-
 } // namespace AssetLib

@@ -10,7 +10,6 @@
     {
       "name": "albedo",
       "descriptorType": "sampler2D",
-      "binding": 3,
       "texturePath": "Hygieia_C_Hygieia_O",
       "colorSpace": "sRGB",
       "magFilter": "Linear",
