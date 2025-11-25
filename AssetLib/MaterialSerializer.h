@@ -1,7 +1,10 @@
 #pragma once
 #include "MaterialTypes.h"
 #include "AssetLib.h"
+#include "BufferObjectDefinition.h"
+#include "BufferObjectInstance.h"
 #include <json.hpp>
+#include <memory>
 
 namespace AssetLib {
     using json = nlohmann::json;
@@ -27,47 +30,65 @@ namespace AssetLib {
     std::unordered_map<std::string, ColorSpace> GetMaterialTextureColorSpaces(const AssetData& asset);
 
     // ============================================================================
+    // BUFFER INSTANCE CREATION
+    // ============================================================================
+
+    /**
+     * Create BufferObjectInstance from shader definition and material field values
+     *
+     * This is the CORE function that creates buffer instances from assets.
+     *
+     * @param shaderBufferDef: Buffer definition from shader (structure source of truth)
+     * @param materialFieldValues: JSON object with field values from .mat file
+     *
+     * @return New instance with:
+     *   - Structure matching shaderBufferDef (this is always correct)
+     *   - Values filled from materialFieldValues (where field names match)
+     *   - Default values for fields not in materialFieldValues
+     *   - Extra fields in materialFieldValues are ignored (backwards compatibility)
+     *
+     * No validation needed - shader definition is always correct.
+     */
+    std::shared_ptr<ShaderLib::BufferObjectInstance> CreateBufferInstanceFromMaterial(
+        std::shared_ptr<const ShaderLib::BufferObjectDefinition> shaderBufferDef,
+        const json& materialFieldValues
+    );
+
+    // ============================================================================
     // JSON CONVERSIONS (for .mat text files)
     // ============================================================================
 
-    // All fields must use explicit type annotation format:
+    // Material JSON format (simplified - only field values):
     // {
-    //   "fieldName": {
-    //     "baseType": "float",
-    //     "value": 1.0
-    //   }
+    //   "shader": "ShaderName",
+    //   "buffers": {
+    //     "BufferName1": {
+    //       "fieldName": value,
+    //       "nested": { "field": value },
+    //       "arrayField": [value1, value2, ...]
+    //     },
+    //     "BufferName2": { ... }
+    //   },
+    //   "samplers": [ ... ]
     // }
     //
-    // Supported baseType values:
-    // - Scalars: "bool", "float", "int", "uint", "double"
-    // - Float vectors: "vec2", "vec3", "vec4"
-    // - Integer vectors: "ivec2", "ivec3", "ivec4"
-    // - Unsigned vectors: "uvec2", "uvec3", "uvec4"
-    // - Double vectors: "dvec2", "dvec3", "dvec4"
-    // - Matrices: "mat2", "mat3", "mat4"
-    // - Atomic: "atomic_uint"
-    //
-    // Arrays are specified as:
+    // Alternative flat format (backward compatible):
     // {
-    //   "lights": {
-    //     "baseType": "vec3",
-    //     "value": [[1,0,0], [0,1,0], [0,0,1]]
-    //   }
+    //   "shader": "ShaderName",
+    //   "InputData": { ... },      // Buffer name at top level
+    //   "MaterialParams": { ... },
+    //   "samplers": [ ... ]
     // }
     //
-    // Nested structures are plain objects without baseType/value:
-    // {
-    //   "material": {
-    //     "diffuse": { "baseType": "vec3", "value": [1,1,1] },
-    //     "specular": { "baseType": "vec3", "value": [1,1,1] }
-    //   }
-    // }
+    // Values are plain JSON types:
+    // - Scalars: number, boolean
+    // - Vectors: [x, y, z, w]
+    // - Matrices: [[row0], [row1], [row2], [row3]]
+    // - Arrays: [elem0, elem1, ...]
+    // - Nested structures: { field1: value1, field2: value2 }
     //
-    // Buffers are automatically configured:
-    // - inputBuffer: Uniform buffer, std140 layout, binding 0
-    // - outputBuffer: Storage buffer, std430 layout, WriteOnly, binding 1
-    // - inputOutputBuffer: Storage buffer, std430 layout, ReadWrite, binding 2
-    // - Samplers: Starting at binding 3
+    // The buffer structure (types, layout) comes from the shader definition.
+    // Material only provides field VALUES, not structure.
     MaterialDefinition MaterialFromJson(const json& j);
 
     // Sampler configuration helpers

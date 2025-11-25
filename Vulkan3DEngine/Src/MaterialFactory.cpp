@@ -2,6 +2,7 @@
 #include "ImageSamplerUtils.h"
 #include "AssetManager.h"
 #include "ShaderManager.h"
+#include "MaterialSerializer.h"
 #include <spdlog/spdlog.h>
 #include <stdexcept>
 
@@ -35,7 +36,7 @@ std::unique_ptr<Material> MaterialFactory::createMaterial(
         throw std::runtime_error("MaterialFactory: Invalid shader handle");
     }
 
-    // Create default buffers from shader - no validation needed
+    // Create default buffers - simple, no validation
     auto buffers = createDefaultBuffers(shaderHandle);
     setupAsyncOperations(buffers);
 
@@ -44,7 +45,6 @@ std::unique_ptr<Material> MaterialFactory::createMaterial(
         throw std::runtime_error("MaterialFactory: Failed to create smart shader handle");
     }
 
-    // Material takes ownership and handles initialization
     return std::make_unique<Material>(
         name,
         smartShaderHandle,
@@ -71,17 +71,11 @@ std::unique_ptr<Material> MaterialFactory::createMaterial(
         throw std::runtime_error("MaterialFactory: Invalid shader handle");
     }
 
-    // SINGLE validation point - validate and sync all buffers
-    auto buffers = prepareBufferInstances(
-        shaderHandle,
-        inputBuffer,
-        outputBuffer,
-        inputOutputBuffer
-    );
-
-    if (!buffers.isValid) {
-        throw std::runtime_error("MaterialFactory: Buffer validation failed");
-    }
+    // No validation - instances must be created from correct definitions
+    BufferSet buffers;
+    buffers.inputBuffer = inputBuffer;
+    buffers.outputBuffer = outputBuffer;
+    buffers.inputOutputBuffer = inputOutputBuffer;
 
     setupAsyncOperations(buffers);
 
@@ -115,18 +109,8 @@ std::unique_ptr<Material> MaterialFactory::createMaterialFromAsset(
         throw std::runtime_error("MaterialFactory: Invalid material definition");
     }
 
-    // Prepare buffers from asset - single validation point
-    auto buffers = prepareBufferInstances(
-        shaderHandle,
-        materialDef.inputBuffer,
-        materialDef.outputBuffer,
-        materialDef.inputOutputBuffer
-    );
-
-    if (!buffers.isValid) {
-        throw std::runtime_error("MaterialFactory: Buffer validation failed");
-    }
-
+    // Create buffers from shader definitions + JSON values
+    auto buffers = createBuffersFromAsset(shaderHandle, materialDef.buffers);
     setupAsyncOperations(buffers);
 
     auto smartShaderHandle = createSmartShaderHandle(shaderHandle);
@@ -148,7 +132,7 @@ std::unique_ptr<Material> MaterialFactory::createMaterialFromAsset(
         m_descriptorLayoutManager
     );
 
-    // Setup textures (simple, no validation needed)
+    // Setup textures
     for (const auto& samplerConfig : materialDef.samplers) {
         Material::TextureParam textureParam;
         textureParam.assetHandle = AssetHandle(AssetType::Texture, samplerConfig.texturePath);
@@ -174,129 +158,107 @@ std::unique_ptr<Material> MaterialFactory::createMaterialFromAsset(
 }
 
 // =============================================================================
-// PRIVATE: Single validation/sync point
+// BUFFER CREATION - Simple, no validation
 // =============================================================================
 
-MaterialFactory::PreparedBuffers MaterialFactory::prepareBufferInstances(
-    ShaderHandle shaderHandle,
-    std::shared_ptr<ShaderLib::BufferObjectInstance> inputBuffer,
-    std::shared_ptr<ShaderLib::BufferObjectInstance> outputBuffer,
-    std::shared_ptr<ShaderLib::BufferObjectInstance> inputOutputBuffer
-) {
-    PreparedBuffers result;
+MaterialFactory::BufferSet MaterialFactory::createDefaultBuffers(ShaderHandle shaderHandle) {
+    BufferSet result;
 
     const auto& metadata = m_shaderManager.getShaderMetadata(shaderHandle);
     const ShaderLib::DescriptorSet* customSet = metadata.GetCustomSet();
 
     if (!customSet) {
         SPDLOG_DEBUG("MaterialFactory: No custom descriptor set in shader");
-        return result; // Valid but empty
+        return result;
     }
 
-    // Validate and sync each buffer - ONCE
-    if (inputBuffer) {
-        auto inputDef = metadata.GetInputDataBuffer();
-        result.inputBuffer = validateAndSyncBuffer(inputDef, inputBuffer, "InputData");
-        if (!result.inputBuffer && inputDef) {
-            result.isValid = false;
-            return result;
-        }
+    // Create instances with default values
+    if (auto inputDef = metadata.GetInputDataBuffer()) {
+        result.inputBuffer = inputDef->CreateInstance();
+        SPDLOG_DEBUG("MaterialFactory: Created default InputData buffer");
     }
 
-    if (outputBuffer) {
-        auto outputDef = metadata.GetOutputDataBuffer();
-        result.outputBuffer = validateAndSyncBuffer(outputDef, outputBuffer, "OutputData");
-        if (!result.outputBuffer && outputDef) {
-            result.isValid = false;
-            return result;
-        }
+    if (auto outputDef = metadata.GetOutputDataBuffer()) {
+        result.outputBuffer = outputDef->CreateInstance();
+        SPDLOG_DEBUG("MaterialFactory: Created default OutputData buffer");
     }
 
-    if (inputOutputBuffer) {
-        auto inputOutputDef = metadata.GetInputOutputDataBuffer();
-        result.inputOutputBuffer = validateAndSyncBuffer(inputOutputDef, inputOutputBuffer, "InputOutputData");
-        if (!result.inputOutputBuffer && inputOutputDef) {
-            result.isValid = false;
-            return result;
-        }
+    if (auto inputOutputDef = metadata.GetInputOutputDataBuffer()) {
+        result.inputOutputBuffer = inputOutputDef->CreateInstance();
+        SPDLOG_DEBUG("MaterialFactory: Created default InputOutputData buffer");
     }
 
     return result;
 }
 
-std::shared_ptr<ShaderLib::BufferObjectInstance> MaterialFactory::validateAndSyncBuffer(
-    std::shared_ptr<const ShaderLib::BufferObjectDefinition> shaderDef,
-    std::shared_ptr<const ShaderLib::BufferObjectInstance> instance,
-    const std::string& bufferName
+MaterialFactory::BufferSet MaterialFactory::createBuffersFromAsset(
+    ShaderHandle shaderHandle,
+    const std::unordered_map<std::string, nlohmann::json>& bufferValues
 ) {
-    if (!shaderDef) {
-        if (instance) {
-            SPDLOG_WARN("MaterialFactory: Buffer '{}' provided but shader has no definition", bufferName);
-        }
-        return nullptr;
-    }
-
-    if (!instance) {
-        SPDLOG_DEBUG("MaterialFactory: Creating default buffer for '{}'", bufferName);
-        return shaderDef->CreateInstance();
-    }
-
-    // Single sync operation using simplified API
-    ShaderLib::BufferValidator::ValidationReport report;
-    auto synchronized = ShaderLib::BufferValidator::ValidateAndSync(
-        shaderDef,
-        instance,
-        &report
-    );
-
-    if (!synchronized) {
-        SPDLOG_ERROR("MaterialFactory: Failed to sync buffer '{}':", bufferName);
-        for (const auto& error : report.errors) {
-            SPDLOG_ERROR("  - {}", error);
-        }
-        return nullptr;
-    }
-
-    if (report.HasWarnings()) {
-        for (const auto& warning : report.warnings) {
-            SPDLOG_WARN("MaterialFactory: Buffer '{}': {}", bufferName, warning);
-        }
-    }
-
-    // Log what was done
-    if (!report.copiedFields.empty()) {
-        SPDLOG_DEBUG("MaterialFactory: Buffer '{}' - copied {} fields",
-            bufferName, report.copiedFields.size());
-    }
-    if (!report.defaultFields.empty()) {
-        SPDLOG_DEBUG("MaterialFactory: Buffer '{}' - initialized {} fields with defaults",
-            bufferName, report.defaultFields.size());
-    }
-
-    return synchronized;
-}
-
-MaterialFactory::PreparedBuffers MaterialFactory::createDefaultBuffers(ShaderHandle shaderHandle) {
-    PreparedBuffers result;
+    BufferSet result;
 
     const auto& metadata = m_shaderManager.getShaderMetadata(shaderHandle);
     const ShaderLib::DescriptorSet* customSet = metadata.GetCustomSet();
 
     if (!customSet) {
+        SPDLOG_DEBUG("MaterialFactory: No custom descriptor set in shader");
         return result;
     }
 
-    // Create instances - no validation needed (created from shader def)
+    // Create InputData buffer
     if (auto inputDef = metadata.GetInputDataBuffer()) {
-        result.inputBuffer = inputDef->CreateInstance();
+        const std::string bufferName = inputDef->GetName();
+        auto valuesIt = bufferValues.find(bufferName);
+
+        if (valuesIt != bufferValues.end()) {
+            // Create instance from shader definition + JSON values
+            result.inputBuffer = AssetLib::CreateBufferInstanceFromMaterial(
+                inputDef,
+                valuesIt->second
+            );
+            SPDLOG_DEBUG("MaterialFactory: Created InputData buffer '{}' with values from asset", bufferName);
+        }
+        else {
+            // No values in asset - use defaults
+            result.inputBuffer = inputDef->CreateInstance();
+            SPDLOG_DEBUG("MaterialFactory: Created InputData buffer '{}' with default values", bufferName);
+        }
     }
 
+    // Create OutputData buffer
     if (auto outputDef = metadata.GetOutputDataBuffer()) {
-        result.outputBuffer = outputDef->CreateInstance();
+        const std::string bufferName = outputDef->GetName();
+        auto valuesIt = bufferValues.find(bufferName);
+
+        if (valuesIt != bufferValues.end()) {
+            result.outputBuffer = AssetLib::CreateBufferInstanceFromMaterial(
+                outputDef,
+                valuesIt->second
+            );
+            SPDLOG_DEBUG("MaterialFactory: Created OutputData buffer '{}' with values from asset", bufferName);
+        }
+        else {
+            result.outputBuffer = outputDef->CreateInstance();
+            SPDLOG_DEBUG("MaterialFactory: Created OutputData buffer '{}' with default values", bufferName);
+        }
     }
 
+    // Create InputOutputData buffer
     if (auto inputOutputDef = metadata.GetInputOutputDataBuffer()) {
-        result.inputOutputBuffer = inputOutputDef->CreateInstance();
+        const std::string bufferName = inputOutputDef->GetName();
+        auto valuesIt = bufferValues.find(bufferName);
+
+        if (valuesIt != bufferValues.end()) {
+            result.inputOutputBuffer = AssetLib::CreateBufferInstanceFromMaterial(
+                inputOutputDef,
+                valuesIt->second
+            );
+            SPDLOG_DEBUG("MaterialFactory: Created InputOutputData buffer '{}' with values from asset", bufferName);
+        }
+        else {
+            result.inputOutputBuffer = inputOutputDef->CreateInstance();
+            SPDLOG_DEBUG("MaterialFactory: Created InputOutputData buffer '{}' with default values", bufferName);
+        }
     }
 
     return result;
@@ -333,7 +295,7 @@ SmartAssetHandle<ShaderHandle, ShaderAsset> MaterialFactory::createSmartShaderHa
     return shaderManager->createSmartHandle(shaderHandle);
 }
 
-void MaterialFactory::setupAsyncOperations(PreparedBuffers& buffers) {
+void MaterialFactory::setupAsyncOperations(BufferSet& buffers) {
     if (buffers.inputBuffer) {
         buffers.inputBuffer->SetAsyncOperations(&m_asyncMemoryOps);
     }

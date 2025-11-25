@@ -9,8 +9,8 @@
 namespace AssetLib {
 
     // ============================================================================
-// BUFFER RECONSTRUCTION FROM JSON (Helper functions)
-// ============================================================================
+    // HELPERS
+    // ============================================================================
 
     namespace {
         template<size_t N>
@@ -24,202 +24,93 @@ namespace AssetLib {
             return std::string(src.data(), strnlen(src.data(), N));
         }
 
-        // Parse field value - expects {baseType, value} format
-        struct FieldSpec {
-            ShaderLib::BaseType baseType;
-            json value;
-            bool isArray = false;
-            uint32_t arraySize = 0;
-        };
-
-        FieldSpec ParseFieldSpec(const json& fieldJson, const std::string& fieldName) {
-            if (!fieldJson.is_object()) {
-                throw std::runtime_error(
-                    "Field '" + fieldName + "' must be an object with 'baseType' and 'value'"
-                );
-            }
-
-            if (!fieldJson.contains("baseType")) {
-                throw std::runtime_error(
-                    "Field '" + fieldName + "' is missing required 'baseType' field"
-                );
-            }
-
-            if (!fieldJson.contains("value")) {
-                throw std::runtime_error(
-                    "Field '" + fieldName + "' is missing required 'value' field"
-                );
-            }
-
-            FieldSpec spec;
-            std::string typeStr = fieldJson.at("baseType").get<std::string>();
-            spec.baseType = ShaderLib::StringToBaseType(typeStr);
-
-            if (spec.baseType == ShaderLib::BaseType::Unknown) {
-                throw std::runtime_error(
-                    "Field '" + fieldName + "' has invalid baseType: " + typeStr
-                );
-            }
-
-            spec.value = fieldJson.at("value");
-
-            // Check if it's an array
-            if (spec.value.is_array()) {
-                spec.isArray = true;
-                spec.arraySize = static_cast<uint32_t>(spec.value.size());
-
-                if (spec.arraySize == 0) {
-                    throw std::runtime_error(
-                        "Field '" + fieldName + "' has empty array"
-                    );
-                }
-            }
-
-            return spec;
-        }
-
-        // Set field value from parsed spec
-        void SetFieldValueFromSpec(
+        // Set field value from JSON by path
+        void SetFieldValueFromJson(
             std::shared_ptr<ShaderLib::BufferObjectInstance> buffer,
-            const std::string& path,
+            const std::string& fieldPath,
             const json& value,
             ShaderLib::BaseType expectedType)
         {
             const auto& info = ShaderLib::GetSerializationInfo(expectedType);
-            (*buffer)[path] = info.fromJson(value);
+            (*buffer)[fieldPath] = info.fromJson(value);
         }
 
-        // Recursively build StructureDefinition from field specs
-        void BuildStructureFromFields(
-            std::shared_ptr<ShaderLib::StructureDefinition> structDef,
-            const json& fieldsJson)
-        {
-            for (const auto& [fieldName, fieldValue] : fieldsJson.items()) {
-                // Check if it's a nested structure (object without baseType/value)
-                if (fieldValue.is_object() &&
-                    !fieldValue.contains("baseType") &&
-                    !fieldValue.contains("value")) {
-
-                    // Nested structure - create it and recurse
-                    auto nestedStruct = ShaderLib::MakeStruct(fieldName);
-
-                    BuildStructureFromFields(nestedStruct, fieldValue);
-
-                    structDef->AddField(fieldName, nestedStruct);
-                }
-                else {
-                    // Base type field - must have baseType and value
-                    FieldSpec spec = ParseFieldSpec(fieldValue, fieldName);
-
-                    if (spec.isArray) {
-                        structDef->AddField(fieldName, spec.baseType, spec.arraySize);
-                    }
-                    else {
-                        structDef->AddField(fieldName, spec.baseType);
-                    }
-                }
-            }
-        }
-
-        // Recursively fill buffer with values
-        void FillBufferFromFields(
+        // Recursively fill buffer fields from JSON values
+        void FillBufferFieldsFromJson(
             std::shared_ptr<ShaderLib::BufferObjectInstance> buffer,
-            const json& fieldsJson,
+            const json& fieldValues,
             const std::string& parentPath = "")
         {
-            for (const auto& [fieldName, fieldValue] : fieldsJson.items()) {
+            if (!fieldValues.is_object()) {
+                return;
+            }
+
+            const auto& layout = buffer->GetLayout();
+
+            for (const auto& [fieldName, fieldValue] : fieldValues.items()) {
                 std::string fieldPath = parentPath.empty()
                     ? fieldName
                     : parentPath + "." + fieldName;
 
-                // Check if nested structure
-                if (fieldValue.is_object() &&
-                    !fieldValue.contains("baseType") &&
-                    !fieldValue.contains("value")) {
+                // Look up field in layout
+                const auto* fieldDesc = layout->FindField(fieldPath);
 
-                    // Recurse into nested structure
-                    FillBufferFromFields(buffer, fieldValue, fieldPath);
+                if (!fieldDesc) {
+                    // Field not found in shader definition - skip silently
+                    // This is expected: asset may have old/extra fields
+                    continue;
+                }
+
+                if (!fieldDesc->isBaseType) {
+                    // Nested structure - recurse
+                    if (fieldValue.is_object()) {
+                        FillBufferFieldsFromJson(buffer, fieldValue, fieldPath);
+                    }
                 }
                 else {
                     // Base type field
-                    FieldSpec spec = ParseFieldSpec(fieldValue, fieldName);
+                    if (fieldDesc->isArray) {
+                        // Array field
+                        if (!fieldValue.is_array()) {
+                            continue; // Skip if value is not an array
+                        }
 
-                    if (spec.isArray) {
-                        // Fill array elements
-                        for (uint32_t i = 0; i < spec.arraySize; ++i) {
+                        uint32_t elemCount = std::min(
+                            static_cast<uint32_t>(fieldValue.size()),
+                            fieldDesc->arraySize
+                        );
+
+                        for (uint32_t i = 0; i < elemCount; ++i) {
                             std::string elemPath = fieldPath + "[" + std::to_string(i) + "]";
-                            SetFieldValueFromSpec(buffer, elemPath, spec.value[i], spec.baseType);
+                            try {
+                                SetFieldValueFromJson(
+                                    buffer,
+                                    elemPath,
+                                    fieldValue[i],
+                                    fieldDesc->baseType
+                                );
+                            }
+                            catch (...) {
+                                // Skip incompatible values
+                            }
                         }
                     }
                     else {
-                        // Fill single value
-                        SetFieldValueFromSpec(buffer, fieldPath, spec.value, spec.baseType);
+                        // Single value
+                        try {
+                            SetFieldValueFromJson(
+                                buffer,
+                                fieldPath,
+                                fieldValue,
+                                fieldDesc->baseType
+                            );
+                        }
+                        catch (...) {
+                            // Skip incompatible values
+                        }
                     }
                 }
             }
-        }
-
-        // Reconstruct buffer from JSON with explicit types
-        std::shared_ptr<ShaderLib::BufferObjectInstance> ReconstructBufferFromJson(
-            const json& bufferJson,
-            const std::string& bufferName,
-            ShaderLib::BufferType bufferType,
-            ShaderLib::LayoutStandard layoutStandard)
-        {
-            // Step 1: Create structure definition
-            auto structDef = ShaderLib::MakeStruct(bufferName);
-
-            // Step 2: Build structure from fields recursively
-            BuildStructureFromFields(structDef, bufferJson);
-
-            // Step 3: Create BufferLayout from structure
-            auto layout = std::make_shared<ShaderLib::BufferLayout>(
-                structDef,
-                layoutStandard
-            );
-
-            // Step 4: Create BufferObjectDefinition
-            auto bufferDef = std::make_shared<ShaderLib::BufferObjectDefinition>(
-                layout,
-                bufferType
-            );
-
-            // Step 5: Create BufferObjectInstance
-            auto bufferInstance = bufferDef->CreateInstance();
-
-            // Step 6: Fill with values recursively
-            FillBufferFromFields(bufferInstance, bufferJson);
-
-            return bufferInstance;
-        }
-
-        // Deserialize BufferObjectInstance from full JSON format (with definition)
-        std::shared_ptr<ShaderLib::BufferObjectInstance> DeserializeBufferInstance(
-            const json& j)
-        {
-            if (j.is_null()) {
-                return nullptr;
-            }
-
-            // BufferObjectInstance::ToJson() produces format with 'definition' and 'fields'
-            if (!j.contains("definition")) {
-                throw std::runtime_error(
-                    "Invalid buffer instance JSON: missing 'definition' field"
-                );
-            }
-
-            // Reconstruct definition first
-            auto bufferDef = ShaderLib::BufferObjectDefinition::FromJson(j.at("definition"));
-
-            // Create instance
-            auto instance = bufferDef->CreateInstance();
-
-            // Load field values
-            if (!instance->FromJson(j)) {
-                throw std::runtime_error("Failed to deserialize buffer instance fields");
-            }
-
-            return instance;
         }
     }
 
@@ -241,43 +132,45 @@ namespace AssetLib {
 
         MaterialHeader header{};
         CopyToArray(header.shaderName, material.shaderName);
+        header.bufferCount = static_cast<uint32_t>(material.buffers.size());
         header.samplerCount = static_cast<uint32_t>(material.samplers.size());
 
-        std::string inputBufferJson, outputBufferJson, inputOutputBufferJson;
+        // Prepare buffer entries and JSONs
+        std::vector<BinaryBufferEntry> bufferEntries;
+        std::vector<std::string> bufferJsons;
+        bufferEntries.reserve(material.buffers.size());
+        bufferJsons.reserve(material.buffers.size());
 
-        // IMPORTANT: Serialize with FULL definition (not just fields)
-        if (material.inputBuffer) {
-            inputBufferJson = material.inputBuffer->ToJson().dump();
-            header.inputBufferSize = static_cast<uint32_t>(inputBufferJson.size());
+        uint32_t totalBufferDataSize = 0;
+
+        for (const auto& [bufferName, bufferValues] : material.buffers) {
+            BinaryBufferEntry entry{};
+            CopyToArray(entry.bufferName, bufferName);
+
+            std::string bufferJson = bufferValues.dump();
+            entry.dataSize = static_cast<uint32_t>(bufferJson.size());
+
+            totalBufferDataSize += entry.dataSize;
+
+            bufferEntries.push_back(entry);
+            bufferJsons.push_back(std::move(bufferJson));
         }
 
-        if (material.outputBuffer) {
-            outputBufferJson = material.outputBuffer->ToJson().dump();
-            header.outputBufferSize = static_cast<uint32_t>(outputBufferJson.size());
-        }
-
-        if (material.inputOutputBuffer) {
-            inputOutputBufferJson = material.inputOutputBuffer->ToJson().dump();
-            header.inputOutputBufferSize = static_cast<uint32_t>(inputOutputBufferJson.size());
-        }
-
-        header.totalDataSize = header.inputBufferSize + header.outputBufferSize +
-            header.inputOutputBufferSize;
+        header.totalBufferDataSize = totalBufferDataSize;
 
         // Write header
         const uint8_t* headerBytes = reinterpret_cast<const uint8_t*>(&header);
         binaryData.insert(binaryData.end(), headerBytes, headerBytes + sizeof(MaterialHeader));
 
+        // Write buffer entries
+        for (const auto& entry : bufferEntries) {
+            const uint8_t* entryBytes = reinterpret_cast<const uint8_t*>(&entry);
+            binaryData.insert(binaryData.end(), entryBytes, entryBytes + sizeof(BinaryBufferEntry));
+        }
+
         // Write buffer JSONs
-        if (!inputBufferJson.empty()) {
-            binaryData.insert(binaryData.end(), inputBufferJson.begin(), inputBufferJson.end());
-        }
-        if (!outputBufferJson.empty()) {
-            binaryData.insert(binaryData.end(), outputBufferJson.begin(), outputBufferJson.end());
-        }
-        if (!inputOutputBufferJson.empty()) {
-            binaryData.insert(binaryData.end(), inputOutputBufferJson.begin(),
-                inputOutputBufferJson.end());
+        for (const auto& bufferJson : bufferJsons) {
+            binaryData.insert(binaryData.end(), bufferJson.begin(), bufferJson.end());
         }
 
         // Write samplers
@@ -349,38 +242,36 @@ namespace AssetLib {
         MaterialDefinition material;
         material.shaderName = ExtractFromArray(header->shaderName);
 
-        // FIXED: Deserialize buffers from stored JSON (full format with definition)
-        if (header->inputBufferSize > 0) {
-            std::string bufferJson(
-                reinterpret_cast<const char*>(binaryData.data() + offset),
-                header->inputBufferSize
-            );
-            offset += header->inputBufferSize;
+        // Read buffer entries
+        std::vector<BinaryBufferEntry> bufferEntries;
+        bufferEntries.reserve(header->bufferCount);
 
-            json j = json::parse(bufferJson);
-            material.inputBuffer = DeserializeBufferInstance(j);
+        for (uint32_t i = 0; i < header->bufferCount; ++i) {
+            if (offset + sizeof(BinaryBufferEntry) > binaryData.size()) {
+                throw std::runtime_error("Invalid material data: truncated buffer entries");
+            }
+
+            const BinaryBufferEntry* entry =
+                reinterpret_cast<const BinaryBufferEntry*>(binaryData.data() + offset);
+            offset += sizeof(BinaryBufferEntry);
+
+            bufferEntries.push_back(*entry);
         }
 
-        if (header->outputBufferSize > 0) {
+        // Read buffer JSONs
+        for (const auto& entry : bufferEntries) {
+            if (offset + entry.dataSize > binaryData.size()) {
+                throw std::runtime_error("Invalid material data: truncated buffer JSON");
+            }
+
             std::string bufferJson(
                 reinterpret_cast<const char*>(binaryData.data() + offset),
-                header->outputBufferSize
+                entry.dataSize
             );
-            offset += header->outputBufferSize;
+            offset += entry.dataSize;
 
-            json j = json::parse(bufferJson);
-            material.outputBuffer = DeserializeBufferInstance(j);
-        }
-
-        if (header->inputOutputBufferSize > 0) {
-            std::string bufferJson(
-                reinterpret_cast<const char*>(binaryData.data() + offset),
-                header->inputOutputBufferSize
-            );
-            offset += header->inputOutputBufferSize;
-
-            json j = json::parse(bufferJson);
-            material.inputOutputBuffer = DeserializeBufferInstance(j);
+            std::string bufferName = ExtractFromArray(entry.bufferName);
+            material.buffers[bufferName] = json::parse(bufferJson);
         }
 
         // Deserialize samplers
@@ -450,6 +341,31 @@ namespace AssetLib {
     }
 
     // ============================================================================
+    // BUFFER INSTANCE CREATION
+    // ============================================================================
+
+    std::shared_ptr<ShaderLib::BufferObjectInstance> CreateBufferInstanceFromMaterial(
+        std::shared_ptr<const ShaderLib::BufferObjectDefinition> shaderBufferDef,
+        const json& materialFieldValues)
+    {
+        if (!shaderBufferDef) {
+            return nullptr;
+        }
+
+        // Create instance from shader definition (with default values)
+        auto instance = shaderBufferDef->CreateInstance();
+
+        // Fill with material values (matching fields by name)
+        // Fields not in materialFieldValues keep their defaults
+        // Extra fields in materialFieldValues are ignored
+        if (!materialFieldValues.is_null() && materialFieldValues.is_object()) {
+            FillBufferFieldsFromJson(instance, materialFieldValues);
+        }
+
+        return instance;
+    }
+
+    // ============================================================================
     // JSON SERIALIZATION 
     // ============================================================================
 
@@ -475,32 +391,30 @@ namespace AssetLib {
         MaterialDefinition material;
         material.shaderName = j.at("shader").get<std::string>();
 
-        // Reconstruct buffers with explicit types
-        if (j.contains("inputBuffer")) {
-            material.inputBuffer = ReconstructBufferFromJson(
-                j["inputBuffer"],
-                "InputData",
-                ShaderLib::BufferType::Uniform,
-                ShaderLib::LayoutStandard::Std140
-            );
-        }
+        // Parse buffers - support two formats:
+        // 1. Nested format: "buffers": { "BufferName1": {...}, "BufferName2": {...} }
+        // 2. Flat format: "BufferName1": {...}, "BufferName2": {...} at top level
 
-        if (j.contains("outputBuffer")) {
-            material.outputBuffer = ReconstructBufferFromJson(
-                j["outputBuffer"],
-                "OutputData",
-                ShaderLib::BufferType::Storage,
-                ShaderLib::LayoutStandard::Std430
-            );
+        if (j.contains("buffers") && j["buffers"].is_object()) {
+            // Nested format
+            for (const auto& [bufferName, bufferValues] : j["buffers"].items()) {
+                if (bufferValues.is_object()) {
+                    material.buffers[bufferName] = bufferValues;
+                }
+            }
         }
+        else {
+            // Flat format - scan for objects that aren't "shader" or "samplers"
+            for (const auto& [key, value] : j.items()) {
+                if (key == "shader" || key == "samplers") {
+                    continue;
+                }
 
-        if (j.contains("inputOutputBuffer")) {
-            material.inputOutputBuffer = ReconstructBufferFromJson(
-                j["inputOutputBuffer"],
-                "InputOutputData",
-                ShaderLib::BufferType::Storage,
-                ShaderLib::LayoutStandard::Std430
-            );
+                if (value.is_object()) {
+                    // This is a buffer
+                    material.buffers[key] = value;
+                }
+            }
         }
 
         if (j.contains("samplers") && j["samplers"].is_array()) {

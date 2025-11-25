@@ -1,13 +1,13 @@
 #pragma once
 #include "ShaderLib.h"
-#include "BufferObjectDefinition.h"
-#include "BufferObjectInstance.h"
 #include <string>
 #include <vector>
-#include <optional>
-#include <memory>
+#include <unordered_map>
+#include <json.hpp>
 
 namespace AssetLib {
+
+    using json = nlohmann::json;
 
     // ============================================================================
     // SAMPLER CONFIGURATION
@@ -48,18 +48,51 @@ namespace AssetLib {
     };
 
     // ============================================================================
-    // MATERIAL DEFINITION (High-level, maps to CustomDescriptorSet)
+    // MATERIAL DEFINITION (IN-MEMORY, FROM ASSET)
     // ============================================================================
 
+    /**
+     * MaterialDefinition - In-memory representation of a material asset
+     *
+     * KEY DESIGN PRINCIPLE:
+     * - Material assets store ONLY field VALUES (JSON)
+     * - Material assets do NOT store buffer structure/types
+     * - Buffer structure always comes from shader definition
+     *
+     * This ensures:
+     * - Shader is always source of truth for structure
+     * - Materials are backwards compatible when shaders evolve
+     * - No need for validation or synchronization
+     *
+     * Example:
+     * Shader defines:
+     *   layout(set = 2, binding = 0) uniform MaterialParams {
+     *       vec3 color;
+     *       float roughness;
+     *   };
+     *
+     * Material asset stores:
+     *   "MaterialParams": {
+     *     "color": [1.0, 0.0, 0.0],
+     *     "roughness": 0.5
+     *   }
+     *
+     * At runtime:
+     * 1. Get buffer definition from shader: GetInputDataBuffer()
+     * 2. Create instance: definition->CreateInstance()
+     * 3. Fill values: CreateBufferInstanceFromMaterial(definition, materialValues)
+     */
     struct MaterialDefinition {
         std::string shaderName;
 
-        // Buffers at specific bindings
-        std::shared_ptr<ShaderLib::BufferObjectInstance> inputBuffer;      // binding 0
-        std::shared_ptr<ShaderLib::BufferObjectInstance> outputBuffer;     // binding 1
-        std::shared_ptr<ShaderLib::BufferObjectInstance> inputOutputBuffer; // binding 2
+        // Buffer field values from .mat file
+        // Key: buffer name (e.g. "InputData", "MaterialParams", etc.)
+        // Value: JSON object with field values (NOT structure, just values!)
+        // 
+        // These are just VALUES - the structure comes from the shader.
+        std::unordered_map<std::string, json> buffers;
 
-        // Samplers starting at binding 3
+        // Samplers
         std::vector<SamplerDescription> samplers;
 
         // ---- Helper Methods ----
@@ -74,10 +107,24 @@ namespace AssetLib {
         // Get all texture dependencies
         std::vector<std::string> GetTextureDependencies() const;
 
-        // Check which buffers are used
-        bool HasInputBuffer() const { return inputBuffer != nullptr; }
-        bool HasOutputBuffer() const { return outputBuffer != nullptr; }
-        bool HasInputOutputBuffer() const { return inputOutputBuffer != nullptr; }
+        // Buffer operations
+        bool HasBuffer(const std::string& name) const {
+            return buffers.find(name) != buffers.end();
+        }
+
+        const json* GetBufferValues(const std::string& name) const {
+            auto it = buffers.find(name);
+            return it != buffers.end() ? &it->second : nullptr;
+        }
+
+        std::vector<std::string> GetBufferNames() const {
+            std::vector<std::string> names;
+            names.reserve(buffers.size());
+            for (const auto& [name, _] : buffers) {
+                names.push_back(name);
+            }
+            return names;
+        }
 
         // Ensure samplers have correct bindings
         void NormalizeSamplerBindings();
@@ -91,11 +138,14 @@ namespace AssetLib {
 
     struct MaterialHeader {
         std::array<char, 64> shaderName;
-        uint32_t inputBufferSize;       // 0 if not present
-        uint32_t outputBufferSize;      // 0 if not present
-        uint32_t inputOutputBufferSize; // 0 if not present
+        uint32_t bufferCount;           // Number of buffers
         uint32_t samplerCount;
-        uint32_t totalDataSize;
+        uint32_t totalBufferDataSize;   // Total size of all buffer JSONs
+    };
+
+    struct BinaryBufferEntry {
+        std::array<char, 64> bufferName;
+        uint32_t dataSize;              // Size of JSON data for this buffer
     };
 
     struct BinarySamplerConfig {
@@ -118,12 +168,8 @@ namespace AssetLib {
 
     // Binary layout:
     // [MaterialHeader]
-    // [Buffer Definition JSON for Input] (if inputBufferSize > 0)
-    // [Buffer Definition JSON for Output] (if outputBufferSize > 0)
-    // [Buffer Definition JSON for InputOutput] (if inputOutputBufferSize > 0)
+    // [BinaryBufferEntry] * bufferCount
+    // [Buffer Field Values JSON] * bufferCount (concatenated, sizes in entries)
     // [BinarySamplerConfig] * samplerCount
-    // [Input Buffer Data] (if present)
-    // [Output Buffer Data] (if present)
-    // [InputOutput Buffer Data] (if present)
 
 } // namespace AssetLib

@@ -146,7 +146,6 @@
   <ItemGroup>
     <ClInclude Include="BufferObjectDefinition.h" />
     <ClInclude Include="BufferObjectInstance.h" />
-    <ClInclude Include="BufferValidator.h" />
     <ClInclude Include="BuiltInBuffers.h" />
     <ClInclude Include="BuiltInStructures.h" />
     <ClInclude Include="DescriptorBuilder.h" />
@@ -169,7 +168,6 @@
   <ItemGroup>
     <ClCompile Include="BufferObjectDefinition.cpp" />
     <ClCompile Include="BufferObjectInstance.cpp" />
-    <ClCompile Include="BufferValidator.cpp" />
     <ClCompile Include="FieldProxy.cpp" />
     <ClCompile Include="Serialization.cpp" />
     <ClCompile Include="pch.cpp">

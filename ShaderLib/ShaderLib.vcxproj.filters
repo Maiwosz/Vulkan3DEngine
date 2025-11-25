@@ -37,9 +37,6 @@
     <ClInclude Include="IBufferMapping.h">
       <Filter>Buffers</Filter>
     </ClInclude>
-    <ClInclude Include="BufferValidator.h">
-      <Filter>Buffers\BufferValidator</Filter>
-    </ClInclude>
     <ClInclude Include="FieldProxy.h">
       <Filter>Buffers\BufferObjectInstance\FieldProxy</Filter>
     </ClInclude>
@@ -74,9 +71,6 @@
     <ClCompile Include="BufferLayout.cpp">
       <Filter>Buffers\BufferObjectInstance\BufferObjectDefinition\BufferLayout</Filter>
     </ClCompile>
-    <ClCompile Include="BufferValidator.cpp">
-      <Filter>Buffers\BufferValidator</Filter>
-    </ClCompile>
     <ClCompile Include="FieldProxy.cpp">
       <Filter>Buffers\BufferObjectInstance\FieldProxy</Filter>
     </ClCompile>
@@ -97,9 +91,6 @@
     </Filter>
     <Filter Include="Buffers\BufferObjectInstance">
       <UniqueIdentifier>{f160becd-ded1-46ef-80aa-fb2ca60f7bdf}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Buffers\BufferValidator">
-      <UniqueIdentifier>{daa3a40a-25fb-4030-bc8e-4c7ed734bcf7}</UniqueIdentifier>
     </Filter>
     <Filter Include="Buffers\BufferObjectInstance\FieldProxy">
       <UniqueIdentifier>{3523ae9c-5994-4c12-b9b5-df4f67d57c86}</UniqueIdentifier>

@@ -3,6 +3,7 @@
 #include "AssetHandle.h"
 #include <vector>
 #include <string>
+#include <FieldProxy.h>
 
 // Forward declarations
 class Material;

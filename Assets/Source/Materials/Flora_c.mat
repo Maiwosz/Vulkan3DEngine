@@ -1,22 +1,10 @@
 {
   "shader": "Phong",
-  "inputBuffer": {
-    "shininess": {
-      "baseType": "float",
-      "value": 1.0
-    },
-    "ka": {
-      "baseType": "float",
-      "value": 0.005
-    },
-    "kd": {
-      "baseType": "float",
-      "value": 0.8
-    },
-    "ks": {
-      "baseType": "float",
-      "value": 0.2
-    }
+  "InputData": {
+    "shininess": 1.0,
+    "ka": 0.005,
+    "kd": 0.8,
+    "ks": 0.2
   },
   "samplers": [
     {
