@@ -369,18 +369,51 @@ namespace AssetLib {
 
     SamplerDescription SamplerConfigFromJson(const json& j) {
         SamplerDescription config;
+
+        // Required fields
         config.name = j.at("name").get<std::string>();
         config.descriptorType = ShaderLib::StringToDescriptorType(j.at("descriptorType").get<std::string>());
         config.texturePath = j.at("texturePath").get<std::string>();
-        config.colorSpace = StringToColorSpace(j.at("colorSpace").get<std::string>());
-        config.magFilter = StringToFilter(j.at("magFilter").get<std::string>());
-        config.minFilter = StringToFilter(j.at("minFilter").get<std::string>());
-        config.addressModeU = StringToAddressMode(j.at("addressModeU").get<std::string>());
-        config.addressModeV = StringToAddressMode(j.at("addressModeV").get<std::string>());
-        config.addressModeW = StringToAddressMode(j.at("addressModeW").get<std::string>());
-        config.anisotropy = j.at("anisotropy").get<float>();
-        config.minLod = j.at("minLod").get<float>();
-        config.maxLod = j.at("maxLod").get<float>();
+
+        // Optional fields with defaults
+        if (j.contains("colorSpace")) {
+            config.colorSpace = StringToColorSpace(j.at("colorSpace").get<std::string>());
+        }
+
+        if (j.contains("magFilter")) {
+            config.magFilter = StringToFilter(j.at("magFilter").get<std::string>());
+        }
+
+        if (j.contains("minFilter")) {
+            config.minFilter = StringToFilter(j.at("minFilter").get<std::string>());
+        }
+
+        if (j.contains("addressModeU")) {
+            config.addressModeU = StringToAddressMode(j.at("addressModeU").get<std::string>());
+        }
+
+        if (j.contains("addressModeV")) {
+            config.addressModeV = StringToAddressMode(j.at("addressModeV").get<std::string>());
+        }
+
+        if (j.contains("addressModeW")) {
+            config.addressModeW = StringToAddressMode(j.at("addressModeW").get<std::string>());
+        }
+
+        if (j.contains("anisotropy")) {
+            config.anisotropy = j.at("anisotropy").get<float>();
+        }
+
+        if (j.contains("minLod")) {
+            config.minLod = j.at("minLod").get<float>();
+        }
+
+        if (j.contains("maxLod")) {
+            config.maxLod = j.at("maxLod").get<float>();
+        }
+
+        // Any other fields (like "binding") are silently ignored
+
         return config;
     }
 
