@@ -21,7 +21,10 @@ namespace ShaderLib {
     // ============================================================================
     // BUFFER OBJECT DEFINITION
     // 
-    // NOWE: Zawiera BufferAccessPatterns definiujące wzorce dostępu CPU/GPU
+    // HIERARCHICAL ACCESS PRIORITY:
+    // 1. BufferType (highest) - Uniform = GPU ReadOnly, cannot be overridden
+    // 2. BufferAccessPatterns - Defines buffer-level default access
+    // 3. Field AccessOperation (lowest) - Can only further restrict access
     // 
     // Contains:
     // - BufferLayout (structure + computed layout)
@@ -94,7 +97,7 @@ namespace ShaderLib {
         void SetUseInstanceName(bool use) { m_useInstanceName = use; }
 
         // ========================================================================
-        // NOWE: ACCESS PATTERNS
+        // ACCESS PATTERNS & HIERARCHICAL RESOLUTION
         // ========================================================================
 
         const BufferAccessPatterns& GetAccessPatterns() const {
@@ -108,6 +111,19 @@ namespace ShaderLib {
         const ProcessorAccessProfile& GetGPUAccessProfile() const {
             return m_accessPatterns.gpuAccess;
         }
+
+        // HIERARCHICAL ACCESS RESOLUTION:
+        // Returns effective GPU access considering priority:
+        // 1. BufferType (Uniform -> ReadOnly)
+        // 2. BufferAccessPatterns
+        AccessOperation GetEffectiveGPUAccessOperation() const;
+
+        // Returns effective field access considering buffer restrictions:
+        // Field access can only further restrict buffer-level access
+        AccessOperation GetEffectiveFieldAccessOperation(const FieldDescriptor& field) const;
+
+        // Convert AccessOperation to GLSL qualifier string ("readonly", "writeonly", "")
+        std::string AccessOperationToGLSLQualifier(AccessOperation operation) const;
 
         // Query helpers
         bool IsCPUVisible() const { return m_accessPatterns.IsCPUVisible(); }

@@ -91,26 +91,83 @@ namespace ShaderLib {
     }
 
     // ============================================================================
-    // GLSL GENERATION
+    // ACCESS QUALIFIER RESOLUTION - HIERARCHICAL PRIORITY
     // ============================================================================
 
-    std::string BufferObjectDefinition::GetAccessQualifier() const {
+    AccessOperation BufferObjectDefinition::GetEffectiveGPUAccessOperation() const {
+        // PRIORITY 1: BufferType - Uniform buffers are ALWAYS readonly for GPU
         if (m_bufferType == BufferType::Uniform) {
-            return "";
+            return AccessOperation::ReadOnly;
         }
 
-        // Używamy AccessPatterns zamiast analizy pól
-        const auto& gpuAccess = m_accessPatterns.gpuAccess;
+        // PRIORITY 2: BufferAccessPatterns - defines buffer-level access
+        return m_accessPatterns.gpuAccess.operation;
+    }
 
-        switch (gpuAccess.operation) {
+    AccessOperation BufferObjectDefinition::GetEffectiveFieldAccessOperation(
+        const FieldDescriptor& field
+    ) const {
+        // Start with effective buffer-level access
+        AccessOperation bufferAccess = GetEffectiveGPUAccessOperation();
+        AccessOperation fieldAccess = field.accessOperation;
+
+        // PRIORITY HIERARCHY:
+        // 1. BufferType (already applied in bufferAccess)
+        // 2. BufferAccessPatterns (already applied in bufferAccess)
+        // 3. Field AccessOperation (can only further restrict)
+
+        // If buffer is readonly, field MUST be readonly
+        if (bufferAccess == AccessOperation::ReadOnly) {
+            return AccessOperation::ReadOnly;
+        }
+
+        // If buffer is writeonly, field can be writeonly or none
+        if (bufferAccess == AccessOperation::WriteOnly) {
+            if (fieldAccess == AccessOperation::ReadOnly ||
+                fieldAccess == AccessOperation::ReadWrite) {
+                // Field cannot be more permissive than buffer
+                return AccessOperation::WriteOnly;
+            }
+            return fieldAccess; // WriteOnly or None
+        }
+
+        // If buffer is readwrite, field can specify any restriction
+        if (bufferAccess == AccessOperation::ReadWrite) {
+            return fieldAccess; // Any access level is valid
+        }
+
+        // Default: use field access
+        return fieldAccess;
+    }
+
+    std::string BufferObjectDefinition::AccessOperationToGLSLQualifier(
+        AccessOperation operation
+    ) const {
+        switch (operation) {
         case AccessOperation::ReadOnly:
             return "readonly";
         case AccessOperation::WriteOnly:
             return "writeonly";
         case AccessOperation::ReadWrite:
+        case AccessOperation::None:
         default:
             return "";
         }
+    }
+
+    // ============================================================================
+    // GLSL GENERATION
+    // ============================================================================
+
+    std::string BufferObjectDefinition::GetAccessQualifier() const {
+        if (m_bufferType == BufferType::Uniform) {
+            // Uniform buffers don't use explicit qualifiers (implicitly readonly)
+            return "";
+        }
+
+        // Get effective GPU access operation
+        AccessOperation effectiveAccess = GetEffectiveGPUAccessOperation();
+        return AccessOperationToGLSLQualifier(effectiveAccess);
     }
 
     std::string BufferObjectDefinition::GenerateBufferGLSL(
@@ -147,6 +204,15 @@ namespace ShaderLib {
             const auto& field = allFields[index];
 
             ss << "    ";
+
+            // Field-level access qualifier (only for storage buffers)
+            if (m_bufferType == BufferType::Storage) {
+                AccessOperation effectiveFieldAccess = GetEffectiveFieldAccessOperation(field);
+                std::string fieldQualifier = AccessOperationToGLSLQualifier(effectiveFieldAccess);
+                if (!fieldQualifier.empty()) {
+                    ss << fieldQualifier << " ";
+                }
+            }
 
             // Type name
             if (field.isBaseType) {
