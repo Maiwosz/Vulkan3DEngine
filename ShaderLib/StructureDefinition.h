@@ -3,6 +3,7 @@
 #include <string>
 #include <vector>
 #include <memory>
+#include "BufferAccessPatterns.h"
 
 namespace ShaderLib {
 
@@ -30,7 +31,7 @@ namespace ShaderLib {
             uint32_t arraySize;  // 0 = not array, >0 = array size
 
             // Access mode
-            BufferAccessMode accessMode;
+            AccessOperation accessOperation;
 
             // Helpers
             bool isBaseType() const { return structDef == nullptr; }
@@ -40,7 +41,7 @@ namespace ShaderLib {
                 : baseType(BaseType::Unknown)
                 , structDef(nullptr)
                 , arraySize(0)
-                , accessMode(BufferAccessMode::ReadWrite)
+                , accessOperation(AccessOperation::ReadWrite)
             {
             }
         };
@@ -55,7 +56,7 @@ namespace ShaderLib {
             FieldBuilder& BaseType(ShaderLib::BaseType type);
             FieldBuilder& Structure(std::shared_ptr<const StructureDefinition> structDef);
             FieldBuilder& Array(uint32_t size);
-            FieldBuilder& Access(BufferAccessMode mode);
+            FieldBuilder& Access(AccessOperation operation);
 
             StructureDefinition& End();
 
@@ -77,14 +78,14 @@ namespace ShaderLib {
             const std::string& name,
             BaseType type,
             uint32_t arraySize = 0,
-            BufferAccessMode accessMode = BufferAccessMode::ReadWrite
+            AccessOperation accessOperation = AccessOperation::ReadWrite
         );
 
         StructureDefinition& AddField(
             const std::string& name,
             std::shared_ptr<const StructureDefinition> structDef,
             uint32_t arraySize = 0,
-            BufferAccessMode accessMode = BufferAccessMode::ReadWrite
+            AccessOperation accessOperation = AccessOperation::ReadWrite
         );
 
         // ========================================================================

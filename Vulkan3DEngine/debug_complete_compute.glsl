@@ -26,12 +26,12 @@ layout(std140, set = 2, binding = 0) uniform InputData {
     uint minPopulation;
     uint enableGPUAggregation;
 } inputData;
-layout(std430, set = 2, binding = 1) buffer OutputData {
-    AggregateData aggregate;
-} outputData;
-layout(std430, set = 2, binding = 2) buffer InputOutputData {
+layout(std430, set = 2, binding = 1) buffer InputOutputData {
     ProvinceData provinces[1048576];
 } inputOutputData;
+layout(std430, set = 2, binding = 2) writeonly buffer OutputData {
+    AggregateData aggregate;
+} outputData;
 
 layout(local_size_x = 256, local_size_y = 1, local_size_z = 1) in;
 

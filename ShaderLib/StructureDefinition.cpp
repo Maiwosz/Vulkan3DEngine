@@ -46,9 +46,9 @@ namespace ShaderLib {
     }
 
     StructureDefinition::FieldBuilder& StructureDefinition::FieldBuilder::Access(
-        BufferAccessMode mode
+        AccessOperation operation
     ) {
-        m_field.accessMode = mode;
+        m_field.accessOperation = operation;
         return *this;
     }
 
@@ -74,14 +74,14 @@ namespace ShaderLib {
         const std::string& name,
         BaseType type,
         uint32_t arraySize,
-        BufferAccessMode accessMode
+        AccessOperation accessOperation
     ) {
         FieldDef field;
         field.name = name;
         field.baseType = type;
         field.structDef = nullptr;
         field.arraySize = arraySize;
-        field.accessMode = accessMode;
+        field.accessOperation = accessOperation;
 
         m_fields.push_back(field);
         return *this;
@@ -91,7 +91,7 @@ namespace ShaderLib {
         const std::string& name,
         std::shared_ptr<const StructureDefinition> structDef,
         uint32_t arraySize,
-        BufferAccessMode accessMode
+        AccessOperation accessOperation
     ) {
         if (!structDef) {
             throw std::runtime_error("Structure definition cannot be null");
@@ -102,7 +102,7 @@ namespace ShaderLib {
         field.baseType = BaseType::Unknown;
         field.structDef = structDef;
         field.arraySize = arraySize;
-        field.accessMode = accessMode;
+        field.accessOperation = accessOperation;
 
         m_fields.push_back(field);
         return *this;
@@ -165,7 +165,7 @@ namespace ShaderLib {
             json fieldJson;
             fieldJson["name"] = field.name;
             fieldJson["arraySize"] = field.arraySize;
-            fieldJson["accessMode"] = static_cast<int>(field.accessMode);
+            fieldJson["accessOperation"] = static_cast<int>(field.accessOperation);
             fieldJson["isBaseType"] = field.isBaseType();
 
             if (field.isBaseType()) {
@@ -190,20 +190,25 @@ namespace ShaderLib {
             for (const auto& fieldJson : j.at("fields")) {
                 std::string fieldName = fieldJson.at("name").get<std::string>();
                 uint32_t arraySize = fieldJson.at("arraySize").get<uint32_t>();
-                BufferAccessMode accessMode = static_cast<BufferAccessMode>(
-                    fieldJson.at("accessMode").get<int>()
-                    );
+
+                AccessOperation accessOperation = AccessOperation::ReadWrite;
+                if (fieldJson.contains("accessOperation")) {
+                    accessOperation = static_cast<AccessOperation>(
+                        fieldJson.at("accessOperation").get<int>()
+                        );
+                }
+
                 bool isBaseType = fieldJson.at("isBaseType").get<bool>();
 
                 if (isBaseType) {
                     BaseType baseType = static_cast<BaseType>(
                         fieldJson.at("baseType").get<int>()
                         );
-                    def->AddField(fieldName, baseType, arraySize, accessMode);
+                    def->AddField(fieldName, baseType, arraySize, accessOperation);
                 }
                 else {
                     auto structDef = FromJson(fieldJson.at("structDef"));
-                    def->AddField(fieldName, structDef, arraySize, accessMode);
+                    def->AddField(fieldName, structDef, arraySize, accessOperation);
                 }
             }
         }

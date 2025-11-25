@@ -1,5 +1,6 @@
 #pragma once
 #include "BufferLayout.h"
+#include "BufferAccessPatterns.h"
 #include <string>
 #include <memory>
 #include <set>
@@ -13,15 +14,18 @@ namespace ShaderLib {
     // ============================================================================
 
     enum class BufferType {
-        Uniform,  // UBO - always ReadOnly, std140
+        Uniform,  // UBO - always ReadOnly GPU, std140
         Storage   // SSBO - can be ReadOnly/WriteOnly/ReadWrite, prefer std430
     };
 
     // ============================================================================
     // BUFFER OBJECT DEFINITION
     // 
+    // NOWE: Zawiera BufferAccessPatterns definiujące wzorce dostępu CPU/GPU
+    // 
     // Contains:
     // - BufferLayout (structure + computed layout)
+    // - BufferAccessPatterns (CPU/GPU access profiles)
     // - Buffer-specific metadata (type, GLSL generation)
     // 
     // Immutable after construction.
@@ -35,13 +39,15 @@ namespace ShaderLib {
 
         BufferObjectDefinition(
             std::shared_ptr<BufferLayout> layout,
-            BufferType bufferType = BufferType::Uniform
+            BufferType bufferType,
+            const BufferAccessPatterns& accessPatterns
         );
 
         // Convenience constructor
         BufferObjectDefinition(
             std::shared_ptr<const StructureDefinition> structure,
-            BufferType bufferType = BufferType::Uniform,
+            BufferType bufferType,
+            const BufferAccessPatterns& accessPatterns,
             LayoutStandard layoutStandard = LayoutStandard::Std140
         );
 
@@ -88,23 +94,43 @@ namespace ShaderLib {
         void SetUseInstanceName(bool use) { m_useInstanceName = use; }
 
         // ========================================================================
-        // ACCESS MODE ANALYSIS
+        // NOWE: ACCESS PATTERNS
         // ========================================================================
 
-        BufferAccessMode ComputeEffectiveAccessMode() const;
-
-        bool IsReadOnly() const {
-            return m_bufferType == BufferType::Uniform;
+        const BufferAccessPatterns& GetAccessPatterns() const {
+            return m_accessPatterns;
         }
 
-        bool IsWriteOnly() const {
-            return m_bufferType == BufferType::Storage &&
-                ComputeEffectiveAccessMode() == BufferAccessMode::WriteOnly;
+        const ProcessorAccessProfile& GetCPUAccessProfile() const {
+            return m_accessPatterns.cpuAccess;
         }
 
-        bool IsReadWrite() const {
-            return m_bufferType == BufferType::Storage &&
-                ComputeEffectiveAccessMode() == BufferAccessMode::ReadWrite;
+        const ProcessorAccessProfile& GetGPUAccessProfile() const {
+            return m_accessPatterns.gpuAccess;
+        }
+
+        // Query helpers
+        bool IsCPUVisible() const { return m_accessPatterns.IsCPUVisible(); }
+        bool IsGPUVisible() const { return m_accessPatterns.IsGPUVisible(); }
+        bool IsCPUReadable() const { return m_accessPatterns.IsCPUReadable(); }
+        bool IsCPUWritable() const { return m_accessPatterns.IsCPUWritable(); }
+        bool IsGPUReadable() const { return m_accessPatterns.IsGPUReadable(); }
+        bool IsGPUWritable() const { return m_accessPatterns.IsGPUWritable(); }
+
+        AccessFrequency GetCPUAccessFrequency() const {
+            return m_accessPatterns.cpuAccess.frequency;
+        }
+
+        AccessFrequency GetGPUAccessFrequency() const {
+            return m_accessPatterns.gpuAccess.frequency;
+        }
+
+        AccessSize GetCPUAccessSize() const {
+            return m_accessPatterns.cpuAccess.size;
+        }
+
+        AccessSize GetGPUAccessSize() const {
+            return m_accessPatterns.gpuAccess.size;
         }
 
         // ========================================================================
@@ -112,6 +138,10 @@ namespace ShaderLib {
         // ========================================================================
 
         void ValidateBufferConfiguration() const;
+
+        // Walidacja wzorców dostępu
+        bool ValidateAccessPatterns() const;
+        std::string GetAccessPatternsValidationError() const;
 
         // ========================================================================
         // GLSL GENERATION
@@ -147,32 +177,38 @@ namespace ShaderLib {
 
         std::shared_ptr<const BufferLayout> m_layout;
         BufferType m_bufferType;
+        BufferAccessPatterns m_accessPatterns;
         bool m_useInstanceName;
     };
 
     // ============================================================================
-    // FACTORY HELPERS
+    // FACTORY HELPERS - ZAKTUALIZOWANE
     // ============================================================================
 
     inline std::shared_ptr<BufferObjectDefinition> MakeUniformBuffer(
-        std::shared_ptr<const StructureDefinition> structure
+        std::shared_ptr<const StructureDefinition> structure,
+        const BufferAccessPatterns& accessPatterns = BufferAccessPatterns::UniformBuffer()
     ) {
         return std::make_shared<BufferObjectDefinition>(
             structure,
             BufferType::Uniform,
+            accessPatterns,
             LayoutStandard::Std140
         );
     }
 
     inline std::shared_ptr<BufferObjectDefinition> MakeStorageBuffer(
         std::shared_ptr<const StructureDefinition> structure,
+        const BufferAccessPatterns& accessPatterns = BufferAccessPatterns::StorageBuffer(),
         LayoutStandard layoutStandard = LayoutStandard::Std430
     ) {
         return std::make_shared<BufferObjectDefinition>(
             structure,
             BufferType::Storage,
+            accessPatterns,
             layoutStandard
         );
     }
+
 
 } // namespace ShaderLib

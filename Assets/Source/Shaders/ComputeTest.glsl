@@ -4,9 +4,11 @@
 // This shader doubles all values in the buffer
 
 ShaderData {
-    InputOutputData {
+    InputOutputData:storage(
+        cpu{EveryFewFrames, ReadWrite, Small},
+        gpu{OncePerFrame, ReadWrite, Small}
+    ) {
         float values[256];  // Array of 256 float values
-		
     };
 };
 

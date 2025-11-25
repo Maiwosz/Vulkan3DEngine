@@ -1,6 +1,7 @@
 #pragma once
 #include "ShaderTypes.h"
 #include <string>
+#include "BufferAccessPatterns.h"
 
 namespace ShaderLib {
 
@@ -38,7 +39,7 @@ namespace ShaderLib {
         // Flags
         bool isBaseType;               // true = base type, false = struktura
         bool isArray;                  // true jeśli to pole array
-        BufferAccessMode accessMode;
+        AccessOperation accessOperation;
 
         // Helpers
         bool IsStructure() const { return !isBaseType; }
@@ -68,7 +69,7 @@ namespace ShaderLib {
             , parentIndex(-1)
             , isBaseType(true)
             , isArray(false)
-            , accessMode(BufferAccessMode::ReadWrite)
+            , accessOperation(AccessOperation::ReadWrite)
         {
         }
     };

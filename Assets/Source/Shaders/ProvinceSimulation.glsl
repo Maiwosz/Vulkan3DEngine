@@ -17,7 +17,10 @@ ShaderData {
         uint declining;
     };
     
-    InputData {
+    InputData:uniform(
+        cpu{OncePerFrame, WriteOnly, Tiny},
+        gpu{OncePerFrame, ReadOnly, Tiny}
+    ) {
         uint numProvinces;
         float foodConsumptionPerPop;
         float basePopulationGrowth;
@@ -25,14 +28,20 @@ ShaderData {
         float wealthPerPop;
         uint maxFoodStorage; 
         uint minPopulation;
-		uint enableGPUAggregation;
+        uint enableGPUAggregation;
     };
     
-    InputOutputData {
+    InputOutputData:storage(
+        cpu{OncePerFrame, ReadWrite, Massive},
+        gpu{OncePerFrame, ReadWrite, Massive}
+    ) {
         ProvinceData provinces[1048576];
     };
     
-    OutputData {
+    OutputData:storage(
+        cpu{Continuous, ReadOnly, Tiny},
+        gpu{Continuous, WriteOnly, Tiny}
+    ) {
         AggregateData aggregate;
     };
 };

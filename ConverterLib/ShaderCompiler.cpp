@@ -66,22 +66,6 @@ namespace Shader {
             throw std::runtime_error("No shader stages found in source");
         }
 
-        // Validate stage requirements for output/inputOutput data
-        if (data.HasOutputData() || data.HasInputOutputData()) {
-            bool hasComputeOrFragment = false;
-            for (const auto& stage : data.stages) {
-                if (stage.stage == Stage::Compute || stage.stage == Stage::Fragment) {
-                    hasComputeOrFragment = true;
-                    break;
-                }
-            }
-            if (!hasComputeOrFragment) {
-                throw std::runtime_error(
-                    "OutputData/InputOutputData requires compute or fragment stage"
-                );
-            }
-        }
-
         ShaderBuilder builder;
         ShaderReflector reflector;
 
@@ -118,11 +102,10 @@ namespace Shader {
             objectSet = objectBuilder.Build();
         }
 
-        // Build Custom descriptor set (set 2) - now fully dynamic
-        // No predefined bindings, no special treatment for input/output buffers
-        if (data.HasInputData() || data.HasOutputData() ||
-            data.HasInputOutputData() || data.HasSamplers()) {
-
+        // Build Custom descriptor set (set 2)
+        // Fully dynamic - built from bufferDefinitions and samplerVariables
+        // No predefined bindings, no special treatment
+        if (!data.bufferDefinitions.empty() || data.HasSamplers()) {
             customSet = builder.BuildCustomDescriptorSet(data);
         }
 

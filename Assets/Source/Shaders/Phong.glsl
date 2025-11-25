@@ -4,7 +4,10 @@
 #use object_ubo
 
 ShaderData {
-    InputData {
+    InputData:uniform(
+        cpu{OncePerFrame, WriteOnly, Tiny},
+        gpu{MultiplePerFrame, ReadOnly, Tiny}
+    ) {
         float shininess;
         float ka;
         float kd;
@@ -15,6 +18,7 @@ ShaderData {
         sampler2D albedo;
     };
 };
+
 
 #stage vertex
 layout(location = 0) in vec3 inPosition;

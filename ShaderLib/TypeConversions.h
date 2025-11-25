@@ -134,18 +134,5 @@ namespace ShaderLib {
                 : LayoutStandard::Std140;
         }
 
-        // ============================================================================
-        // BUFFER ACCESS MODE
-        // ============================================================================
-
-        inline const char* BufferAccessModeToString(BufferAccessMode mode) {
-            switch (mode) {
-            case BufferAccessMode::ReadOnly: return "readonly";
-            case BufferAccessMode::WriteOnly: return "writeonly";
-            case BufferAccessMode::ReadWrite: return "readwrite";
-            default: return "unknown";
-            }
-        }
-
     } // namespace TypeConversion
 } // namespace ShaderLib

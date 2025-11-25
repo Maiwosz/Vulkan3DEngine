@@ -51,16 +51,6 @@ namespace ShaderLib {
     };
 
     // ============================================================================
-    // BUFFER ACCESS MODE
-    // ============================================================================
-
-    enum class BufferAccessMode : uint8_t {
-        ReadOnly,   // uniform buffers, readonly storage buffers
-        WriteOnly,  // writeonly storage buffers
-        ReadWrite   // read/write storage buffers
-    };
-
-    // ============================================================================
     // TYPE FLAGS
     // ============================================================================
 

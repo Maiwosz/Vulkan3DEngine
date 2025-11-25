@@ -33,10 +33,6 @@ namespace ShaderLib {
     void to_json(json& j, BufferType type);
     void from_json(const json& j, BufferType& type);
 
-    // BufferAccessMode
-    void to_json(json& j, BufferAccessMode mode);
-    void from_json(const json& j, BufferAccessMode& mode);
-
     // ============================================================================
     // STRUCTURE SERIALIZATION
     // ============================================================================

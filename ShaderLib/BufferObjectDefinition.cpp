@@ -12,10 +12,12 @@ namespace ShaderLib {
 
     BufferObjectDefinition::BufferObjectDefinition(
         std::shared_ptr<BufferLayout> layout,
-        BufferType bufferType
+        BufferType bufferType,
+        const BufferAccessPatterns& accessPatterns
     )
         : m_layout(layout)
         , m_bufferType(bufferType)
+        , m_accessPatterns(accessPatterns)
         , m_useInstanceName(true)
     {
         if (!layout) {
@@ -23,14 +25,22 @@ namespace ShaderLib {
         }
 
         ValidateBufferConfiguration();
+
+        if (!ValidateAccessPatterns()) {
+            throw std::runtime_error(
+                "Invalid access patterns: " + GetAccessPatternsValidationError()
+            );
+        }
     }
 
     BufferObjectDefinition::BufferObjectDefinition(
         std::shared_ptr<const StructureDefinition> structure,
         BufferType bufferType,
+        const BufferAccessPatterns& accessPatterns,
         LayoutStandard layoutStandard
     )
         : m_bufferType(bufferType)
+        , m_accessPatterns(accessPatterns)
         , m_useInstanceName(true)
     {
         if (!structure) {
@@ -40,6 +50,12 @@ namespace ShaderLib {
         m_layout = std::make_shared<BufferLayout>(structure, layoutStandard);
 
         ValidateBufferConfiguration();
+
+        if (!ValidateAccessPatterns()) {
+            throw std::runtime_error(
+                "Invalid access patterns: " + GetAccessPatternsValidationError()
+            );
+        }
     }
 
     // ============================================================================
@@ -55,49 +71,23 @@ namespace ShaderLib {
                 );
             }
         }
+
+        // Walidacja zgodności BufferType z AccessPatterns
+        if (m_bufferType == BufferType::Uniform) {
+            if (m_accessPatterns.gpuAccess.CanWrite()) {
+                throw std::runtime_error(
+                    "Uniform buffers cannot be GPU-writable"
+                );
+            }
+        }
     }
 
-    // ============================================================================
-    // ACCESS MODE ANALYSIS
-    // ============================================================================
+    bool BufferObjectDefinition::ValidateAccessPatterns() const {
+        return m_accessPatterns.IsValid();
+    }
 
-    BufferAccessMode BufferObjectDefinition::ComputeEffectiveAccessMode() const {
-        if (m_bufferType == BufferType::Uniform) {
-            return BufferAccessMode::ReadOnly;
-        }
-
-        bool hasReadOnly = false;
-        bool hasWriteOnly = false;
-        bool hasReadWrite = false;
-
-        const auto& fields = m_layout->GetAllFields();
-        for (const auto& field : fields) {
-            if (!field.isBaseType) {
-                continue;
-            }
-
-            switch (field.accessMode) {
-            case BufferAccessMode::ReadOnly:
-                hasReadOnly = true;
-                break;
-            case BufferAccessMode::WriteOnly:
-                hasWriteOnly = true;
-                break;
-            case BufferAccessMode::ReadWrite:
-                hasReadWrite = true;
-                break;
-            }
-        }
-
-        if (hasReadWrite || (hasReadOnly && hasWriteOnly)) {
-            return BufferAccessMode::ReadWrite;
-        }
-
-        if (hasWriteOnly && !hasReadOnly) {
-            return BufferAccessMode::WriteOnly;
-        }
-
-        return BufferAccessMode::ReadOnly;
+    std::string BufferObjectDefinition::GetAccessPatternsValidationError() const {
+        return m_accessPatterns.GetValidationError();
     }
 
     // ============================================================================
@@ -109,14 +99,15 @@ namespace ShaderLib {
             return "";
         }
 
-        BufferAccessMode effectiveMode = ComputeEffectiveAccessMode();
+        // Używamy AccessPatterns zamiast analizy pól
+        const auto& gpuAccess = m_accessPatterns.gpuAccess;
 
-        switch (effectiveMode) {
-        case BufferAccessMode::ReadOnly:
+        switch (gpuAccess.operation) {
+        case AccessOperation::ReadOnly:
             return "readonly";
-        case BufferAccessMode::WriteOnly:
+        case AccessOperation::WriteOnly:
             return "writeonly";
-        case BufferAccessMode::ReadWrite:
+        case AccessOperation::ReadWrite:
         default:
             return "";
         }
@@ -259,6 +250,7 @@ namespace ShaderLib {
         json j;
         j["layout"] = m_layout->ToJson();
         j["bufferType"] = static_cast<int>(m_bufferType);
+        j["accessPatterns"] = m_accessPatterns.ToJson();
         j["useInstanceName"] = m_useInstanceName;
         return j;
     }
@@ -273,7 +265,16 @@ namespace ShaderLib {
             j.value("bufferType", static_cast<int>(BufferType::Uniform))
             );
 
-        auto definition = std::make_shared<BufferObjectDefinition>(layout, bufferType);
+        BufferAccessPatterns accessPatterns;
+        if (j.contains("accessPatterns")) {
+            accessPatterns = BufferAccessPatterns::FromJson(j.at("accessPatterns"));
+        }
+
+        auto definition = std::make_shared<BufferObjectDefinition>(
+            layout,
+            bufferType,
+            accessPatterns
+        );
 
         if (j.contains("useInstanceName")) {
             definition->SetUseInstanceName(j.at("useInstanceName").get<bool>());

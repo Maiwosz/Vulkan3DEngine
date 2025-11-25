@@ -12,34 +12,23 @@ namespace Shader {
 
     /**
      * Builds shader buffers and descriptor sets from parsed shader data
-     *
-     * Simplified approach:
-     * - No hardcoded bindings for custom descriptor set
-     * - All resources added dynamically
-     * - Find resources by name, not by predefined constants
      */
     class ShaderBuilder {
     public:
         ShaderBuilder() = default;
 
         // ====================================================================
-        // BUFFER BUILDING - Create BufferObjectDefinitions from variables
+        // BUFFER BUILDING z BufferDefinition
         // ====================================================================
 
         /**
-         * Build uniform buffer (UBO) with given name and layout
+         * Build BufferObjectDefinition from parsed BufferDefinition
+         * - Automatycznie określa layout standard (Std140 dla uniform, Std430 dla storage)
+         * - Wypełnia brakujące wartości access patterns domyślnymi dla danego typu
+         * - Waliduje poprawność access patterns
          */
-        std::shared_ptr<BufferObjectDefinition> BuildUniformBuffer(
-            const std::string& name,
-            const std::vector<InputVariable>& variables);
-
-        /**
-         * Build storage buffer (SSBO) with given name and layout
-         */
-        std::shared_ptr<BufferObjectDefinition> BuildStorageBuffer(
-            const std::string& name,
-            const std::vector<InputVariable>& variables,
-            LayoutStandard standard = LayoutStandard::Std430);
+        std::shared_ptr<BufferObjectDefinition> BuildBufferFromDefinition(
+            const BufferDefinition& bufferDef);
 
         // ====================================================================
         // DESCRIPTOR SET BUILDING
@@ -47,9 +36,9 @@ namespace Shader {
 
         /**
          * Build complete custom descriptor set from parsed data
-         * - Dynamically assigns bindings starting from 0
-         * - Adds all buffers and samplers in order
-         * - No hardcoded binding positions
+         * - Dynamicznie przypisuje bindingi startując od 0
+         * - Buduje bufory z BufferDefinition zamiast predefiniowanych zmiennych
+         * - Dodaje wszystkie bufory i samplery w kolejności
          */
         DescriptorSet BuildCustomDescriptorSet(
             const ParsedShaderData& data);
@@ -75,15 +64,6 @@ namespace Shader {
         // ====================================================================
 
         /**
-         * Add variable to structure definition
-         * Handles both base types and nested structs
-         */
-        void AddVariableToStructure(
-            std::shared_ptr<StructureDefinition> structDef,
-            const InputVariable& var,
-            LayoutStandard standard);
-
-        /**
          * Build StructureDefinition from parsed struct
          * Recursively handles nested structs
          */
@@ -92,10 +72,19 @@ namespace Shader {
             LayoutStandard standard);
 
         /**
-         * Validate variables (check for type compatibility, etc.)
+         * Build StructureDefinition from vector of StructFields
+         * Używane przy budowaniu struktur z BufferDefinition
+         */
+        std::shared_ptr<StructureDefinition> BuildStructDefinitionFromFields(
+            const std::string& name,
+            const std::vector<StructField>& fields,
+            LayoutStandard standard);
+
+        /**
+         * Validate fields (check for type compatibility, etc.)
          */
         void ValidateVariables(
-            const std::vector<InputVariable>& vars,
+            const std::vector<StructField>& fields,
             const std::string& structName);
 
         /**

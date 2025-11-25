@@ -15,7 +15,50 @@ namespace Shader {
         return (start < end) ? std::string(start, end) : std::string();
     }
 
-    // Version directive
+    // ========================================================================
+    // HELPER: CreateAccessPatterns z wartościami domyślnymi
+    // ========================================================================
+
+    ShaderLib::BufferAccessPatterns BufferDefinition::CreateAccessPatterns() const {
+        using namespace ShaderLib;
+
+        // Pobierz wartości domyślne dla danego typu bufora
+        BufferAccessPatterns defaultPatterns =
+            (bufferType == BufferType::Uniform)
+            ? BufferAccessPatterns::UniformBuffer()
+            : BufferAccessPatterns::StorageBuffer();
+
+        ProcessorAccessProfile cpuProfile = defaultPatterns.cpuAccess;
+        ProcessorAccessProfile gpuProfile = defaultPatterns.gpuAccess;
+
+        // Nadpisz wartościami z parsowania (jeśli podane)
+        if (cpuAccess.frequency.has_value()) {
+            cpuProfile.frequency = cpuAccess.frequency.value();
+        }
+        if (cpuAccess.operation.has_value()) {
+            cpuProfile.operation = cpuAccess.operation.value();
+        }
+        if (cpuAccess.size.has_value()) {
+            cpuProfile.size = cpuAccess.size.value();
+        }
+
+        if (gpuAccess.frequency.has_value()) {
+            gpuProfile.frequency = gpuAccess.frequency.value();
+        }
+        if (gpuAccess.operation.has_value()) {
+            gpuProfile.operation = gpuAccess.operation.value();
+        }
+        if (gpuAccess.size.has_value()) {
+            gpuProfile.size = gpuAccess.size.value();
+        }
+
+        return BufferAccessPatterns(cpuProfile, gpuProfile);
+    }
+
+    // ========================================================================
+    // EXISTING ACTIONS
+    // ========================================================================
+
     template<>
     struct ShaderParserPEGTL::action<grammar::version_directive> {
         template<typename ActionInput>
@@ -24,7 +67,6 @@ namespace Shader {
         }
     };
 
-    // Use directive
     template<>
     struct ShaderParserPEGTL::action<grammar::use_name> {
         template<typename ActionInput>
@@ -39,7 +81,6 @@ namespace Shader {
         }
     };
 
-    // Type name
     template<>
     struct ShaderParserPEGTL::action<grammar::type_name> {
         template<typename ActionInput>
@@ -50,7 +91,6 @@ namespace Shader {
         }
     };
 
-    // Array size
     template<>
     struct ShaderParserPEGTL::action<grammar::array_size> {
         template<typename ActionInput>
@@ -60,7 +100,6 @@ namespace Shader {
         }
     };
 
-    // Variable name
     template<>
     struct ShaderParserPEGTL::action<grammar::var_name> {
         template<typename ActionInput>
@@ -69,24 +108,28 @@ namespace Shader {
         }
     };
 
-    // Struct name
+    // ========================================================================
+    // STRUCT PARSING
+    // ========================================================================
+
     template<>
     struct ShaderParserPEGTL::action<grammar::struct_name> {
         template<typename ActionInput>
         static void apply(const ActionInput& in, ShaderParserPEGTL& parser) {
+            if (parser.parsingBuffer_) {
+                // Ignore - we're in a buffer definition
+                return;
+            }
             parser.currentStruct_.name = in.string();
             parser.currentStruct_.fields.clear();
             parser.parsingStruct_ = true;
         }
     };
 
-    // Struct field
     template<>
     struct ShaderParserPEGTL::action<grammar::struct_field> {
         template<typename ActionInput>
         static void apply(const ActionInput& in, ShaderParserPEGTL& parser) {
-            if (!parser.parsingStruct_) return;
-
             StructField field;
             field.name = parser.capturedName_;
             field.type.baseType = parser.capturedType_;
@@ -100,7 +143,12 @@ namespace Shader {
                 field.type.structDef = std::make_shared<StructDefinition>(*structDef);
             }
 
-            parser.currentStruct_.fields.push_back(field);
+            if (parser.parsingStruct_) {
+                parser.currentStruct_.fields.push_back(field);
+            }
+            else if (parser.parsingBuffer_) {
+                parser.currentBuffer_.fields.push_back(field);
+            }
 
             parser.capturedType_.clear();
             parser.capturedName_.clear();
@@ -109,69 +157,210 @@ namespace Shader {
         }
     };
 
-    // Struct definition complete
     template<>
     struct ShaderParserPEGTL::action<grammar::struct_definition> {
         template<typename ActionInput>
         static void apply(const ActionInput& in, ShaderParserPEGTL& parser) {
-            parser.data_.structDefinitions.push_back(parser.currentStruct_);
-            parser.parsingStruct_ = false;
+            if (parser.parsingStruct_) {
+                parser.data_.structDefinitions.push_back(parser.currentStruct_);
+                parser.parsingStruct_ = false;
+            }
         }
     };
 
-    // Variable declaration
+    // ========================================================================
+    // BUFFER PARSING ACTIONS
+    // ========================================================================
+
+    template<>
+    struct ShaderParserPEGTL::action<grammar::buffer_name> {
+        template<typename ActionInput>
+        static void apply(const ActionInput& in, ShaderParserPEGTL& parser) {
+            parser.currentBuffer_ = BufferDefinition();
+            parser.currentBuffer_.name = in.string();
+            parser.parsingBuffer_ = true;
+        }
+    };
+
+    template<>
+    struct ShaderParserPEGTL::action<grammar::buffer_type> {
+        template<typename ActionInput>
+        static void apply(const ActionInput& in, ShaderParserPEGTL& parser) {
+            std::string typeStr = in.string();
+            if (typeStr == "uniform") {
+                parser.currentBuffer_.bufferType = ShaderLib::BufferType::Uniform;
+            }
+            else if (typeStr == "storage") {
+                parser.currentBuffer_.bufferType = ShaderLib::BufferType::Storage;
+            }
+        }
+    };
+
+    template<>
+    struct ShaderParserPEGTL::action<grammar::processor_keyword_gpu> {
+        template<typename ActionInput>
+        static void apply(const ActionInput& in, ShaderParserPEGTL& parser) {
+            parser.capturingGPUAccess_ = true;
+            parser.capturingCPUAccess_ = false;
+            parser.currentAccessSpec_ = &parser.currentBuffer_.gpuAccess;
+        }
+    };
+
+    template<>
+    struct ShaderParserPEGTL::action<grammar::processor_keyword_cpu> {
+        template<typename ActionInput>
+        static void apply(const ActionInput& in, ShaderParserPEGTL& parser) {
+            parser.capturingCPUAccess_ = true;
+            parser.capturingGPUAccess_ = false;
+            parser.currentAccessSpec_ = &parser.currentBuffer_.cpuAccess;
+        }
+    };
+
+    template<>
+    struct ShaderParserPEGTL::action<grammar::access_frequency> {
+        template<typename ActionInput>
+        static void apply(const ActionInput& in, ShaderParserPEGTL& parser) {
+            if (!parser.currentAccessSpec_) return;
+
+            std::string freqStr = in.string();
+            using namespace ShaderLib;
+
+            if (freqStr == "Never") {
+                parser.currentAccessSpec_->frequency = AccessFrequency::Never;
+            }
+            else if (freqStr == "OneTime") {
+                parser.currentAccessSpec_->frequency = AccessFrequency::OneTime;
+            }
+            else if (freqStr == "EveryFewFrames") {
+                parser.currentAccessSpec_->frequency = AccessFrequency::EveryFewFrames;
+            }
+            else if (freqStr == "OncePerFrame") {
+                parser.currentAccessSpec_->frequency = AccessFrequency::OncePerFrame;
+            }
+            else if (freqStr == "MultiplePerFrame") {
+                parser.currentAccessSpec_->frequency = AccessFrequency::MultiplePerFrame;
+            }
+            else if (freqStr == "Continuous") {
+                parser.currentAccessSpec_->frequency = AccessFrequency::Continuous;
+            }
+        }
+    };
+
+    template<>
+    struct ShaderParserPEGTL::action<grammar::access_operation> {
+        template<typename ActionInput>
+        static void apply(const ActionInput& in, ShaderParserPEGTL& parser) {
+            if (!parser.currentAccessSpec_) return;
+
+            std::string opStr = in.string();
+            using namespace ShaderLib;
+
+            if (opStr == "None") {
+                parser.currentAccessSpec_->operation = AccessOperation::None;
+            }
+            else if (opStr == "ReadOnly") {
+                parser.currentAccessSpec_->operation = AccessOperation::ReadOnly;
+            }
+            else if (opStr == "WriteOnly") {
+                parser.currentAccessSpec_->operation = AccessOperation::WriteOnly;
+            }
+            else if (opStr == "ReadWrite") {
+                parser.currentAccessSpec_->operation = AccessOperation::ReadWrite;
+            }
+        }
+    };
+
+    template<>
+    struct ShaderParserPEGTL::action<grammar::access_size> {
+        template<typename ActionInput>
+        static void apply(const ActionInput& in, ShaderParserPEGTL& parser) {
+            if (!parser.currentAccessSpec_) return;
+
+            std::string sizeStr = in.string();
+            using namespace ShaderLib;
+
+            if (sizeStr == "None") {
+                parser.currentAccessSpec_->size = AccessSize::None;
+            }
+            else if (sizeStr == "Tiny") {
+                parser.currentAccessSpec_->size = AccessSize::Tiny;
+            }
+            else if (sizeStr == "Small") {
+                parser.currentAccessSpec_->size = AccessSize::Small;
+            }
+            else if (sizeStr == "Medium") {
+                parser.currentAccessSpec_->size = AccessSize::Medium;
+            }
+            else if (sizeStr == "Large") {
+                parser.currentAccessSpec_->size = AccessSize::Large;
+            }
+            else if (sizeStr == "VeryLarge") {
+                parser.currentAccessSpec_->size = AccessSize::VeryLarge;
+            }
+            else if (sizeStr == "Massive") {
+                parser.currentAccessSpec_->size = AccessSize::Massive;
+            }
+        }
+    };
+
+    template<>
+    struct ShaderParserPEGTL::action<grammar::buffer_definition> {
+        template<typename ActionInput>
+        static void apply(const ActionInput& in, ShaderParserPEGTL& parser) {
+            parser.data_.bufferDefinitions.push_back(parser.currentBuffer_);
+            parser.parsingBuffer_ = false;
+            parser.currentAccessSpec_ = nullptr;
+            parser.capturingGPUAccess_ = false;
+            parser.capturingCPUAccess_ = false;
+        }
+    };
+
+    // ========================================================================
+    // SAMPLERS PARSING
+    // ========================================================================
+
+    template<>
+    struct ShaderParserPEGTL::action<grammar::samplers_keyword> {
+        template<typename ActionInput>
+        static void apply(const ActionInput& in, ShaderParserPEGTL& parser) {
+            parser.parsingSamplers_ = true;
+        }
+    };
+
     template<>
     struct ShaderParserPEGTL::action<grammar::variable_decl> {
         template<typename ActionInput>
         static void apply(const ActionInput& in, ShaderParserPEGTL& parser) {
-            if (parser.parsingStruct_) return; // Handled by struct_field
-
-            InputVariable var;
-            var.name = parser.capturedName_;
-            var.isSampler = (parser.capturedType_.find("sampler") != std::string::npos);
-
-            // Build TypeInfo
-            var.typeInfo.baseType = parser.capturedType_;
-            var.typeInfo.isArray = parser.capturedIsArray_;
-            var.typeInfo.arraySize = parser.capturedArraySize_;
-
-            // Check if it's a struct type
-            const auto* structDef = parser.data_.FindStruct(parser.capturedType_);
-            if (structDef) {
-                var.typeInfo.isStruct = true;
-                var.typeInfo.structDef = std::make_shared<StructDefinition>(*structDef);
+            if (parser.parsingStruct_ || parser.parsingBuffer_) {
+                return; // Handled by struct_field
             }
 
-            // Set legacy type field for compatibility
-            var.type = parser.capturedType_;
-            if (parser.capturedIsArray_) {
-                var.type += "[" + std::to_string(parser.capturedArraySize_) + "]";
-            }
+            if (parser.parsingSamplers_) {
+                InputVariable var;
+                var.name = parser.capturedName_;
+                var.isSampler = true;
+                var.typeInfo.baseType = parser.capturedType_;
+                var.typeInfo.isArray = parser.capturedIsArray_;
+                var.typeInfo.arraySize = parser.capturedArraySize_;
+                var.type = parser.capturedType_;
+                if (parser.capturedIsArray_) {
+                    var.type += "[" + std::to_string(parser.capturedArraySize_) + "]";
+                }
 
-            // Add to appropriate vector
-            switch (parser.currentStructType_) {
-            case ShaderDataStructType::Input:
-                parser.data_.inputVariables.push_back(var);
-                break;
-            case ShaderDataStructType::Output:
-                parser.data_.outputVariables.push_back(var);
-                break;
-            case ShaderDataStructType::InputOutput:
-                parser.data_.inputOutputVariables.push_back(var);
-                break;
-            case ShaderDataStructType::Samplers:
                 parser.data_.samplerVariables.push_back(var);
-                break;
-            }
 
-            parser.capturedType_.clear();
-            parser.capturedName_.clear();
-            parser.capturedIsArray_ = false;
-            parser.capturedArraySize_ = 0;
+                parser.capturedType_.clear();
+                parser.capturedName_.clear();
+                parser.capturedIsArray_ = false;
+                parser.capturedArraySize_ = 0;
+            }
         }
     };
 
-    // Stage name
+    // ========================================================================
+    // STAGE PARSING
+    // ========================================================================
+
     template<>
     struct ShaderParserPEGTL::action<grammar::stage_name> {
         template<typename ActionInput>
@@ -199,7 +388,6 @@ namespace Shader {
         }
     };
 
-    // Stage code
     template<>
     struct ShaderParserPEGTL::action<grammar::stage_code> {
         template<typename ActionInput>
@@ -215,38 +403,9 @@ namespace Shader {
         }
     };
 
-    // Data struct type keywords
-    template<>
-    struct ShaderParserPEGTL::action<grammar::input_data_keyword> {
-        template<typename ActionInput>
-        static void apply(const ActionInput& in, ShaderParserPEGTL& parser) {
-            parser.currentStructType_ = ShaderDataStructType::Input;
-        }
-    };
-
-    template<>
-    struct ShaderParserPEGTL::action<grammar::output_data_keyword> {
-        template<typename ActionInput>
-        static void apply(const ActionInput& in, ShaderParserPEGTL& parser) {
-            parser.currentStructType_ = ShaderDataStructType::Output;
-        }
-    };
-
-    template<>
-    struct ShaderParserPEGTL::action<grammar::input_output_data_keyword> {
-        template<typename ActionInput>
-        static void apply(const ActionInput& in, ShaderParserPEGTL& parser) {
-            parser.currentStructType_ = ShaderDataStructType::InputOutput;
-        }
-    };
-
-    template<>
-    struct ShaderParserPEGTL::action<grammar::samplers_keyword> {
-        template<typename ActionInput>
-        static void apply(const ActionInput& in, ShaderParserPEGTL& parser) {
-            parser.currentStructType_ = ShaderDataStructType::Samplers;
-        }
-    };
+    // ========================================================================
+    // MAIN PARSE METHOD
+    // ========================================================================
 
     ParsedShaderData ShaderParserPEGTL::Parse(const std::string& source) {
         // Reset state
@@ -257,6 +416,9 @@ namespace Shader {
         capturedIsArray_ = false;
         capturedArraySize_ = 0;
         parsingStruct_ = false;
+        parsingBuffer_ = false;
+        parsingSamplers_ = false;
+        currentAccessSpec_ = nullptr;
 
         try {
             tao::pegtl::memory_input input(source, "shader");

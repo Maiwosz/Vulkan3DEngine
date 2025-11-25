@@ -127,27 +127,6 @@ namespace ShaderLib {
     }
 
     // ============================================================================
-    // BUFFER ACCESS MODE SERIALIZATION
-    // ============================================================================
-
-    void to_json(json& j, BufferAccessMode mode) {
-        switch (mode) {
-        case BufferAccessMode::ReadOnly: j = "ReadOnly"; break;
-        case BufferAccessMode::WriteOnly: j = "WriteOnly"; break;
-        case BufferAccessMode::ReadWrite: j = "ReadWrite"; break;
-        default: j = "Unknown"; break;
-        }
-    }
-
-    void from_json(const json& j, BufferAccessMode& mode) {
-        std::string s = j.get<std::string>();
-        if (s == "ReadOnly") mode = BufferAccessMode::ReadOnly;
-        else if (s == "WriteOnly") mode = BufferAccessMode::WriteOnly;
-        else if (s == "ReadWrite") mode = BufferAccessMode::ReadWrite;
-        else throw std::runtime_error("Unknown BufferAccessMode: " + s);
-    }
-
-    // ============================================================================
     // PUSH CONSTANT RANGE SERIALIZATION
     // ============================================================================
 

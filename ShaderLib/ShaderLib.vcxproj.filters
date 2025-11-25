@@ -49,6 +49,9 @@
     <ClInclude Include="IAsyncMemoryOperations.h">
       <Filter>Buffers</Filter>
     </ClInclude>
+    <ClInclude Include="BufferAccessPatterns.h">
+      <Filter>Buffers\BufferAccessPatterns</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="pch.cpp" />
@@ -75,6 +78,9 @@
       <Filter>Buffers\BufferObjectInstance\FieldProxy</Filter>
     </ClCompile>
     <ClCompile Include="TypeSerializationTable.cpp" />
+    <ClCompile Include="BufferAccessPatterns.cpp">
+      <Filter>Buffers\BufferAccessPatterns</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <Filter Include="ShaderTypes">
@@ -103,6 +109,9 @@
     </Filter>
     <Filter Include="Buffers\BufferObjectInstance\BufferObjectDefinition\BufferLayout\StructureDefinition">
       <UniqueIdentifier>{88774e74-2178-444e-ba58-b6c8219829d0}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Buffers\BufferAccessPatterns">
+      <UniqueIdentifier>{63a813e3-eee0-428b-9605-337ba6e2874b}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
 </Project>

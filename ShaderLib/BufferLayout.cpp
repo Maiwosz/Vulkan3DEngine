@@ -191,7 +191,7 @@ namespace ShaderLib {
         desc.parentIndex = parentIndex;
         desc.isBaseType = true;
         desc.isArray = false;
-        desc.accessMode = fieldDef.accessMode;
+        desc.accessOperation = fieldDef.accessOperation;
 
         m_allFields.push_back(desc);
         m_alignment = std::max(m_alignment, alignment);
@@ -270,7 +270,7 @@ namespace ShaderLib {
         desc.parentPath = parentPath;
         desc.parentIndex = parentIndex;
         desc.isArray = true;
-        desc.accessMode = fieldDef.accessMode;
+        desc.accessOperation = fieldDef.accessOperation;
 
         m_allFields.push_back(desc);
 
@@ -324,7 +324,7 @@ namespace ShaderLib {
         structDesc.parentIndex = parentIndex;
         structDesc.isBaseType = false;
         structDesc.isArray = false;
-        structDesc.accessMode = fieldDef.accessMode;
+        structDesc.accessOperation = fieldDef.accessOperation;
 
         m_allFields.push_back(structDesc);
 

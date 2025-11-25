@@ -144,6 +144,7 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClInclude Include="BufferAccessPatterns.h" />
     <ClInclude Include="BufferObjectDefinition.h" />
     <ClInclude Include="BufferObjectInstance.h" />
     <ClInclude Include="BuiltInBuffers.h" />
@@ -166,6 +167,7 @@
     <ClInclude Include="ValidationMacros.h" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="BufferAccessPatterns.cpp" />
     <ClCompile Include="BufferObjectDefinition.cpp" />
     <ClCompile Include="BufferObjectInstance.cpp" />
     <ClCompile Include="FieldProxy.cpp" />
