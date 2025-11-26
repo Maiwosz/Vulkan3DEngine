@@ -7,16 +7,47 @@
 #include <random>
 
 // =============================================================================
-// MOVE SEMANTICS (unchanged)
+// DESCTRUCTOR, MOVE CONSTRUCTOR, MOVE ASSIGNMENT
 // =============================================================================
+
+ProvinceSimulationTest::~ProvinceSimulationTest() {
+    // CRITICAL: Stop simulation thread BEFORE destroying anything
+    if (running_.load(std::memory_order_acquire)) {
+        running_.store(false, std::memory_order_release);
+    }
+
+    // Clear any pending work
+    stepsRequested_.store(0, std::memory_order_release);
+
+    // Wait for thread to finish
+    if (simulationThread_.joinable()) {
+        simulationThread_.join();
+    }
+
+    // Cancel any running benchmark
+    if (benchmarkRunning_.load(std::memory_order_acquire)) {
+        benchmarkRunning_.store(false, std::memory_order_release);
+    }
+
+    // Now it's safe to destroy the strategy
+    if (strategy_) {
+        strategy_->shutdown();
+        strategy_.reset();
+    }
+
+    // Clean up buffer
+    sharedBuffer_.reset();
+
+    SPDLOG_INFO("ProvinceSimulationTest destroyed safely");
+}
 
 ProvinceSimulationTest::ProvinceSimulationTest(ProvinceSimulationTest&& other) noexcept
     : CppScriptBase(std::move(other))
     , currentMode_(other.currentMode_)
     , strategy_(std::move(other.strategy_))
-    , simulationThread_(std::move(other.simulationThread_))
-    , running_(other.running_.load())
-    , stepsRequested_(other.stepsRequested_.load())
+    // DON'T move thread directly - ensure it's stopped first!
+    , running_(false) // Start with stopped state
+    , stepsRequested_(0)
     , sharedBuffer_(std::move(other.sharedBuffer_))
     , initialStats_(std::move(other.initialStats_))
     , simParams_(other.simParams_)
@@ -33,8 +64,18 @@ ProvinceSimulationTest::ProvinceSimulationTest(ProvinceSimulationTest&& other) n
     , tickCallback_(std::move(other.tickCallback_))
     , benchmarkCallback_(std::move(other.benchmarkCallback_))
 {
-    other.running_ = false;
-    other.stepsRequested_ = 0;
+    // Stop the other's thread before we do anything
+    other.running_.store(false, std::memory_order_release);
+    other.stepsRequested_.store(0, std::memory_order_release);
+
+    if (other.simulationThread_.joinable()) {
+        other.simulationThread_.join();
+    }
+
+    // Now move the thread (it's no longer joinable)
+    simulationThread_ = std::move(other.simulationThread_);
+
+    // Clear other's pointers
     other.computeDispatcher_ = nullptr;
     other.materialManager_ = nullptr;
     other.threadPool_ = nullptr;
@@ -44,19 +85,31 @@ ProvinceSimulationTest& ProvinceSimulationTest::operator=(ProvinceSimulationTest
 {
     if (this != &other)
     {
-        if (running_)
-        {
-            running_ = false;
-            if (simulationThread_.joinable())
+        // Stop OUR thread first
+        if (running_.load(std::memory_order_acquire)) {
+            running_.store(false, std::memory_order_release);
+            stepsRequested_.store(0, std::memory_order_release);
+
+            if (simulationThread_.joinable()) {
                 simulationThread_.join();
+            }
         }
 
+        // Stop OTHER's thread
+        other.running_.store(false, std::memory_order_release);
+        other.stepsRequested_.store(0, std::memory_order_release);
+
+        if (other.simulationThread_.joinable()) {
+            other.simulationThread_.join();
+        }
+
+        // Now safe to move
         CppScriptBase::operator=(std::move(other));
         currentMode_ = other.currentMode_;
         strategy_ = std::move(other.strategy_);
         simulationThread_ = std::move(other.simulationThread_);
-        running_ = other.running_.load();
-        stepsRequested_ = other.stepsRequested_.load();
+        running_.store(false, std::memory_order_release);
+        stepsRequested_.store(0, std::memory_order_release);
         sharedBuffer_ = std::move(other.sharedBuffer_);
         initialStats_ = std::move(other.initialStats_);
         simParams_ = other.simParams_;
@@ -73,8 +126,6 @@ ProvinceSimulationTest& ProvinceSimulationTest::operator=(ProvinceSimulationTest
         tickCallback_ = std::move(other.tickCallback_);
         benchmarkCallback_ = std::move(other.benchmarkCallback_);
 
-        other.running_ = false;
-        other.stepsRequested_ = 0;
         other.computeDispatcher_ = nullptr;
         other.materialManager_ = nullptr;
         other.threadPool_ = nullptr;
@@ -83,7 +134,7 @@ ProvinceSimulationTest& ProvinceSimulationTest::operator=(ProvinceSimulationTest
 }
 
 // =============================================================================
-// LIFECYCLE (unchanged)
+// LIFECYCLE
 // =============================================================================
 
 const char* ProvinceSimulationTest::getScriptName() const {
@@ -120,13 +171,17 @@ void ProvinceSimulationTest::OnUpdate(float deltaTime) {
 }
 
 void ProvinceSimulationTest::OnDestroy() {
-    SPDLOG_INFO("ProvinceSimulationTest destroyed for entity {}", entity.id);
+    SPDLOG_INFO("ProvinceSimulationTest OnDestroy for entity {}", entity.id);
 
+    // Cancel benchmark if running
     if (isBenchmarkRunning()) {
         cancelBenchmark();
     }
 
+    // Destroy strategy (this will also stop the thread)
     destroyStrategy();
+
+    // Clean up buffer
     sharedBuffer_.reset();
 }
 
@@ -368,11 +423,18 @@ void ProvinceSimulationTest::createStrategy(SimulationMode mode) {
 void ProvinceSimulationTest::destroyStrategy() {
     if (!strategy_) return;
 
-    running_ = false;
+    // Stop the simulation thread FIRST
+    running_.store(false, std::memory_order_release);
+    stepsRequested_.store(0, std::memory_order_release);
+
+    // Wait for thread to finish
     if (simulationThread_.joinable()) {
+        SPDLOG_DEBUG("Waiting for simulation thread to finish...");
         simulationThread_.join();
+        SPDLOG_DEBUG("Simulation thread joined successfully");
     }
 
+    // Now safe to shutdown strategy
     strategy_->shutdown();
     strategy_.reset();
 

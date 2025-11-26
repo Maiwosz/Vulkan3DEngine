@@ -125,7 +125,7 @@ struct BenchmarkConfig {
 class ProvinceSimulationTest : public CppScriptBase {
 public:
     ProvinceSimulationTest() = default;
-    ~ProvinceSimulationTest() override = default;
+    ~ProvinceSimulationTest() override;
 
     ProvinceSimulationTest(const ProvinceSimulationTest&) = delete;
     ProvinceSimulationTest& operator=(const ProvinceSimulationTest&) = delete;
