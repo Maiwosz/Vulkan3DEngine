@@ -179,7 +179,6 @@
     <ClCompile Include="Src\GPUSimulationStrategy.cpp" />
     <ClCompile Include="Src\CPUSimulationStrategy.cpp" />
     <ClCompile Include="Src\DescriptorSetGuard.cpp" />
-    <ClCompile Include="Src\BufferBundle.cpp" />
     <ClCompile Include="Src\CppScriptSystem.cpp" />
     <ClCompile Include="Src\LuaScriptSystem.cpp" />
     <ClCompile Include="Src\MaterialFactory.cpp" />
@@ -316,7 +315,6 @@
     <ClInclude Include="Src\GPUSimulationStrategy.h" />
     <ClInclude Include="Src\CPUSimulationStrategy.h" />
     <ClInclude Include="Src\DescriptorSetGuard.h" />
-    <ClInclude Include="Src\BufferBundle.h" />
     <ClInclude Include="Src\ProvinceSimulationUI.h" />
     <ClInclude Include="Src\ComputeShaderTestScript.h" />
     <ClInclude Include="Src\CppScriptBase.h" />

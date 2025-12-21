@@ -216,7 +216,15 @@ EngineCore::EngineCore(Settings& settings, Window& window)
 
         m_renderGraphManager = std::make_unique<RenderGraphManager>(
             *m_attachmentManager,
-			*m_renderPassManager
+            *m_renderPassManager
+        );
+
+        // Create compute dispatcher
+        m_computeDispatcher = std::make_unique<ComputeDispatcher>(
+            *m_vulkanContext,
+            *m_pipelineManager,
+            *m_commandBufferManager,
+            *m_syncResourceManager
         );
 
         // Create renderer
@@ -231,7 +239,7 @@ EngineCore::EngineCore(Settings& settings, Window& window)
             *m_renderPassManager,
             *m_descriptorAllocator,
             *m_pipelineManager,
-			*m_commandBufferManager,
+            *m_commandBufferManager,
             *m_syncResourceManager
         );
 
@@ -254,6 +262,7 @@ EngineCore::~EngineCore() {
 
     // Destroy managers in proper order
     m_renderer.reset();
+    m_computeDispatcher.reset();
     m_frameManager.reset();
     m_commandBufferManager.reset();
 
@@ -288,5 +297,3 @@ void EngineCore::advanceFrame()
 {
     m_frameManager->advanceFrame();
 }
-
-

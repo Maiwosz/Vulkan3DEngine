@@ -1,12 +1,12 @@
 #pragma once
 #include <string>
 #include <vector>
+#include <spdlog/spdlog.h>
 
 // ===== DEBUG TRACKING INFRASTRUCTURE =====
 #if defined(_WIN32) && defined(_DEBUG)
 #include <Windows.h>
 #include <DbgHelp.h>
-#include <spdlog/spdlog.h>
 #pragma comment(lib, "Dbghelp.lib")
 
 inline std::string GetSimpleCallStack() {

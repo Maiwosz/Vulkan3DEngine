@@ -36,13 +36,6 @@ Renderer::Renderer(
         engineCore,
         *this
     );
-
-    m_computeDispatcher = std::make_unique<ComputeDispatcher>(
-        vulkanContext,
-        pipelineManager,
-        cmdBufferManager,
-        syncManager
-    );
 }
 
 Renderer::~Renderer() {

@@ -20,6 +20,7 @@
 #include "Settings.h"
 #include "Renderer.h"
 #include "RenderTarget.h"
+#include "ComputeDispatcher.h"
 #include <optional> 
 
 class Renderer;
@@ -51,11 +52,12 @@ public:
     TextureManager& textureManager() { return *m_textureManager; }
     FrameBufferManager& framebufferManager() { return *m_framebufferManager; }
     PipelineManager& pipelineManager() { return *m_pipelineManager; }
-    DescriptorAllocator& descriptorAllocator() { 
+    DescriptorAllocator& descriptorAllocator() {
         // Musi to być tak, ponieważ inaczej nie działa. Dlaczego? Nie wiem...
-		DescriptorAllocator& alloc = *m_descriptorAllocator;
+        DescriptorAllocator& alloc = *m_descriptorAllocator;
         return alloc;
     }
+    ComputeDispatcher& computeDispatcher() { return *m_computeDispatcher; }
     Renderer& renderer() { return *m_renderer; }
 
 private:
@@ -79,5 +81,6 @@ private:
     std::unique_ptr<FrameBufferManager> m_framebufferManager;
     std::unique_ptr<PipelineManager> m_pipelineManager;
     std::unique_ptr<DescriptorAllocator> m_descriptorAllocator;
+    std::unique_ptr<ComputeDispatcher> m_computeDispatcher;
     std::unique_ptr<Renderer> m_renderer;
 };

@@ -15,8 +15,6 @@
 #include "DescriptorSetGuard.h"
 #include <memory>
 #include <vector>
-#include "ComputeDispatcher.h"
-#include "SynchronizationResourceManager.h"
 
 // Forward declarations
 class GpuCall;
@@ -98,7 +96,6 @@ public:
     // Renderer Sub Systems
     MeshRenderer& meshRenderer() { return *m_meshRenderer; }
     RenderGraphExecutor& renderGraphExecutor() { return *m_renderGraphExecutor; }
-    ComputeDispatcher& computeDispatcher() { return *m_computeDispatcher; }
 
     std::shared_ptr<IImGuiProvider> getImGuiProvider() const { return m_renderGraphExecutor->getImGuiProvider(); }
 
@@ -118,7 +115,6 @@ private:
     // Service objects
     std::unique_ptr<MeshRenderer> m_meshRenderer;
     std::unique_ptr<RenderGraphExecutor> m_renderGraphExecutor;
-    std::unique_ptr<ComputeDispatcher> m_computeDispatcher;
 
     // Descriptor guard pool for automatic GPU usage tracking
     DescriptorSetGuardPool m_descriptorGuardPool;

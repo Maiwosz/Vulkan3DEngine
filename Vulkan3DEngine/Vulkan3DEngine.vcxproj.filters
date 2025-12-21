@@ -354,7 +354,7 @@
       <Filter>Engine\EngineCore\RenderGraphSystem\RenderGraphExecutor\IImGuiProvider\DearImGuiProvider</Filter>
     </ClCompile>
     <ClCompile Include="Src\ComputeDispatcher.cpp">
-      <Filter>Engine\EngineCore\Renderer\ComputeDispatcer</Filter>
+      <Filter>Engine\EngineCore\ComputeDispatcer</Filter>
     </ClCompile>
     <ClCompile Include="Src\DescriptorSetBuilder.cpp">
       <Filter>Engine\EngineCore\DescriptorSystem\DescriptorSetBuilder</Filter>
@@ -373,9 +373,6 @@
     </ClCompile>
     <ClCompile Include="Src\ProvinceSimulationTest.cpp">
       <Filter>Engine\Scene\EntityComponentSystem\Registry\SystemManager\Systems\ScriptSystem\CppScriptSystem\CppScripts\ProvinceSimulationTest</Filter>
-    </ClCompile>
-    <ClCompile Include="Src\BufferBundle.cpp">
-      <Filter>Engine\EngineCore\BufferManager\BufferBundle</Filter>
     </ClCompile>
     <ClCompile Include="Src\DescriptorSetGuard.cpp">
       <Filter>Engine\EngineCore\DescriptorSystem\DescriptorSetGuard</Filter>
@@ -844,7 +841,7 @@
       <Filter>Engine\EngineCore\RenderGraphSystem\RenderGraphExecutor\IImGuiProvider\DearImGuiProvider</Filter>
     </ClInclude>
     <ClInclude Include="Src\ComputeDispatcher.h">
-      <Filter>Engine\EngineCore\Renderer\ComputeDispatcer</Filter>
+      <Filter>Engine\EngineCore\ComputeDispatcer</Filter>
     </ClInclude>
     <ClInclude Include="Src\DescriptorSetBuilder.h">
       <Filter>Engine\EngineCore\DescriptorSystem\DescriptorSetBuilder</Filter>
@@ -881,9 +878,6 @@
     </ClInclude>
     <ClInclude Include="Src\ProvinceSimulationUI.h">
       <Filter>Engine\Scene\EntityComponentSystem\Registry\SystemManager\Systems\ScriptSystem\CppScriptSystem\CppScripts\ProvinceSimulationTest</Filter>
-    </ClInclude>
-    <ClInclude Include="Src\BufferBundle.h">
-      <Filter>Engine\EngineCore\BufferManager\BufferBundle</Filter>
     </ClInclude>
     <ClInclude Include="Src\DescriptorSetGuard.h">
       <Filter>Engine\EngineCore\DescriptorSystem\DescriptorSetGuard</Filter>
@@ -1270,9 +1264,6 @@
     <Filter Include="Engine\EngineCore\RenderGraphSystem\RenderGraphExecutor\IImGuiProvider\DearImGuiProvider">
       <UniqueIdentifier>{6cd33dcd-eac5-41e7-8689-7e7c67ede8de}</UniqueIdentifier>
     </Filter>
-    <Filter Include="Engine\EngineCore\Renderer\ComputeDispatcer">
-      <UniqueIdentifier>{1c3b2462-5e72-47ff-baaa-24a19b7b2498}</UniqueIdentifier>
-    </Filter>
     <Filter Include="Engine\EngineCore\DescriptorSystem\DescriptorSetBuilder">
       <UniqueIdentifier>{e3289a62-1654-4e6e-83eb-8ac7670ed8ef}</UniqueIdentifier>
     </Filter>
@@ -1315,9 +1306,6 @@
     <Filter Include="Engine\Scene\EntityComponentSystem\Registry\SystemManager\Systems\ScriptSystem\CppScriptSystem\CppScripts\ProvinceSimulationTest">
       <UniqueIdentifier>{e5ad38a3-c637-4138-850d-334fb5b68765}</UniqueIdentifier>
     </Filter>
-    <Filter Include="Engine\EngineCore\BufferManager\BufferBundle">
-      <UniqueIdentifier>{52f8f546-115b-42d6-ad5c-38158aaba9ab}</UniqueIdentifier>
-    </Filter>
     <Filter Include="Engine\EngineCore\DescriptorSystem\DescriptorSetGuard">
       <UniqueIdentifier>{b38a5d8a-89eb-4713-af74-621bc0ea0694}</UniqueIdentifier>
     </Filter>
@@ -1329,6 +1317,9 @@
     </Filter>
     <Filter Include="Engine\EngineCore\VulkanContext\VulkanRequirements">
       <UniqueIdentifier>{c2f464f8-3fe0-45ba-aec2-e7249f4edda7}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Engine\EngineCore\ComputeDispatcer">
+      <UniqueIdentifier>{1c3b2462-5e72-47ff-baaa-24a19b7b2498}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
 </Project>

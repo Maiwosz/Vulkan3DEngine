@@ -150,7 +150,7 @@ void ProvinceSimulationTest::OnCreate() {
         return;
     }
 
-    computeDispatcher_ = &engine->engineCore().renderer().computeDispatcher();
+    computeDispatcher_ = &engine->engineCore().computeDispatcher();
     materialManager_ = &engine->assetSystem().materialManager();
     threadPool_ = &engine->threadPool();
 

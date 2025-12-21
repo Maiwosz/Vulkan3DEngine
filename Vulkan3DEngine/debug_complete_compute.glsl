@@ -139,7 +139,7 @@ void main() {
     }
     
     // === WORKGROUP-LEVEL REDUCTION (tylko jeśli włączone) ===
-    if (inputData.enableGPUAggregation != 0) {
+    //if (inputData.enableGPUAggregation != 0) {
         sharedPopulation[localIdx] = localPopulation;
         sharedWealth[localIdx] = localWealth;
         sharedGrowth[localIdx] = localGrowth;
@@ -169,5 +169,5 @@ void main() {
             atomicAdd(outputData.aggregate.stable, sharedStable[0]);
             atomicAdd(outputData.aggregate.declining, sharedDeclining[0]);
         }
-    }
+    //}
 }

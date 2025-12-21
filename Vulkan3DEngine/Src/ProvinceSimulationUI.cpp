@@ -21,16 +21,21 @@ void ProvinceSimulationUI::OnCreate() {
             SPDLOG_INFO("ImGui callback registered");
         }
     }
-
-    m_tickTimeHistory.reserve(PERF_HISTORY_SIZE);
 }
 
 void ProvinceSimulationUI::OnUpdate(float deltaTime) {
     if (m_simulation) {
-        // Aktualizuj historię wydajności
-        auto stats = m_simulation->getPerformanceStats();
-        if (stats.lastTimings.totalMs > 0) {
-            addTickTimeToHistory(stats.lastTimings.totalMs);
+        uint32_t currentTick = m_simulation->getCurrentTick();
+        if (currentTick > m_perfAccumulators.lastProcessedTick) {
+            auto stats = m_simulation->getPerformanceStats();
+            if (stats.lastTimings.totalMs > 0) {
+                m_perfAccumulators.addSample(
+                    stats.lastTimings.computeMs,
+                    stats.lastTimings.readbackMs,
+                    stats.lastTimings.totalMs
+                );
+                m_perfAccumulators.lastProcessedTick = currentTick;
+            }
         }
     }
 }
@@ -91,14 +96,14 @@ void ProvinceSimulationUI::renderMainWindow() {
     // Główna zawartość - 3 sekcje
     float contentHeight = ImGui::GetContentRegionAvail().y;
 
-    // Panel wydajności - 40% wysokości
-    ImGui::BeginChild("Performance", ImVec2(0, contentHeight * 0.4f), true);
+    // Panel wydajności - 30% wysokości
+    ImGui::BeginChild("Performance", ImVec2(0, contentHeight * 0.3f), true);
     renderPerformancePanel();
     ImGui::EndChild();
 
     ImGui::Spacing();
 
-    // Dolne sekcje - 55% wysokości
+    // Dolne sekcje - 65% wysokości
     ImGui::BeginChild("BottomSection", ImVec2(0, 0), false);
     {
         float width = ImGui::GetContentRegionAvail().x;
@@ -267,16 +272,33 @@ void ProvinceSimulationUI::renderModeSelector() {
         }
     }
 
-    // Status i tick
+    // Status i tick - w prawym górnym rogu
+    float windowWidth = ImGui::GetWindowWidth();
+    ImGui::SameLine();
+
+    // Oblicz szerokość dla maks. 1,000,000 ticków + padding
+    float tickTextWidth = ImGui::CalcTextSize("Tick: 1000000").x;
+    float offsetX = windowWidth - tickTextWidth - 20.0f; // 20px padding z prawej
+
+    ImGui::SetCursorPosX(offsetX);
     ImGui::Text("Tick: %u", m_simulation->getCurrentTick());
 
+    // Statusy pod tickiem - bliżej, zmniejszony spacing
+    float currentY = ImGui::GetCursorPosY();
+    ImGui::SetCursorPosY(currentY - 15.0f); // 15px bliżej ticku
+    ImGui::SetCursorPosX(offsetX);
+
     if (isComputing) {
-        ImGui::SameLine();
         ImGui::TextColored(ImVec4(1.0f, 1.0f, 0.0f, 1.0f), "[COMPUTING]");
+    }
+    else {
+        ImGui::Dummy(ImVec2(ImGui::CalcTextSize("[COMPUTING]").x, ImGui::GetTextLineHeight()));
     }
 
     if (isBenchmarkRunning) {
-        ImGui::SameLine();
+        if (isComputing) {
+            ImGui::SameLine();
+        }
         ImGui::TextColored(ImVec4(1.0f, 0.5f, 0.0f, 1.0f), "[BENCHMARK]");
     }
 }
@@ -311,7 +333,9 @@ void ProvinceSimulationUI::renderControlButtons() {
     ImGui::SameLine();
     if (ImGui::Button("Reset", ImVec2(100, 0))) {
         m_simulation->resetSimulation();
-        m_tickTimeHistory.clear();
+        m_perfAccumulators.reset();
+        m_populationHistory.clear();
+        m_wealthHistory.clear();
     }
 
     if (isComputing) ImGui::EndDisabled();
@@ -340,18 +364,16 @@ void ProvinceSimulationUI::renderPerformancePanel() {
     ImGui::Spacing();
 
     auto stats = m_simulation->getPerformanceStats();
-    auto simParams = m_simulation->getSimulationParameters();
 
-    // Kluczowe metryki w dużej czcionce
-    ImGui::PushFont(ImGui::GetIO().Fonts->Fonts[0]); // Domyślna czcionka
+    ImGui::PushFont(ImGui::GetIO().Fonts->Fonts[0]);
 
-    ImGui::Columns(4, "PerfColumns", false);
+    // Current tick metrics
+    ImGui::TextColored(ImVec4(1.0f, 1.0f, 0.2f, 1.0f), "Current Tick:");
+    ImGui::Columns(4, "CurrentTickColumns", false);
 
-    // Kolumna 1: Compute time
     ImGui::TextColored(ImVec4(0.2f, 1.0f, 0.2f, 1.0f), "%.3f ms", stats.lastTimings.computeMs);
-    ImGui::Text("Compute/Tick");
+    ImGui::Text("Compute");
 
-    // Kolumna 2: Readback time
     ImGui::NextColumn();
     if (stats.lastTimings.readbackMs > 0.0) {
         ImGui::TextColored(ImVec4(1.0f, 0.5f, 0.2f, 1.0f), "%.3f ms", stats.lastTimings.readbackMs);
@@ -359,48 +381,60 @@ void ProvinceSimulationUI::renderPerformancePanel() {
     else {
         ImGui::TextDisabled("-");
     }
-    ImGui::Text("Readback/Tick");
+    ImGui::Text("Readback");
 
-    // Kolumna 3: Total time
     ImGui::NextColumn();
     ImGui::TextColored(ImVec4(0.2f, 0.8f, 1.0f, 1.0f), "%.3f ms", stats.lastTimings.totalMs);
-    ImGui::Text("Total/Tick");
+    ImGui::Text("Total");
 
-    // Kolumna 4: Ticks/sec (existing)
     ImGui::NextColumn();
     float ticksPerSec = stats.lastTimings.totalMs > 0 ? 1000.0f / stats.lastTimings.totalMs : 0.0f;
     ImGui::TextColored(ImVec4(1.0f, 0.8f, 0.2f, 1.0f), "%.1f", ticksPerSec);
-    ImGui::Text("Ticks/Second");
+    ImGui::Text("Ticks/Sec");
 
     ImGui::Columns(1);
-    ImGui::PopFont();
-
     ImGui::Spacing();
     ImGui::Separator();
     ImGui::Spacing();
 
-    // Wykres czasu wykonania
-    if (!m_tickTimeHistory.empty()) {
-        ImGui::Text("Tick Time History:");
-        ImGui::PlotLines("##TickTime",
-            m_tickTimeHistory.data(),
-            m_tickTimeHistory.size(),
-            0,
-            nullptr,
-            0.0f,
-            FLT_MAX,
-            ImVec2(0, 120));
+    // Average metrics
+    if (m_perfAccumulators.sampleCount > 0) {
+        ImGui::TextColored(ImVec4(0.8f, 1.0f, 1.0f, 1.0f), "Average (over %u ticks):",
+            m_perfAccumulators.sampleCount);
 
-        // Min/Max/Avg
-        float minTime = *std::min_element(m_tickTimeHistory.begin(), m_tickTimeHistory.end());
-        float maxTime = *std::max_element(m_tickTimeHistory.begin(), m_tickTimeHistory.end());
-        float avgTime = 0.0f;
-        for (float t : m_tickTimeHistory) avgTime += t;
-        avgTime /= m_tickTimeHistory.size();
+        ImGui::Columns(4, "AvgTickColumns", false);
 
-        ImGui::Text("Min: %.3f ms  |  Max: %.3f ms  |  Avg: %.3f ms",
-            minTime, maxTime, avgTime);
+        double avgCompute = m_perfAccumulators.totalComputeMs / m_perfAccumulators.sampleCount;
+        ImGui::TextColored(ImVec4(0.2f, 1.0f, 0.2f, 1.0f), "%.3f ms", avgCompute);
+        ImGui::Text("Compute");
+
+        ImGui::NextColumn();
+        double avgReadback = m_perfAccumulators.totalReadbackMs / m_perfAccumulators.sampleCount;
+        if (avgReadback > 0.0) {
+            ImGui::TextColored(ImVec4(1.0f, 0.5f, 0.2f, 1.0f), "%.3f ms", avgReadback);
+        }
+        else {
+            ImGui::TextDisabled("-");
+        }
+        ImGui::Text("Readback");
+
+        ImGui::NextColumn();
+        double avgTotal = m_perfAccumulators.totalTimeMs / m_perfAccumulators.sampleCount;
+        ImGui::TextColored(ImVec4(0.2f, 0.8f, 1.0f, 1.0f), "%.3f ms", avgTotal);
+        ImGui::Text("Total");
+
+        ImGui::NextColumn();
+        float avgTicksPerSec = avgTotal > 0 ? 1000.0f / avgTotal : 0.0f;
+        ImGui::TextColored(ImVec4(1.0f, 0.8f, 0.2f, 1.0f), "%.1f", avgTicksPerSec);
+        ImGui::Text("Ticks/Sec");
+
+        ImGui::Columns(1);
     }
+    else {
+        ImGui::TextDisabled("No performance data yet - run a tick first");
+    }
+
+    ImGui::PopFont();
 }
 
 // =============================================================================
@@ -456,18 +490,32 @@ void ProvinceSimulationUI::renderStatisticsPanel() {
     ImGui::Separator();
     ImGui::Spacing();
 
-    // Historia populacji
+    // ZMIENIONE: Historia populacji z adaptywną kompresją
     const auto& history = m_simulation->getStatisticsHistory();
-    if (history.size() > 1) {
-        std::vector<float> popHistory;
-        popHistory.reserve(std::min(history.size(), size_t(200)));
+    if (!history.empty()) {
+        // Dodaj nowy punkt do historii
+        uint32_t currentTick = history.back().tickNumber;
+        float currentPop = history.back().totalPopulation / 1000.0f;
 
-        size_t start = history.size() > 200 ? history.size() - 200 : 0;
-        for (size_t i = start; i < history.size(); ++i) {
-            popHistory.push_back(history[i].totalPopulation / 1000.0f);
+        if (m_populationHistory.empty() ||
+            m_populationHistory.back().tickNumber != currentTick) {
+
+            m_populationHistory.push_back({ currentTick, currentPop });
+
+            // Jeśli przekroczyliśmy limit, skompresuj
+            if (m_populationHistory.size() > MAX_POPULATION_HISTORY) {
+                compressPopulationHistory();
+            }
         }
 
-        ImGui::Text("Population History (millions):");
+        // Przygotuj dane do wykresu
+        std::vector<float> popHistory;
+        popHistory.reserve(m_populationHistory.size());
+        for (const auto& point : m_populationHistory) {
+            popHistory.push_back(point.population);
+        }
+
+        ImGui::Text("Population History (millions) - %zu points:", popHistory.size());
         ImGui::PlotLines("##PopHistory",
             popHistory.data(),
             popHistory.size(),
@@ -478,11 +526,63 @@ void ProvinceSimulationUI::renderStatisticsPanel() {
             ImVec2(0, 100));
 
         // Zmiana od początku
-        float initialPop = history.front().totalPopulation;
-        float currentPop = latest->totalPopulation;
-        float change = ((currentPop - initialPop) / initialPop) * 100.0f;
+        if (!m_populationHistory.empty()) {
+            float initialPop = m_populationHistory.front().population;
+            float change = ((currentPop - initialPop) / initialPop) * 100.0f;
+            ImGui::Text("Total Change: %+.2f%% from start (tick %u to %u)",
+                change,
+                m_populationHistory.front().tickNumber,
+                m_populationHistory.back().tickNumber);
+        }
+    }
 
-        ImGui::Text("Total Change: %+.2f%% from start", change);
+    ImGui::Spacing();
+    ImGui::Separator();
+    ImGui::Spacing();
+
+    // NOWE: Historia bogactwa z adaptywną kompresją
+    if (!history.empty()) {
+        // Dodaj nowy punkt do historii
+        uint32_t currentTick = history.back().tickNumber;
+        float currentWealth = history.back().totalWealth;
+
+        if (m_wealthHistory.empty() ||
+            m_wealthHistory.back().tickNumber != currentTick) {
+
+            m_wealthHistory.push_back({ currentTick, currentWealth });
+
+            // Jeśli przekroczyliśmy limit, skompresuj
+            if (m_wealthHistory.size() > MAX_WEALTH_HISTORY) {
+                compressWealthHistory();
+            }
+        }
+
+        // Przygotuj dane do wykresu
+        std::vector<float> wealthHistoryData;
+        wealthHistoryData.reserve(m_wealthHistory.size());
+        for (const auto& point : m_wealthHistory) {
+            wealthHistoryData.push_back(point.wealth);
+        }
+
+        ImGui::Text("Wealth History - %zu points:", wealthHistoryData.size());
+        ImGui::PlotLines("##WealthHistory",
+            wealthHistoryData.data(),
+            wealthHistoryData.size(),
+            0,
+            nullptr,
+            FLT_MAX,
+            FLT_MAX,
+            ImVec2(0, 100));
+
+        // Zmiana od początku
+        if (!m_wealthHistory.empty()) {
+            float initialWealth = m_wealthHistory.front().wealth;
+            float change = ((currentWealth - initialWealth) / initialWealth) * 100.0f;
+            ImGui::Text("Total Change: %+.2f%% from start (tick %u to %u)",
+                change,
+                m_wealthHistory.front().tickNumber,
+                m_wealthHistory.back().tickNumber);
+        }
     }
 }
 
@@ -646,13 +746,6 @@ void ProvinceSimulationUI::renderProvinceInspector() {
 // FUNKCJE POMOCNICZE
 // =============================================================================
 
-void ProvinceSimulationUI::addTickTimeToHistory(float timeMs) {
-    m_tickTimeHistory.push_back(timeMs);
-    if (m_tickTimeHistory.size() > PERF_HISTORY_SIZE) {
-        m_tickTimeHistory.erase(m_tickTimeHistory.begin());
-    }
-}
-
 ImVec4 ProvinceSimulationUI::getStatusColor(float growthPercent) {
     if (growthPercent > 5.0f) return ImVec4(0.2f, 1.0f, 0.2f, 1.0f);
     if (growthPercent < -5.0f) return ImVec4(1.0f, 0.2f, 0.2f, 1.0f);
@@ -663,4 +756,91 @@ const char* ProvinceSimulationUI::getStatusText(float growthPercent) {
     if (growthPercent > 5.0f) return "GROWING";
     if (growthPercent < -5.0f) return "DECLINING";
     return "STABLE";
+}
+
+void ProvinceSimulationUI::compressPopulationHistory() {
+    if (m_populationHistory.size() <= 3) return; // Potrzebujemy przynajmniej 3 punktów
+
+    size_t removeIdx = findLeastSignificantPoint();
+
+    if (removeIdx != SIZE_MAX) {
+        m_populationHistory.erase(m_populationHistory.begin() + removeIdx);
+        SPDLOG_DEBUG("Compressed population history: removed point at index {} (tick {})",
+            removeIdx, m_populationHistory[removeIdx].tickNumber);
+    }
+}
+
+size_t ProvinceSimulationUI::findLeastSignificantPoint() const {
+    if (m_populationHistory.size() <= 3) return SIZE_MAX;
+
+    size_t leastSignificantIdx = SIZE_MAX;
+    float minSignificance = std::numeric_limits<float>::max();
+
+    // Nie usuwamy pierwszego ani ostatniego punktu
+    for (size_t i = 1; i < m_populationHistory.size() - 1; ++i) {
+        const auto& prev = m_populationHistory[i - 1];
+        const auto& curr = m_populationHistory[i];
+        const auto& next = m_populationHistory[i + 1];
+
+        // Oblicz interpolowaną wartość bez tego punktu
+        float tickRange = static_cast<float>(next.tickNumber - prev.tickNumber);
+        float tickOffset = static_cast<float>(curr.tickNumber - prev.tickNumber);
+        float interpolatedValue = prev.population +
+            (next.population - prev.population) * (tickOffset / tickRange);
+
+        // Błąd interpolacji jako miara istotności punktu
+        float error = std::abs(curr.population - interpolatedValue);
+
+        // Dodatkowo: preferuj usuwanie punktów gęsto rozmieszczonych
+        float densityPenalty = 1.0f / (tickRange + 1.0f);
+        float significance = error + densityPenalty * 0.1f;
+
+        if (significance < minSignificance) {
+            minSignificance = significance;
+            leastSignificantIdx = i;
+        }
+    }
+
+    return leastSignificantIdx;
+}
+
+void ProvinceSimulationUI::compressWealthHistory() {
+    if (m_wealthHistory.size() <= 3) return;
+
+    size_t removeIdx = findLeastSignificantWealthPoint();
+
+    if (removeIdx != SIZE_MAX) {
+        m_wealthHistory.erase(m_wealthHistory.begin() + removeIdx);
+        SPDLOG_DEBUG("Compressed wealth history: removed point at index {} (tick {})",
+            removeIdx, m_wealthHistory[removeIdx].tickNumber);
+    }
+}
+
+size_t ProvinceSimulationUI::findLeastSignificantWealthPoint() const {
+    if (m_wealthHistory.size() <= 3) return SIZE_MAX;
+
+    size_t leastSignificantIdx = SIZE_MAX;
+    float minSignificance = std::numeric_limits<float>::max();
+
+    for (size_t i = 1; i < m_wealthHistory.size() - 1; ++i) {
+        const auto& prev = m_wealthHistory[i - 1];
+        const auto& curr = m_wealthHistory[i];
+        const auto& next = m_wealthHistory[i + 1];
+
+        float tickRange = static_cast<float>(next.tickNumber - prev.tickNumber);
+        float tickOffset = static_cast<float>(curr.tickNumber - prev.tickNumber);
+        float interpolatedValue = prev.wealth +
+            (next.wealth - prev.wealth) * (tickOffset / tickRange);
+
+        float error = std::abs(curr.wealth - interpolatedValue);
+        float densityPenalty = 1.0f / (tickRange + 1.0f);
+        float significance = error + densityPenalty * 0.1f;
+
+        if (significance < minSignificance) {
+            minSignificance = significance;
+            leastSignificantIdx = i;
+        }
+    }
+
+    return leastSignificantIdx;
 }
